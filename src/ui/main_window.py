@@ -4,9 +4,11 @@ Main window for Forge IDE
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QTabWidget, QMenuBar, QMenu, QStatusBar
+    QSplitter, QTabWidget, QMenuBar, QMenu, QStatusBar,
+    QFileDialog
 )
 from PySide6.QtCore import Qt
+from pathlib import Path
 from .editor_widget import EditorWidget
 from .ai_chat_widget import AIChatWidget
 
@@ -83,8 +85,32 @@ class MainWindow(QMainWindow):
         
     def _open_file(self):
         """Open a file in a new editor tab"""
-        # TODO: Implement file dialog and open
-        self.status_bar.showMessage("Open file - not yet implemented")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open File",
+            "",
+            "All Files (*);;Python Files (*.py);;Text Files (*.txt)"
+        )
+        
+        if file_path:
+            # Check if file is already open
+            for i in range(self.editor_tabs.count()):
+                widget = self.editor_tabs.widget(i)
+                if isinstance(widget, EditorWidget) and widget.filepath == file_path:
+                    self.editor_tabs.setCurrentIndex(i)
+                    self.status_bar.showMessage(f"File already open: {file_path}")
+                    return
+            
+            # Create new editor tab
+            editor = EditorWidget(filepath=file_path)
+            editor.load_file(file_path)
+            
+            # Use just the filename for the tab label
+            filename = Path(file_path).name
+            index = self.editor_tabs.addTab(editor, filename)
+            self.editor_tabs.setCurrentIndex(index)
+            
+            self.status_bar.showMessage(f"Opened: {file_path}")
         
     def _new_ai_session(self):
         """Create a new AI session tab"""

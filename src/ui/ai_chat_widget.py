@@ -4,17 +4,31 @@ AI chat widget with markdown/LaTeX rendering
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QHBoxLayout
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl, Signal
 import markdown
+import json
+import uuid
+from pathlib import Path
 
 
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering"""
     
-    def __init__(self):
+    session_updated = Signal()  # Emitted when session state changes
+    
+    def __init__(self, session_id=None, session_data=None):
         super().__init__()
+        self.session_id = session_id or str(uuid.uuid4())
+        self.branch_name = f"forge/session/{self.session_id}"
         self.messages = []
+        
+        # Load existing session or start fresh
+        if session_data:
+            self.messages = session_data.get("messages", [])
+            self.branch_name = session_data.get("branch_name", self.branch_name)
+        
         self._setup_ui()
+        self._update_chat_display()
         
     def _setup_ui(self):
         """Setup the chat UI"""
@@ -60,6 +74,36 @@ class AIChatWidget(QWidget):
         """Add a message to the chat"""
         self.messages.append({"role": role, "content": content})
         self._update_chat_display()
+        self.session_updated.emit()
+    
+    def get_session_data(self):
+        """Get session data for persistence"""
+        return {
+            "session_id": self.session_id,
+            "branch_name": self.branch_name,
+            "messages": self.messages
+        }
+    
+    def save_session(self, sessions_dir: Path):
+        """Save session to file"""
+        sessions_dir.mkdir(parents=True, exist_ok=True)
+        session_file = sessions_dir / f"{self.session_id}.json"
+        
+        with open(session_file, 'w') as f:
+            json.dump(self.get_session_data(), f, indent=2)
+        
+        return session_file
+    
+    @staticmethod
+    def load_session(session_file: Path):
+        """Load session from file"""
+        with open(session_file, 'r') as f:
+            session_data = json.load(f)
+        
+        return AIChatWidget(
+            session_id=session_data.get("session_id"),
+            session_data=session_data
+        )
         
     def _update_chat_display(self):
         """Update the chat display with all messages"""

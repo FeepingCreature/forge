@@ -5,12 +5,13 @@ Main window for Forge IDE
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QTabWidget, QMenuBar, QMenu, QStatusBar,
-    QFileDialog
+    QFileDialog, QMessageBox
 )
 from PySide6.QtCore import Qt
 from pathlib import Path
 from .editor_widget import EditorWidget
 from .ai_chat_widget import AIChatWidget
+from ..git_backend.repository import ForgeRepository
 
 
 class MainWindow(QMainWindow):
@@ -21,8 +22,23 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Forge")
         self.setGeometry(100, 100, 1400, 900)
         
+        # Initialize git repository
+        try:
+            self.repo = ForgeRepository()
+            self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
+            self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        except ValueError:
+            self.repo = None
+            self.sessions_dir = Path(".forge") / "sessions"
+            QMessageBox.warning(
+                self,
+                "Not a Git Repository",
+                "Forge works best in a git repository. Some features may be limited."
+            )
+        
         self._setup_ui()
         self._setup_menus()
+        self._load_existing_sessions()
         
     def _setup_ui(self):
         """Setup the main UI layout"""
@@ -115,9 +131,44 @@ class MainWindow(QMainWindow):
     def _new_ai_session(self):
         """Create a new AI session tab"""
         session_widget = AIChatWidget()
+        session_widget.session_updated.connect(lambda: self._save_session(session_widget))
+        
+        # Create git branch for this session if we have a repo
+        if self.repo:
+            try:
+                self.repo.create_session_branch(session_widget.session_id)
+            except Exception as e:
+                print(f"Error creating session branch: {e}")
+        
         index = self.ai_tabs.addTab(session_widget, f"Session {self.ai_tabs.count() + 1}")
         self.ai_tabs.setCurrentIndex(index)
+        
+        # Save initial session state
+        self._save_session(session_widget)
         self.status_bar.showMessage("New AI session created")
+    
+    def _save_session(self, session_widget):
+        """Save a session to disk"""
+        try:
+            session_widget.save_session(self.sessions_dir)
+        except Exception as e:
+            print(f"Error saving session: {e}")
+    
+    def _load_existing_sessions(self):
+        """Load existing sessions from .forge/sessions/"""
+        if not self.sessions_dir.exists():
+            return
+        
+        for session_file in self.sessions_dir.glob("*.json"):
+            try:
+                session_widget = AIChatWidget.load_session(session_file)
+                session_widget.session_updated.connect(lambda sw=session_widget: self._save_session(sw))
+                
+                # Use session ID for tab name
+                tab_name = f"Session {session_widget.session_id[:8]}"
+                self.ai_tabs.addTab(session_widget, tab_name)
+            except Exception as e:
+                print(f"Error loading session {session_file}: {e}")
         
     def _toggle_ai_panel(self):
         """Toggle visibility of AI panel"""
@@ -132,5 +183,9 @@ class MainWindow(QMainWindow):
         
     def _close_ai_tab(self, index):
         """Close an AI session tab"""
-        # TODO: Cleanup git branch for this session
+        widget = self.ai_tabs.widget(index)
+        if isinstance(widget, AIChatWidget):
+            # Save one last time before closing
+            self._save_session(widget)
+        
         self.ai_tabs.removeTab(index)

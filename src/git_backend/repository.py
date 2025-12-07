@@ -32,6 +32,11 @@ class ForgeRepository:
         
         # Create new branch
         branch_name = f"forge/session/{session_name}"
+        
+        # Check if branch already exists
+        if branch_name in self.repo.branches:
+            return branch_name
+        
         branch = self.repo.branches.create(branch_name, head.peel())
         
         return branch_name

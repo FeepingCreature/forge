@@ -47,32 +47,20 @@ class MainWindow(QMainWindow):
         
     def _setup_ui(self):
         """Setup the main UI layout"""
-        # Central widget with splitter
+        # Central widget
         central = QWidget()
         self.setCentralWidget(central)
         
-        layout = QHBoxLayout(central)
+        layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Main splitter: editor on left, AI sessions on right
-        self.splitter = QSplitter(Qt.Horizontal)
+        # Main tab widget for both editors and AI sessions
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self._close_tab)
+        self.tabs.setMovable(True)
         
-        # Left side: file tabs with editors
-        self.editor_tabs = QTabWidget()
-        self.editor_tabs.setTabsClosable(True)
-        self.editor_tabs.tabCloseRequested.connect(self._close_editor_tab)
-        
-        # Right side: AI session tabs
-        self.ai_tabs = QTabWidget()
-        self.ai_tabs.setTabsClosable(True)
-        self.ai_tabs.tabCloseRequested.connect(self._close_ai_tab)
-        
-        self.splitter.addWidget(self.editor_tabs)
-        self.splitter.addWidget(self.ai_tabs)
-        self.splitter.setStretchFactor(0, 2)  # Editor gets more space
-        self.splitter.setStretchFactor(1, 1)
-        
-        layout.addWidget(self.splitter)
+        layout.addWidget(self.tabs)
         
         # Status bar
         self.status_bar = QStatusBar()
@@ -97,10 +85,6 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("&Undo")
         edit_menu.addAction("&Redo")
         
-        # View menu
-        view_menu = menubar.addMenu("&View")
-        view_menu.addAction("Toggle AI Panel", self._toggle_ai_panel)
-        
         # Git menu
         git_menu = menubar.addMenu("&Git")
         git_menu.addAction("View Branches")
@@ -117,10 +101,10 @@ class MainWindow(QMainWindow):
         
         if file_path:
             # Check if file is already open
-            for i in range(self.editor_tabs.count()):
-                widget = self.editor_tabs.widget(i)
+            for i in range(self.tabs.count()):
+                widget = self.tabs.widget(i)
                 if isinstance(widget, EditorWidget) and widget.filepath == file_path:
-                    self.editor_tabs.setCurrentIndex(i)
+                    self.tabs.setCurrentIndex(i)
                     self.status_bar.showMessage(f"File already open: {file_path}")
                     return
             
@@ -130,8 +114,8 @@ class MainWindow(QMainWindow):
             
             # Use just the filename for the tab label
             filename = Path(file_path).name
-            index = self.editor_tabs.addTab(editor, filename)
-            self.editor_tabs.setCurrentIndex(index)
+            index = self.tabs.addTab(editor, f"📄 {filename}")
+            self.tabs.setCurrentIndex(index)
             
             self.status_bar.showMessage(f"Opened: {file_path}")
         
@@ -147,8 +131,12 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"Error creating session branch: {e}")
         
-        index = self.ai_tabs.addTab(session_widget, f"Session {self.ai_tabs.count() + 1}")
-        self.ai_tabs.setCurrentIndex(index)
+        # Count existing AI sessions for naming
+        ai_session_count = sum(1 for i in range(self.tabs.count()) 
+                              if isinstance(self.tabs.widget(i), AIChatWidget))
+        
+        index = self.tabs.addTab(session_widget, f"🤖 Session {ai_session_count + 1}")
+        self.tabs.setCurrentIndex(index)
         
         # Save initial session state
         self._save_session(session_widget)
@@ -172,30 +160,22 @@ class MainWindow(QMainWindow):
                 session_widget.session_updated.connect(lambda sw=session_widget: self._save_session(sw))
                 
                 # Use session ID for tab name
-                tab_name = f"Session {session_widget.session_id[:8]}"
-                self.ai_tabs.addTab(session_widget, tab_name)
+                tab_name = f"🤖 {session_widget.session_id[:8]}"
+                self.tabs.addTab(session_widget, tab_name)
             except Exception as e:
                 print(f"Error loading session {session_file}: {e}")
         
-    def _toggle_ai_panel(self):
-        """Toggle visibility of AI panel"""
-        if self.ai_tabs.isVisible():
-            self.ai_tabs.hide()
-        else:
-            self.ai_tabs.show()
-            
-    def _close_editor_tab(self, index):
-        """Close an editor tab"""
-        self.editor_tabs.removeTab(index)
+    def _close_tab(self, index):
+        """Close a tab (editor or AI session)"""
+        widget = self.tabs.widget(index)
         
-    def _close_ai_tab(self, index):
-        """Close an AI session tab"""
-        widget = self.ai_tabs.widget(index)
+        # Save AI session before closing
         if isinstance(widget, AIChatWidget):
-            # Save one last time before closing
             self._save_session(widget)
         
-        self.ai_tabs.removeTab(index)
+        # TODO: Check for unsaved changes in editor tabs
+        
+        self.tabs.removeTab(index)
     
     def _open_settings(self):
         """Open settings dialog"""

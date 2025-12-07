@@ -11,7 +11,9 @@ from PySide6.QtCore import Qt
 from pathlib import Path
 from .editor_widget import EditorWidget
 from .ai_chat_widget import AIChatWidget
+from .settings_dialog import SettingsDialog
 from ..git_backend.repository import ForgeRepository
+from ..config.settings import Settings
 
 
 class MainWindow(QMainWindow):
@@ -21,6 +23,9 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Forge")
         self.setGeometry(100, 100, 1400, 900)
+        
+        # Initialize settings
+        self.settings = Settings()
         
         # Initialize git repository
         try:
@@ -82,6 +87,8 @@ class MainWindow(QMainWindow):
         file_menu = menubar.addMenu("&File")
         file_menu.addAction("&Open File...", self._open_file)
         file_menu.addAction("&New AI Session", self._new_ai_session)
+        file_menu.addSeparator()
+        file_menu.addAction("&Settings...", self._open_settings)
         file_menu.addSeparator()
         file_menu.addAction("E&xit", self.close)
         
@@ -189,3 +196,10 @@ class MainWindow(QMainWindow):
             self._save_session(widget)
         
         self.ai_tabs.removeTab(index)
+    
+    def _open_settings(self):
+        """Open settings dialog"""
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec():
+            # Settings were saved, could reload/apply them here
+            self.status_bar.showMessage("Settings saved")

@@ -6,7 +6,7 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 ## Phase 1: Core Functionality (MVP)
 
 ### 1. LLM Integration ⚠️ CRITICAL
-- [ ] Add API key configuration (env var or config file)
+- [x] Add API key configuration (env var or config file)
 - [ ] Wire up LLMClient to AIChatWidget
 - [ ] Implement actual message sending (not echo)
 - [ ] Handle streaming responses

@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
         
     def _new_ai_session(self):
         """Create a new AI session tab"""
-        session_widget = AIChatWidget()
+        session_widget = AIChatWidget(settings=self.settings)
         session_widget.session_updated.connect(lambda: self._save_session(session_widget))
         
         # Create git branch for this session if we have a repo
@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         
         for session_file in self.sessions_dir.glob("*.json"):
             try:
-                session_widget = AIChatWidget.load_session(session_file)
+                session_widget = AIChatWidget.load_session(session_file, settings=self.settings)
                 session_widget.session_updated.connect(lambda sw=session_widget: self._save_session(sw))
                 
                 # Use session ID for tab name

@@ -7,19 +7,19 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 
 ### 1. LLM Integration ⚠️ CRITICAL
 - [x] Add API key configuration (env var or config file)
-- [ ] Wire up LLMClient to AIChatWidget
-- [ ] Implement actual message sending (not echo)
+- [x] Wire up LLMClient to AIChatWidget
+- [x] Implement actual message sending (not echo)
 - [ ] Handle streaming responses
-- [ ] Display assistant responses in chat
-- [ ] Error handling for API failures
+- [x] Display assistant responses in chat
+- [x] Error handling for API failures
 
 ### 2. Tool System ⚠️ CRITICAL
-- [ ] Wire up ToolManager to AI sessions
-- [ ] Discover tools on session start
-- [ ] Send tool schemas to LLM
-- [ ] Handle tool calls from LLM responses
-- [ ] Execute tools and return results
-- [ ] Display tool execution in chat UI
+- [x] Wire up ToolManager to AI sessions
+- [x] Discover tools on session start
+- [x] Send tool schemas to LLM
+- [x] Handle tool calls from LLM responses
+- [x] Execute tools and return results
+- [x] Display tool execution in chat UI
 - [ ] Add tool approval workflow (new tools need user OK)
 
 ### 3. File Management

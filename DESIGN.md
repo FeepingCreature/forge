@@ -41,10 +41,19 @@ The fundamental insight: **AI time travel**. You can checkout any commit and see
 
 **Workflow**:
 1. User creates AI session → new branch created
-2. AI proposes changes → tools build new git tree in memory
-3. User approves → atomic commit to session branch (code + session state)
-4. Repeat until task complete
-5. User merges session branch to main (or rebases, cherry-picks, etc.)
+2. User sends message to AI
+3. AI analyzes task, may use tools (read files, run commands, etc.)
+4. AI proposes all changes as SEARCH/REPLACE blocks in one response
+5. Changes are applied and committed atomically (code + session state)
+6. Control returns to user
+7. Repeat until task complete
+8. User merges session branch to main (or rebases, cherry-picks, etc.)
+
+**One Commit Per Cycle**: Each AI interaction produces exactly one commit. This:
+- Keeps costs down (AI must plan all changes upfront)
+- Creates clean, atomic history
+- Makes rollback trivial (just reset to previous commit)
+- Ensures AI thinks through the full solution before acting
 
 **Concurrent Sessions**:
 - Each session branch is independent
@@ -84,7 +93,22 @@ Each session maintains:
 - Associated git branch
 - Message history (user + assistant)
 - Tool call history
-- Current working state
+- **Active files list**: Files fully loaded into context (user or AI can expand)
+- **Repository summary**: Cheap-model-generated per-file summaries for context
+
+**Context Management**:
+- Repository summaries always included (cheap, broad context)
+- Active files fully included (expensive, detailed context)
+- User can expand/collapse files
+- AI can request file expansion
+- Active file changes saved with next commit (not immediately)
+
+**Agent Flow**:
+1. AI receives message with repo summaries + active files
+2. AI may use 2-3 tool calls (read files, run commands, etc.)
+3. AI proposes all code changes via SEARCH/REPLACE blocks
+4. AI ends turn, returning control to user
+5. All changes committed atomically
 
 Sessions persist across app restarts and are loaded from `.forge/sessions/`.
 
@@ -124,12 +148,26 @@ Sessions persist across app restarts and are loaded from `.forge/sessions/`.
 
 ### Commit Workflow
 
-When AI completes a task:
-1. Collect all file changes
-2. Update session state file
-3. Create commit on session branch with both
-4. Use smaller LLM to generate commit message
-5. User can review, amend, or revert
+**One Commit Per AI Turn**:
+1. User sends message
+2. AI analyzes, uses tools, proposes changes
+3. All SEARCH/REPLACE blocks applied to git tree in memory
+4. Session state updated (messages, active files)
+5. Single atomic commit created (code + session state)
+6. Smaller LLM generates commit message
+7. Control returns to user
+
+**What Gets Committed**:
+- All code changes from SEARCH/REPLACE blocks
+- Updated session state (`.forge/sessions/<id>.json`)
+- Active files list changes (if modified this turn)
+- Tool execution results (logged in session state)
+
+**Cost Control**:
+- AI must plan all changes before committing
+- Can't do incremental "try and see" approaches
+- Forces complete solutions per turn
+- Repository summaries provide broad context cheaply
 
 For concurrent sessions:
 - Each session works on its own branch
@@ -299,37 +337,62 @@ Future: `.forge/config.json` for:
 
 ### Phase 1: Pure Git Operations (Current Focus)
 
-**Goal**: Make tools work entirely in git, no filesystem I/O.
+**Goal**: Make tools work entirely in git, no filesystem I/O. One commit per AI turn.
 
-1. **TreeBuilder in ToolManager**: Accumulate file changes in memory
+1. **SessionManager**: Coordinates AI turns and commits
    ```python
-   class ToolManager:
-       def __init__(self, repo, session_branch):
+   class SessionManager:
+       def __init__(self, repo, session):
            self.repo = repo
-           self.session_branch = session_branch
-           self.pending_changes = {}  # filepath -> new_content
+           self.session = session
+           self.pending_changes = {}  # Accumulate during AI turn
+           self.active_files = set()  # Files in context
        
-       def execute_tool(self, tool_name, args):
-           # Get current content from git
-           current_content = self.repo.get_file_content(args['filepath'])
-           # Execute tool with content
-           result = tool.execute(current_content, args)
-           # Store new content
-           self.pending_changes[args['filepath']] = result['new_content']
+       def process_ai_turn(self, user_message):
+           # 1. Add user message to session
+           # 2. Get repo summaries + active file contents
+           # 3. Send to LLM with tools
+           # 4. Accumulate all SEARCH/REPLACE changes
+           # 5. Commit everything atomically
+           # 6. Return control to user
    ```
 
-2. **Atomic Commits**: When user approves, commit all changes at once
+2. **Context Management**: Cheap summaries + selective full files
    ```python
-   def commit_session_changes(self, message):
-       # Build new tree from pending changes
-       tree = self.repo.create_tree_from_changes(self.pending_changes)
-       # Create commit
-       commit = self.repo.commit_tree(tree, message)
-       # Update session state file
-       # Commit session state too
+   def build_context(self):
+       context = {
+           'summaries': self.get_repo_summaries(),  # All files, cheap
+           'active_files': {
+               path: self.repo.get_file_content(path)
+               for path in self.active_files
+           }
+       }
+       return context
    ```
 
-3. **Tool Refactoring**: Tools receive/return content, not file paths
+3. **Atomic Commits**: All changes in one commit
+   ```python
+   def commit_ai_turn(self):
+       # Build tree with all pending changes
+       tree = self.repo.create_tree_from_changes(self.pending_changes)
+       
+       # Update session state
+       session_state = self.session.get_session_data()
+       tree = self.repo.add_file_to_tree(tree, 
+           f'.forge/sessions/{self.session.id}.json',
+           json.dumps(session_state))
+       
+       # Generate commit message with cheap model
+       message = self.generate_commit_message()
+       
+       # Create commit
+       self.repo.commit_tree(tree, message, self.session.branch_name)
+       
+       # Clear pending changes
+       self.pending_changes = {}
+   ```
+
+4. **Tool Refactoring**: Tools receive/return content, not file paths
    ```python
    # Old way (filesystem):
    def execute(args):
@@ -345,19 +408,41 @@ Future: `.forge/config.json` for:
        return {'new_content': new_content}
    ```
 
-### Phase 2: Session-Git Integration
+### Phase 2: Context & Summary System
 
-- Session state commits alongside code changes
+**Repository Summaries**:
+- Use cheap model (e.g., Claude Haiku) to generate per-file summaries
+- Summaries cached and regenerated only when files change
+- Always included in AI context (low token cost, broad awareness)
+- Format: `path/to/file.py: "Brief description of purpose and key functions"`
+
+**Active Files**:
+- User can expand files into full context
+- AI can request expansion via tool call
+- Full file contents included in context
+- Changes to active file list saved with next commit (not immediately)
+
+**Cost Optimization**:
+- Summaries: ~50 tokens per file × 100 files = 5K tokens (cheap)
+- Active files: Full content only for relevant files
+- AI must work with summaries first, expand only when needed
+- One commit per turn prevents wasteful back-and-forth
+
+### Phase 3: Session-Git Integration
+
+- Session state commits alongside code changes ✓
 - Proper branch management UI
 - Merge/rebase workflows
 - Conflict resolution
 
-### Phase 3: Advanced Git Features
+### Phase 4: Advanced Git Features
 
 - Visual branch/commit history
 - Cherry-picking
 - Interactive rebase
 - Diff viewer before committing
+- Commit message editing
+- Amend last commit
 
 ## Testing Strategy
 

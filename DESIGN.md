@@ -10,7 +10,7 @@ The fundamental insight: **AI time travel**. You can checkout any commit and see
 
 1. **Git is More Fundamental Than Filesystem**: The git repository is the primary reality. The filesystem is just a view. AI sessions work entirely within git - no temporary directories, no ephemeral state.
 
-2. **Tool-Based AI**: LLMs can only interact through approved, sandboxed tools that operate on git state, not filesystem state.
+2. **Tool-Based AI**: LLMs can only interact through approved, sandboxed tools that operate on git state, not filesystem state. Tools are reviewed once when created/modified, then run autonomously.
 
 3. **Opt-In Everything**: No automatic changes; user must approve all AI actions.
 
@@ -72,8 +72,10 @@ Tools are executable scripts in `./tools/` directory that:
 Tool lifecycle:
 1. AI proposes a new tool (writes code to `./tools/`)
 2. User reviews and approves (makes it executable, commits to git)
-3. AI can use tool in next interaction
+3. AI can use tool autonomously - no per-use approval needed
 4. Tools are versioned with the code in git
+
+**Trust Model**: Tools are reviewed once at creation/modification time. Once approved, they run autonomously. This amortizes the review cost - you pay it once, not on every use.
 
 ### Session Management
 
@@ -199,10 +201,12 @@ When user approves: commit all accumulated changes atomically
 ## Security Model
 
 - Tools run as user (no privilege escalation)
-- Tools can only modify files in repo
+- Tools can only modify files in repo (via git, not filesystem)
 - No network access from tools (except explicit tools)
-- User must approve new tools before use
+- User must approve new/modified tools before first use
+- Once approved, tools run autonomously without per-use approval
 - All changes are git-tracked and reversible
+- Tool code itself is versioned in git, so tool changes are auditable
 
 ## Future Enhancements
 

@@ -20,7 +20,9 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 - [x] Handle tool calls from LLM responses
 - [x] Execute tools and return results
 - [x] Display tool execution in chat UI
-- [ ] Add tool approval workflow (new tools need user OK)
+- [ ] Add tool approval workflow (new/modified tools need user OK before first use)
+- [ ] Track approved vs unapproved tools
+- [ ] UI to review and approve pending tools
 
 ### 3. File Management
 - [ ] Save file functionality (Ctrl+S)

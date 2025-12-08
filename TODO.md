@@ -9,7 +9,7 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 - [x] Add API key configuration (env var or config file)
 - [x] Wire up LLMClient to AIChatWidget
 - [x] Implement actual message sending (not echo)
-- [ ] Handle streaming responses
+- [x] Handle streaming responses
 - [x] Display assistant responses in chat
 - [x] Error handling for API failures
 

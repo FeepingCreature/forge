@@ -111,14 +111,20 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 1. ✅ **API Key Setup** - Add OPENROUTER_API_KEY support
 2. ✅ **Wire LLM** - Connect chat widget to actual LLM
 3. ✅ **Tool Discovery** - Make tool system functional
-4. **search_replace** - Refactor to work on git content, not filesystem
-5. **SessionManager** - Coordinate AI turns and atomic commits
-6. **Git Commits** - Implement commit_changes() with tree building
-7. **Commit Messages** - Use cheap model to generate messages
-8. **Repository Summaries** - Generate and cache file summaries
-9. **Active Files** - Track and manage files in context
+4. ✅ **search_replace** - Refactor to work on git content, not filesystem
+5. ✅ **SessionManager** - Coordinate AI turns and atomic commits
+6. ✅ **Git Commits** - Implement commit_changes() with tree building
+7. ✅ **Commit Messages** - Use cheap model to generate messages
+8. **Repository Summaries** - Generate and cache file summaries (basic version done)
+9. ✅ **Active Files** - Track and manage files in context
 
-Once these are done, Forge can develop itself with proper git-backed workflow!
+**Forge can now develop itself!** The git-first workflow is complete. Each AI turn creates an atomic commit with all changes.
+
+Next priorities:
+- Test the full workflow end-to-end
+- Improve repository summary generation with actual LLM
+- Add UI for managing active files
+- File save functionality for manual edits
 
 ## Known Issues
 

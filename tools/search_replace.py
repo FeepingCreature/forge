@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-SEARCH/REPLACE tool for making code edits
+SEARCH/REPLACE tool for making code edits (git-aware)
 """
 
 import sys
 import json
-import re
 
 
 def get_schema():
@@ -14,7 +13,7 @@ def get_schema():
         "type": "function",
         "function": {
             "name": "search_replace",
-            "description": "Make a SEARCH/REPLACE edit to a file",
+            "description": "Make a SEARCH/REPLACE edit to a file. Works on git content, not filesystem.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -37,8 +36,11 @@ def get_schema():
     }
 
 
-def execute(args):
-    """Execute the search/replace operation"""
+def execute(tool_input):
+    """Execute the search/replace operation on git content"""
+    args = tool_input.get('args', {})
+    context = tool_input.get('context', {})
+    
     filepath = args.get("filepath")
     search = args.get("search")
     replace = args.get("replace")
@@ -46,23 +48,23 @@ def execute(args):
     if not all([filepath, search is not None, replace is not None]):
         return {"success": False, "error": "Missing required arguments"}
     
-    try:
-        with open(filepath, 'r') as f:
-            content = f.read()
-            
-        if search not in content:
-            return {"success": False, "error": "Search text not found in file"}
-            
-        # Replace first occurrence
-        new_content = content.replace(search, replace, 1)
-        
-        with open(filepath, 'w') as f:
-            f.write(new_content)
-            
-        return {"success": True, "message": f"Replaced in {filepath}"}
-        
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    # Get current content from context (provided by ToolManager from git)
+    content = context.get('current_content')
+    
+    if content is None:
+        return {"success": False, "error": f"File {filepath} not found in repository"}
+    
+    if search not in content:
+        return {"success": False, "error": "Search text not found in file"}
+    
+    # Replace first occurrence
+    new_content = content.replace(search, replace, 1)
+    
+    return {
+        "success": True,
+        "message": f"Replaced in {filepath}",
+        "new_content": new_content
+    }
 
 
 def main():
@@ -71,8 +73,8 @@ def main():
     else:
         # Read JSON input from stdin
         input_data = sys.stdin.read()
-        args = json.loads(input_data)
-        result = execute(args)
+        tool_input = json.loads(input_data)
+        result = execute(tool_input)
         print(json.dumps(result))
 
 

@@ -11,7 +11,7 @@ import json
 import uuid
 from pathlib import Path
 from ..llm.client import LLMClient
-from ..tools.manager import ToolManager
+from ..session.manager import SessionManager
 
 
 class StreamWorker(QObject):
@@ -84,17 +84,20 @@ class AIChatWidget(QWidget):
     
     session_updated = Signal()  # Emitted when session state changes
     
-    def __init__(self, session_id=None, session_data=None, settings=None, tools_dir="./tools"):
+    def __init__(self, session_id=None, session_data=None, settings=None, repo=None):
         super().__init__()
         self.session_id = session_id or str(uuid.uuid4())
         self.branch_name = f"forge/session/{self.session_id}"
         self.messages = []
         self.settings = settings
+        self.repo = repo
         self.is_processing = False
         self.streaming_content = ""
         
-        # Initialize tool manager
-        self.tool_manager = ToolManager(tools_dir)
+        # Initialize session manager if we have a repo
+        self.session_manager = None
+        if repo and settings:
+            self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
         
         # Streaming worker
         self.stream_thread = None
@@ -104,6 +107,9 @@ class AIChatWidget(QWidget):
         if session_data:
             self.messages = session_data.get("messages", [])
             self.branch_name = session_data.get("branch_name", self.branch_name)
+            if self.session_manager and 'active_files' in session_data:
+                for filepath in session_data['active_files']:
+                    self.session_manager.add_active_file(filepath)
         
         self._setup_ui()
         self._update_chat_display()
@@ -172,7 +178,10 @@ class AIChatWidget(QWidget):
             client = LLMClient(api_key, model)
             
             # Discover available tools
-            tools = self.tool_manager.discover_tools()
+            if self.session_manager:
+                tools = self.session_manager.tool_manager.discover_tools()
+            else:
+                tools = []
             
             # Start streaming in a separate thread
             self.streaming_content = ""
@@ -258,7 +267,13 @@ class AIChatWidget(QWidget):
             model = self.settings.get('llm.model', 'anthropic/claude-3.5-sonnet')
             api_key = self.settings.get_api_key()
             client = LLMClient(api_key, model)
-            tools = self.tool_manager.discover_tools()
+            
+            if self.session_manager:
+                tools = self.session_manager.tool_manager.discover_tools()
+                tool_manager = self.session_manager.tool_manager
+            else:
+                tools = []
+                tool_manager = None
             
             for tool_call in tool_calls:
                 tool_name = tool_call['function']['name']
@@ -268,7 +283,10 @@ class AIChatWidget(QWidget):
                 self.add_message("assistant", f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```")
                 
                 # Execute tool
-                result = self.tool_manager.execute_tool(tool_name, tool_args)
+                if tool_manager:
+                    result = tool_manager.execute_tool(tool_name, tool_args)
+                else:
+                    result = {"error": "No tool manager available"}
                 
                 # Add tool result to messages
                 tool_message = {
@@ -306,6 +324,14 @@ class AIChatWidget(QWidget):
                 if content:
                     self.add_message("assistant", content)
                 
+                # Commit AI turn if we have a session manager
+                if self.session_manager:
+                    try:
+                        commit_oid = self.session_manager.commit_ai_turn(self.messages)
+                        self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+                    except Exception as e:
+                        self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
+                
                 self._reset_input()
                 
         except Exception as e:
@@ -327,11 +353,16 @@ class AIChatWidget(QWidget):
     
     def get_session_data(self):
         """Get session data for persistence"""
-        return {
+        data = {
             "session_id": self.session_id,
             "branch_name": self.branch_name,
             "messages": self.messages
         }
+        
+        if self.session_manager:
+            data["active_files"] = list(self.session_manager.active_files)
+        
+        return data
     
     def save_session(self, sessions_dir: Path):
         """Save session to file"""
@@ -344,7 +375,7 @@ class AIChatWidget(QWidget):
         return session_file
     
     @staticmethod
-    def load_session(session_file: Path, settings=None, tools_dir="./tools"):
+    def load_session(session_file: Path, settings=None, repo=None):
         """Load session from file"""
         with open(session_file, 'r') as f:
             session_data = json.load(f)
@@ -353,7 +384,7 @@ class AIChatWidget(QWidget):
             session_id=session_data.get("session_id"),
             session_data=session_data,
             settings=settings,
-            tools_dir=tools_dir
+            repo=repo
         )
         
     def _update_chat_display(self):

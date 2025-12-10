@@ -4,16 +4,23 @@
 typecheck:
 	mypy --explicit-package-bases src/ main.py tools/
 
-# Linting with ruff
+# Linting with ruff (auto-fix)
 lint:
+	ruff check --fix src/ main.py tools/
+
+# Linting without auto-fix (for CI)
+lint-check:
 	ruff check src/ main.py tools/
 
 # Format code with ruff
 format:
 	ruff format src/ main.py tools/
 
-# Run all checks
+# Run all checks (with auto-fix)
 check: typecheck lint
+
+# Run all checks without auto-fix (for CI)
+check-ci: typecheck lint-check
 
 # Run all checks and tests
 all: check
@@ -21,8 +28,10 @@ all: check
 # Help
 help:
 	@echo "Available targets:"
-	@echo "  typecheck - Run mypy type checker"
-	@echo "  lint      - Run ruff linter"
-	@echo "  format    - Format code with ruff"
-	@echo "  check     - Run typecheck and lint"
-	@echo "  all       - Run all checks"
+	@echo "  typecheck  - Run mypy type checker"
+	@echo "  lint       - Run ruff linter with auto-fix"
+	@echo "  lint-check - Run ruff linter without auto-fix (for CI)"
+	@echo "  format     - Format code with ruff"
+	@echo "  check      - Run typecheck and lint (with auto-fix)"
+	@echo "  check-ci   - Run typecheck and lint-check (no auto-fix)"
+	@echo "  all        - Run all checks"

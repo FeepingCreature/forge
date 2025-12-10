@@ -2,7 +2,7 @@
 
 # Type checking with mypy
 typecheck:
-	mypy src/ main.py tools/
+	mypy --explicit-package-bases src/ main.py tools/
 
 # Linting with ruff
 lint:

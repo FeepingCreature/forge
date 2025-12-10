@@ -12,7 +12,7 @@ from typing import List, Dict, Optional
 class ToolManager:
     """Manages tools available to the LLM"""
     
-    def __init__(self, repo=None, branch_name: Optional[str] = None, tools_dir: str = "./tools"):
+    def __init__(self, repo=None, branch_name: Optional[str] = None, tools_dir: str = "./tools") -> None:
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(exist_ok=True)
         self.repo = repo
@@ -111,6 +111,6 @@ class ToolManager:
         """Get all pending changes accumulated during AI turn"""
         return self.pending_changes.copy()
     
-    def clear_pending_changes(self):
+    def clear_pending_changes(self) -> None:
         """Clear pending changes after commit"""
         self.pending_changes = {}

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from pathlib import Path
+from typing import Any, Optional
 from .editor_widget import EditorWidget
 from .ai_chat_widget import AIChatWidget
 from .settings_dialog import SettingsDialog
@@ -19,7 +20,7 @@ from ..config.settings import Settings
 class MainWindow(QMainWindow):
     """Main application window with VSCode-like layout"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Forge")
         self.setGeometry(100, 100, 1400, 900)
@@ -33,7 +34,7 @@ class MainWindow(QMainWindow):
             self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
             self.sessions_dir.mkdir(parents=True, exist_ok=True)
         except ValueError:
-            self.repo = None
+            self.repo: Optional[ForgeRepository] = None
             self.sessions_dir = Path(".forge") / "sessions"
             QMessageBox.warning(
                 self,
@@ -45,7 +46,7 @@ class MainWindow(QMainWindow):
         self._setup_menus()
         self._load_existing_sessions()
         
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Setup the main UI layout"""
         # Central widget
         central = QWidget()
@@ -67,7 +68,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
         
-    def _setup_menus(self):
+    def _setup_menus(self) -> None:
         """Setup menu bar"""
         menubar = self.menuBar()
         
@@ -90,7 +91,7 @@ class MainWindow(QMainWindow):
         git_menu.addAction("View Branches")
         git_menu.addAction("Commit History")
         
-    def _open_file(self):
+    def _open_file(self) -> None:
         """Open a file in a new editor tab"""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -119,7 +120,7 @@ class MainWindow(QMainWindow):
             
             self.status_bar.showMessage(f"Opened: {file_path}")
         
-    def _new_ai_session(self):
+    def _new_ai_session(self) -> None:
         """Create a new AI session tab"""
         session_widget = AIChatWidget(settings=self.settings, repo=self.repo)
         session_widget.session_updated.connect(lambda: self._save_session(session_widget))
@@ -142,14 +143,14 @@ class MainWindow(QMainWindow):
         self._save_session(session_widget)
         self.status_bar.showMessage("New AI session created")
     
-    def _save_session(self, session_widget):
+    def _save_session(self, session_widget: Any) -> None:
         """Save a session to disk"""
         try:
             session_widget.save_session(self.sessions_dir)
         except Exception as e:
             print(f"Error saving session: {e}")
     
-    def _load_existing_sessions(self):
+    def _load_existing_sessions(self) -> None:
         """Load existing sessions from .forge/sessions/"""
         if not self.sessions_dir.exists():
             return
@@ -165,7 +166,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"Error loading session {session_file}: {e}")
         
-    def _close_tab(self, index):
+    def _close_tab(self, index: int) -> None:
         """Close a tab (editor or AI session)"""
         widget = self.tabs.widget(index)
         
@@ -177,7 +178,7 @@ class MainWindow(QMainWindow):
         
         self.tabs.removeTab(index)
     
-    def _open_settings(self):
+    def _open_settings(self) -> None:
         """Open settings dialog"""
         dialog = SettingsDialog(self.settings, self)
         if dialog.exec():

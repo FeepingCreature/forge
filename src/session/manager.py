@@ -3,7 +3,7 @@ Session manager for coordinating AI turns and git commits
 """
 
 import json
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..tools.manager import ToolManager
@@ -12,7 +12,7 @@ from ..tools.manager import ToolManager
 class SessionManager:
     """Manages AI session lifecycle and git integration"""
     
-    def __init__(self, repo: ForgeRepository, session_id: str, branch_name: str, settings):
+    def __init__(self, repo: ForgeRepository, session_id: str, branch_name: str, settings: Any) -> None:
         self.repo = repo
         self.session_id = session_id
         self.branch_name = branch_name
@@ -22,12 +22,12 @@ class SessionManager:
         self.tool_manager = ToolManager(repo, branch_name)
         
         # Active files in context
-        self.active_files = set()
+        self.active_files: set[str] = set()
         
         # Repository summaries cache
-        self.repo_summaries = {}
+        self.repo_summaries: Dict[str, str] = {}
     
-    def build_context(self) -> Dict:
+    def build_context(self) -> Dict[str, Any]:
         """Build context for LLM with summaries and active files"""
         context = {
             'summaries': self.repo_summaries,
@@ -41,15 +41,15 @@ class SessionManager:
         
         return context
     
-    def add_active_file(self, filepath: str):
+    def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
         self.active_files.add(filepath)
     
-    def remove_active_file(self, filepath: str):
+    def remove_active_file(self, filepath: str) -> None:
         """Remove a file from active context"""
         self.active_files.discard(filepath)
     
-    def commit_ai_turn(self, messages: list, commit_message: Optional[str] = None) -> str:
+    def commit_ai_turn(self, messages: List[Dict[str, Any]], commit_message: Optional[str] = None) -> str:
         """
         Commit all changes from an AI turn
         
@@ -104,13 +104,14 @@ Keep it under 72 characters."""
         messages = [{"role": "user", "content": prompt}]
         response = client.chat(messages)
         
-        message = response['choices'][0]['message']['content'].strip()
+        content = response['choices'][0]['message']['content']
+        message = str(content).strip()
         # Remove quotes if present
         message = message.strip('"\'')
         
         return message
     
-    def generate_repo_summaries(self):
+    def generate_repo_summaries(self) -> None:
         """Generate summaries for all files in repository"""
         # TODO: Implement with cheap LLM
         # For now, just list files
@@ -120,7 +121,7 @@ Keep it under 72 characters."""
                 continue  # Skip forge metadata
             self.repo_summaries[filepath] = f"File: {filepath}"
     
-    def get_session_data(self, messages: list = None) -> Dict:
+    def get_session_data(self, messages: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Get session data for persistence"""
         data = {
             'session_id': self.session_id,

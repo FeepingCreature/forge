@@ -7,7 +7,7 @@ import sys
 import json
 
 
-def get_schema():
+def get_schema() -> dict:
     """Return tool schema for LLM"""
     return {
         "type": "function",
@@ -36,7 +36,7 @@ def get_schema():
     }
 
 
-def execute(tool_input):
+def execute(tool_input: dict) -> dict:
     """Execute the search/replace operation on git content"""
     args = tool_input.get('args', {})
     context = tool_input.get('context', {})
@@ -64,7 +64,7 @@ def execute(tool_input):
     }
 
 
-def main():
+def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "--schema":
         print(json.dumps(get_schema()))
     else:

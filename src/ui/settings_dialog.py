@@ -8,12 +8,13 @@ from PySide6.QtWidgets import (
     QPushButton, QComboBox, QFormLayout, QGroupBox
 )
 from PySide6.QtCore import Qt
+from typing import Any, Optional
 
 
 class SettingsDialog(QDialog):
     """Settings dialog window"""
     
-    def __init__(self, settings, parent=None):
+    def __init__(self, settings: Any, parent: Optional[Any] = None) -> None:
         super().__init__(parent)
         self.settings = settings
         self.setWindowTitle("Forge Settings")
@@ -23,7 +24,7 @@ class SettingsDialog(QDialog):
         self._setup_ui()
         self._load_settings()
         
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Setup the dialog UI"""
         layout = QVBoxLayout(self)
         
@@ -60,14 +61,14 @@ class SettingsDialog(QDialog):
         
         layout.addLayout(button_layout)
         
-    def _create_llm_tab(self):
+    def _create_llm_tab(self) -> QWidget:
         """Create LLM settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
         
         # API Key
         self.api_key_input = QLineEdit()
-        self.api_key_input.setEchoMode(QLineEdit.Password)
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText("Enter OpenRouter API key or set OPENROUTER_API_KEY env var")
         layout.addRow("API Key:", self.api_key_input)
         
@@ -100,7 +101,7 @@ class SettingsDialog(QDialog):
         
         return widget
         
-    def _create_editor_tab(self):
+    def _create_editor_tab(self) -> QWidget:
         """Create editor settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
@@ -125,7 +126,7 @@ class SettingsDialog(QDialog):
         
         return widget
         
-    def _create_git_tab(self):
+    def _create_git_tab(self) -> QWidget:
         """Create git settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
@@ -156,7 +157,7 @@ class SettingsDialog(QDialog):
         
         return widget
         
-    def _load_settings(self):
+    def _load_settings(self) -> None:
         """Load current settings into UI"""
         # LLM settings
         self.api_key_input.setText(self.settings.get('llm.api_key', ''))
@@ -173,7 +174,7 @@ class SettingsDialog(QDialog):
         self.auto_commit_input.setChecked(self.settings.get('git.auto_commit', False))
         self.commit_model_input.setCurrentText(self.settings.get('git.commit_message_model', ''))
         
-    def _save_and_close(self):
+    def _save_and_close(self) -> None:
         """Save settings and close dialog"""
         # LLM settings
         self.settings.set('llm.api_key', self.api_key_input.text())

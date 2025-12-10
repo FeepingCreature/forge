@@ -4,7 +4,7 @@ LLM client for communicating with OpenRouter
 
 import requests
 import json
-from typing import List, Dict, Optional, Iterator, Callable
+from typing import Any, List, Dict, Optional, Iterator, Callable
 
 
 class LLMClient:
@@ -15,7 +15,7 @@ class LLMClient:
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1"
         
-    def chat(self, messages: List[Dict[str, str]], tools: Optional[List[Dict]] = None) -> Dict:
+    def chat(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Send chat request to LLM (non-streaming)"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -37,9 +37,10 @@ class LLMClient:
         )
         
         response.raise_for_status()
-        return response.json()
+        result: Dict[str, Any] = response.json()
+        return result
     
-    def chat_stream(self, messages: List[Dict[str, str]], tools: Optional[List[Dict]] = None) -> Iterator[Dict]:
+    def chat_stream(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> Iterator[Dict[str, Any]]:
         """Send chat request to LLM with streaming"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",

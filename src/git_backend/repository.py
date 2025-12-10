@@ -10,14 +10,14 @@ from typing import Dict, Optional
 class ForgeRepository:
     """Manages git repository operations for Forge"""
     
-    def __init__(self, repo_path=None):
+    def __init__(self, repo_path: Optional[str] = None) -> None:
         """Initialize repository"""
         if repo_path is None:
             repo_path = self._find_repo()
         
         self.repo = pygit2.Repository(repo_path)
         
-    def _find_repo(self):
+    def _find_repo(self) -> str:
         """Find git repository in current directory or parents"""
         current = Path.cwd()
         while current != current.parent:
@@ -26,7 +26,7 @@ class ForgeRepository:
             current = current.parent
         raise ValueError("Not in a git repository")
         
-    def create_session_branch(self, session_name):
+    def create_session_branch(self, session_name: str) -> str:
         """Create a new branch for an AI session"""
         # Get current HEAD
         head = self.repo.head
@@ -38,7 +38,8 @@ class ForgeRepository:
         if branch_name in self.repo.branches:
             return branch_name
         
-        branch = self.repo.branches.create(branch_name, head.peel())
+        commit = head.peel(pygit2.Commit)
+        branch = self.repo.branches.create(branch_name, commit)
         
         return branch_name
     
@@ -52,10 +53,11 @@ class ForgeRepository:
         if branch_name:
             commit = self.get_branch_head(branch_name)
         else:
-            commit = self.repo.head.peel()
+            commit = self.repo.head.peel(pygit2.Commit)
             
         entry = commit.tree[filepath]
         blob = self.repo[entry.id]
+        assert isinstance(blob, pygit2.Blob)
         return blob.data.decode('utf-8')
     
     def create_tree_from_changes(self, base_branch: str, changes: Dict[str, str]) -> pygit2.Oid:
@@ -89,7 +91,7 @@ class ForgeRepository:
         tree_oid = tree_builder.write()
         return tree_oid
     
-    def _add_to_tree(self, tree_builder, filepath: str, blob_oid: pygit2.Oid, base_tree):
+    def _add_to_tree(self, tree_builder: pygit2.TreeBuilder, filepath: str, blob_oid: pygit2.Oid, base_tree: Optional[pygit2.Tree]) -> None:
         """Add a file to tree, handling nested directories"""
         parts = filepath.split('/')
         
@@ -102,11 +104,13 @@ class ForgeRepository:
             rest_path = '/'.join(parts[1:])
             
             # Get or create subtree
-            subtree = None
+            subtree: Optional[pygit2.Tree] = None
             if base_tree:
                 try:
                     subtree_entry = base_tree[dir_name]
-                    subtree = self.repo[subtree_entry.id]
+                    subtree_obj = self.repo[subtree_entry.id]
+                    assert isinstance(subtree_obj, pygit2.Tree)
+                    subtree = subtree_obj
                     subtree_builder = self.repo.TreeBuilder(subtree)
                 except KeyError:
                     # Directory doesn't exist, create new tree
@@ -150,7 +154,7 @@ class ForgeRepository:
             signature,  # committer
             message,
             tree_oid,
-            [parent_commit.oid]  # parents
+            [parent_commit.id]  # parents
         )
         
         return commit_oid
@@ -160,11 +164,11 @@ class ForgeRepository:
         if branch_name:
             commit = self.get_branch_head(branch_name)
         else:
-            commit = self.repo.head.peel()
+            commit = self.repo.head.peel(pygit2.Commit)
         
-        files = []
+        files: list[str] = []
         
-        def walk_tree(tree, path=""):
+        def walk_tree(tree: pygit2.Tree, path: str = "") -> None:
             for entry in tree:
                 entry_path = f"{path}/{entry.name}" if path else entry.name
                 if entry.type == 'tree':

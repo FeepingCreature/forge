@@ -9,6 +9,7 @@ import markdown
 import json
 import uuid
 from pathlib import Path
+from typing import Any, Optional, Dict, List
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
 
@@ -21,7 +22,7 @@ class StreamWorker(QObject):
     finished = Signal(dict)  # Emitted when stream is complete
     error = Signal(str)  # Emitted on error
     
-    def __init__(self, client, messages, tools):
+    def __init__(self, client: LLMClient, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]]) -> None:
         super().__init__()
         self.client = client
         self.messages = messages
@@ -29,7 +30,7 @@ class StreamWorker(QObject):
         self.current_content = ""
         self.current_tool_calls = []
         
-    def run(self):
+    def run(self) -> None:
         """Run the streaming request"""
         try:
             for chunk in self.client.chat_stream(self.messages, self.tools):
@@ -83,7 +84,7 @@ class AIChatWidget(QWidget):
     
     session_updated = Signal()  # Emitted when session state changes
     
-    def __init__(self, session_id=None, session_data=None, settings=None, repo=None):
+    def __init__(self, session_id: Optional[str] = None, session_data: Optional[Dict[str, Any]] = None, settings: Any = None, repo: Any = None) -> None:
         super().__init__()
         self.session_id = session_id or str(uuid.uuid4())
         self.branch_name = f"forge/session/{self.session_id}"
@@ -113,7 +114,7 @@ class AIChatWidget(QWidget):
         self._setup_ui()
         self._update_chat_display()
         
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Setup the chat UI"""
         layout = QVBoxLayout(self)
         
@@ -139,7 +140,7 @@ class AIChatWidget(QWidget):
         
         layout.addLayout(input_layout)
         
-    def _send_message(self):
+    def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
         if not text or self.is_processing:
@@ -158,7 +159,7 @@ class AIChatWidget(QWidget):
         # Send to LLM
         self._process_llm_request()
     
-    def _process_llm_request(self):
+    def _process_llm_request(self) -> None:
         """Process LLM request with streaming support"""
         if not self.settings:
             self.add_message("assistant", "Error: Settings not configured")
@@ -203,12 +204,12 @@ class AIChatWidget(QWidget):
             self.add_message("assistant", f"Error: {str(e)}")
             self._reset_input()
     
-    def _start_streaming_message(self):
+    def _start_streaming_message(self) -> None:
         """Add a placeholder message for streaming content"""
         self.messages.append({"role": "assistant", "content": ""})
         self._update_chat_display()
     
-    def _on_stream_chunk(self, chunk):
+    def _on_stream_chunk(self, chunk: str) -> None:
         """Handle a streaming chunk"""
         self.streaming_content += chunk
         # Update the last message with accumulated content
@@ -216,7 +217,7 @@ class AIChatWidget(QWidget):
             self.messages[-1]["content"] = self.streaming_content
             self._update_chat_display()
     
-    def _on_stream_finished(self, result):
+    def _on_stream_finished(self, result: Dict[str, Any]) -> None:
         """Handle stream completion"""
         # Clean up thread
         if self.stream_thread:
@@ -248,7 +249,7 @@ class AIChatWidget(QWidget):
             self.session_updated.emit()
             self._reset_input()
     
-    def _on_stream_error(self, error_msg):
+    def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error"""
         # Clean up thread
         if self.stream_thread:
@@ -260,7 +261,7 @@ class AIChatWidget(QWidget):
         self.add_message("assistant", f"Error: {error_msg}")
         self._reset_input()
     
-    def _execute_tool_calls(self, tool_calls):
+    def _execute_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""
         try:
             model = self.settings.get('llm.model', 'anthropic/claude-3.5-sonnet')
@@ -306,7 +307,7 @@ class AIChatWidget(QWidget):
             self.add_message("assistant", f"Error executing tools: {str(e)}")
             self._reset_input()
     
-    def _handle_llm_response(self, response, client, tools):
+    def _handle_llm_response(self, response: Dict[str, Any], client: LLMClient, tools: Optional[List[Dict[str, Any]]]) -> None:
         """Handle non-streaming LLM response (used for tool follow-ups)"""
         try:
             choice = response['choices'][0]
@@ -337,20 +338,20 @@ class AIChatWidget(QWidget):
             self.add_message("assistant", f"Error processing response: {str(e)}")
             self._reset_input()
     
-    def _reset_input(self):
+    def _reset_input(self) -> None:
         """Re-enable input after processing"""
         self.is_processing = False
         self.input_field.setEnabled(True)
         self.send_button.setEnabled(True)
         self.send_button.setText("Send")
         
-    def add_message(self, role, content):
+    def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat"""
         self.messages.append({"role": role, "content": content})
         self._update_chat_display()
         self.session_updated.emit()
     
-    def get_session_data(self):
+    def get_session_data(self) -> Dict[str, Any]:
         """Get session data for persistence"""
         data = {
             "session_id": self.session_id,
@@ -363,7 +364,7 @@ class AIChatWidget(QWidget):
         
         return data
     
-    def save_session(self, sessions_dir: Path):
+    def save_session(self, sessions_dir: Path) -> Path:
         """Save session to file"""
         sessions_dir.mkdir(parents=True, exist_ok=True)
         session_file = sessions_dir / f"{self.session_id}.json"
@@ -374,7 +375,7 @@ class AIChatWidget(QWidget):
         return session_file
     
     @staticmethod
-    def load_session(session_file: Path, settings=None, repo=None):
+    def load_session(session_file: Path, settings: Any = None, repo: Any = None) -> 'AIChatWidget':
         """Load session from file"""
         with open(session_file, 'r') as f:
             session_data = json.load(f)
@@ -386,7 +387,7 @@ class AIChatWidget(QWidget):
             repo=repo
         )
         
-    def _update_chat_display(self):
+    def _update_chat_display(self) -> None:
         """Update the chat display with all messages"""
         html_parts = ["""
         <!DOCTYPE html>

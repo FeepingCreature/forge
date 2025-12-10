@@ -8,33 +8,34 @@ from PySide6.QtGui import (
     QTextCharFormat, QPalette
 )
 from PySide6.QtCore import Qt, QRect, QSize
+from typing import Any, Optional
 import re
 
 
 class LineNumberArea(QWidget):
     """Widget for displaying line numbers"""
     
-    def __init__(self, editor):
+    def __init__(self, editor: 'CodeEditor') -> None:
         super().__init__(editor)
         self.editor = editor
         
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
         return QSize(self.editor.line_number_area_width(), 0)
         
-    def paintEvent(self, event):
+    def paintEvent(self, event: Any) -> None:
         self.editor.line_number_area_paint_event(event)
 
 
 class PythonHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for Python code"""
     
-    def __init__(self, document):
+    def __init__(self, document: Any) -> None:
         super().__init__(document)
         
         # Define formats
         keyword_format = QTextCharFormat()
         keyword_format.setForeground(QColor("#0000FF"))
-        keyword_format.setFontWeight(QFont.Bold)
+        keyword_format.setFontWeight(QFont.Weight.Bold)
         
         string_format = QTextCharFormat()
         string_format.setForeground(QColor("#008000"))
@@ -78,7 +79,7 @@ class PythonHighlighter(QSyntaxHighlighter):
         # Comments
         self.highlighting_rules.append((re.compile(r'#[^\n]*'), comment_format))
         
-    def highlightBlock(self, text):
+    def highlightBlock(self, text: str) -> None:
         """Apply syntax highlighting to a block of text"""
         for pattern, format in self.highlighting_rules:
             for match in pattern.finditer(text):
@@ -90,12 +91,12 @@ class PythonHighlighter(QSyntaxHighlighter):
 class CodeEditor(QPlainTextEdit):
     """Custom code editor with line numbers and syntax highlighting"""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         
         # Setup font
         font = QFont("Monospace", 10)
-        font.setStyleHint(QFont.TypeWriter)
+        font.setStyleHint(QFont.StyleHint.TypeWriter)
         self.setFont(font)
         
         # Line number area
@@ -116,17 +117,17 @@ class CodeEditor(QPlainTextEdit):
         # Syntax highlighter (default to Python)
         self.highlighter = PythonHighlighter(self.document())
         
-    def line_number_area_width(self):
+    def line_number_area_width(self) -> int:
         """Calculate width needed for line numbers"""
         digits = len(str(max(1, self.blockCount())))
         space = 10 + self.fontMetrics().horizontalAdvance('9') * digits
         return space
         
-    def update_line_number_area_width(self, _):
+    def update_line_number_area_width(self, _: int) -> None:
         """Update the width of the line number area"""
         self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
         
-    def update_line_number_area(self, rect, dy):
+    def update_line_number_area(self, rect: QRect, dy: int) -> None:
         """Update the line number area when scrolling"""
         if dy:
             self.line_number_area.scroll(0, dy)
@@ -136,13 +137,13 @@ class CodeEditor(QPlainTextEdit):
         if rect.contains(self.viewport().rect()):
             self.update_line_number_area_width(0)
             
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: Any) -> None:
         """Handle resize events"""
         super().resizeEvent(event)
         cr = self.contentsRect()
         self.line_number_area.setGeometry(QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height()))
         
-    def line_number_area_paint_event(self, event):
+    def line_number_area_paint_event(self, event: Any) -> None:
         """Paint line numbers"""
         painter = QPainter(self.line_number_area)
         painter.fillRect(event.rect(), QColor("#f0f0f0"))
@@ -157,14 +158,14 @@ class CodeEditor(QPlainTextEdit):
                 number = str(block_number + 1)
                 painter.setPen(QColor("#888888"))
                 painter.drawText(0, int(top), self.line_number_area.width() - 5, 
-                               self.fontMetrics().height(), Qt.AlignRight, number)
+                               self.fontMetrics().height(), Qt.AlignmentFlag.AlignRight, number)
                                
             block = block.next()
             top = bottom
             bottom = top + self.blockBoundingRect(block).height()
             block_number += 1
             
-    def highlight_current_line(self):
+    def highlight_current_line(self) -> None:
         """Highlight the current line"""
         extra_selections = []
         
@@ -172,7 +173,7 @@ class CodeEditor(QPlainTextEdit):
             selection = QTextEdit.ExtraSelection()
             line_color = QColor("#ffffcc")
             selection.format.setBackground(line_color)
-            selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
             selection.cursor.clearSelection()
             extra_selections.append(selection)
@@ -183,12 +184,12 @@ class CodeEditor(QPlainTextEdit):
 class EditorWidget(QWidget):
     """Code editor widget with syntax highlighting and AI integration hooks"""
     
-    def __init__(self, filepath=None):
+    def __init__(self, filepath: Optional[str] = None) -> None:
         super().__init__()
         self.filepath = filepath
         self._setup_ui()
         
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Setup the editor"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -198,7 +199,7 @@ class EditorWidget(QWidget):
         
         layout.addWidget(self.editor)
         
-    def load_file(self, filepath):
+    def load_file(self, filepath: str) -> None:
         """Load a file into the editor"""
         self.filepath = filepath
         try:
@@ -208,7 +209,7 @@ class EditorWidget(QWidget):
         except Exception as e:
             print(f"Error loading file: {e}")
             
-    def save_file(self):
+    def save_file(self) -> bool:
         """Save the current content to file"""
         if not self.filepath:
             return False
@@ -221,10 +222,10 @@ class EditorWidget(QWidget):
             print(f"Error saving file: {e}")
             return False
             
-    def get_text(self):
+    def get_text(self) -> str:
         """Get editor content"""
         return self.editor.toPlainText()
         
-    def set_text(self, text):
+    def set_text(self, text: str) -> None:
         """Set editor content"""
         self.editor.setPlainText(text)

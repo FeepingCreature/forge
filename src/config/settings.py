@@ -60,7 +60,7 @@ class Settings:
         """Recursively merge settings dictionaries"""
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-                self._merge_settings(base[key], value)
+                self._merge_settings(base[key], value)  # type: ignore[arg-type]
             else:
                 base[key] = value
                 
@@ -80,7 +80,7 @@ class Settings:
     def set(self, path: str, value: Any) -> None:
         """Set a setting by dot-separated path"""
         parts = path.split('.')
-        target = self.settings
+        target: Any = self.settings
         
         for part in parts[:-1]:
             if part not in target:
@@ -91,7 +91,7 @@ class Settings:
         
     def get_api_key(self) -> str:
         """Get API key from settings or environment"""
-        api_key = self.get('llm.api_key', '')
+        api_key: str = str(self.get('llm.api_key', ''))
         if not api_key:
             api_key = os.environ.get('OPENROUTER_API_KEY', '')
         return api_key

@@ -6,30 +6,30 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Any, List, Dict, Optional
 
 
 class ToolManager:
     """Manages tools available to the LLM"""
     
-    def __init__(self, repo=None, branch_name: Optional[str] = None, tools_dir: str = "./tools") -> None:
+    def __init__(self, repo: Any = None, branch_name: Optional[str] = None, tools_dir: str = "./tools") -> None:
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(exist_ok=True)
         self.repo = repo
         self.branch_name = branch_name
         
         # Pending changes accumulated during AI turn
-        self.pending_changes = {}
+        self.pending_changes: Dict[str, str] = {}
         
         # Schema cache
-        self._schema_cache = {}
+        self._schema_cache: Dict[str, Dict[str, Any]] = {}
         
-    def discover_tools(self, force_refresh: bool = False) -> List[Dict]:
+    def discover_tools(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Discover all tools and get their schemas"""
         if not force_refresh and self._schema_cache:
             return list(self._schema_cache.values())
         
-        tools = []
+        tools: List[Dict[str, Any]] = []
         self._schema_cache = {}
         
         if not self.tools_dir.exists():
@@ -44,7 +44,7 @@ class ToolManager:
                     
         return tools
         
-    def _get_tool_schema(self, tool_path: Path) -> Optional[Dict]:
+    def _get_tool_schema(self, tool_path: Path) -> Optional[Dict[str, Any]]:
         """Get tool schema by calling tool with --schema"""
         result = subprocess.run(
             [str(tool_path), "--schema"],
@@ -54,11 +54,12 @@ class ToolManager:
         )
         
         if result.returncode == 0:
-            return json.loads(result.stdout)
+            schema: Dict[str, Any] = json.loads(result.stdout)
+            return schema
             
         return None
         
-    def execute_tool(self, tool_name: str, args: Dict) -> Dict:
+    def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a tool with given arguments (git-aware)"""
         tool_path = self.tools_dir / tool_name
         
@@ -97,7 +98,7 @@ class ToolManager:
         )
         
         if result.returncode == 0:
-            tool_result = json.loads(result.stdout)
+            tool_result: Dict[str, Any] = json.loads(result.stdout)
             
             # If tool returned new content, accumulate it
             if 'new_content' in tool_result and 'filepath' in args:

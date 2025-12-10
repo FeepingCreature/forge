@@ -96,40 +96,25 @@ class SessionManager:
         model = self.settings.get('git.commit_message_model', 'anthropic/claude-3-haiku')
         api_key = self.settings.get_api_key()
         
-        if not api_key:
-            # Fallback to simple message
-            file_list = ', '.join(list(changes.keys())[:3])
-            if len(changes) > 3:
-                file_list += f' and {len(changes) - 3} more'
-            return f"AI changes: {file_list}"
+        client = LLMClient(api_key, model)
         
-        try:
-            client = LLMClient(api_key, model)
-            
-            # Build prompt
-            file_list = '\n'.join(f"- {path}" for path in changes.keys())
-            prompt = f"""Generate a concise git commit message for these changes:
+        # Build prompt
+        file_list = '\n'.join(f"- {path}" for path in changes.keys())
+        prompt = f"""Generate a concise git commit message for these changes:
 
 {file_list}
 
 Respond with ONLY the commit message, no explanation. Use conventional commit format (e.g., "feat:", "fix:", "refactor:").
 Keep it under 72 characters."""
-            
-            messages = [{"role": "user", "content": prompt}]
-            response = client.chat(messages)
-            
-            message = response['choices'][0]['message']['content'].strip()
-            # Remove quotes if present
-            message = message.strip('"\'')
-            
-            return message
-            
-        except Exception as e:
-            print(f"Error generating commit message: {e}")
-            file_list = ', '.join(list(changes.keys())[:3])
-            if len(changes) > 3:
-                file_list += f' and {len(changes) - 3} more'
-            return f"AI changes: {file_list}"
+        
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat(messages)
+        
+        message = response['choices'][0]['message']['content'].strip()
+        # Remove quotes if present
+        message = message.strip('"\'')
+        
+        return message
     
     def generate_repo_summaries(self):
         """Generate summaries for all files in repository"""

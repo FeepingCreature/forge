@@ -108,11 +108,25 @@ class ForgeRepository:
             # Simple file in root
             tree_builder.insert(parts[0], blob_oid, pygit2.GIT_FILEMODE_BLOB)
         else:
-            # Need to handle nested path
-            # For now, use simple approach - pygit2 TreeBuilder doesn't handle nested paths well
-            # We'll need to recursively build subtrees
-            # This is a simplified version - full implementation would recursively build trees
-            tree_builder.insert(filepath, blob_oid, pygit2.GIT_FILEMODE_BLOB)
+            # Handle nested paths by recursively building subtrees
+            dir_name = parts[0]
+            rest_path = '/'.join(parts[1:])
+            
+            # Get or create subtree
+            try:
+                subtree_entry = base_tree[dir_name]
+                subtree = self.repo[subtree_entry.id]
+                subtree_builder = self.repo.TreeBuilder(subtree)
+            except KeyError:
+                # Directory doesn't exist, create new tree
+                subtree_builder = self.repo.TreeBuilder()
+            
+            # Recursively add to subtree
+            self._add_to_tree(subtree_builder, rest_path, blob_oid, subtree if 'subtree' in locals() else None)
+            
+            # Write subtree and add to parent
+            subtree_oid = subtree_builder.write()
+            tree_builder.insert(dir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
     
     def commit_tree(self, tree_oid: pygit2.Oid, message: str, branch_name: str, 
                     author_name: str = "Forge AI", author_email: str = "ai@forge.dev") -> pygit2.Oid:

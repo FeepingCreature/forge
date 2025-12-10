@@ -46,18 +46,15 @@ class ToolManager:
         
     def _get_tool_schema(self, tool_path: Path) -> Optional[Dict]:
         """Get tool schema by calling tool with --schema"""
-        try:
-            result = subprocess.run(
-                [str(tool_path), "--schema"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-        except Exception as e:
-            print(f"Error getting schema for {tool_path}: {e}")
+        result = subprocess.run(
+            [str(tool_path), "--schema"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.returncode == 0:
+            return json.loads(result.stdout)
             
         return None
         
@@ -87,28 +84,25 @@ class ToolManager:
             'args': args,
             'context': context
         }
+        
+        result = subprocess.run(
+            [str(tool_path)],
+            input=json.dumps(tool_input),
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode == 0:
+            tool_result = json.loads(result.stdout)
             
-        try:
-            result = subprocess.run(
-                [str(tool_path)],
-                input=json.dumps(tool_input),
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            # If tool returned new content, accumulate it
+            if 'new_content' in tool_result and 'filepath' in args:
+                self.pending_changes[args['filepath']] = tool_result['new_content']
             
-            if result.returncode == 0:
-                tool_result = json.loads(result.stdout)
-                
-                # If tool returned new content, accumulate it
-                if 'new_content' in tool_result and 'filepath' in args:
-                    self.pending_changes[args['filepath']] = tool_result['new_content']
-                
-                return tool_result
-            else:
-                return {"error": result.stderr}
-        except Exception as e:
-            return {"error": str(e)}
+            return tool_result
+        else:
+            return {"error": result.stderr}
     
     def get_pending_changes(self) -> Dict[str, str]:
         """Get all pending changes accumulated during AI turn"""

@@ -45,22 +45,16 @@ class Settings:
     def load(self):
         """Load settings from file"""
         if self.config_path.exists():
-            try:
-                with open(self.config_path, 'r') as f:
-                    loaded = json.load(f)
-                    # Merge with defaults to handle new settings
-                    self._merge_settings(self.settings, loaded)
-            except Exception as e:
-                print(f"Error loading settings: {e}")
+            with open(self.config_path, 'r') as f:
+                loaded = json.load(f)
+                # Merge with defaults to handle new settings
+                self._merge_settings(self.settings, loaded)
                 
     def save(self):
         """Save settings to file"""
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_path, 'w') as f:
-                json.dump(self.settings, f, indent=2)
-        except Exception as e:
-            print(f"Error saving settings: {e}")
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.config_path, 'w') as f:
+            json.dump(self.settings, f, indent=2)
             
     def _merge_settings(self, base, updates):
         """Recursively merge settings dictionaries"""

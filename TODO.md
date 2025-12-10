@@ -88,19 +88,27 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 
 ## Phase 3: Quality of Life
 
-### 11. Performance
+### 11. Code Quality
+- [x] Add mypy type checking
+- [x] Add ruff linting/formatting
+- [x] Create Makefile for checks
+- [ ] Add type hints to all modules
+- [ ] Fix all mypy errors
+- [ ] Fix all ruff warnings
+
+### 12. Performance
 - [ ] Lazy load sessions
 - [ ] Cache tool schemas
 - [ ] Optimize chat rendering
 - [ ] Background git operations
 
-### 12. Documentation
+### 13. Documentation
 - [ ] User guide
 - [ ] Tool development guide
 - [ ] Architecture documentation
 - [ ] Video tutorials
 
-### 13. Testing
+### 14. Testing
 - [ ] Unit tests for core components
 - [ ] Integration tests
 - [ ] Tool test framework

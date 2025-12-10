@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Iterator, Callable
 class LLMClient:
     """Client for OpenRouter API"""
     
-    def __init__(self, api_key: str, model: str = "anthropic/claude-3.5-sonnet"):
+    def __init__(self, api_key: str, model: str = "anthropic/claude-3.5-sonnet") -> None:
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1"

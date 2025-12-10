@@ -5,7 +5,7 @@ Settings management for Forge
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class Settings:
@@ -33,7 +33,7 @@ class Settings:
         }
     }
     
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Optional[Path] = None) -> None:
         """Initialize settings"""
         if config_path is None:
             config_path = Path.home() / ".config" / "forge" / "settings.json"
@@ -42,7 +42,7 @@ class Settings:
         self.settings = self.DEFAULT_SETTINGS.copy()
         self.load()
         
-    def load(self):
+    def load(self) -> None:
         """Load settings from file"""
         if self.config_path.exists():
             with open(self.config_path, 'r') as f:
@@ -50,13 +50,13 @@ class Settings:
                 # Merge with defaults to handle new settings
                 self._merge_settings(self.settings, loaded)
                 
-    def save(self):
+    def save(self) -> None:
         """Save settings to file"""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_path, 'w') as f:
             json.dump(self.settings, f, indent=2)
             
-    def _merge_settings(self, base, updates):
+    def _merge_settings(self, base: Dict[str, Any], updates: Dict[str, Any]) -> None:
         """Recursively merge settings dictionaries"""
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
@@ -64,7 +64,7 @@ class Settings:
             else:
                 base[key] = value
                 
-    def get(self, path: str, default=None):
+    def get(self, path: str, default: Any = None) -> Any:
         """Get a setting by dot-separated path (e.g., 'llm.api_key')"""
         parts = path.split('.')
         value = self.settings
@@ -77,7 +77,7 @@ class Settings:
                 
         return value
         
-    def set(self, path: str, value):
+    def set(self, path: str, value: Any) -> None:
         """Set a setting by dot-separated path"""
         parts = path.split('.')
         target = self.settings

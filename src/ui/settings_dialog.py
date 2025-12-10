@@ -2,94 +2,107 @@
 Settings dialog for Forge
 """
 
+from typing import Any
+
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QTabWidget,
-    QWidget, QLabel, QLineEdit, QSpinBox, QCheckBox,
-    QPushButton, QComboBox, QFormLayout, QGroupBox
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
-from typing import Any, Optional
 
 
 class SettingsDialog(QDialog):
     """Settings dialog window"""
-    
-    def __init__(self, settings: Any, parent: Optional[Any] = None) -> None:
+
+    def __init__(self, settings: Any, parent: Any | None = None) -> None:
         super().__init__(parent)
         self.settings = settings
         self.setWindowTitle("Forge Settings")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
-        
+
         self._setup_ui()
         self._load_settings()
-        
+
     def _setup_ui(self) -> None:
         """Setup the dialog UI"""
         layout = QVBoxLayout(self)
-        
+
         # Tab widget for different setting categories
         tabs = QTabWidget()
-        
+
         # LLM Settings Tab
         llm_tab = self._create_llm_tab()
         tabs.addTab(llm_tab, "LLM")
-        
+
         # Editor Settings Tab
         editor_tab = self._create_editor_tab()
         tabs.addTab(editor_tab, "Editor")
-        
+
         # Git Settings Tab
         git_tab = self._create_git_tab()
         tabs.addTab(git_tab, "Git")
-        
+
         layout.addWidget(tabs)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
         button_layout.addStretch()
-        
+
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
-        
+
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self._save_and_close)
         save_btn.setDefault(True)
-        
+
         button_layout.addWidget(cancel_btn)
         button_layout.addWidget(save_btn)
-        
+
         layout.addLayout(button_layout)
-        
+
     def _create_llm_tab(self) -> QWidget:
         """Create LLM settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
-        
+
         # API Key
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_key_input.setPlaceholderText("Enter OpenRouter API key or set OPENROUTER_API_KEY env var")
+        self.api_key_input.setPlaceholderText(
+            "Enter OpenRouter API key or set OPENROUTER_API_KEY env var"
+        )
         layout.addRow("API Key:", self.api_key_input)
-        
+
         # Model selection
         self.model_input = QComboBox()
         self.model_input.setEditable(True)
-        self.model_input.addItems([
-            "anthropic/claude-3.5-sonnet",
-            "anthropic/claude-3-opus",
-            "anthropic/claude-3-haiku",
-            "openai/gpt-4-turbo",
-            "openai/gpt-4",
-            "openai/gpt-3.5-turbo"
-        ])
+        self.model_input.addItems(
+            [
+                "anthropic/claude-3.5-sonnet",
+                "anthropic/claude-3-opus",
+                "anthropic/claude-3-haiku",
+                "openai/gpt-4-turbo",
+                "openai/gpt-4",
+                "openai/gpt-3.5-turbo",
+            ]
+        )
         layout.addRow("Model:", self.model_input)
-        
+
         # Base URL
         self.base_url_input = QLineEdit()
         self.base_url_input.setPlaceholderText("https://openrouter.ai/api/v1")
         layout.addRow("Base URL:", self.base_url_input)
-        
+
         # Info label
         info = QLabel(
             "Note: API key can also be set via OPENROUTER_API_KEY environment variable.\n"
@@ -98,54 +111,56 @@ class SettingsDialog(QDialog):
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
-        
+
         return widget
-        
+
     def _create_editor_tab(self) -> QWidget:
         """Create editor settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
-        
+
         # Font size
         self.font_size_input = QSpinBox()
         self.font_size_input.setRange(8, 24)
         layout.addRow("Font Size:", self.font_size_input)
-        
+
         # Tab width
         self.tab_width_input = QSpinBox()
         self.tab_width_input.setRange(2, 8)
         layout.addRow("Tab Width:", self.tab_width_input)
-        
+
         # Show line numbers
         self.show_line_numbers_input = QCheckBox()
         layout.addRow("Show Line Numbers:", self.show_line_numbers_input)
-        
+
         # Highlight current line
         self.highlight_line_input = QCheckBox()
         layout.addRow("Highlight Current Line:", self.highlight_line_input)
-        
+
         return widget
-        
+
     def _create_git_tab(self) -> QWidget:
         """Create git settings tab"""
         widget = QWidget()
         layout = QFormLayout(widget)
-        
+
         # Auto-commit
         self.auto_commit_input = QCheckBox()
         layout.addRow("Auto-commit AI changes:", self.auto_commit_input)
-        
+
         # Commit message model
         self.commit_model_input = QComboBox()
         self.commit_model_input.setEditable(True)
-        self.commit_model_input.addItems([
-            "anthropic/claude-3-haiku",
-            "anthropic/claude-3.5-sonnet",
-            "openai/gpt-3.5-turbo",
-            "openai/gpt-4"
-        ])
+        self.commit_model_input.addItems(
+            [
+                "anthropic/claude-3-haiku",
+                "anthropic/claude-3.5-sonnet",
+                "openai/gpt-3.5-turbo",
+                "openai/gpt-4",
+            ]
+        )
         layout.addRow("Commit Message Model:", self.commit_model_input)
-        
+
         # Info
         info = QLabel(
             "The commit message model is used to generate commit messages\n"
@@ -154,44 +169,46 @@ class SettingsDialog(QDialog):
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
-        
+
         return widget
-        
+
     def _load_settings(self) -> None:
         """Load current settings into UI"""
         # LLM settings
-        self.api_key_input.setText(self.settings.get('llm.api_key', ''))
-        self.model_input.setCurrentText(self.settings.get('llm.model', ''))
-        self.base_url_input.setText(self.settings.get('llm.base_url', ''))
-        
+        self.api_key_input.setText(self.settings.get("llm.api_key", ""))
+        self.model_input.setCurrentText(self.settings.get("llm.model", ""))
+        self.base_url_input.setText(self.settings.get("llm.base_url", ""))
+
         # Editor settings
-        self.font_size_input.setValue(self.settings.get('editor.font_size', 10))
-        self.tab_width_input.setValue(self.settings.get('editor.tab_width', 4))
-        self.show_line_numbers_input.setChecked(self.settings.get('editor.show_line_numbers', True))
-        self.highlight_line_input.setChecked(self.settings.get('editor.highlight_current_line', True))
-        
+        self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
+        self.tab_width_input.setValue(self.settings.get("editor.tab_width", 4))
+        self.show_line_numbers_input.setChecked(self.settings.get("editor.show_line_numbers", True))
+        self.highlight_line_input.setChecked(
+            self.settings.get("editor.highlight_current_line", True)
+        )
+
         # Git settings
-        self.auto_commit_input.setChecked(self.settings.get('git.auto_commit', False))
-        self.commit_model_input.setCurrentText(self.settings.get('git.commit_message_model', ''))
-        
+        self.auto_commit_input.setChecked(self.settings.get("git.auto_commit", False))
+        self.commit_model_input.setCurrentText(self.settings.get("git.commit_message_model", ""))
+
     def _save_and_close(self) -> None:
         """Save settings and close dialog"""
         # LLM settings
-        self.settings.set('llm.api_key', self.api_key_input.text())
-        self.settings.set('llm.model', self.model_input.currentText())
-        self.settings.set('llm.base_url', self.base_url_input.text())
-        
+        self.settings.set("llm.api_key", self.api_key_input.text())
+        self.settings.set("llm.model", self.model_input.currentText())
+        self.settings.set("llm.base_url", self.base_url_input.text())
+
         # Editor settings
-        self.settings.set('editor.font_size', self.font_size_input.value())
-        self.settings.set('editor.tab_width', self.tab_width_input.value())
-        self.settings.set('editor.show_line_numbers', self.show_line_numbers_input.isChecked())
-        self.settings.set('editor.highlight_current_line', self.highlight_line_input.isChecked())
-        
+        self.settings.set("editor.font_size", self.font_size_input.value())
+        self.settings.set("editor.tab_width", self.tab_width_input.value())
+        self.settings.set("editor.show_line_numbers", self.show_line_numbers_input.isChecked())
+        self.settings.set("editor.highlight_current_line", self.highlight_line_input.isChecked())
+
         # Git settings
-        self.settings.set('git.auto_commit', self.auto_commit_input.isChecked())
-        self.settings.set('git.commit_message_model', self.commit_model_input.currentText())
-        
+        self.settings.set("git.auto_commit", self.auto_commit_input.isChecked())
+        self.settings.set("git.commit_message_model", self.commit_model_input.currentText())
+
         # Save to file
         self.settings.save()
-        
+
         self.accept()

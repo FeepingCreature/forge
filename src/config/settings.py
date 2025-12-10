@@ -5,100 +5,97 @@ Settings management for Forge
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class Settings:
     """Manages application settings"""
-    
+
     DEFAULT_SETTINGS = {
         "llm": {
             "api_key": "",
             "model": "anthropic/claude-3.5-sonnet",
-            "base_url": "https://openrouter.ai/api/v1"
+            "base_url": "https://openrouter.ai/api/v1",
         },
         "editor": {
             "font_size": 10,
             "tab_width": 4,
             "show_line_numbers": True,
-            "highlight_current_line": True
+            "highlight_current_line": True,
         },
         "ui": {
             "theme": "light",
-            "editor_ai_split": [2, 1]  # Ratio for splitter
+            "editor_ai_split": [2, 1],  # Ratio for splitter
         },
-        "git": {
-            "auto_commit": False,
-            "commit_message_model": "anthropic/claude-3-haiku"
-        }
+        "git": {"auto_commit": False, "commit_message_model": "anthropic/claude-3-haiku"},
     }
-    
-    def __init__(self, config_path: Optional[Path] = None) -> None:
+
+    def __init__(self, config_path: Path | None = None) -> None:
         """Initialize settings"""
         if config_path is None:
             config_path = Path.home() / ".config" / "forge" / "settings.json"
-        
+
         self.config_path = config_path
         self.settings = self.DEFAULT_SETTINGS.copy()
         self.load()
-        
+
     def load(self) -> None:
         """Load settings from file"""
         if self.config_path.exists():
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path) as f:
                 loaded = json.load(f)
                 # Merge with defaults to handle new settings
                 self._merge_settings(self.settings, loaded)
-                
+
     def save(self) -> None:
         """Save settings to file"""
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, "w") as f:
             json.dump(self.settings, f, indent=2)
-            
-    def _merge_settings(self, base: Dict[str, Any], updates: Dict[str, Any]) -> None:
+
+    def _merge_settings(self, base: dict[str, Any], updates: dict[str, Any]) -> None:
         """Recursively merge settings dictionaries"""
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
                 # Both are dicts, safe to recurse
-                base_dict: Dict[str, Any] = base[key]
-                value_dict: Dict[str, Any] = value
+                base_dict: dict[str, Any] = base[key]
+                value_dict: dict[str, Any] = value
                 self._merge_settings(base_dict, value_dict)
             else:
                 base[key] = value
-                
+
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting by dot-separated path (e.g., 'llm.api_key')"""
-        parts = path.split('.')
+        parts = path.split(".")
         value: Any = self.settings
-        
+
         for part in parts:
             if isinstance(value, dict):
-                value_dict: Dict[str, Any] = value
+                value_dict: dict[str, Any] = value
                 if part in value_dict:
                     value = value_dict[part]
                 else:
                     return default
             else:
                 return default
-                
+
         return value
-        
+
     def set(self, path: str, value: Any) -> None:
         """Set a setting by dot-separated path"""
-        parts = path.split('.')
+        parts = path.split(".")
         target: Any = self.settings
-        
+
         for part in parts[:-1]:
             if part not in target:
                 target[part] = {}
             target = target[part]
-            
+
         target[parts[-1]] = value
-        
+
     def get_api_key(self) -> str:
         """Get API key from settings or environment"""
-        api_key: str = str(self.get('llm.api_key', ''))
+        api_key: str = str(self.get("llm.api_key", ""))
         if not api_key:
-            api_key = os.environ.get('OPENROUTER_API_KEY', '')
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
         return api_key

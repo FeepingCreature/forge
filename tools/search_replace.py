@@ -3,8 +3,8 @@
 SEARCH/REPLACE tool for making code edits (git-aware)
 """
 
-import sys
 import json
+import sys
 
 
 def get_schema() -> dict:
@@ -17,51 +17,38 @@ def get_schema() -> dict:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filepath": {
-                        "type": "string",
-                        "description": "Path to the file to edit"
-                    },
-                    "search": {
-                        "type": "string",
-                        "description": "Exact text to search for"
-                    },
-                    "replace": {
-                        "type": "string",
-                        "description": "Text to replace with"
-                    }
+                    "filepath": {"type": "string", "description": "Path to the file to edit"},
+                    "search": {"type": "string", "description": "Exact text to search for"},
+                    "replace": {"type": "string", "description": "Text to replace with"},
                 },
-                "required": ["filepath", "search", "replace"]
-            }
-        }
+                "required": ["filepath", "search", "replace"],
+            },
+        },
     }
 
 
 def execute(tool_input: dict) -> dict:
     """Execute the search/replace operation on git content"""
-    args = tool_input.get('args', {})
-    context = tool_input.get('context', {})
-    
+    args = tool_input.get("args", {})
+    context = tool_input.get("context", {})
+
     filepath = args.get("filepath")
     search = args.get("search")
     replace = args.get("replace")
-    
+
     if not all([filepath, search is not None, replace is not None]):
         return {"success": False, "error": "Missing required arguments"}
-    
+
     # Get current content from context (provided by ToolManager from git)
-    content = context['current_content']
-    
+    content = context["current_content"]
+
     if search not in content:
         return {"success": False, "error": "Search text not found in file"}
-    
+
     # Replace first occurrence
     new_content = content.replace(search, replace, 1)
-    
-    return {
-        "success": True,
-        "message": f"Replaced in {filepath}",
-        "new_content": new_content
-    }
+
+    return {"success": True, "message": f"Replaced in {filepath}", "new_content": new_content}
 
 
 def main() -> None:

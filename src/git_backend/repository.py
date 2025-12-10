@@ -170,8 +170,8 @@ class ForgeRepository:
         
         def walk_tree(tree: pygit2.Tree, path: str = "") -> None:
             for entry in tree:
-                entry_name: str = entry.name
-                entry_path = f"{path}/{entry_name}" if path else entry_name
+                assert entry.name is not None, "Tree entry name should never be None"
+                entry_path = f"{path}/{entry.name}" if path else entry.name
                 obj = self.repo[entry.id]
                 if isinstance(obj, pygit2.Tree):
                     # Recursively walk subdirectories

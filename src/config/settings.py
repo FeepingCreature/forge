@@ -61,8 +61,8 @@ class Settings:
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
                 # Both are dicts, safe to recurse
-                base_dict: Dict[str, Any] = base[key]  # type: ignore[assignment]
-                value_dict: Dict[str, Any] = value  # type: ignore[assignment]
+                base_dict: Dict[str, Any] = base[key]
+                value_dict: Dict[str, Any] = value
                 self._merge_settings(base_dict, value_dict)
             else:
                 base[key] = value
@@ -74,7 +74,7 @@ class Settings:
         
         for part in parts:
             if isinstance(value, dict):
-                value_dict: Dict[str, Any] = value  # type: ignore[assignment]
+                value_dict: Dict[str, Any] = value
                 if part in value_dict:
                     value = value_dict[part]
                 else:

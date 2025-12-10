@@ -113,16 +113,21 @@ class ForgeRepository:
             rest_path = '/'.join(parts[1:])
             
             # Get or create subtree
-            try:
-                subtree_entry = base_tree[dir_name]
-                subtree = self.repo[subtree_entry.id]
-                subtree_builder = self.repo.TreeBuilder(subtree)
-            except KeyError:
-                # Directory doesn't exist, create new tree
+            subtree = None
+            if base_tree:
+                try:
+                    subtree_entry = base_tree[dir_name]
+                    subtree = self.repo[subtree_entry.id]
+                    subtree_builder = self.repo.TreeBuilder(subtree)
+                except KeyError:
+                    # Directory doesn't exist, create new tree
+                    subtree_builder = self.repo.TreeBuilder()
+            else:
+                # No base tree, create new
                 subtree_builder = self.repo.TreeBuilder()
             
             # Recursively add to subtree
-            self._add_to_tree(subtree_builder, rest_path, blob_oid, subtree if 'subtree' in locals() else None)
+            self._add_to_tree(subtree_builder, rest_path, blob_oid, subtree)
             
             # Write subtree and add to parent
             subtree_oid = subtree_builder.write()

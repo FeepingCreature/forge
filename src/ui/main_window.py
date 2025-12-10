@@ -29,12 +29,13 @@ class MainWindow(QMainWindow):
         self.settings = Settings()
         
         # Initialize git repository
+        self.repo: Optional[ForgeRepository]
         try:
             self.repo = ForgeRepository()
             self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
             self.sessions_dir.mkdir(parents=True, exist_ok=True)
         except ValueError:
-            self.repo: Optional[ForgeRepository] = None
+            self.repo = None
             self.sessions_dir = Path(".forge") / "sessions"
             QMessageBox.warning(
                 self,

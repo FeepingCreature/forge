@@ -167,10 +167,10 @@ class CodeEditor(QPlainTextEdit):
             
     def highlight_current_line(self) -> None:
         """Highlight the current line"""
-        extra_selections = []
+        extra_selections: list[Any] = []
         
         if not self.isReadOnly():
-            selection = QTextEdit.ExtraSelection()
+            selection: Any = QTextEdit.ExtraSelection()
             line_color = QColor("#ffffcc")
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)

@@ -60,18 +60,25 @@ class Settings:
         """Recursively merge settings dictionaries"""
         for key, value in updates.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
-                self._merge_settings(base[key], value)  # type: ignore[arg-type]
+                # Both are dicts, safe to recurse
+                base_dict: Dict[str, Any] = base[key]  # type: ignore[assignment]
+                value_dict: Dict[str, Any] = value  # type: ignore[assignment]
+                self._merge_settings(base_dict, value_dict)
             else:
                 base[key] = value
                 
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting by dot-separated path (e.g., 'llm.api_key')"""
         parts = path.split('.')
-        value = self.settings
+        value: Any = self.settings
         
         for part in parts:
-            if isinstance(value, dict) and part in value:
-                value = value[part]
+            if isinstance(value, dict):
+                value_dict: Dict[str, Any] = value  # type: ignore[assignment]
+                if part in value_dict:
+                    value = value_dict[part]
+                else:
+                    return default
             else:
                 return default
                 

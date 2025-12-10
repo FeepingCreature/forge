@@ -123,7 +123,7 @@ Keep it under 72 characters."""
     
     def get_session_data(self, messages: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Get session data for persistence"""
-        data = {
+        data: Dict[str, Any] = {
             'session_id': self.session_id,
             'branch_name': self.branch_name,
             'active_files': list(self.active_files),

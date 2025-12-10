@@ -171,10 +171,10 @@ class ForgeRepository:
         def walk_tree(tree: pygit2.Tree, path: str = "") -> None:
             for entry in tree:
                 entry_path = f"{path}/{entry.name}" if path else entry.name
-                if entry.type == 'tree':
+                obj = self.repo[entry.oid]
+                if isinstance(obj, pygit2.Tree):
                     # Recursively walk subdirectories
-                    subtree = self.repo[entry.oid]
-                    walk_tree(subtree, entry_path)
+                    walk_tree(obj, entry_path)
                 else:
                     files.append(entry_path)
         

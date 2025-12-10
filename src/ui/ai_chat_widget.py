@@ -28,7 +28,7 @@ class StreamWorker(QObject):
         self.messages = messages
         self.tools = tools
         self.current_content = ""
-        self.current_tool_calls = []
+        self.current_tool_calls: List[Dict[str, Any]] = []
         
     def run(self) -> None:
         """Run the streaming request"""
@@ -100,8 +100,8 @@ class AIChatWidget(QWidget):
             self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
         
         # Streaming worker
-        self.stream_thread = None
-        self.stream_worker = None
+        self.stream_thread: Optional[QThread] = None
+        self.stream_worker: Optional[StreamWorker] = None
         
         # Load existing session or start fresh
         if session_data:
@@ -227,27 +227,28 @@ class AIChatWidget(QWidget):
             self.stream_worker = None
         
         # Update final message
-        if result['content']:
+        if result.get('content'):
             if self.messages and self.messages[-1]["role"] == "assistant":
                 self.messages[-1]["content"] = result['content']
         
         # Handle tool calls if present
-        if result['tool_calls']:
+        if result.get('tool_calls'):
             # Remove the streaming message if it was empty
             if self.messages and self.messages[-1]["role"] == "assistant" and not self.messages[-1]["content"]:
                 self.messages.pop()
             
             # Add assistant message with tool calls
-            assistant_msg = {"role": "assistant", "content": result['content']}
+            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": result.get('content')}
             assistant_msg["tool_calls"] = result['tool_calls']
             self.messages.append(assistant_msg)
             
             # Execute tools
             self._execute_tool_calls(result['tool_calls'])
-        else:
-            self._update_chat_display()
-            self.session_updated.emit()
-            self._reset_input()
+            return
+        
+        self._update_chat_display()
+        self.session_updated.emit()
+        self._reset_input()
     
     def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error"""
@@ -260,6 +261,7 @@ class AIChatWidget(QWidget):
         
         self.add_message("assistant", f"Error: {error_msg}")
         self._reset_input()
+        return
     
     def _execute_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""

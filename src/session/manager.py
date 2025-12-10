@@ -37,8 +37,7 @@ class SessionManager:
         # Add full content for active files
         for filepath in self.active_files:
             content = self.repo.get_file_content(filepath, self.branch_name)
-            if content:
-                context['active_files'][filepath] = content
+            context['active_files'][filepath] = content
         
         return context
     

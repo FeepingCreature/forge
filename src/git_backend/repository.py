@@ -42,30 +42,21 @@ class ForgeRepository:
         
         return branch_name
     
-    def get_branch_head(self, branch_name: str) -> Optional[pygit2.Commit]:
+    def get_branch_head(self, branch_name: str) -> pygit2.Commit:
         """Get the head commit of a branch"""
-        try:
-            branch = self.repo.branches[branch_name]
-            return branch.peel(pygit2.Commit)
-        except KeyError:
-            return None
+        branch = self.repo.branches[branch_name]
+        return branch.peel(pygit2.Commit)
     
-    def get_file_content(self, filepath: str, branch_name: Optional[str] = None) -> Optional[str]:
+    def get_file_content(self, filepath: str, branch_name: Optional[str] = None) -> str:
         """Get file content from a branch or HEAD"""
         if branch_name:
             commit = self.get_branch_head(branch_name)
         else:
             commit = self.repo.head.peel()
-        
-        if not commit:
-            return None
             
-        try:
-            entry = commit.tree[filepath]
-            blob = self.repo[entry.id]
-            return blob.data.decode('utf-8')
-        except (KeyError, AttributeError):
-            return None
+        entry = commit.tree[filepath]
+        blob = self.repo[entry.id]
+        return blob.data.decode('utf-8')
     
     def create_tree_from_changes(self, base_branch: str, changes: Dict[str, str]) -> pygit2.Oid:
         """
@@ -80,8 +71,6 @@ class ForgeRepository:
         """
         # Get base commit
         base_commit = self.get_branch_head(base_branch)
-        if not base_commit:
-            raise ValueError(f"Branch {base_branch} not found")
         
         # Start with base tree
         base_tree = base_commit.tree
@@ -150,8 +139,6 @@ class ForgeRepository:
         """
         # Get parent commit
         parent_commit = self.get_branch_head(branch_name)
-        if not parent_commit:
-            raise ValueError(f"Branch {branch_name} not found")
         
         # Create signature
         signature = pygit2.Signature(author_name, author_email)
@@ -174,9 +161,6 @@ class ForgeRepository:
             commit = self.get_branch_head(branch_name)
         else:
             commit = self.repo.head.peel()
-        
-        if not commit:
-            return []
         
         files = []
         

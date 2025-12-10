@@ -69,7 +69,10 @@ class ToolManager:
         context = {}
         
         # If tool needs file content, get it from git
-        if 'filepath' in args and self.repo and self.branch_name:
+        if 'filepath' in args:
+            assert self.repo is not None, "Repository required for file operations"
+            assert self.branch_name is not None, "Branch name required for file operations"
+            
             filepath = args['filepath']
             current_content = self.repo.get_file_content(filepath, self.branch_name)
             

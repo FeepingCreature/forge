@@ -49,10 +49,7 @@ def execute(tool_input):
         return {"success": False, "error": "Missing required arguments"}
     
     # Get current content from context (provided by ToolManager from git)
-    content = context.get('current_content')
-    
-    if content is None:
-        return {"success": False, "error": f"File {filepath} not found in repository"}
+    content = context['current_content']
     
     if search not in content:
         return {"success": False, "error": "Search text not found in file"}

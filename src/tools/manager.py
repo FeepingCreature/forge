@@ -6,14 +6,20 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..git_backend.repository import ForgeRepository
 
 
 class ToolManager:
     """Manages tools available to the LLM"""
 
     def __init__(
-        self, repo: Any = None, branch_name: str | None = None, tools_dir: str = "./tools"
+        self,
+        repo: "ForgeRepository | None" = None,
+        branch_name: str | None = None,
+        tools_dir: str = "./tools",
     ) -> None:
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(exist_ok=True)

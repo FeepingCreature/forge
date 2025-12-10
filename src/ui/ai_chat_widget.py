@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
+from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
 
@@ -100,7 +101,7 @@ class AIChatWidget(QWidget):
         session_id: str | None = None,
         session_data: dict[str, Any] | None = None,
         settings: Any = None,
-        repo: Any = None,
+        repo: ForgeRepository | None = None,
     ) -> None:
         super().__init__()
         self.session_id = session_id or str(uuid.uuid4())
@@ -407,7 +408,9 @@ class AIChatWidget(QWidget):
         return session_file
 
     @staticmethod
-    def load_session(session_file: Path, settings: Any = None, repo: Any = None) -> "AIChatWidget":
+    def load_session(
+        session_file: Path, settings: Any = None, repo: ForgeRepository | None = None
+    ) -> "AIChatWidget":
         """Load session from file"""
         with open(session_file) as f:
             session_data = json.load(f)

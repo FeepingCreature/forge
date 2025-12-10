@@ -21,6 +21,9 @@ from .ai_chat_widget import AIChatWidget
 from .editor_widget import EditorWidget
 from .settings_dialog import SettingsDialog
 
+# Type alias for clarity
+Repository = ForgeRepository
+
 
 class MainWindow(QMainWindow):
     """Main application window with VSCode-like layout"""

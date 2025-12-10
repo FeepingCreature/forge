@@ -63,9 +63,8 @@ class SessionManager:
         # Get pending changes from tool manager
         changes = self.tool_manager.get_pending_changes()
         
-        # Build session state from manager's data
-        session_state = self.get_session_data()
-        session_state['messages'] = messages
+        # Build session state with messages
+        session_state = self.get_session_data(messages)
         
         session_file_path = f'.forge/sessions/{self.session_id}.json'
         changes[session_file_path] = json.dumps(session_state, indent=2)
@@ -121,11 +120,14 @@ Keep it under 72 characters."""
                 continue  # Skip forge metadata
             self.repo_summaries[filepath] = f"File: {filepath}"
     
-    def get_session_data(self) -> Dict:
+    def get_session_data(self, messages: list = None) -> Dict:
         """Get session data for persistence"""
-        return {
+        data = {
             'session_id': self.session_id,
             'branch_name': self.branch_name,
             'active_files': list(self.active_files),
             'repo_summaries': self.repo_summaries
         }
+        if messages is not None:
+            data['messages'] = messages
+        return data

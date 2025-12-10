@@ -5,7 +5,6 @@ AI chat widget with markdown/LaTeX rendering
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QLineEdit, QPushButton, QHBoxLayout
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtCore import QUrl, Signal, QThread, QObject
-from PySide6.QtCore import Signal as pyqtSignal
 import markdown
 import json
 import uuid

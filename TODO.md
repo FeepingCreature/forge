@@ -3,6 +3,73 @@
 ## Goal
 Get Forge to the point where it can develop itself - a working AI-assisted IDE with tool support and git integration.
 
+## Phase 0: Critical Design Issues ⚠️ FIX FIRST
+
+These issues violate core design principles and must be fixed before the project can work as intended.
+
+### 1. Session Persistence Violates Git-First Principle ⚠️ CRITICAL
+**Problem**: Sessions are saved to filesystem in `MainWindow._save_session()`, not committed to git.
+**Impact**: Breaks "AI time travel" - can't checkout old commits and see session state.
+**Fix**: 
+- Remove filesystem session save/load operations
+- Sessions should only be saved during `SessionManager.commit_ai_turn()`
+- Load sessions by reading `.forge/sessions/*.json` from git tree
+- Delete `AIChatWidget.save_session()` and `load_session()` filesystem operations
+
+### 2. Commit Timing is Wrong ⚠️ CRITICAL
+**Problem**: Commits happen after each tool call in `_execute_tool_calls()`, not once per AI turn.
+**Design says**: "One Commit Per Cycle" - each AI interaction produces exactly one commit.
+**Impact**: Creates multiple commits per turn, wastes tokens, breaks atomic commit model.
+**Fix**: Only commit after AI's final response, not during tool execution loop.
+
+### 3. Repository Summaries Not Implemented ⚠️ CRITICAL
+**Problem**: `SessionManager.generate_repo_summaries()` uses placeholder text, doesn't call LLM.
+**Impact**: Context sent to LLM is useless. The "cheap summaries + selective full files" strategy doesn't work.
+**Fix**: Actually call cheap LLM (Haiku) to generate file summaries.
+
+### 4. Tool Approval Workflow Missing ⚠️ SECURITY
+**Problem**: Tools execute without user review.
+**Design says**: "Tools are reviewed once at creation/modification time."
+**Impact**: Malicious or buggy tools could run without user knowledge.
+**Fix**:
+- Add `approved_tools.json` in `.forge/` (tracked in git)
+- Show approval dialog for new/modified tools
+- Check approval before execution
+- Track tool file hashes to detect modifications
+
+### 5. Context Building Has Timing Issues
+**Problem**: Context is inserted as system message before every user message, duplicating context on every turn.
+**Impact**: Wastes tokens, sends redundant data.
+**Fix**: 
+- Build context once at session start
+- Update only when files change
+- Send as initial system message, not inserted mid-conversation
+
+### 6. Active Files Management Missing UI
+**Problem**: `SessionManager` tracks `active_files`, but no UI to add/remove files.
+**Impact**: Users can't control what's in context. The "expand/collapse files" feature doesn't exist.
+**Fix**: Add UI controls (buttons, file tree, etc.) to manage active files.
+
+### 7. Error Handling Violates "No Fallbacks" Philosophy
+**Problem**: Many try/except blocks with silent failures (e.g., `print(f"Error: {e}")` and continue).
+**CLAUDE.md says**: "No fallbacks! No try/except... Errors and backtraces are holy."
+**Fix**: Let errors propagate or show them to user. Don't silently continue.
+
+### 8. Type Hints Use `Any` Too Much
+**Problem**: `settings: Any`, `repo: Any`, `session_widget: Any` throughout codebase.
+**Impact**: Loses type safety benefits.
+**Fix**: Use proper types (`Settings`, `ForgeRepository`, `AIChatWidget`).
+
+### 9. Sessions Directory Creation is Inconsistent
+**Problem**: Falls back to `.forge/sessions` in current directory if not in git repo.
+**Issue**: Whole app is supposed to require git.
+**Fix**: Either require git repo or clarify fallback behavior in design.
+
+### 10. Session Loading Happens from Filesystem, Not Git
+**Problem**: `MainWindow._load_existing_sessions()` reads from filesystem.
+**Should**: Load sessions from current git branch's `.forge/sessions/` directory.
+**Fix**: Read session files from git tree, not filesystem.
+
 ## Phase 1: Core Functionality (MVP)
 
 ### 1. LLM Integration ⚠️ CRITICAL
@@ -144,14 +211,13 @@ Next priorities:
 
 ## Known Issues
 
-- [ ] **Repository summaries not LLM-generated** - Just placeholder text, need to use cheap model
-- [ ] **No tool approval workflow** - Tools execute without user review (security risk)
-- [ ] **Context not properly sent to LLM** - Fixed in this commit, but needs testing
-- [ ] **Session state not in git** - Saved to filesystem instead of `.forge/sessions/` in git
-- [ ] **No UI for managing active files** - Can't add/remove files from context
+**NOTE**: Most critical issues moved to "Phase 0: Critical Design Issues" above.
+
 - [ ] **Editor doesn't save files** - No Ctrl+S implementation
 - [ ] **No keyboard shortcuts** - Most shortcuts not implemented
 - [ ] **Session loading doesn't restore chat display properly** - Messages load but display may be wrong
+- [ ] **Too many try/except blocks** - Violates "no fallbacks" philosophy
+- [ ] **Type hints too loose** - Many `Any` types should be specific
 
 ## Nice to Have (Post-MVP)
 

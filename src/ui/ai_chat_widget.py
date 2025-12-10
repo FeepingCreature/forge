@@ -198,6 +198,34 @@ class AIChatWidget(QWidget):
             model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
             client = LLMClient(api_key, model)
 
+            # Build context with summaries and active files
+            context_message = ""
+            if self.session_manager:
+                context = self.session_manager.build_context()
+                
+                # Add repository summaries
+                if context["summaries"]:
+                    context_message += "# Repository Files\n\n"
+                    for filepath, summary in context["summaries"].items():
+                        context_message += f"- {filepath}: {summary}\n"
+                    context_message += "\n"
+                
+                # Add active files with full content
+                if context["active_files"]:
+                    context_message += "# Active Files (Full Content)\n\n"
+                    for filepath, content in context["active_files"].items():
+                        context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
+            
+            # Prepend context to messages if we have any
+            messages_with_context = self.messages.copy()
+            if context_message and messages_with_context:
+                # Insert context before the last user message
+                last_user_idx = len(messages_with_context) - 1
+                messages_with_context.insert(last_user_idx, {
+                    "role": "system",
+                    "content": context_message
+                })
+
             # Discover available tools
             if self.session_manager:
                 tools = self.session_manager.tool_manager.discover_tools()
@@ -209,7 +237,7 @@ class AIChatWidget(QWidget):
             self._start_streaming_message()
 
             self.stream_thread = QThread()
-            self.stream_worker = StreamWorker(client, self.messages, tools if tools else None)
+            self.stream_worker = StreamWorker(client, messages_with_context, tools if tools else None)
             self.stream_worker.moveToThread(self.stream_thread)
 
             # Connect signals

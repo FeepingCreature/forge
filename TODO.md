@@ -20,7 +20,11 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 - [x] Handle tool calls from LLM responses
 - [x] Execute tools and return results
 - [x] Display tool execution in chat UI
-- [ ] Add tool approval workflow (new/modified tools need user OK before first use)
+- [ ] **Add tool approval workflow** (new/modified tools need user OK before first use)
+  - Tools should be marked as approved/unapproved
+  - UI dialog to review tool code before first use
+  - Track approval state in session or global config
+  - Prevent execution of unapproved tools
 - [ ] Track approved vs unapproved tools
 - [ ] UI to review and approve pending tools
 
@@ -33,13 +37,15 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 - [ ] File tree/explorer sidebar (optional for MVP)
 
 ### 4. Git Integration
-- [ ] Implement commit_changes() in ForgeRepository
-- [ ] Create commits directly without touching working dir
-- [ ] Stage session state files with code changes
-- [ ] Generate commit messages with smaller LLM
+- [x] Implement commit_changes() in ForgeRepository
+- [x] Create commits directly without touching working dir
+- [x] Stage session state files with code changes
+- [x] Generate commit messages with smaller LLM
+- [ ] **Fix commit timing** - Currently commits after each tool call, should be once per AI turn
 - [ ] Show current branch in status bar
 - [ ] Basic branch switching UI
 - [ ] Commit history viewer
+- [ ] **Session state in git** - Currently saves to filesystem, should commit to `.forge/sessions/`
 
 ### 5. Editor Enhancements
 - [ ] Syntax highlighting for more languages (JS, HTML, CSS, etc.)
@@ -129,19 +135,23 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 **Forge can now develop itself!** The git-first workflow is complete. Each AI turn creates an atomic commit with all changes.
 
 Next priorities:
-- Test the full workflow end-to-end
-- Improve repository summary generation with actual LLM
-- Add UI for managing active files
-- File save functionality for manual edits
+- **Fix context sending** - Repository summaries and active files now sent to LLM ✓
+- **Improve repository summary generation** - Currently just "File: {path}", should use cheap LLM
+- **Add UI for managing active files** - No way to add/remove files from context yet
+- **File save functionality** - Manual edits in editor don't save
+- **Tool approval workflow** - Tools run without user review (security issue)
+- **Session persistence in git** - Sessions saved to filesystem, should be in git commits
 
 ## Known Issues
 
-- [ ] Session loading doesn't restore chat display properly
-- [ ] No way to configure API key yet
-- [ ] Tool execution not wired up
-- [ ] No commit creation yet
-- [ ] Editor doesn't show file path in tab tooltip
-- [ ] No keyboard shortcuts implemented
+- [ ] **Repository summaries not LLM-generated** - Just placeholder text, need to use cheap model
+- [ ] **No tool approval workflow** - Tools execute without user review (security risk)
+- [ ] **Context not properly sent to LLM** - Fixed in this commit, but needs testing
+- [ ] **Session state not in git** - Saved to filesystem instead of `.forge/sessions/` in git
+- [ ] **No UI for managing active files** - Can't add/remove files from context
+- [ ] **Editor doesn't save files** - No Ctrl+S implementation
+- [ ] **No keyboard shortcuts** - Most shortcuts not implemented
+- [ ] **Session loading doesn't restore chat display properly** - Messages load but display may be wrong
 
 ## Nice to Have (Post-MVP)
 

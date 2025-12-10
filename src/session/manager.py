@@ -2,7 +2,9 @@
 Session manager for coordinating AI turns and git commits
 """
 
+import hashlib
 import json
+from pathlib import Path
 from typing import Any
 
 from ..git_backend.repository import ForgeRepository
@@ -27,8 +29,40 @@ class SessionManager:
         # Active files in context
         self.active_files: set[str] = set()
 
-        # Repository summaries cache
+        # Repository summaries cache (in-memory)
         self.repo_summaries: dict[str, str] = {}
+
+        # XDG cache directory for persistent summary cache
+        self.cache_dir = self._get_cache_dir()
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_cache_dir(self) -> Path:
+        """Get XDG cache directory for repository summaries"""
+        xdg_cache = Path.home() / ".cache"
+        if "XDG_CACHE_HOME" in __import__("os").environ:
+            xdg_cache = Path(__import__("os").environ["XDG_CACHE_HOME"])
+        return xdg_cache / "forge" / "summaries"
+
+    def _get_cache_key(self, filepath: str, commit_oid: str) -> str:
+        """Generate cache key from filepath and commit OID"""
+        # Use hash to keep filename reasonable length
+        key_str = f"{commit_oid}:{filepath}"
+        return hashlib.sha256(key_str.encode()).hexdigest()
+
+    def _get_cached_summary(self, filepath: str, commit_oid: str) -> str | None:
+        """Get cached summary for a file at a specific commit"""
+        cache_key = self._get_cache_key(filepath, commit_oid)
+        cache_file = self.cache_dir / cache_key
+        
+        if cache_file.exists():
+            return cache_file.read_text()
+        return None
+
+    def _cache_summary(self, filepath: str, commit_oid: str, summary: str) -> None:
+        """Cache a summary for a file at a specific commit"""
+        cache_key = self._get_cache_key(filepath, commit_oid)
+        cache_file = self.cache_dir / cache_key
+        cache_file.write_text(summary)
 
     def build_context(self) -> dict[str, Any]:
         """Build context for LLM with summaries and active files"""
@@ -114,14 +148,29 @@ Keep it under 72 characters."""
         return message
 
     def generate_repo_summaries(self) -> None:
-        """Generate summaries for all files in repository"""
-        # TODO: Implement with cheap LLM
-        # For now, just list files
+        """Generate summaries for all files in repository (with caching)"""
+        # Get current commit OID for cache key
+        commit = self.repo.get_branch_head(self.branch_name)
+        commit_oid = str(commit.id)
+        
         files = self.repo.get_all_files(self.branch_name)
         for filepath in files:
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
-            self.repo_summaries[filepath] = f"File: {filepath}"
+            
+            # Check cache first
+            cached_summary = self._get_cached_summary(filepath, commit_oid)
+            if cached_summary:
+                self.repo_summaries[filepath] = cached_summary
+                continue
+            
+            # TODO: Generate with cheap LLM
+            # For now, just use placeholder
+            summary = f"File: {filepath}"
+            
+            # Cache the summary
+            self._cache_summary(filepath, commit_oid, summary)
+            self.repo_summaries[filepath] = summary
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""

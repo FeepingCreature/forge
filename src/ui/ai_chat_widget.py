@@ -113,10 +113,10 @@ class AIChatWidget(QWidget):
         self.is_processing = False
         self.streaming_content = ""
 
-        # Initialize session manager if we have a repo
-        self.session_manager = None
-        if repo and settings:
-            self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
+        # Initialize session manager (repo and settings are required)
+        assert repo is not None, "Repository is required for AIChatWidget"
+        assert settings is not None, "Settings are required for AIChatWidget"
+        self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
 
         # Streaming worker
         self.stream_thread: QThread | None = None
@@ -126,7 +126,7 @@ class AIChatWidget(QWidget):
         if session_data:
             self.messages = session_data.get("messages", [])
             self.branch_name = session_data.get("branch_name", self.branch_name)
-            if self.session_manager and "active_files" in session_data:
+            if "active_files" in session_data:
                 for filepath in session_data["active_files"]:
                     self.session_manager.add_active_file(filepath)
 
@@ -180,12 +180,7 @@ class AIChatWidget(QWidget):
 
     def _process_llm_request(self) -> None:
         """Process LLM request with streaming support"""
-        if not self.settings:
-            self.add_message("assistant", "Error: Settings not configured")
-            self._reset_input()
-            return
-
-        api_key = self.settings.get_api_key()
+        api_key = self.session_manager.settings.get_api_key()
         if not api_key:
             self.add_message(
                 "assistant",
@@ -196,27 +191,26 @@ class AIChatWidget(QWidget):
 
         try:
             # Initialize LLM client
-            model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+            model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
             client = LLMClient(api_key, model)
 
             # Build context with summaries and active files
+            context = self.session_manager.build_context()
             context_message = ""
-            if self.session_manager:
-                context = self.session_manager.build_context()
 
-                # Add repository summaries (loop on possibly-empty dict)
-                for filepath, summary in context["summaries"].items():
-                    if not context_message:
-                        context_message += "# Repository Files\n\n"
-                    context_message += f"- {filepath}: {summary}\n"
-                if context["summaries"]:
-                    context_message += "\n"
+            # Add repository summaries (loop on possibly-empty dict)
+            for filepath, summary in context["summaries"].items():
+                if not context_message:
+                    context_message += "# Repository Files\n\n"
+                context_message += f"- {filepath}: {summary}\n"
+            if context["summaries"]:
+                context_message += "\n"
 
-                # Add active files with full content (loop on possibly-empty dict)
-                for filepath, content in context["active_files"].items():
-                    if not any(f in context_message for f in ["# Active Files"]):
-                        context_message += "# Active Files (Full Content)\n\n"
-                    context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
+            # Add active files with full content (loop on possibly-empty dict)
+            for filepath, content in context["active_files"].items():
+                if not any(f in context_message for f in ["# Active Files"]):
+                    context_message += "# Active Files (Full Content)\n\n"
+                context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
 
             # Prepend context to messages if we have any
             messages_with_context = self.messages.copy()
@@ -229,7 +223,7 @@ class AIChatWidget(QWidget):
                 })
 
             # Discover available tools
-            tools = self.session_manager.tool_manager.discover_tools() if self.session_manager else []
+            tools = self.session_manager.tool_manager.discover_tools()
 
             # Start streaming in a separate thread
             self.streaming_content = ""
@@ -298,12 +292,11 @@ class AIChatWidget(QWidget):
             return
 
         # This is a final text response with no tool calls - commit now
-        if self.session_manager:
-            try:
-                commit_oid = self.session_manager.commit_ai_turn(self.messages)
-                self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
-            except Exception as e:
-                self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
+        try:
+            commit_oid = self.session_manager.commit_ai_turn(self.messages)
+            self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+        except Exception as e:
+            self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
 
         self._update_chat_display()
         self._reset_input()
@@ -323,18 +316,13 @@ class AIChatWidget(QWidget):
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""
-        if not self.settings:
-            self.add_message("assistant", "Error: Settings not configured")
-            self._reset_input()
-            return
-
         try:
-            model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-            api_key = self.settings.get_api_key()
+            model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+            api_key = self.session_manager.settings.get_api_key()
             client = LLMClient(api_key, model)
 
-            tools = self.session_manager.tool_manager.discover_tools() if self.session_manager else []
-            tool_manager = self.session_manager.tool_manager if self.session_manager else None
+            tools = self.session_manager.tool_manager.discover_tools()
+            tool_manager = self.session_manager.tool_manager
 
             for tool_call in tool_calls:
                 tool_name = tool_call["function"]["name"]
@@ -347,10 +335,7 @@ class AIChatWidget(QWidget):
                 )
 
                 # Execute tool
-                if tool_manager:
-                    result = tool_manager.execute_tool(tool_name, tool_args)
-                else:
-                    result = {"error": "No tool manager available"}
+                result = tool_manager.execute_tool(tool_name, tool_args)
 
                 # Add tool result to messages
                 tool_message = {
@@ -393,14 +378,12 @@ class AIChatWidget(QWidget):
                 if content:
                     self.add_message("assistant", content)
 
-                # Commit AI turn if we have a session manager
-                # This is the ONLY place we commit - once per AI turn
-                if self.session_manager:
-                    try:
-                        commit_oid = self.session_manager.commit_ai_turn(self.messages)
-                        self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
-                    except Exception as e:
-                        self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
+                # Commit AI turn - this is the ONLY place we commit - once per AI turn
+                try:
+                    commit_oid = self.session_manager.commit_ai_turn(self.messages)
+                    self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+                except Exception as e:
+                    self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
 
                 self._reset_input()
 
@@ -422,16 +405,12 @@ class AIChatWidget(QWidget):
 
     def get_session_data(self) -> dict[str, Any]:
         """Get session data for persistence (used by SessionManager for git commits)"""
-        data = {
+        return {
             "session_id": self.session_id,
             "branch_name": self.branch_name,
             "messages": self.messages,
+            "active_files": list(self.session_manager.active_files),
         }
-
-        if self.session_manager:
-            data["active_files"] = list(self.session_manager.active_files)
-
-        return data
 
     def _update_chat_display(self) -> None:
         """Update the chat display with all messages"""

@@ -295,9 +295,17 @@ class AIChatWidget(QWidget):
             assistant_msg["tool_calls"] = result["tool_calls"]
             self.messages.append(assistant_msg)
 
-            # Execute tools
+            # Execute tools - don't commit yet, AI will respond again
             self._execute_tool_calls(result["tool_calls"])
             return
+
+        # This is a final text response with no tool calls - commit now
+        if self.session_manager:
+            try:
+                commit_oid = self.session_manager.commit_ai_turn(self.messages)
+                self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+            except Exception as e:
+                self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
 
         self._update_chat_display()
         self.session_updated.emit()
@@ -384,14 +392,16 @@ class AIChatWidget(QWidget):
             if "tool_calls" in message and message["tool_calls"]:
                 # Add assistant message with tool calls
                 self.messages.append(message)
+                # Continue with tool execution - don't commit yet
                 self._execute_tool_calls(message["tool_calls"])
             else:
-                # Regular text response
+                # Regular text response - this is the final response, commit now
                 content = message.get("content", "")
                 if content:
                     self.add_message("assistant", content)
 
                 # Commit AI turn if we have a session manager
+                # This is the ONLY place we commit - once per AI turn
                 if self.session_manager:
                     try:
                         commit_oid = self.session_manager.commit_ai_turn(self.messages)

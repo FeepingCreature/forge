@@ -34,7 +34,8 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     search = args.get("search")
     replace = args.get("replace")
 
-    if not all([filepath, search is not None, replace is not None]):
+    # Type check arguments
+    if not isinstance(filepath, str) or not isinstance(search, str) or not isinstance(replace, str):
         return {"success": False, "error": "Missing required arguments"}
 
     # Read current state from VFS (includes pending changes from previous tools)

@@ -94,7 +94,8 @@ class ToolManager:
             return {"error": f"Tool {tool_name} has no execute function"}
         
         # Execute tool with VFS
-        return tool_module.execute(self.vfs, args)
+        result: dict[str, Any] = tool_module.execute(self.vfs, args)
+        return result
 
     def get_pending_changes(self) -> dict[str, str]:
         """Get all pending changes from VFS"""

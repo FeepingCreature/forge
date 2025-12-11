@@ -318,6 +318,11 @@ class AIChatWidget(QWidget):
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""
+        if not self.settings:
+            self.add_message("assistant", "Error: Settings not configured")
+            self._reset_input()
+            return
+
         try:
             model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
             api_key = self.settings.get_api_key()

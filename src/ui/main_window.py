@@ -23,6 +23,7 @@ from ..git_backend.repository import ForgeRepository
 from .ai_chat_widget import AIChatWidget
 from .editor_widget import EditorWidget
 from .settings_dialog import SettingsDialog
+from .welcome_widget import WelcomeWidget
 
 
 class MainWindow(QMainWindow):
@@ -43,6 +44,7 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_menus()
+        self._add_welcome_tab()
         self._load_existing_sessions()
 
     def _setup_ui(self) -> None:
@@ -66,6 +68,42 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
+
+    def _add_welcome_tab(self) -> None:
+        """Add welcome tab as the first tab"""
+        welcome = WelcomeWidget(self.repo)
+        welcome.new_session_requested.connect(self._new_ai_session)
+        welcome.open_file_requested.connect(self._open_file_by_path)
+
+        self.tabs.addTab(welcome, "🏠 Welcome")
+
+    def _open_file_by_path(self, filepath: str) -> None:
+        """Open a file by its path (used by welcome widget)"""
+        # Check if file is already open
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, EditorWidget) and widget.filepath == filepath:
+                self.tabs.setCurrentIndex(i)
+                self.status_bar.showMessage(f"File already open: {filepath}")
+                return
+
+        # Create new editor tab
+        editor = EditorWidget(filepath=filepath)
+
+        # Load from git, not filesystem
+        try:
+            content = self.repo.get_file_content(filepath)
+            editor.set_text(content)
+        except Exception as e:
+            self.status_bar.showMessage(f"Error loading file: {e}")
+            return
+
+        # Use just the filename for the tab label
+        filename = Path(filepath).name
+        index = self.tabs.addTab(editor, f"📄 {filename}")
+        self.tabs.setCurrentIndex(index)
+
+        self.status_bar.showMessage(f"Opened: {filepath}")
 
     def _setup_menus(self) -> None:
         """Setup menu bar"""

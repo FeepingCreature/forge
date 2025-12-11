@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import markdown
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -253,13 +254,16 @@ class AIChatWidget(QWidget):
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         """Filter events to catch Enter key in input field"""
         if obj == self.input_field and event.type() == QEvent.Type.KeyPress:
+            # Cast to QKeyEvent to access key-specific attributes
+            assert isinstance(event, QKeyEvent)
             key_event = event
             # Check if it's Enter without Shift
-            if key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-                if not (key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
-                    # Enter pressed without Shift - send message
-                    self._send_message()
-                    return True  # Event handled
+            is_enter = key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+            is_shift_pressed = bool(key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            if is_enter and not is_shift_pressed:
+                # Enter pressed without Shift - send message
+                self._send_message()
+                return True  # Event handled
         return super().eventFilter(obj, event)
 
     def _update_blocking_state(self) -> None:

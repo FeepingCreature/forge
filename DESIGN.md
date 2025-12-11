@@ -172,6 +172,16 @@ Sessions persist across app restarts and are loaded from `.forge/sessions/`.
 6. Smaller LLM generates commit message
 7. Control returns to user
 
+**Critical Principle: Repository Must Be Committed When Control Returns to User**
+
+When the AI finishes its turn and control returns to the user, the repository MUST be in a committed state. This applies even if there are pending user actions (like tool approvals).
+
+- AI creates a tool → commits it → control returns to user
+- User approves/rejects tool → separate commit for approval
+- User sends next message → AI turn → commit → control returns
+
+The repository is NEVER left in an uncommitted state when waiting for user input. User actions (approvals, file edits, etc.) are separate from AI turns and get their own commits.
+
 **What Gets Committed**:
 - All code changes from SEARCH/REPLACE blocks
 - Updated session state (`.forge/sessions/<id>.json`)

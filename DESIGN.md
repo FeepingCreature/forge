@@ -63,26 +63,41 @@ The fundamental insight: **AI time travel**. You can checkout any commit and see
 
 ### Tool System
 
-Tools are executable scripts in `./tools/` directory that:
-- Accept `--schema` flag to output JSON schema for LLM
-- Accept JSON input via stdin
-- Output JSON results via stdout
-- **Operate on git state, not filesystem** - receive file contents, return new contents
-- Are sandboxed (can only propose file changes, not execute arbitrary code)
+Tools are Python modules in `./tools/` directory that:
+- Export a `get_schema()` function returning JSON schema for LLM
+- Export an `execute(vfs, args)` function that performs the operation
+- **Operate on VFS abstraction, not filesystem** - read/write through VFS interface
+- Are sandboxed (can only propose file changes via VFS, not execute arbitrary code)
 - Must be explicitly approved before AI can use them
+- Loaded via importlib for better integration and type safety
+
+**Virtual Filesystem (VFS) Model**:
+
+The VFS abstraction solves a critical problem: during an AI turn with multiple tool calls, 
+we're not working with a pure git commit state - we're working with "commit + accumulated changes".
+
+Two VFS implementations:
+1. **GitCommitVFS** - Read-only view of a git commit (immutable)
+2. **WorkInProgressVFS** - Writable layer on top of a commit
+   - Accumulates changes in memory during AI turn
+   - Each tool call sees: base commit + all previous tool changes
+   - Can materialize to tempdir if needed (for running tests, etc.)
+   - Can create new git commit from accumulated diff
 
 **Git-Aware Tool Model**:
-- Tools receive current file content from git tree
-- Tools return new file content (or diffs)
-- ToolManager accumulates changes in memory
-- Changes are committed atomically when user approves
-- No filesystem I/O during tool execution (except for tool code itself)
+- Tools receive a VFS instance (usually WorkInProgressVFS)
+- Tools read files via `vfs.read_file(path)` - gets current state (commit + pending changes)
+- Tools write files via `vfs.write_file(path, content)` - accumulates in VFS
+- ToolManager provides the VFS to all tools in a turn
+- After AI turn completes, VFS.commit() creates atomic git commit
+- No direct filesystem I/O during tool execution
 
 Tool lifecycle:
-1. AI proposes a new tool (writes code to `./tools/`)
-2. User reviews and approves (makes it executable, commits to git)
+1. AI proposes a new tool (writes Python module to `./tools/`)
+2. User reviews and approves (commits to git, marks as approved)
 3. AI can use tool autonomously - no per-use approval needed
 4. Tools are versioned with the code in git
+5. Tools are loaded via importlib.import_module()
 
 **Trust Model**: Tools are reviewed once at creation/modification time. Once approved, they run autonomously. This amortizes the review cost - you pay it once, not on every use.
 
@@ -221,20 +236,23 @@ Return to LLM
 ```
 LLM calls search_replace
   ↓
-ToolManager gets current file content from git tree
+ToolManager provides WorkInProgressVFS to tool
   ↓
-Tool receives content, performs search/replace
+Tool calls vfs.read_file(path) - gets commit + pending changes
   ↓
-Tool returns new content
+Tool performs search/replace on content
   ↓
-ToolManager accumulates change in memory
+Tool calls vfs.write_file(path, new_content)
   ↓
-Returns success/failure to LLM
+VFS accumulates change in memory
   ↓
-When user approves: commit all accumulated changes atomically
+Tool returns success/failure to LLM
+  ↓
+When AI turn completes: vfs.commit() creates atomic git commit
 ```
 
-**Key difference**: No filesystem I/O. Everything happens in git objects.
+**Key insight**: VFS provides consistent view of "commit + work in progress" state.
+Each tool in a turn sees the cumulative effect of all previous tools.
 
 ## Security Model
 
@@ -269,11 +287,112 @@ When user approves: commit all accumulated changes atomically
 - Automated testing suggestions
 - Performance profiling integration
 
+## Virtual Filesystem Architecture
+
+### The Work-in-Progress Problem
+
+During an AI turn with multiple tool calls, we face a fundamental challenge:
+- Tool 1 modifies `file.py`
+- Tool 2 needs to see Tool 1's changes to `file.py`
+- But we haven't committed yet - we're accumulating changes for one atomic commit
+
+We're not working with a pure git commit state. We're working with **"commit + patch"**.
+
+### VFS Solution
+
+**Abstract VFS Interface** (`src/vfs/base.py`):
+```python
+class VFS(ABC):
+    @abstractmethod
+    def read_file(self, path: str) -> str:
+        """Read file content"""
+        
+    @abstractmethod
+    def write_file(self, path: str, content: str) -> None:
+        """Write file content"""
+        
+    @abstractmethod
+    def list_files(self) -> list[str]:
+        """List all files"""
+        
+    @abstractmethod
+    def file_exists(self, path: str) -> bool:
+        """Check if file exists"""
+```
+
+**GitCommitVFS** - Read-only view of a commit:
+- Reads files from git tree objects
+- Immutable - write operations raise error
+- Used for historical commits, read-only operations
+
+**WorkInProgressVFS** - Writable layer:
+- Wraps a base GitCommitVFS
+- Maintains `pending_changes: dict[str, str]` in memory
+- `read_file()` checks pending_changes first, falls back to base VFS
+- `write_file()` updates pending_changes
+- `commit()` creates new git commit with all changes
+- `materialize_to_tempdir()` creates actual filesystem for running tests/commands
+
+### Tool Integration
+
+Tools are Python modules, not subprocess scripts:
+
+```python
+# tools/search_replace.py
+def get_schema() -> dict:
+    return {...}
+
+def execute(vfs: VFS, args: dict) -> dict:
+    filepath = args['filepath']
+    search = args['search']
+    replace = args['replace']
+    
+    # Read current state (commit + pending changes)
+    content = vfs.read_file(filepath)
+    
+    # Perform operation
+    new_content = content.replace(search, replace, 1)
+    
+    # Write back to VFS
+    vfs.write_file(filepath, new_content)
+    
+    return {'success': True}
+```
+
+ToolManager loads tools via importlib and provides VFS:
+
+```python
+class ToolManager:
+    def __init__(self, repo, branch_name):
+        self.vfs = WorkInProgressVFS(repo, branch_name)
+        
+    def execute_tool(self, tool_name: str, args: dict) -> dict:
+        # Load tool module
+        tool = importlib.import_module(f'tools.{tool_name}')
+        
+        # Execute with VFS
+        return tool.execute(self.vfs, args)
+        
+    def commit_turn(self, message: str) -> str:
+        # Create atomic commit from all VFS changes
+        return self.vfs.commit(message)
+```
+
+### Benefits
+
+1. **Consistent State**: Each tool sees cumulative changes from previous tools
+2. **Type Safety**: Python modules with proper types, not JSON over stdin
+3. **Testability**: Can mock VFS, test tools in isolation
+4. **Performance**: No subprocess overhead
+5. **Flexibility**: Can materialize to tempdir when needed (tests, commands)
+6. **Git-First**: Still creates atomic commits, never touches working directory
+
 ## Technical Stack
 
 - **UI**: PySide6 (Qt for Python)
 - **Editor**: Custom QPlainTextEdit with syntax highlighting
 - **Git**: pygit2 (libgit2 bindings) - chosen specifically for ability to create commits without touching working directory
+- **VFS**: Custom abstraction for "commit + work in progress" state
 - **LLM**: OpenRouter API
 - **Markdown**: python-markdown + MathJax
 - **Language**: Python 3.10+

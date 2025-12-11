@@ -7,6 +7,24 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 
 These issues violate core design principles and must be fixed before the project can work as intended.
 
+### 0. VFS Abstraction for Work-in-Progress State ⚠️ ARCHITECTURAL
+**Problem**: Tools need to see "commit + accumulated changes" but we're trying to work with pure git commits.
+**Impact**: Can't properly handle multiple tool calls in one AI turn - each tool needs to see previous tools' changes.
+**Solution**: 
+- Create VFS abstraction: `GitCommitVFS` (read-only) and `WorkInProgressVFS` (writable)
+- WorkInProgressVFS wraps a commit and accumulates changes in memory
+- Tools receive VFS instance, use `vfs.read_file()` and `vfs.write_file()`
+- After AI turn: `vfs.commit()` creates atomic git commit
+- Refactor tools from subprocess scripts to Python modules loaded via importlib
+**Files to create**:
+- `src/vfs/__init__.py`
+- `src/vfs/base.py` - Abstract VFS interface
+- `src/vfs/git_commit.py` - GitCommitVFS implementation
+- `src/vfs/work_in_progress.py` - WorkInProgressVFS implementation
+**Files to modify**:
+- `src/tools/manager.py` - Use VFS, load tools via importlib
+- `tools/search_replace.py` - Convert to Python module with VFS
+
 ### 1. Session Persistence Violates Git-First Principle ⚠️ CRITICAL
 **Problem**: Sessions are saved to filesystem in `MainWindow._save_session()`, not committed to git.
 **Impact**: Breaks "AI time travel" - can't checkout old commits and see session state.

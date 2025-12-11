@@ -40,10 +40,10 @@ These issues violate core design principles and must be fixed before the project
 **Impact**: Created multiple commits per turn, wasted tokens, broke atomic commit model.
 **Fix**: ✅ Only commit after AI's final response, not during tool execution loop.
 
-### 3. Repository Summaries Not Implemented ⚠️ CRITICAL
-**Problem**: `SessionManager.generate_repo_summaries()` uses placeholder text, doesn't call LLM.
-**Impact**: Context sent to LLM is useless. The "cheap summaries + selective full files" strategy doesn't work.
-**Fix**: Actually call cheap LLM (Haiku) to generate file summaries.
+### 3. Repository Summaries Not Implemented ✅ FIXED
+**Problem**: `SessionManager.generate_repo_summaries()` used placeholder text, didn't call LLM.
+**Impact**: Context sent to LLM was useless. The "cheap summaries + selective full files" strategy didn't work.
+**Fix**: ✅ Now calls cheap LLM (Haiku) to generate file summaries with caching.
 
 ### 4. Tool Approval Workflow Missing ⚠️ SECURITY
 **Problem**: Tools execute without user review.

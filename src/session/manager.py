@@ -150,6 +150,11 @@ Keep it under 72 characters."""
         commit = self.repo.get_branch_head(self.branch_name)
         commit_oid = str(commit.id)
 
+        # Use cheap model for summaries
+        model = self.settings.get("git.commit_message_model", "anthropic/claude-3-haiku")
+        api_key = self.settings.get_api_key()
+        client = LLMClient(api_key, model)
+
         files = self.repo.get_all_files(self.branch_name)
         for filepath in files:
             if filepath.startswith(".forge/"):
@@ -161,9 +166,30 @@ Keep it under 72 characters."""
                 self.repo_summaries[filepath] = cached_summary
                 continue
 
-            # TODO: Generate with cheap LLM
-            # For now, just use placeholder
-            summary = f"File: {filepath}"
+            # Generate summary with cheap LLM
+            content = self.repo.get_file_content(filepath, self.branch_name)
+            
+            # Truncate very large files for summary generation
+            max_chars = 10000
+            if len(content) > max_chars:
+                content = content[:max_chars] + "\n... (truncated)"
+            
+            prompt = f"""Summarize this file in one concise sentence (max 100 chars).
+Focus on what the file does, not implementation details.
+
+File: {filepath}
+
+```
+{content}
+```
+
+Respond with ONLY the summary sentence, no explanation."""
+
+            messages = [{"role": "user", "content": prompt}]
+            response = client.chat(messages)
+            
+            summary_content = response["choices"][0]["message"]["content"]
+            summary = str(summary_content).strip().strip("\"'")
 
             # Cache the summary
             self._cache_summary(filepath, commit_oid, summary)

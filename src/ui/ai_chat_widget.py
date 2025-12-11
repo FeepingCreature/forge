@@ -243,12 +243,15 @@ class AIChatWidget(QWidget):
             self._commit_tool_approvals()
 
     def _commit_tool_approvals(self) -> None:
-        """Amend the last commit with tool approval decisions"""
-        new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals()
+        """Amend the last commit with tool approval decisions (if possible)"""
+        # Try to amend - this will fold approvals into the AI's commit
+        new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals(
+            amend_if_possible=True
+        )
 
         if new_commit_oid:
             self.add_message(
-                "assistant", f"✅ Tool approvals amended to commit: {str(new_commit_oid)[:8]}"
+                "assistant", f"✅ Tool approvals updated in commit: {str(new_commit_oid)[:8]}"
             )
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:

@@ -92,12 +92,13 @@ class ToolManager:
         if tool_name in self._pending_approvals:
             del self._pending_approvals[tool_name]
 
-    def commit_pending_approvals(self) -> pygit2.Oid | None:
+    def commit_pending_approvals(self, amend_if_possible: bool = True) -> pygit2.Oid | None:
         """
         Commit pending tool approvals.
         
-        Creates a new commit if this is the first commit on the session branch,
-        otherwise amends the last commit.
+        Args:
+            amend_if_possible: If True, amend the last commit if it exists.
+                              If False, always create a new commit.
 
         Returns:
             New commit OID if there were pending approvals, None otherwise
@@ -107,45 +108,28 @@ class ToolManager:
 
         # Generate approved_tools.json content
         content = json.dumps(self._approved_tools, indent=2)
+        tool_names = ", ".join(self._pending_approvals.keys())
 
-        # Check if session branch has made any commits yet
-        head_commit = self.repo.get_branch_head(self.branch_name)
-        
-        # Get the commit where the branch was created (parent of first session commit)
-        # If head is still pointing to the branch creation point, we need a new commit
-        branch_ref = self.repo.repo.branches[self.branch_name]
-        
-        # Count commits on this branch vs its upstream
-        # If they're the same commit, this branch hasn't made any commits yet
-        try:
-            # Try to get main/master as upstream
-            upstream_branch = None
-            for name in ['main', 'master']:
-                if name in self.repo.repo.branches:
-                    upstream_branch = self.repo.repo.branches[name]
-                    break
-            
-            if upstream_branch and head_commit.id == upstream_branch.peel(pygit2.Commit).id:
-                # Session branch hasn't diverged yet - create new commit
+        if amend_if_possible:
+            # Try to amend the last commit
+            try:
+                new_commit_oid = self.repo.amend_commit(
+                    self.branch_name, {self.approved_tools_path: content}
+                )
+            except Exception:
+                # Amend failed (probably no commits yet), create new commit
                 tree_oid = self.repo.create_tree_from_changes(
                     self.branch_name, {self.approved_tools_path: content}
                 )
-                tool_names = ", ".join(self._pending_approvals.keys())
                 message = f"chore: approve tools: {tool_names}"
                 new_commit_oid = self.repo.commit_tree(
                     tree_oid, message, self.branch_name
                 )
-            else:
-                # Session branch has commits - amend the last one
-                new_commit_oid = self.repo.amend_commit(
-                    self.branch_name, {self.approved_tools_path: content}
-                )
-        except Exception:
-            # Fallback: just create a new commit
+        else:
+            # Always create new commit
             tree_oid = self.repo.create_tree_from_changes(
                 self.branch_name, {self.approved_tools_path: content}
             )
-            tool_names = ", ".join(self._pending_approvals.keys())
             message = f"chore: approve tools: {tool_names}"
             new_commit_oid = self.repo.commit_tree(
                 tree_oid, message, self.branch_name

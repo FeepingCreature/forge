@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..git_backend.repository import ForgeRepository
-    from ..vfs.work_in_progress import WorkInProgressVFS
 
 
 class ToolManager:
@@ -28,11 +27,12 @@ class ToolManager:
 
         # Create VFS for this session
         from ..vfs.work_in_progress import WorkInProgressVFS
+
         self.vfs: WorkInProgressVFS = WorkInProgressVFS(repo, branch_name)
 
         # Schema cache
         self._schema_cache: dict[str, dict[str, Any]] = {}
-        
+
         # Loaded tool modules cache
         self._tool_modules: dict[str, Any] = {}
 
@@ -44,9 +44,6 @@ class ToolManager:
         tools: list[dict[str, Any]] = []
         self._schema_cache = {}
         self._tool_modules = {}
-
-        if not self.tools_dir.exists():
-            return tools
 
         for tool_file in self.tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
@@ -63,15 +60,15 @@ class ToolManager:
     def _load_tool_module(self, tool_path: Path) -> Any:
         """Load a tool as a Python module"""
         module_name = f"tools.{tool_path.stem}"
-        
+
         spec = importlib.util.spec_from_file_location(module_name, tool_path)
         if spec is None or spec.loader is None:
             return None
-        
+
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
-        
+
         return module
 
     def execute_tool(self, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -81,18 +78,18 @@ class ToolManager:
             tool_path = self.tools_dir / f"{tool_name}.py"
             if not tool_path.exists():
                 return {"error": f"Tool {tool_name} not found"}
-            
+
             tool_module = self._load_tool_module(tool_path)
             if not tool_module:
                 return {"error": f"Failed to load tool {tool_name}"}
-            
+
             self._tool_modules[tool_name] = tool_module
-        
+
         tool_module = self._tool_modules[tool_name]
-        
+
         if not hasattr(tool_module, "execute"):
             return {"error": f"Tool {tool_name} has no execute function"}
-        
+
         # Execute tool with VFS
         result: dict[str, Any] = tool_module.execute(self.vfs, args)
         return result
@@ -104,7 +101,7 @@ class ToolManager:
     def clear_pending_changes(self) -> None:
         """Clear pending changes in VFS"""
         self.vfs.clear_pending_changes()
-    
+
     def commit_changes(
         self,
         message: str,

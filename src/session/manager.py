@@ -99,9 +99,6 @@ class SessionManager:
         Returns:
             Commit OID as string
         """
-        # Get pending changes from VFS
-        changes = self.tool_manager.get_pending_changes()
-
         # Build session state with messages
         session_state = self.get_session_data(messages)
 

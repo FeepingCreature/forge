@@ -22,8 +22,8 @@ class GitCommitVFS(VFS):
             blob = self.repo[entry.id]
             assert isinstance(blob, pygit2.Blob)
             return blob.data.decode("utf-8")
-        except KeyError:
-            raise FileNotFoundError(f"File not found: {path}")
+        except KeyError as err:
+            raise FileNotFoundError(f"File not found: {path}") from err
 
     def write_file(self, path: str, content: str) -> None:
         """Write operations not supported on read-only VFS"""

@@ -22,6 +22,7 @@ def main() -> None:
     except ValueError as e:
         # Not in a git repository
         from PySide6.QtWidgets import QMessageBox
+
         msg = QMessageBox()
         msg.setIcon(QMessageBox.Icon.Critical)
         msg.setWindowTitle("Git Repository Required")

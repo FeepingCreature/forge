@@ -4,18 +4,19 @@ AI chat widget with markdown/LaTeX rendering
 
 import json
 import uuid
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import markdown
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
-from ..config.settings import Settings
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
+
+if TYPE_CHECKING:
+    from ..config.settings import Settings
 
 
 class StreamWorker(QObject):
@@ -165,7 +166,7 @@ class AIChatWidget(QWidget):
         if not text or self.is_processing:
             return
 
-        # Add user message  
+        # Add user message
         self.add_message("user", text)
         self.input_field.clear()
 
@@ -181,70 +182,56 @@ class AIChatWidget(QWidget):
     def _process_llm_request(self) -> None:
         """Process LLM request with streaming support"""
         api_key = self.session_manager.settings.get_api_key()
-        if not api_key:
-            self.add_message(
-                "assistant",
-                "Error: No API key configured. Please set OPENROUTER_API_KEY or configure in Settings.",
+        # Initialize LLM client
+        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        client = LLMClient(api_key, model)
+
+        # Build context with summaries and active files
+        context = self.session_manager.build_context()
+        context_message = ""
+
+        # Add repository summaries (loop on possibly-empty dict)
+        for filepath, summary in context["summaries"].items():
+            if not context_message:
+                context_message += "# Repository Files\n\n"
+            context_message += f"- {filepath}: {summary}\n"
+        if context["summaries"]:
+            context_message += "\n"
+
+        # Add active files with full content (loop on possibly-empty dict)
+        for filepath, content in context["active_files"].items():
+            if not any(f in context_message for f in ["# Active Files"]):
+                context_message += "# Active Files (Full Content)\n\n"
+            context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
+
+        # Prepend context to messages if we have any
+        messages_with_context = self.messages.copy()
+        if context_message:
+            # Insert context before the last user message
+            last_user_idx = len(messages_with_context) - 1
+            messages_with_context.insert(
+                last_user_idx, {"role": "system", "content": context_message}
             )
-            self._reset_input()
-            return
 
-        try:
-            # Initialize LLM client
-            model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-            client = LLMClient(api_key, model)
+        # Discover available tools
+        tools = self.session_manager.tool_manager.discover_tools()
 
-            # Build context with summaries and active files
-            context = self.session_manager.build_context()
-            context_message = ""
+        # Start streaming in a separate thread
+        self.streaming_content = ""
+        self._start_streaming_message()
 
-            # Add repository summaries (loop on possibly-empty dict)
-            for filepath, summary in context["summaries"].items():
-                if not context_message:
-                    context_message += "# Repository Files\n\n"
-                context_message += f"- {filepath}: {summary}\n"
-            if context["summaries"]:
-                context_message += "\n"
+        self.stream_thread = QThread()
+        self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
+        self.stream_worker.moveToThread(self.stream_thread)
 
-            # Add active files with full content (loop on possibly-empty dict)
-            for filepath, content in context["active_files"].items():
-                if not any(f in context_message for f in ["# Active Files"]):
-                    context_message += "# Active Files (Full Content)\n\n"
-                context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
+        # Connect signals
+        self.stream_worker.chunk_received.connect(self._on_stream_chunk)
+        self.stream_worker.finished.connect(self._on_stream_finished)
+        self.stream_worker.error.connect(self._on_stream_error)
+        self.stream_thread.started.connect(self.stream_worker.run)
 
-            # Prepend context to messages if we have any
-            messages_with_context = self.messages.copy()
-            if context_message:
-                # Insert context before the last user message
-                last_user_idx = len(messages_with_context) - 1
-                messages_with_context.insert(last_user_idx, {
-                    "role": "system",
-                    "content": context_message
-                })
-
-            # Discover available tools
-            tools = self.session_manager.tool_manager.discover_tools()
-
-            # Start streaming in a separate thread
-            self.streaming_content = ""
-            self._start_streaming_message()
-
-            self.stream_thread = QThread()
-            self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
-            self.stream_worker.moveToThread(self.stream_thread)
-
-            # Connect signals
-            self.stream_worker.chunk_received.connect(self._on_stream_chunk)
-            self.stream_worker.finished.connect(self._on_stream_finished)
-            self.stream_worker.error.connect(self._on_stream_error)
-            self.stream_thread.started.connect(self.stream_worker.run)
-
-            # Start the thread
-            self.stream_thread.start()
-
-        except Exception as e:
-            self.add_message("assistant", f"Error: {str(e)}")
-            self._reset_input()
+        # Start the thread
+        self.stream_thread.start()
 
     def _start_streaming_message(self) -> None:
         """Add a placeholder message for streaming content"""
@@ -292,11 +279,8 @@ class AIChatWidget(QWidget):
             return
 
         # This is a final text response with no tool calls - commit now
-        try:
-            commit_oid = self.session_manager.commit_ai_turn(self.messages)
-            self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
-        except Exception as e:
-            self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
+        commit_oid = self.session_manager.commit_ai_turn(self.messages)
+        self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
 
         self._update_chat_display()
         self._reset_input()
@@ -316,79 +300,66 @@ class AIChatWidget(QWidget):
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""
-        try:
-            model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-            api_key = self.session_manager.settings.get_api_key()
-            client = LLMClient(api_key, model)
+        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        api_key = self.session_manager.settings.get_api_key()
+        client = LLMClient(api_key, model)
 
-            tools = self.session_manager.tool_manager.discover_tools()
-            tool_manager = self.session_manager.tool_manager
+        tools = self.session_manager.tool_manager.discover_tools()
+        tool_manager = self.session_manager.tool_manager
 
-            for tool_call in tool_calls:
-                tool_name = tool_call["function"]["name"]
-                tool_args = json.loads(tool_call["function"]["arguments"])
+        for tool_call in tool_calls:
+            tool_name = tool_call["function"]["name"]
+            tool_args = json.loads(tool_call["function"]["arguments"])
 
-                # Display tool execution
-                self.add_message(
-                    "assistant",
-                    f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```",
-                )
+            # Display tool execution
+            self.add_message(
+                "assistant",
+                f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```",
+            )
 
-                # Execute tool
-                result = tool_manager.execute_tool(tool_name, tool_args)
+            # Execute tool
+            result = tool_manager.execute_tool(tool_name, tool_args)
 
-                # Add tool result to messages
-                tool_message = {
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(result),
-                }
-                self.messages.append(tool_message)
+            # Add tool result to messages
+            tool_message = {
+                "role": "tool",
+                "tool_call_id": tool_call["id"],
+                "content": json.dumps(result),
+            }
+            self.messages.append(tool_message)
 
-                # Display result
-                self.add_message(
-                    "assistant", f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
-                )
+            # Display result
+            self.add_message(
+                "assistant", f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
+            )
 
-            # Continue conversation with tool results (non-streaming for now)
-            follow_up = client.chat(self.messages, tools=tools or None)
-            self._handle_llm_response(follow_up, client, tools)
-
-        except Exception as e:
-            self.add_message("assistant", f"Error executing tools: {str(e)}")
-            self._reset_input()
+        # Continue conversation with tool results (non-streaming for now)
+        follow_up = client.chat(self.messages, tools=tools or None)
+        self._handle_llm_response(follow_up, client, tools)
 
     def _handle_llm_response(
         self, response: dict[str, Any], client: LLMClient, tools: list[dict[str, Any]] | None
     ) -> None:
         """Handle non-streaming LLM response (used for tool follow-ups)"""
-        try:
-            choice = response["choices"][0]
-            message = choice["message"]
+        choice = response["choices"][0]
+        message = choice["message"]
 
-            # Check if there are tool calls
-            if "tool_calls" in message and message["tool_calls"]:
-                # Add assistant message with tool calls
-                self.messages.append(message)
-                # Continue with tool execution - don't commit yet
-                self._execute_tool_calls(message["tool_calls"])
-            else:
-                # Regular text response - this is the final response, commit now
-                content = message.get("content", "")
-                if content:
-                    self.add_message("assistant", content)
+        # Check if there are tool calls
+        if "tool_calls" in message and message["tool_calls"]:
+            # Add assistant message with tool calls
+            self.messages.append(message)
+            # Continue with tool execution - don't commit yet
+            self._execute_tool_calls(message["tool_calls"])
+        else:
+            # Regular text response - this is the final response, commit now
+            content = message.get("content", "")
+            if content:
+                self.add_message("assistant", content)
 
-                # Commit AI turn - this is the ONLY place we commit - once per AI turn
-                try:
-                    commit_oid = self.session_manager.commit_ai_turn(self.messages)
-                    self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
-                except Exception as e:
-                    self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
+            # Commit AI turn - this is the ONLY place we commit - once per AI turn
+            commit_oid = self.session_manager.commit_ai_turn(self.messages)
+            self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
 
-                self._reset_input()
-
-        except Exception as e:
-            self.add_message("assistant", f"Error processing response: {str(e)}")
             self._reset_input()
 
     def _reset_input(self) -> None:

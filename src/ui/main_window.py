@@ -120,11 +120,12 @@ class MainWindow(QMainWindow):
         """Create a new AI session tab"""
         # Generate session ID first
         import uuid
+
         session_id = str(uuid.uuid4())
-        
+
         # Create git branch for this session BEFORE creating widget
         self.repo.create_session_branch(session_id)
-        
+
         # Now create widget with the session_id
         session_widget = AIChatWidget(session_id=session_id, settings=self.settings, repo=self.repo)
 
@@ -141,30 +142,27 @@ class MainWindow(QMainWindow):
     def _load_existing_sessions(self) -> None:
         """Load existing sessions from git (.forge/sessions/)"""
         # Get all session files from current HEAD
-        try:
-            all_files = self.repo.get_all_files()
-            session_files = [f for f in all_files if f.startswith(".forge/sessions/") and f.endswith(".json")]
-            
-            for session_file in session_files:
-                # Read session data from git
-                content = self.repo.get_file_content(session_file)
-                session_data = json.loads(content)
-                
-                # Create session widget from data
-                session_widget = AIChatWidget(
-                    session_id=session_data.get("session_id"),
-                    session_data=session_data,
-                    settings=self.settings,
-                    repo=self.repo,
-                )
-                
-                # Use session ID for tab name
-                tab_name = f"🤖 {session_widget.session_id[:8]}"
-                self.tabs.addTab(session_widget, tab_name)
-                
-        except Exception as e:
-            # No sessions yet or error reading - that's fine
-            self.status_bar.showMessage(f"No existing sessions found: {e}")
+        all_files = self.repo.get_all_files()
+        session_files = [
+            f for f in all_files if f.startswith(".forge/sessions/") and f.endswith(".json")
+        ]
+
+        for session_file in session_files:
+            # Read session data from git
+            content = self.repo.get_file_content(session_file)
+            session_data = json.loads(content)
+
+            # Create session widget from data
+            session_widget = AIChatWidget(
+                session_id=session_data.get("session_id"),
+                session_data=session_data,
+                settings=self.settings,
+                repo=self.repo,
+            )
+
+            # Use session ID for tab name
+            tab_name = f"🤖 {session_widget.session_id[:8]}"
+            self.tabs.addTab(session_widget, tab_name)
 
     def _close_tab(self, index: int) -> None:
         """Close a tab (editor or AI session)"""

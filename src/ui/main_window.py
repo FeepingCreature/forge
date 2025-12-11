@@ -3,12 +3,14 @@ Main window for Forge IDE
 """
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ai_chat_widget import AIChatWidget
 
 from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
-    QMessageBox,
     QStatusBar,
     QTabWidget,
     QVBoxLayout,
@@ -20,9 +22,6 @@ from ..git_backend.repository import ForgeRepository
 from .ai_chat_widget import AIChatWidget
 from .editor_widget import EditorWidget
 from .settings_dialog import SettingsDialog
-
-# Type alias for clarity
-Repository = ForgeRepository
 
 
 class MainWindow(QMainWindow):
@@ -36,20 +35,10 @@ class MainWindow(QMainWindow):
         # Initialize settings
         self.settings = Settings()
 
-        # Initialize git repository
-        self.repo: ForgeRepository | None
-        try:
-            self.repo = ForgeRepository()
-            self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
-            self.sessions_dir.mkdir(parents=True, exist_ok=True)
-        except ValueError:
-            self.repo = None
-            self.sessions_dir = Path(".forge") / "sessions"
-            QMessageBox.warning(
-                self,
-                "Not a Git Repository",
-                "Forge works best in a git repository. Some features may be limited.",
-            )
+        # Initialize git repository (required - Forge only works in git repos)
+        self.repo = ForgeRepository()
+        self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
         self._setup_ui()
         self._setup_menus()
@@ -131,12 +120,8 @@ class MainWindow(QMainWindow):
         session_widget = AIChatWidget(settings=self.settings, repo=self.repo)
         session_widget.session_updated.connect(lambda: self._save_session(session_widget))
 
-        # Create git branch for this session if we have a repo
-        if self.repo:
-            try:
-                self.repo.create_session_branch(session_widget.session_id)
-            except Exception as e:
-                print(f"Error creating session branch: {e}")
+        # Create git branch for this session
+        self.repo.create_session_branch(session_widget.session_id)
 
         # Count existing AI sessions for naming
         ai_session_count = sum(
@@ -150,12 +135,9 @@ class MainWindow(QMainWindow):
         self._save_session(session_widget)
         self.status_bar.showMessage("New AI session created")
 
-    def _save_session(self, session_widget: Any) -> None:
+    def _save_session(self, session_widget: AIChatWidget) -> None:
         """Save a session to disk"""
-        try:
-            session_widget.save_session(self.sessions_dir)
-        except Exception as e:
-            print(f"Error saving session: {e}")
+        session_widget.save_session(self.sessions_dir)
 
     def _load_existing_sessions(self) -> None:
         """Load existing sessions from .forge/sessions/"""
@@ -163,19 +145,16 @@ class MainWindow(QMainWindow):
             return
 
         for session_file in self.sessions_dir.glob("*.json"):
-            try:
-                session_widget = AIChatWidget.load_session(
-                    session_file, settings=self.settings, repo=self.repo
-                )
-                session_widget.session_updated.connect(
-                    lambda sw=session_widget: self._save_session(sw)
-                )
+            session_widget = AIChatWidget.load_session(
+                session_file, settings=self.settings, repo=self.repo
+            )
+            session_widget.session_updated.connect(
+                lambda sw=session_widget: self._save_session(sw)
+            )
 
-                # Use session ID for tab name
-                tab_name = f"🤖 {session_widget.session_id[:8]}"
-                self.tabs.addTab(session_widget, tab_name)
-            except Exception as e:
-                print(f"Error loading session {session_file}: {e}")
+            # Use session ID for tab name
+            tab_name = f"🤖 {session_widget.session_id[:8]}"
+            self.tabs.addTab(session_widget, tab_name)
 
     def _close_tab(self, index: int) -> None:
         """Close a tab (editor or AI session)"""

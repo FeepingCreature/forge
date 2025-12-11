@@ -2,7 +2,7 @@
 Settings dialog for Forge
 """
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -19,11 +19,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+if TYPE_CHECKING:
+    from ..config.settings import Settings
+
 
 class SettingsDialog(QDialog):
     """Settings dialog window"""
 
-    def __init__(self, settings: Any, parent: Any | None = None) -> None:
+    def __init__(self, settings: "Settings", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.settings = settings
         self.setWindowTitle("Forge Settings")

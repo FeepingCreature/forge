@@ -12,6 +12,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTextEdit, QVBoxLayout, QWidget
 
+from ..config.settings import Settings
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
@@ -100,7 +101,7 @@ class AIChatWidget(QWidget):
         self,
         session_id: str | None = None,
         session_data: dict[str, Any] | None = None,
-        settings: Any = None,
+        settings: "Settings | None" = None,
         repo: ForgeRepository | None = None,
     ) -> None:
         super().__init__()
@@ -202,20 +203,20 @@ class AIChatWidget(QWidget):
             context_message = ""
             if self.session_manager:
                 context = self.session_manager.build_context()
-                
+
                 # Add repository summaries
                 if context["summaries"]:
                     context_message += "# Repository Files\n\n"
                     for filepath, summary in context["summaries"].items():
                         context_message += f"- {filepath}: {summary}\n"
                     context_message += "\n"
-                
+
                 # Add active files with full content
                 if context["active_files"]:
                     context_message += "# Active Files (Full Content)\n\n"
                     for filepath, content in context["active_files"].items():
                         context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
-            
+
             # Prepend context to messages if we have any
             messages_with_context = self.messages.copy()
             if context_message and messages_with_context:
@@ -437,7 +438,7 @@ class AIChatWidget(QWidget):
 
     @staticmethod
     def load_session(
-        session_file: Path, settings: Any = None, repo: ForgeRepository | None = None
+        session_file: Path, settings: Settings | None = None, repo: ForgeRepository | None = None
     ) -> "AIChatWidget":
         """Load session from file"""
         with open(session_file) as f:

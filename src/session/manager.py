@@ -5,7 +5,10 @@ Session manager for coordinating AI turns and git commits
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..config.settings import Settings
 
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
@@ -16,7 +19,7 @@ class SessionManager:
     """Manages AI session lifecycle and git integration"""
 
     def __init__(
-        self, repo: ForgeRepository, session_id: str, branch_name: str, settings: Any
+        self, repo: ForgeRepository, session_id: str, branch_name: str, settings: "Settings"
     ) -> None:
         self.repo = repo
         self.session_id = session_id
@@ -53,7 +56,7 @@ class SessionManager:
         """Get cached summary for a file at a specific commit"""
         cache_key = self._get_cache_key(filepath, commit_oid)
         cache_file = self.cache_dir / cache_key
-        
+
         if cache_file.exists():
             return cache_file.read_text()
         return None
@@ -152,22 +155,22 @@ Keep it under 72 characters."""
         # Get current commit OID for cache key
         commit = self.repo.get_branch_head(self.branch_name)
         commit_oid = str(commit.id)
-        
+
         files = self.repo.get_all_files(self.branch_name)
         for filepath in files:
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
-            
+
             # Check cache first
             cached_summary = self._get_cached_summary(filepath, commit_oid)
             if cached_summary:
                 self.repo_summaries[filepath] = cached_summary
                 continue
-            
+
             # TODO: Generate with cheap LLM
             # For now, just use placeholder
             summary = f"File: {filepath}"
-            
+
             # Cache the summary
             self._cache_summary(filepath, commit_oid, summary)
             self.repo_summaries[filepath] = summary

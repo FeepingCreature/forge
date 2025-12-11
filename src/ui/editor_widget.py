@@ -247,25 +247,17 @@ class EditorWidget(QWidget):
     def load_file(self, filepath: str) -> None:
         """Load a file into the editor"""
         self.filepath = filepath
-        try:
-            with open(filepath) as f:
-                content = f.read()
-                self.editor.setPlainText(content)
-        except Exception as e:
-            print(f"Error loading file: {e}")
+        with open(filepath) as f:
+            content = f.read()
+            self.editor.setPlainText(content)
 
-    def save_file(self) -> bool:
+    def save_file(self) -> None:
         """Save the current content to file"""
         if not self.filepath:
-            return False
+            raise ValueError("No filepath set for editor")
 
-        try:
-            with open(self.filepath, "w") as f:
-                f.write(self.editor.toPlainText())
-            return True
-        except Exception as e:
-            print(f"Error saving file: {e}")
-            return False
+        with open(self.filepath, "w") as f:
+            f.write(self.editor.toPlainText())
 
     def get_text(self) -> str:
         """Get editor content"""

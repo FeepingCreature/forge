@@ -9,11 +9,19 @@ from typing import TYPE_CHECKING, Any
 import markdown
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTextEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
+from .tool_approval_widget import ToolApprovalWidget
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -123,6 +131,10 @@ class AIChatWidget(QWidget):
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
 
+        # Tool approval tracking
+        self.pending_approvals: set[str] = set()
+        self.approval_widgets: list[ToolApprovalWidget] = []
+
         # Load existing session or start fresh
         if session_data:
             self.messages = session_data.get("messages", [])
@@ -133,6 +145,7 @@ class AIChatWidget(QWidget):
 
         self._setup_ui()
         self._update_chat_display()
+        self._check_for_unapproved_tools()
 
     def _setup_ui(self) -> None:
         """Setup the chat UI"""
@@ -143,6 +156,23 @@ class AIChatWidget(QWidget):
         self._update_chat_display()
 
         layout.addWidget(self.chat_view)
+
+        # Tool approval area (initially hidden)
+        self.approval_container = QWidget()
+        self.approval_layout = QVBoxLayout(self.approval_container)
+        self.approval_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.approval_container)
+        self.approval_container.hide()
+
+        # Blocking message (shown when approvals are pending)
+        self.blocking_message = QLabel()
+        self.blocking_message.setStyleSheet(
+            "background-color: #fff3cd; color: #856404; padding: 10px; "
+            "border: 1px solid #ffeaa7; border-radius: 4px; font-weight: bold;"
+        )
+        self.blocking_message.setWordWrap(True)
+        self.blocking_message.hide()
+        layout.addWidget(self.blocking_message)
 
         # Input area
         input_layout = QHBoxLayout()
@@ -160,10 +190,75 @@ class AIChatWidget(QWidget):
 
         layout.addLayout(input_layout)
 
+    def _check_for_unapproved_tools(self) -> None:
+        """Check for unapproved tools and show approval widgets"""
+        unapproved = self.session_manager.tool_manager.get_unapproved_tools()
+
+        if unapproved:
+            self._show_tool_approvals(unapproved)
+
+    def _show_tool_approvals(
+        self, tools: list[tuple[str, str, bool, str | None]]
+    ) -> None:
+        """Show approval widgets for unapproved tools"""
+        # Clear existing approval widgets
+        for widget in self.approval_widgets:
+            widget.deleteLater()
+        self.approval_widgets.clear()
+        self.pending_approvals.clear()
+
+        # Create approval widgets
+        for tool_name, current_code, is_new, old_code in tools:
+            widget = ToolApprovalWidget(tool_name, current_code, is_new, old_code)
+            widget.approved.connect(self._on_tool_approved)
+            widget.rejected.connect(self._on_tool_rejected)
+
+            self.approval_layout.addWidget(widget)
+            self.approval_widgets.append(widget)
+            self.pending_approvals.add(tool_name)
+
+        # Show approval container and blocking message
+        self.approval_container.show()
+        self._update_blocking_state()
+
+    def _on_tool_approved(self, tool_name: str) -> None:
+        """Handle tool approval"""
+        self.session_manager.tool_manager.approve_tool(tool_name)
+        self.pending_approvals.discard(tool_name)
+        self._update_blocking_state()
+
+    def _on_tool_rejected(self, tool_name: str) -> None:
+        """Handle tool rejection"""
+        self.session_manager.tool_manager.reject_tool(tool_name)
+        self.pending_approvals.discard(tool_name)
+        self._update_blocking_state()
+
+    def _update_blocking_state(self) -> None:
+        """Update UI blocking state based on pending approvals"""
+        if self.pending_approvals:
+            # Block input
+            self.input_field.setEnabled(False)
+            self.send_button.setEnabled(False)
+            self.blocking_message.setText(
+                f"⚠️ {len(self.pending_approvals)} tool(s) require approval. "
+                "Review and approve/reject all tools before continuing."
+            )
+            self.blocking_message.show()
+        else:
+            # Unblock input (unless processing)
+            if not self.is_processing:
+                self.input_field.setEnabled(True)
+                self.send_button.setEnabled(True)
+            self.blocking_message.hide()
+
+            # Hide approval container if all done
+            if not self.approval_widgets:
+                self.approval_container.hide()
+
     def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
-        if not text or self.is_processing:
+        if not text or self.is_processing or self.pending_approvals:
             return
 
         # Add user message
@@ -363,10 +458,16 @@ class AIChatWidget(QWidget):
             self._reset_input()
 
     def _reset_input(self) -> None:
-        """Re-enable input after processing"""
+        """Re-enable input after processing (if no pending approvals)"""
         self.is_processing = False
-        self.input_field.setEnabled(True)
-        self.send_button.setEnabled(True)
+
+        # Check for new unapproved tools after AI response
+        self._check_for_unapproved_tools()
+
+        # Only enable input if no pending approvals
+        if not self.pending_approvals:
+            self.input_field.setEnabled(True)
+            self.send_button.setEnabled(True)
         self.send_button.setText("Send")
 
     def add_message(self, role: str, content: str) -> None:

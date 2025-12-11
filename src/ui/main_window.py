@@ -118,10 +118,15 @@ class MainWindow(QMainWindow):
 
     def _new_ai_session(self) -> None:
         """Create a new AI session tab"""
-        session_widget = AIChatWidget(settings=self.settings, repo=self.repo)
-
-        # Create git branch for this session
-        self.repo.create_session_branch(session_widget.session_id)
+        # Generate session ID first
+        import uuid
+        session_id = str(uuid.uuid4())
+        
+        # Create git branch for this session BEFORE creating widget
+        self.repo.create_session_branch(session_id)
+        
+        # Now create widget with the session_id
+        session_widget = AIChatWidget(session_id=session_id, settings=self.settings, repo=self.repo)
 
         # Count existing AI sessions for naming
         ai_session_count = sum(

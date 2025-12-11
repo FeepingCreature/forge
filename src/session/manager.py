@@ -99,29 +99,26 @@ class SessionManager:
         Returns:
             Commit OID as string
         """
-        # Get pending changes from tool manager
+        # Get pending changes from VFS
         changes = self.tool_manager.get_pending_changes()
 
         # Build session state with messages
         session_state = self.get_session_data(messages)
 
+        # Add session state to VFS
         session_file_path = f".forge/sessions/{self.session_id}.json"
-        changes[session_file_path] = json.dumps(session_state, indent=2)
-
-        # Create tree with all changes
-        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes)
+        self.tool_manager.vfs.write_file(session_file_path, json.dumps(session_state, indent=2))
 
         # Generate commit message if not provided
         if not commit_message:
-            commit_message = self.generate_commit_message(changes)
+            # Get all changes including session file
+            all_changes = self.tool_manager.get_pending_changes()
+            commit_message = self.generate_commit_message(all_changes)
 
-        # Create commit
-        commit_oid = self.repo.commit_tree(tree_oid, commit_message, self.branch_name)
+        # Commit via VFS
+        commit_oid = self.tool_manager.commit_changes(commit_message)
 
-        # Clear pending changes
-        self.tool_manager.clear_pending_changes()
-
-        return str(commit_oid)
+        return commit_oid
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
         """Generate commit message using cheap LLM"""

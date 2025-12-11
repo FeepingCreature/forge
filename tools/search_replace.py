@@ -1,19 +1,20 @@
-#!/usr/bin/env python3
 """
-SEARCH/REPLACE tool for making code edits (git-aware)
+SEARCH/REPLACE tool for making code edits using VFS
 """
 
-import json
-import sys
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from src.vfs.base import VFS
 
 
-def get_schema() -> dict:
+def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
         "function": {
             "name": "search_replace",
-            "description": "Make a SEARCH/REPLACE edit to a file. Works on git content, not filesystem.",
+            "description": "Make a SEARCH/REPLACE edit to a file. Works on VFS (git + pending changes).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -27,11 +28,8 @@ def get_schema() -> dict:
     }
 
 
-def execute(tool_input: dict) -> dict:
-    """Execute the search/replace operation on git content"""
-    args = tool_input.get("args", {})
-    context = tool_input.get("context", {})
-
+def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
+    """Execute the search/replace operation using VFS"""
     filepath = args.get("filepath")
     search = args.get("search")
     replace = args.get("replace")
@@ -39,8 +37,11 @@ def execute(tool_input: dict) -> dict:
     if not all([filepath, search is not None, replace is not None]):
         return {"success": False, "error": "Missing required arguments"}
 
-    # Get current content from context (provided by ToolManager from git)
-    content = context["current_content"]
+    # Read current state from VFS (includes pending changes from previous tools)
+    try:
+        content = vfs.read_file(filepath)
+    except FileNotFoundError:
+        return {"success": False, "error": f"File not found: {filepath}"}
 
     if search not in content:
         return {"success": False, "error": "Search text not found in file"}
@@ -48,19 +49,7 @@ def execute(tool_input: dict) -> dict:
     # Replace first occurrence
     new_content = content.replace(search, replace, 1)
 
-    return {"success": True, "message": f"Replaced in {filepath}", "new_content": new_content}
+    # Write back to VFS
+    vfs.write_file(filepath, new_content)
 
-
-def main() -> None:
-    if len(sys.argv) > 1 and sys.argv[1] == "--schema":
-        print(json.dumps(get_schema()))
-    else:
-        # Read JSON input from stdin
-        input_data = sys.stdin.read()
-        tool_input = json.loads(input_data)
-        result = execute(tool_input)
-        print(json.dumps(result))
-
-
-if __name__ == "__main__":
-    main()
+    return {"success": True, "message": f"Replaced in {filepath}"}

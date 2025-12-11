@@ -1,0 +1,59 @@
+"""
+Read-only VFS backed by a git commit
+"""
+
+import pygit2
+
+from .base import VFS
+
+
+class GitCommitVFS(VFS):
+    """Read-only view of a git commit"""
+
+    def __init__(self, repo: pygit2.Repository, commit: pygit2.Commit) -> None:
+        self.repo = repo
+        self.commit = commit
+        self.tree = commit.tree
+
+    def read_file(self, path: str) -> str:
+        """Read file content from git tree"""
+        try:
+            entry = self.tree[path]
+            blob = self.repo[entry.id]
+            assert isinstance(blob, pygit2.Blob)
+            return blob.data.decode("utf-8")
+        except KeyError:
+            raise FileNotFoundError(f"File not found: {path}")
+
+    def write_file(self, path: str, content: str) -> None:
+        """Write operations not supported on read-only VFS"""
+        raise NotImplementedError("GitCommitVFS is read-only")
+
+    def list_files(self) -> list[str]:
+        """List all files in the commit"""
+        files: list[str] = []
+
+        def walk_tree(tree: pygit2.Tree, prefix: str = "") -> None:
+            for entry in tree:
+                assert entry.name is not None
+                entry_path = f"{prefix}/{entry.name}" if prefix else entry.name
+                obj = self.repo[entry.id]
+                if isinstance(obj, pygit2.Tree):
+                    walk_tree(obj, entry_path)
+                else:
+                    files.append(entry_path)
+
+        walk_tree(self.tree)
+        return files
+
+    def file_exists(self, path: str) -> bool:
+        """Check if file exists in commit"""
+        try:
+            self.tree[path]
+            return True
+        except KeyError:
+            return False
+
+    def delete_file(self, path: str) -> None:
+        """Delete operations not supported on read-only VFS"""
+        raise NotImplementedError("GitCommitVFS is read-only")

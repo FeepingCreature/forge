@@ -7,7 +7,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 import markdown
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -178,8 +178,10 @@ class AIChatWidget(QWidget):
         input_layout = QHBoxLayout()
 
         self.input_field = QTextEdit()
-        self.input_field.setMaximumHeight(100)
-        self.input_field.setPlaceholderText("Type your message...")
+        self.input_field.setMaximumHeight(60)  # Smaller, ~2-3 lines
+        self.input_field.setPlaceholderText("Type your message... (Enter to send, Shift+Enter for new line)")
+        # Install event filter to catch Enter key
+        self.input_field.installEventFilter(self)
 
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self._send_message)
@@ -247,6 +249,18 @@ class AIChatWidget(QWidget):
             self.add_message(
                 "assistant", f"✅ Tool approvals amended to commit: {str(new_commit_oid)[:8]}"
             )
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Filter events to catch Enter key in input field"""
+        if obj == self.input_field and event.type() == QEvent.Type.KeyPress:
+            key_event = event
+            # Check if it's Enter without Shift
+            if key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if not (key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
+                    # Enter pressed without Shift - send message
+                    self._send_message()
+                    return True  # Event handled
+        return super().eventFilter(obj, event)
 
     def _update_blocking_state(self) -> None:
         """Update UI blocking state based on pending approvals"""

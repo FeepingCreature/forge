@@ -174,8 +174,7 @@ Keep it under 72 characters."""
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
             
-            prompt = f"""Summarize this file in one concise sentence (max 100 chars).
-Focus on what the file does, not implementation details.
+            prompt = f"""Generate a micro-README for this file listing its public interfaces.
 
 File: {filepath}
 
@@ -183,7 +182,15 @@ File: {filepath}
 {content}
 ```
 
-Respond with ONLY the summary sentence, no explanation."""
+Format as a bulleted list:
+- ClassName: brief description
+- function_name(): brief description
+- CONSTANT: brief description
+
+Only list PUBLIC interfaces (classes, functions, constants that would be imported/used).
+Skip private items (starting with _).
+Keep each line under 80 chars.
+Respond with ONLY the bulleted list, no introduction or explanation."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)

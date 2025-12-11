@@ -204,22 +204,23 @@ class AIChatWidget(QWidget):
             if self.session_manager:
                 context = self.session_manager.build_context()
 
-                # Add repository summaries
+                # Add repository summaries (loop on possibly-empty dict)
+                for filepath, summary in context["summaries"].items():
+                    if not context_message:
+                        context_message += "# Repository Files\n\n"
+                    context_message += f"- {filepath}: {summary}\n"
                 if context["summaries"]:
-                    context_message += "# Repository Files\n\n"
-                    for filepath, summary in context["summaries"].items():
-                        context_message += f"- {filepath}: {summary}\n"
                     context_message += "\n"
 
-                # Add active files with full content
-                if context["active_files"]:
-                    context_message += "# Active Files (Full Content)\n\n"
-                    for filepath, content in context["active_files"].items():
-                        context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
+                # Add active files with full content (loop on possibly-empty dict)
+                for filepath, content in context["active_files"].items():
+                    if not any(f in context_message for f in ["# Active Files"]):
+                        context_message += "# Active Files (Full Content)\n\n"
+                    context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
 
             # Prepend context to messages if we have any
             messages_with_context = self.messages.copy()
-            if context_message and messages_with_context:
+            if context_message:
                 # Insert context before the last user message
                 last_user_idx = len(messages_with_context) - 1
                 messages_with_context.insert(last_user_idx, {
@@ -228,17 +229,14 @@ class AIChatWidget(QWidget):
                 })
 
             # Discover available tools
-            if self.session_manager:
-                tools = self.session_manager.tool_manager.discover_tools()
-            else:
-                tools = []
+            tools = self.session_manager.tool_manager.discover_tools() if self.session_manager else []
 
             # Start streaming in a separate thread
             self.streaming_content = ""
             self._start_streaming_message()
 
             self.stream_thread = QThread()
-            self.stream_worker = StreamWorker(client, messages_with_context, tools if tools else None)
+            self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
             self.stream_worker.moveToThread(self.stream_thread)
 
             # Connect signals
@@ -335,12 +333,8 @@ class AIChatWidget(QWidget):
             api_key = self.settings.get_api_key()
             client = LLMClient(api_key, model)
 
-            if self.session_manager:
-                tools = self.session_manager.tool_manager.discover_tools()
-                tool_manager = self.session_manager.tool_manager
-            else:
-                tools = []
-                tool_manager = None
+            tools = self.session_manager.tool_manager.discover_tools() if self.session_manager else []
+            tool_manager = self.session_manager.tool_manager if self.session_manager else None
 
             for tool_call in tool_calls:
                 tool_name = tool_call["function"]["name"]
@@ -372,7 +366,7 @@ class AIChatWidget(QWidget):
                 )
 
             # Continue conversation with tool results (non-streaming for now)
-            follow_up = client.chat(self.messages, tools=tools if tools else None)
+            follow_up = client.chat(self.messages, tools=tools or None)
             self._handle_llm_response(follow_up, client, tools)
 
         except Exception as e:

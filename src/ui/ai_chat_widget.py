@@ -95,7 +95,7 @@ class StreamWorker(QObject):
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering"""
 
-    session_updated = Signal()  # Emitted when session state changes
+    # Note: session_updated signal removed - sessions persist via git commits, not filesystem
 
     def __init__(
         self,
@@ -165,7 +165,7 @@ class AIChatWidget(QWidget):
         if not text or self.is_processing:
             return
 
-        # Add user message
+        # Add user message  
         self.add_message("user", text)
         self.input_field.clear()
 
@@ -308,7 +308,6 @@ class AIChatWidget(QWidget):
                 self.add_message("assistant", f"⚠️ Error committing changes: {str(e)}")
 
         self._update_chat_display()
-        self.session_updated.emit()
         self._reset_input()
 
     def _on_stream_error(self, error_msg: str) -> None:
@@ -426,10 +425,9 @@ class AIChatWidget(QWidget):
         """Add a message to the chat"""
         self.messages.append({"role": role, "content": content})
         self._update_chat_display()
-        self.session_updated.emit()
 
     def get_session_data(self) -> dict[str, Any]:
-        """Get session data for persistence"""
+        """Get session data for persistence (used by SessionManager for git commits)"""
         data = {
             "session_id": self.session_id,
             "branch_name": self.branch_name,
@@ -440,31 +438,6 @@ class AIChatWidget(QWidget):
             data["active_files"] = list(self.session_manager.active_files)
 
         return data
-
-    def save_session(self, sessions_dir: Path) -> Path:
-        """Save session to file"""
-        sessions_dir.mkdir(parents=True, exist_ok=True)
-        session_file = sessions_dir / f"{self.session_id}.json"
-
-        with open(session_file, "w") as f:
-            json.dump(self.get_session_data(), f, indent=2)
-
-        return session_file
-
-    @staticmethod
-    def load_session(
-        session_file: Path, settings: Settings | None = None, repo: ForgeRepository | None = None
-    ) -> "AIChatWidget":
-        """Load session from file"""
-        with open(session_file) as f:
-            session_data = json.load(f)
-
-        return AIChatWidget(
-            session_id=session_data.get("session_id"),
-            session_data=session_data,
-            settings=settings,
-            repo=repo,
-        )
 
     def _update_chat_display(self) -> None:
         """Update the chat display with all messages"""

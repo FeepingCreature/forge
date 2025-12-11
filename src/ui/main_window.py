@@ -2,6 +2,7 @@
 Main window for Forge IDE
 """
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -118,7 +119,6 @@ class MainWindow(QMainWindow):
     def _new_ai_session(self) -> None:
         """Create a new AI session tab"""
         session_widget = AIChatWidget(settings=self.settings, repo=self.repo)
-        session_widget.session_updated.connect(lambda: self._save_session(session_widget))
 
         # Create git branch for this session
         self.repo.create_session_branch(session_widget.session_id)
@@ -131,41 +131,40 @@ class MainWindow(QMainWindow):
         index = self.tabs.addTab(session_widget, f"🤖 Session {ai_session_count + 1}")
         self.tabs.setCurrentIndex(index)
 
-        # Save initial session state
-        self._save_session(session_widget)
         self.status_bar.showMessage("New AI session created")
 
-    def _save_session(self, session_widget: AIChatWidget) -> None:
-        """Save a session to disk"""
-        session_widget.save_session(self.sessions_dir)
-
     def _load_existing_sessions(self) -> None:
-        """Load existing sessions from .forge/sessions/"""
-        if not self.sessions_dir.exists():
-            return
-
-        for session_file in self.sessions_dir.glob("*.json"):
-            session_widget = AIChatWidget.load_session(
-                session_file, settings=self.settings, repo=self.repo
-            )
-            session_widget.session_updated.connect(
-                lambda sw=session_widget: self._save_session(sw)
-            )
-
-            # Use session ID for tab name
-            tab_name = f"🤖 {session_widget.session_id[:8]}"
-            self.tabs.addTab(session_widget, tab_name)
+        """Load existing sessions from git (.forge/sessions/)"""
+        # Get all session files from current HEAD
+        try:
+            all_files = self.repo.get_all_files()
+            session_files = [f for f in all_files if f.startswith(".forge/sessions/") and f.endswith(".json")]
+            
+            for session_file in session_files:
+                # Read session data from git
+                content = self.repo.get_file_content(session_file)
+                session_data = json.loads(content)
+                
+                # Create session widget from data
+                session_widget = AIChatWidget(
+                    session_id=session_data.get("session_id"),
+                    session_data=session_data,
+                    settings=self.settings,
+                    repo=self.repo,
+                )
+                
+                # Use session ID for tab name
+                tab_name = f"🤖 {session_widget.session_id[:8]}"
+                self.tabs.addTab(session_widget, tab_name)
+                
+        except Exception as e:
+            # No sessions yet or error reading - that's fine
+            self.status_bar.showMessage(f"No existing sessions found: {e}")
 
     def _close_tab(self, index: int) -> None:
         """Close a tab (editor or AI session)"""
-        widget = self.tabs.widget(index)
-
-        # Save AI session before closing
-        if isinstance(widget, AIChatWidget):
-            self._save_session(widget)
-
+        # Sessions are persisted in git commits, not on close
         # TODO: Check for unsaved changes in editor tabs
-
         self.tabs.removeTab(index)
 
     def _open_settings(self) -> None:

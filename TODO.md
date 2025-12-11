@@ -7,23 +7,23 @@ Get Forge to the point where it can develop itself - a working AI-assisted IDE w
 
 These issues violate core design principles and must be fixed before the project can work as intended.
 
-### 0. VFS Abstraction for Work-in-Progress State ⚠️ ARCHITECTURAL
+### 0. VFS Abstraction for Work-in-Progress State ✅ FIXED
 **Problem**: Tools need to see "commit + accumulated changes" but we're trying to work with pure git commits.
 **Impact**: Can't properly handle multiple tool calls in one AI turn - each tool needs to see previous tools' changes.
 **Solution**: 
-- Create VFS abstraction: `GitCommitVFS` (read-only) and `WorkInProgressVFS` (writable)
-- WorkInProgressVFS wraps a commit and accumulates changes in memory
-- Tools receive VFS instance, use `vfs.read_file()` and `vfs.write_file()`
-- After AI turn: `vfs.commit()` creates atomic git commit
-- Refactor tools from subprocess scripts to Python modules loaded via importlib
-**Files to create**:
-- `src/vfs/__init__.py`
-- `src/vfs/base.py` - Abstract VFS interface
-- `src/vfs/git_commit.py` - GitCommitVFS implementation
-- `src/vfs/work_in_progress.py` - WorkInProgressVFS implementation
-**Files to modify**:
-- `src/tools/manager.py` - Use VFS, load tools via importlib
-- `tools/search_replace.py` - Convert to Python module with VFS
+- ✅ Create VFS abstraction: `GitCommitVFS` (read-only) and `WorkInProgressVFS` (writable)
+- ✅ WorkInProgressVFS wraps a commit and accumulates changes in memory
+- ✅ Tools receive VFS instance, use `vfs.read_file()` and `vfs.write_file()`
+- ✅ After AI turn: `vfs.commit()` creates atomic git commit
+- ✅ Refactor tools from subprocess scripts to Python modules loaded via importlib
+**Files created**:
+- ✅ `src/vfs/__init__.py`
+- ✅ `src/vfs/base.py` - Abstract VFS interface
+- ✅ `src/vfs/git_commit.py` - GitCommitVFS implementation
+- ✅ `src/vfs/work_in_progress.py` - WorkInProgressVFS implementation
+**Files modified**:
+- ✅ `src/tools/manager.py` - Use VFS, load tools via importlib
+- ✅ `tools/search_replace.py` - Convert to Python module with VFS
 
 ### 1. Session Persistence Violates Git-First Principle ✅ FIXED
 **Problem**: Sessions were saved to filesystem in `MainWindow._save_session()`, not committed to git.
@@ -45,7 +45,7 @@ These issues violate core design principles and must be fixed before the project
 **Impact**: Context sent to LLM was useless. The "cheap summaries + selective full files" strategy didn't work.
 **Fix**: ✅ Now calls cheap LLM (Haiku) to generate file summaries with caching.
 
-### 4. Tool Approval Workflow Missing ⚠️ SECURITY
+### 4. Tool Approval Workflow Missing ⚠️ SECURITY - NEXT PRIORITY
 **Problem**: Tools execute without user review.
 **Design says**: "Tools are reviewed once at creation/modification time."
 **Impact**: Malicious or buggy tools could run without user knowledge.
@@ -54,34 +54,40 @@ These issues violate core design principles and must be fixed before the project
 - Show approval dialog for new/modified tools
 - Check approval before execution
 - Track tool file hashes to detect modifications
+**Status**: This is the next critical security issue to fix.
 
-### 5. Context Building Has Timing Issues
+### 5. Context Building Has Timing Issues ⚠️ NEEDS IMPROVEMENT
 **Problem**: Context is inserted as system message before every user message, duplicating context on every turn.
 **Impact**: Wastes tokens, sends redundant data.
 **Fix**: 
 - Build context once at session start
 - Update only when files change
 - Send as initial system message, not inserted mid-conversation
+**Current Status**: Context is built and sent, but timing could be optimized.
 
-### 6. Active Files Management Missing UI
+### 6. Active Files Management Missing UI ⚠️ HIGH PRIORITY
 **Problem**: `SessionManager` tracks `active_files`, but no UI to add/remove files.
 **Impact**: Users can't control what's in context. The "expand/collapse files" feature doesn't exist.
 **Fix**: Add UI controls (buttons, file tree, etc.) to manage active files.
+**Status**: Backend exists, UI missing. This is blocking effective use of the context system.
 
-### 7. Error Handling Violates "No Fallbacks" Philosophy
+### 7. Error Handling Violates "No Fallbacks" Philosophy ⚠️ MEDIUM PRIORITY
 **Problem**: Many try/except blocks with silent failures (e.g., `print(f"Error: {e}")` and continue).
 **CLAUDE.md says**: "No fallbacks! No try/except... Errors and backtraces are holy."
 **Fix**: Let errors propagate or show them to user. Don't silently continue.
+**Status**: Can be addressed incrementally as we touch each module.
 
-### 8. Type Hints Use `Any` Too Much
+### 8. Type Hints Use `Any` Too Much ⚠️ LOW PRIORITY
 **Problem**: `settings: Any`, `repo: Any`, `session_widget: Any` throughout codebase.
 **Impact**: Loses type safety benefits.
 **Fix**: Use proper types (`Settings`, `ForgeRepository`, `AIChatWidget`).
+**Status**: Can be addressed incrementally. Run `make typecheck` to find issues.
 
-### 9. Sessions Directory Creation is Inconsistent
+### 9. Sessions Directory Creation is Inconsistent ✅ FIXED
 **Problem**: Falls back to `.forge/sessions` in current directory if not in git repo.
 **Issue**: Whole app is supposed to require git.
 **Fix**: Either require git repo or clarify fallback behavior in design.
+**Status**: App now requires git repo (see main.py error handling).
 
 ### 10. Session Loading Happens from Filesystem, Not Git ✅ FIXED
 **Problem**: `MainWindow._load_existing_sessions()` read from filesystem.
@@ -214,28 +220,53 @@ These issues violate core design principles and must be fixed before the project
 5. ✅ **SessionManager** - Coordinate AI turns and atomic commits
 6. ✅ **Git Commits** - Implement commit_changes() with tree building
 7. ✅ **Commit Messages** - Use cheap model to generate messages
-8. **Repository Summaries** - Generate and cache file summaries (basic version done)
+8. ✅ **Repository Summaries** - Generate and cache file summaries with LLM
 9. ✅ **Active Files** - Track and manage files in context
+10. ✅ **VFS Abstraction** - Complete git-backed virtual filesystem
 
 **Forge can now develop itself!** The git-first workflow is complete. Each AI turn creates an atomic commit with all changes.
 
-Next priorities:
-- **Fix context sending** - Repository summaries and active files now sent to LLM ✓
-- **Improve repository summary generation** - Currently just "File: {path}", should use cheap LLM
-- **Add UI for managing active files** - No way to add/remove files from context yet
-- **File save functionality** - Manual edits in editor don't save
-- **Tool approval workflow** - Tools run without user review (security issue)
-- **Session persistence in git** - Sessions saved to filesystem, should be in git commits
+## Top Priorities (Ordered by Importance)
+
+### 1. **Tool Approval Workflow** ⚠️ CRITICAL SECURITY
+- Tools currently execute without user review
+- Need approval dialog for new/modified tools
+- Track approved tools in `.forge/approved_tools.json`
+- This is a security requirement before Forge can be safely used
+
+### 2. **Active Files UI** ⚠️ HIGH USABILITY
+- Backend tracks active files, but no UI to manage them
+- Users can't add/remove files from context
+- Blocks effective use of the context system
+- Add file tree or buttons to manage active files
+
+### 3. **File Save Functionality** ⚠️ HIGH USABILITY
+- Editor can open and display files
+- But Ctrl+S doesn't work - can't save manual edits
+- Need to implement save functionality in EditorWidget
+
+### 4. **Context Optimization** 🔧 MEDIUM PERFORMANCE
+- Context currently rebuilt and sent on every turn
+- Should build once and update incrementally
+- Wastes tokens and API costs
+
+### 5. **Error Handling Cleanup** 🔧 MEDIUM QUALITY
+- Remove silent try/except blocks
+- Let errors propagate or show to user
+- Follow "no fallbacks" philosophy from CLAUDE.md
 
 ## Known Issues
 
 **NOTE**: Most critical issues moved to "Phase 0: Critical Design Issues" above.
 
-- [ ] **Editor doesn't save files** - No Ctrl+S implementation
+- [ ] **Editor doesn't save files** - No Ctrl+S implementation (HIGH PRIORITY)
+- [ ] **No UI for active files** - Can't add/remove files from context (HIGH PRIORITY)
+- [ ] **Tool approval missing** - Tools execute without review (CRITICAL SECURITY)
 - [ ] **No keyboard shortcuts** - Most shortcuts not implemented
 - [ ] **Session loading doesn't restore chat display properly** - Messages load but display may be wrong
 - [ ] **Too many try/except blocks** - Violates "no fallbacks" philosophy
 - [ ] **Type hints too loose** - Many `Any` types should be specific
+- [ ] **Context sent on every turn** - Wastes tokens, should be optimized
 
 ## Nice to Have (Post-MVP)
 

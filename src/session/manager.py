@@ -168,12 +168,12 @@ Keep it under 72 characters."""
 
             # Generate summary with cheap LLM
             content = self.repo.get_file_content(filepath, self.branch_name)
-            
+
             # Truncate very large files for summary generation
             max_chars = 10000
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
-            
+
             prompt = f"""Generate a micro-README for this file listing its public interfaces.
 
 File: {filepath}
@@ -194,7 +194,7 @@ Respond with ONLY the bulleted list, no introduction or explanation."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)
-            
+
             summary_content = response["choices"][0]["message"]["content"]
             summary = str(summary_content).strip().strip("\"'")
 

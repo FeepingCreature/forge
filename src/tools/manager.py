@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import pygit2
+
 if TYPE_CHECKING:
     from ..git_backend.repository import ForgeRepository
 
@@ -39,23 +41,19 @@ class ToolManager:
         self._tool_modules: dict[str, Any] = {}
 
         # Approved tools tracking
-        self.approved_tools_file = Path(".forge/approved_tools.json")
+        self.approved_tools_path = ".forge/approved_tools.json"
         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash
+        self._pending_approvals: dict[str, str] = {}  # Changes to amend onto last commit
         self._load_approved_tools()
 
     def _load_approved_tools(self) -> None:
-        """Load approved tools from .forge/approved_tools.json"""
-        if self.approved_tools_file.exists():
-            with open(self.approved_tools_file) as f:
-                self._approved_tools = json.load(f)
-        else:
+        """Load approved tools from git commit"""
+        try:
+            content = self.repo.get_file_content(self.approved_tools_path, self.branch_name)
+            self._approved_tools = json.loads(content)
+        except (FileNotFoundError, KeyError):
+            # File doesn't exist yet, start with empty dict
             self._approved_tools = {}
-
-    def _save_approved_tools(self) -> None:
-        """Save approved tools to .forge/approved_tools.json"""
-        self.approved_tools_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.approved_tools_file, "w") as f:
-            json.dump(self._approved_tools, f, indent=2)
 
     def _get_file_hash(self, filepath: Path) -> str:
         """Get SHA256 hash of a file"""
@@ -74,20 +72,48 @@ class ToolManager:
         return self._approved_tools.get(tool_name) == current_hash
 
     def approve_tool(self, tool_name: str) -> None:
-        """Approve a tool (records its current hash)"""
+        """Approve a tool (records its current hash in pending approvals)"""
         tool_path = self.tools_dir / f"{tool_name}.py"
         if not tool_path.exists():
             raise FileNotFoundError(f"Tool not found: {tool_name}")
 
         current_hash = self._get_file_hash(tool_path)
         self._approved_tools[tool_name] = current_hash
-        self._save_approved_tools()
+
+        # Track in pending approvals (will be amended onto last commit)
+        self._pending_approvals[tool_name] = current_hash
 
     def reject_tool(self, tool_name: str) -> None:
         """Reject a tool (removes from approved list if present)"""
         if tool_name in self._approved_tools:
             del self._approved_tools[tool_name]
-            self._save_approved_tools()
+
+        # Track rejection in pending approvals
+        if tool_name in self._pending_approvals:
+            del self._pending_approvals[tool_name]
+
+    def commit_pending_approvals(self) -> pygit2.Oid | None:
+        """
+        Amend the last commit with pending tool approvals.
+
+        Returns:
+            New commit OID if there were pending approvals, None otherwise
+        """
+        if not self._pending_approvals:
+            return None
+
+        # Generate approved_tools.json content
+        content = json.dumps(self._approved_tools, indent=2)
+
+        # Amend the last commit
+        new_commit_oid = self.repo.amend_commit(
+            self.branch_name, {self.approved_tools_path: content}
+        )
+
+        # Clear pending approvals
+        self._pending_approvals.clear()
+
+        return new_commit_oid
 
     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:
         """
@@ -96,7 +122,7 @@ class ToolManager:
         Returns:
             List of (tool_name, current_code, is_new, old_code) tuples
         """
-        unapproved = []
+        unapproved: list[tuple[str, str, bool, str | None]] = []
 
         for tool_file in self.tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":

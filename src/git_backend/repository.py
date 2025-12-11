@@ -171,6 +171,61 @@ class ForgeRepository:
 
         return commit_oid
 
+    def amend_commit(
+        self,
+        branch_name: str,
+        additional_changes: dict[str, str],
+        new_message: str | None = None,
+    ) -> pygit2.Oid:
+        """
+        Amend the HEAD commit on a branch with additional changes.
+
+        Args:
+            branch_name: Branch to amend
+            additional_changes: Dict of filepath -> new_content to add to commit
+            new_message: Optional new commit message (keeps original if None)
+
+        Returns:
+            OID of the new (amended) commit
+        """
+        # Get current HEAD commit
+        head_commit = self.get_branch_head(branch_name)
+
+        # Get parent(s) of HEAD
+        parents = [p.id for p in head_commit.parents]
+
+        # Create new tree with additional changes on top of HEAD's tree
+        tree_builder = self.repo.TreeBuilder(head_commit.tree)
+
+        for filepath, content in additional_changes.items():
+            # Create blob for new content
+            blob_oid = self.repo.create_blob(content.encode("utf-8"))
+
+            # Add to tree (handles nested paths)
+            self._add_to_tree(tree_builder, filepath, blob_oid, head_commit.tree)
+
+        # Write the new tree
+        tree_oid = tree_builder.write()
+
+        # Use original message if no new message provided
+        message = new_message if new_message is not None else head_commit.message
+
+        # Create signature (preserve original author, update committer)
+        author = head_commit.author
+        committer = pygit2.Signature("Forge AI", "ai@forge.dev")
+
+        # Create new commit with same parents as original
+        new_commit_oid = self.repo.create_commit(
+            f"refs/heads/{branch_name}",  # Update branch ref
+            author,
+            committer,
+            message,
+            tree_oid,
+            parents,  # Same parents as original commit
+        )
+
+        return new_commit_oid
+
     def get_all_files(self, branch_name: str | None = None) -> list[str]:
         """Get list of all files in repository"""
         if branch_name:

@@ -197,9 +197,7 @@ class AIChatWidget(QWidget):
         if unapproved:
             self._show_tool_approvals(unapproved)
 
-    def _show_tool_approvals(
-        self, tools: list[tuple[str, str, bool, str | None]]
-    ) -> None:
+    def _show_tool_approvals(self, tools: list[tuple[str, str, bool, str | None]]) -> None:
         """Show approval widgets for unapproved tools"""
         # Clear existing approval widgets
         for widget in self.approval_widgets:
@@ -227,11 +225,28 @@ class AIChatWidget(QWidget):
         self.pending_approvals.discard(tool_name)
         self._update_blocking_state()
 
+        # If all approvals done, amend the last commit with approvals
+        if not self.pending_approvals:
+            self._commit_tool_approvals()
+
     def _on_tool_rejected(self, tool_name: str) -> None:
         """Handle tool rejection"""
         self.session_manager.tool_manager.reject_tool(tool_name)
         self.pending_approvals.discard(tool_name)
         self._update_blocking_state()
+
+        # If all approvals done, amend the last commit with approvals
+        if not self.pending_approvals:
+            self._commit_tool_approvals()
+
+    def _commit_tool_approvals(self) -> None:
+        """Amend the last commit with tool approval decisions"""
+        new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals()
+
+        if new_commit_oid:
+            self.add_message(
+                "assistant", f"✅ Tool approvals amended to commit: {str(new_commit_oid)[:8]}"
+            )
 
     def _update_blocking_state(self) -> None:
         """Update UI blocking state based on pending approvals"""

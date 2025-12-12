@@ -160,9 +160,24 @@ class MainWindow(QMainWindow):
         import uuid
 
         session_id = str(uuid.uuid4())
+        branch_name = f"forge/session/{session_id}"
 
-        # Create git branch for this session BEFORE creating widget
+        # Create git branch for this session
         self.repo.create_session_branch(session_id)
+
+        # Create initial session commit with stub session.json
+        session_data = {
+            "session_id": session_id,
+            "branch_name": branch_name,
+            "messages": [],
+            "active_files": [],
+            "repo_summaries": {},
+        }
+        session_file_path = f".forge/sessions/{session_id}.json"
+        tree_oid = self.repo.create_tree_from_changes(
+            branch_name, {session_file_path: json.dumps(session_data, indent=2)}
+        )
+        self.repo.commit_tree(tree_oid, "chore: initialize session", branch_name)
 
         # Now create widget with the session_id
         session_widget = AIChatWidget(session_id=session_id, settings=self.settings, repo=self.repo)

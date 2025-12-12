@@ -96,9 +96,10 @@ class ToolManager:
         """
         Commit pending tool approvals.
         
+        Since sessions always start with an initial commit, we can always amend.
+        
         Args:
-            amend_if_possible: If True, amend the last commit if it exists.
-                              If False, always create a new commit.
+            amend_if_possible: If True, amend the last commit. If False, create new commit.
 
         Returns:
             New commit OID if there were pending approvals, None otherwise
@@ -111,22 +112,12 @@ class ToolManager:
         tool_names = ", ".join(self._pending_approvals.keys())
 
         if amend_if_possible:
-            # Try to amend the last commit
-            try:
-                new_commit_oid = self.repo.amend_commit(
-                    self.branch_name, {self.approved_tools_path: content}
-                )
-            except Exception:
-                # Amend failed (probably no commits yet), create new commit
-                tree_oid = self.repo.create_tree_from_changes(
-                    self.branch_name, {self.approved_tools_path: content}
-                )
-                message = f"chore: approve tools: {tool_names}"
-                new_commit_oid = self.repo.commit_tree(
-                    tree_oid, message, self.branch_name
-                )
+            # Amend the last commit (session always has at least one commit)
+            new_commit_oid = self.repo.amend_commit(
+                self.branch_name, {self.approved_tools_path: content}
+            )
         else:
-            # Always create new commit
+            # Create new commit
             tree_oid = self.repo.create_tree_from_changes(
                 self.branch_name, {self.approved_tools_path: content}
             )

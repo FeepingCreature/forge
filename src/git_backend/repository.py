@@ -188,10 +188,12 @@ class ForgeRepository:
             # If parent is also PREPARE, concatenate messages
             if parent_type == CommitType.PREPARE:
                 combined_message = f"{parent_message}\n{message}"
+                # Re-add [prepare] prefix since parse_commit_type stripped it
+                formatted_combined = format_commit_message(CommitType.PREPARE, combined_message)
                 return self.amend_commit(
                     branch_name,
                     {},  # No additional file changes, tree already built
-                    new_message=combined_message,
+                    new_message=formatted_combined,
                     new_tree_oid=tree_oid,
                 )
 

@@ -154,6 +154,25 @@ class AIChatWidget(QWidget):
 
         # Chat display area (using QWebEngineView for markdown/LaTeX)
         self.chat_view = QWebEngineView()
+        # Pre-initialize with minimal HTML to avoid flash on first load
+        self.chat_view.setHtml(
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        padding: 20px;
+                        background: #ffffff;
+                    }
+                </style>
+            </head>
+            <body></body>
+            </html>
+            """
+        )
+        # Update with actual content after initialization
         self._update_chat_display()
 
         layout.addWidget(self.chat_view)

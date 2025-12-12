@@ -36,8 +36,13 @@ class ToolManager:
         branch_name: str,
         tools_dir: str = "./tools",
     ) -> None:
+        # User tools directory (repo-specific)
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(exist_ok=True)
+
+        # Built-in tools directory (part of Forge)
+        self.builtin_tools_dir = Path(__file__).parent / "builtin"
+
         self.repo = repo
         self.branch_name = branch_name
 
@@ -171,7 +176,7 @@ class ToolManager:
         return unapproved
 
     def discover_tools(self, force_refresh: bool = False) -> list[dict[str, Any]]:
-        """Discover all APPROVED tools and get their schemas"""
+        """Discover all APPROVED tools (built-in + user) and get their schemas"""
         if not force_refresh and self._schema_cache:
             return list(self._schema_cache.values())
 
@@ -179,6 +184,18 @@ class ToolManager:
         self._schema_cache = {}
         self._tool_modules = {}
 
+        # Load built-in tools first (always approved)
+        for tool_file in self.builtin_tools_dir.iterdir():
+            if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
+                tool_name = tool_file.stem
+                tool_module = self._load_tool_module(tool_file, is_builtin=True)
+                if tool_module and hasattr(tool_module, "get_schema"):
+                    schema = tool_module.get_schema()
+                    tools.append(schema)
+                    self._schema_cache[tool_name] = schema
+                    self._tool_modules[tool_name] = tool_module
+
+        # Load user tools (only if approved)
         for tool_file in self.tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
                 tool_name = tool_file.stem
@@ -187,7 +204,7 @@ class ToolManager:
                 if not self.is_tool_approved(tool_name):
                     continue
 
-                tool_module = self._load_tool_module(tool_file)
+                tool_module = self._load_tool_module(tool_file, is_builtin=False)
                 if tool_module and hasattr(tool_module, "get_schema"):
                     schema = tool_module.get_schema()
                     tools.append(schema)
@@ -196,9 +213,12 @@ class ToolManager:
 
         return tools
 
-    def _load_tool_module(self, tool_path: Path) -> Any:
+    def _load_tool_module(self, tool_path: Path, is_builtin: bool = False) -> Any:
         """Load a tool as a Python module"""
-        module_name = f"tools.{tool_path.stem}"
+        if is_builtin:
+            module_name = f"src.tools.builtin.{tool_path.stem}"
+        else:
+            module_name = f"tools.{tool_path.stem}"
 
         spec = importlib.util.spec_from_file_location(module_name, tool_path)
         assert spec is not None and spec.loader is not None, f"Failed to load spec for {tool_path}"
@@ -218,12 +238,17 @@ class ToolManager:
             return {"error": f"Tool {tool_name} is not approved. Cannot execute."}
 
         if tool_name not in self._tool_modules:
-            # Try to load it
-            tool_path = self.tools_dir / f"{tool_name}.py"
-            if not tool_path.exists():
+            # Try to load it - check built-in first, then user tools
+            builtin_path = self.builtin_tools_dir / f"{tool_name}.py"
+            user_path = self.tools_dir / f"{tool_name}.py"
+
+            if builtin_path.exists():
+                tool_module = self._load_tool_module(builtin_path, is_builtin=True)
+            elif user_path.exists():
+                tool_module = self._load_tool_module(user_path, is_builtin=False)
+            else:
                 return {"error": f"Tool {tool_name} not found"}
 
-            tool_module = self._load_tool_module(tool_path)
             if not tool_module:
                 return {"error": f"Failed to load tool {tool_name}"}
 

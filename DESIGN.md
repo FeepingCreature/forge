@@ -109,7 +109,9 @@ Tool lifecycle:
 - `update_context` - Add/remove files from active context
 - `list_active_files` - List active files with token counts and context stats
 
-These tools are marked as `BUILTIN_TOOLS` in ToolManager and skip approval checks. They provide the essential operations needed in any repo from day one.
+These tools live in `src/tools/builtin/` (part of Forge itself) and are marked as `BUILTIN_TOOLS` in ToolManager. They skip approval checks and provide the essential operations needed in any repo from day one.
+
+User-created tools go in `./tools/` (repo-specific) and require approval before use.
 
 ### Session Management
 
@@ -446,11 +448,23 @@ forge/
 │   │   └── repository.py       # Git operations
 │   ├── llm/
 │   │   └── client.py           # LLM API client
-│   └── tools/
-│       └── manager.py          # Tool discovery/execution
-├── tools/                  # User-facing tools
-│   └── search_replace.py   # Built-in edit tool
+│   ├── tools/
+│   │   ├── manager.py          # Tool discovery/execution
+│   │   └── builtin/            # Built-in tools (part of Forge)
+│   │       ├── read_file.py
+│   │       ├── write_file.py
+│   │       ├── delete_file.py
+│   │       ├── search_replace.py
+│   │       ├── update_context.py
+│   │       └── list_active_files.py
+│   └── vfs/
+│       ├── base.py             # VFS interface
+│       ├── git_commit.py       # Read-only git VFS
+│       └── work_in_progress.py # Writable VFS layer
+├── tools/                  # User-created tools (repo-specific)
+│   └── (empty initially)
 └── .forge/                # Forge metadata (tracked in git)
+    ├── approved_tools.json # Tool approval tracking
     └── sessions/          # Session state files
         └── <uuid>.json    # Individual session
 ```

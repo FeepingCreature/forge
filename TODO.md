@@ -45,16 +45,16 @@ These issues violate core design principles and must be fixed before the project
 **Impact**: Context sent to LLM was useless. The "cheap summaries + selective full files" strategy didn't work.
 **Fix**: ✅ Now calls cheap LLM (Haiku) to generate file summaries with caching.
 
-### 4. Tool Approval Workflow Missing ⚠️ SECURITY - NEXT PRIORITY
+### 4. Tool Approval Workflow ✅ FIXED
 **Problem**: Tools execute without user review.
 **Design says**: "Tools are reviewed once at creation/modification time."
 **Impact**: Malicious or buggy tools could run without user knowledge.
 **Fix**:
-- Add `approved_tools.json` in `.forge/` (tracked in git)
-- Show approval dialog for new/modified tools
-- Check approval before execution
-- Track tool file hashes to detect modifications
-**Status**: This is the next critical security issue to fix.
+- ✅ Add `approved_tools.json` in `.forge/` (tracked in git)
+- ✅ Show approval UI inline in chat for new/modified tools
+- ✅ Check approval before execution
+- ✅ Track tool file hashes to detect modifications
+**Status**: Complete! Tools now require approval before first use.
 
 ### 5. Context Building Has Timing Issues ⚠️ NEEDS IMPROVEMENT
 **Problem**: Context is inserted as system message before every user message, duplicating context on every turn.
@@ -104,20 +104,20 @@ These issues violate core design principles and must be fixed before the project
 - [x] Display assistant responses in chat
 - [x] Error handling for API failures
 
-### 2. Tool System ⚠️ CRITICAL
+### 2. Tool System ✅ COMPLETE
 - [x] Wire up ToolManager to AI sessions
 - [x] Discover tools on session start
 - [x] Send tool schemas to LLM
 - [x] Handle tool calls from LLM responses
 - [x] Execute tools and return results
 - [x] Display tool execution in chat UI
-- [ ] **Add tool approval workflow** (new/modified tools need user OK before first use)
-  - Tools should be marked as approved/unapproved
-  - UI dialog to review tool code before first use
-  - Track approval state in session or global config
-  - Prevent execution of unapproved tools
-- [ ] Track approved vs unapproved tools
-- [ ] UI to review and approve pending tools
+- [x] **Add tool approval workflow** (new/modified tools need user OK before first use)
+  - Tools marked as approved/unapproved with file hash tracking
+  - Inline approval UI in chat with review of tool code
+  - Approval state tracked in `.forge/approved_tools.json` (git-committed)
+  - Execution blocked for unapproved tools
+- [x] Track approved vs unapproved tools
+- [x] UI to review and approve pending tools
 
 ### 3. File Management
 - [ ] Save file functionality (Ctrl+S)

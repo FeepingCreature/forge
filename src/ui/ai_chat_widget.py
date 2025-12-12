@@ -7,7 +7,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 import markdown
-from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QRunnable, QThread, QThreadPool, Signal, Slot
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -25,6 +25,26 @@ from ..session.manager import SessionManager
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
+
+
+class SummaryWorker(QObject):
+    """Worker for generating repository summaries in background"""
+
+    finished = Signal(int)  # Emitted with number of summaries generated
+    error = Signal(str)  # Emitted on error
+
+    def __init__(self, session_manager: SessionManager) -> None:
+        super().__init__()
+        self.session_manager = session_manager
+
+    def run(self) -> None:
+        """Generate summaries"""
+        try:
+            self.session_manager.generate_repo_summaries()
+            count = len(self.session_manager.repo_summaries)
+            self.finished.emit(count)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class StreamWorker(QObject):
@@ -143,6 +163,10 @@ class AIChatWidget(QWidget):
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
 
+        # Summary worker
+        self.summary_thread: QThread | None = None
+        self.summary_worker: SummaryWorker | None = None
+
         # Web channel bridge for JavaScript communication
         self.bridge = ChatBridge(self)
         self.channel = QWebChannel()
@@ -166,10 +190,9 @@ class AIChatWidget(QWidget):
 
         # Generate repository summaries on session creation (if not already done)
         if not self.session_manager.repo_summaries:
-            self.add_message("system", "🔍 Generating repository summaries...")
+            self.add_message("system", "🔍 Generating repository summaries in background...")
             self._update_chat_display()
-            self.session_manager.generate_repo_summaries()
-            self.add_message("system", f"✅ Generated summaries for {len(self.session_manager.repo_summaries)} files")
+            self._start_summary_generation()
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
@@ -226,6 +249,42 @@ class AIChatWidget(QWidget):
         input_layout.addWidget(self.send_button)
 
         layout.addLayout(input_layout)
+
+    def _start_summary_generation(self) -> None:
+        """Start generating repository summaries in background thread"""
+        self.summary_thread = QThread()
+        self.summary_worker = SummaryWorker(self.session_manager)
+        self.summary_worker.moveToThread(self.summary_thread)
+
+        # Connect signals
+        self.summary_worker.finished.connect(self._on_summaries_finished)
+        self.summary_worker.error.connect(self._on_summaries_error)
+        self.summary_thread.started.connect(self.summary_worker.run)
+
+        # Start the thread
+        self.summary_thread.start()
+
+    def _on_summaries_finished(self, count: int) -> None:
+        """Handle summary generation completion"""
+        # Clean up thread
+        if self.summary_thread:
+            self.summary_thread.quit()
+            self.summary_thread.wait()
+            self.summary_thread = None
+            self.summary_worker = None
+
+        self.add_message("system", f"✅ Generated summaries for {count} files")
+
+    def _on_summaries_error(self, error_msg: str) -> None:
+        """Handle summary generation error"""
+        # Clean up thread
+        if self.summary_thread:
+            self.summary_thread.quit()
+            self.summary_thread.wait()
+            self.summary_thread = None
+            self.summary_worker = None
+
+        self.add_message("system", f"❌ Error generating summaries: {error_msg}")
 
     def _check_for_unapproved_tools(self) -> None:
         """Check for unapproved tools and show approval requests in chat"""

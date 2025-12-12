@@ -217,6 +217,8 @@ Keep it under 72 characters."""
         client = LLMClient(api_key, model)
 
         files = self.repo.get_all_files(self.branch_name)
+        print(f"📝 Generating summaries for {len(files)} files (cached summaries will be reused)")
+        
         for filepath in files:
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
@@ -226,9 +228,11 @@ Keep it under 72 characters."""
                 cached_summary = self._get_cached_summary(filepath, commit_oid)
                 if cached_summary:
                     self.repo_summaries[filepath] = cached_summary
+                    print(f"   ✓ {filepath} (cached)")
                     continue
 
             # Generate summary with cheap LLM
+            print(f"   🔄 {filepath} (generating...)")
             content = self.repo.get_file_content(filepath, self.branch_name)
 
             # Truncate very large files for summary generation

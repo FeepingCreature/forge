@@ -21,6 +21,8 @@ class LLMClient:
         self, messages: list[dict[str, str]], tools: list[dict[str, Any]] | None = None
     ) -> dict[str, Any]:
         """Send chat request to LLM (non-streaming)"""
+        print(f"🌐 LLM Request: {self.model} (non-streaming, {len(messages)} messages)")
+        
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -33,17 +35,21 @@ class LLMClient:
 
         if tools:
             payload["tools"] = tools
+            print(f"   Tools available: {len(tools)}")
 
         response = requests.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
 
         response.raise_for_status()
         result: dict[str, Any] = response.json()
+        print(f"✅ LLM Response received")
         return result
 
     def chat_stream(
         self, messages: list[dict[str, str]], tools: list[dict[str, Any]] | None = None
     ) -> Iterator[dict[str, Any]]:
         """Send chat request to LLM with streaming"""
+        print(f"🌐 LLM Request: {self.model} (streaming, {len(messages)} messages)")
+        
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -57,12 +63,14 @@ class LLMClient:
 
         if tools:
             payload["tools"] = tools
+            print(f"   Tools available: {len(tools)}")
 
         response = requests.post(
             f"{self.base_url}/chat/completions", headers=headers, json=payload, stream=True
         )
 
         response.raise_for_status()
+        print(f"📡 Streaming response started")
 
         # Parse SSE stream
         for line in response.iter_lines():

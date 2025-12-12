@@ -135,6 +135,19 @@ class AIChatWidget(QWidget):
         self.is_processing = False
         self.streaming_content = ""
 
+        # Tool approval tracking - initialize BEFORE any method calls
+        self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info
+        self.handled_approvals: set[str] = set()  # Tools that have been approved/rejected
+
+        # Streaming worker
+        self.stream_thread: QThread | None = None
+        self.stream_worker: StreamWorker | None = None
+
+        # Web channel bridge for JavaScript communication
+        self.bridge = ChatBridge(self)
+        self.channel = QWebChannel()
+        self.channel.registerObject("bridge", self.bridge)
+
         # Initialize session manager (repo and settings are required)
         assert repo is not None, "Repository is required for AIChatWidget"
         assert settings is not None, "Settings are required for AIChatWidget"
@@ -146,19 +159,6 @@ class AIChatWidget(QWidget):
             self._update_chat_display()
             self.session_manager.generate_repo_summaries()
             self.add_message("system", f"✅ Generated summaries for {len(self.session_manager.repo_summaries)} files")
-
-        # Streaming worker
-        self.stream_thread: QThread | None = None
-        self.stream_worker: StreamWorker | None = None
-
-        # Tool approval tracking
-        self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info
-        self.handled_approvals: set[str] = set()  # Tools that have been approved/rejected
-
-        # Web channel bridge for JavaScript communication
-        self.bridge = ChatBridge(self)
-        self.channel = QWebChannel()
-        self.channel.registerObject("bridge", self.bridge)
 
         # Load existing session or start fresh
         if session_data:

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..config.settings import Settings
+from ..git_backend.commit_types import CommitType
 from ..git_backend.repository import ForgeRepository
 from .ai_chat_widget import AIChatWidget
 from .editor_widget import EditorWidget
@@ -187,7 +188,9 @@ class MainWindow(QMainWindow):
         tree_oid = self.repo.create_tree_from_changes(
             branch_name, {session_file_path: json.dumps(session_data, indent=2)}
         )
-        self.repo.commit_tree(tree_oid, "chore: initialize session", branch_name)
+        self.repo.commit_tree(
+            tree_oid, "initialize session", branch_name, commit_type=CommitType.PREPARE
+        )
 
         # Now create widget with the session_id
         session_widget = AIChatWidget(session_id=session_id, settings=self.settings, repo=self.repo)

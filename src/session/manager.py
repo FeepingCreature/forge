@@ -91,9 +91,13 @@ class SessionManager:
         self, messages: list[dict[str, Any]], commit_message: str | None = None
     ) -> str:
         """
-        Commit all changes from an AI turn as a major commit.
+        Commit all changes from an AI turn.
 
         If there are [prepare] commits (e.g., tool approvals), they will be absorbed automatically.
+
+        Commit type logic:
+        - If only session state changed (just conversation): PREPARE commit
+        - If actual files changed: MAJOR commit
 
         Args:
             messages: Session messages to save
@@ -109,20 +113,26 @@ class SessionManager:
         session_file_path = f".forge/sessions/{self.session_id}.json"
         self.tool_manager.vfs.write_file(session_file_path, json.dumps(session_state, indent=2))
 
+        # Get all changes including session file
+        all_changes = self.tool_manager.get_pending_changes()
+
+        # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
+        only_session_changed = len(all_changes) == 1 and session_file_path in all_changes
+        commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
+
         # Generate commit message if not provided
         if not commit_message:
-            # Get all changes including session file
-            all_changes = self.tool_manager.get_pending_changes()
-            commit_message = self.generate_commit_message(all_changes)
+            if only_session_changed:
+                commit_message = "conversation turn"
+            else:
+                commit_message = self.generate_commit_message(all_changes)
 
         # Build tree from VFS changes
-        tree_oid = self.repo.create_tree_from_changes(
-            self.branch_name, self.tool_manager.get_pending_changes()
-        )
+        tree_oid = self.repo.create_tree_from_changes(self.branch_name, all_changes)
 
-        # Create major commit - will automatically absorb any PREPARE commits
+        # Create commit - will automatically absorb any PREPARE commits if MAJOR
         commit_oid = self.repo.commit_tree(
-            tree_oid, commit_message, self.branch_name, commit_type=CommitType.MAJOR
+            tree_oid, commit_message, self.branch_name, commit_type=commit_type
         )
 
         # Clear VFS pending changes

@@ -87,6 +87,39 @@ class SessionManager:
         """Remove a file from active context"""
         self.active_files.discard(filepath)
 
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough token estimate (4 chars per token average)"""
+        return len(text) // 4
+
+    def get_active_files_with_stats(self) -> dict[str, Any]:
+        """Get active files with token counts and context stats"""
+        files_info = []
+        total_tokens = 0
+
+        for filepath in sorted(self.active_files):
+            try:
+                content = self.repo.get_file_content(filepath, self.branch_name)
+                tokens = self._estimate_tokens(content)
+                total_tokens += tokens
+                files_info.append(
+                    {"filepath": filepath, "tokens": tokens, "size_bytes": len(content)}
+                )
+            except Exception as e:
+                files_info.append({"filepath": filepath, "error": str(e)})
+
+        # Estimate summary tokens
+        summary_tokens = sum(
+            self._estimate_tokens(summary) for summary in self.repo_summaries.values()
+        )
+
+        return {
+            "active_files": files_info,
+            "total_active_tokens": total_tokens,
+            "summary_tokens": summary_tokens,
+            "total_context_tokens": total_tokens + summary_tokens,
+            "file_count": len(files_info),
+        }
+
     def commit_ai_turn(
         self, messages: list[dict[str, Any]], commit_message: str | None = None
     ) -> str:

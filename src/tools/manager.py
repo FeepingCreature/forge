@@ -20,6 +20,16 @@ if TYPE_CHECKING:
 class ToolManager:
     """Manages tools available to the LLM"""
 
+    # Built-in tools that are always approved
+    BUILTIN_TOOLS = {
+        "read_file",
+        "write_file",
+        "delete_file",
+        "search_replace",
+        "update_context",
+        "list_active_files",
+    }
+
     def __init__(
         self,
         repo: "ForgeRepository",
@@ -64,6 +74,10 @@ class ToolManager:
 
     def is_tool_approved(self, tool_name: str) -> bool:
         """Check if a tool is approved and hasn't been modified"""
+        # Built-in tools are always approved
+        if tool_name in self.BUILTIN_TOOLS:
+            return True
+
         tool_path = self.tools_dir / f"{tool_name}.py"
         if not tool_path.exists():
             return False
@@ -128,7 +142,7 @@ class ToolManager:
 
     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:
         """
-        Get list of unapproved tools.
+        Get list of unapproved tools (excludes built-in tools).
 
         Returns:
             List of (tool_name, current_code, is_new, old_code) tuples
@@ -138,6 +152,11 @@ class ToolManager:
         for tool_file in self.tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
                 tool_name = tool_file.stem
+
+                # Skip built-in tools
+                if tool_name in self.BUILTIN_TOOLS:
+                    continue
+
                 current_code = tool_file.read_text()
 
                 if not self.is_tool_approved(tool_name):
@@ -221,16 +240,17 @@ class ToolManager:
         # Handle context management actions
         if session_manager and "action" in result:
             action = result["action"]
-            if action == "add_to_context":
-                filepath = result.get("filepath")
-                if filepath:
+            if action == "update_context":
+                # Handle add/remove in one operation
+                add_files = result.get("add", [])
+                remove_files = result.get("remove", [])
+                for filepath in add_files:
                     session_manager.add_active_file(filepath)
-            elif action == "remove_from_context":
-                filepath = result.get("filepath")
-                if filepath:
+                for filepath in remove_files:
                     session_manager.remove_active_file(filepath)
             elif action == "list_active_files":
-                result["active_files"] = list(session_manager.active_files)
+                # Get active files with token counts
+                result["active_files"] = session_manager.get_active_files_with_stats()
 
         return result
 

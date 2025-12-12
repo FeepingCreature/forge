@@ -1,5 +1,5 @@
 """
-List files currently in active context
+List files currently in active context with token counts
 """
 
 from typing import TYPE_CHECKING, Any
@@ -14,7 +14,7 @@ def get_schema() -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": "list_active_files",
-            "description": "List all files currently in active context (files with full content included in AI turns).",
+            "description": "List all files currently in active context with token counts and context usage stats.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -25,9 +25,9 @@ def get_schema() -> dict[str, Any]:
 
 
 def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
-    """List active files"""
+    """List active files with stats"""
     # Note: The actual active files list is in SessionManager
-    # This tool just signals the query - SessionManager will provide the list
+    # This tool just signals the query - SessionManager will provide the list with stats
     return {
         "success": True,
         "action": "list_active_files",

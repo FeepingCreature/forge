@@ -101,6 +101,16 @@ Tool lifecycle:
 
 **Trust Model**: Tools are reviewed once at creation/modification time. Once approved, they run autonomously. This amortizes the review cost - you pay it once, not on every use.
 
+**Built-in Tools**: A core set of tools is always available without approval:
+- `read_file` - Read file from VFS (git + pending changes)
+- `write_file` - Write complete file to VFS (create or overwrite)
+- `delete_file` - Delete file from VFS
+- `search_replace` - Make SEARCH/REPLACE edits to files
+- `update_context` - Add/remove files from active context
+- `list_active_files` - List active files with token counts and context stats
+
+These tools are marked as `BUILTIN_TOOLS` in ToolManager and skip approval checks. They provide the essential operations needed in any repo from day one.
+
 ### Session Management
 
 Each session maintains:

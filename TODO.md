@@ -122,10 +122,14 @@ These issues violate core design principles and must be fixed before the project
   - Execution blocked for unapproved tools
 - [x] Track approved vs unapproved tools
 - [x] UI to review and approve pending tools
-- [ ] **Add context management tools**:
-  - [ ] `add_file_to_context` - AI can expand files into full context
-  - [ ] `remove_file_from_context` - AI can remove files from context
-  - [ ] `list_active_files` - AI can see what's currently in context
+- [x] **Add context management tools**:
+  - [x] `update_context` - AI can add/remove files from context in one call
+  - [x] `list_active_files` - AI can see active files with token counts and context stats
+- [x] **Add built-in VFS tools** (always approved, work in any repo):
+  - [x] `read_file` - Read file from VFS
+  - [x] `write_file` - Write complete file to VFS
+  - [x] `delete_file` - Delete file from VFS
+  - [x] `search_replace` - Already exists, now marked as built-in
 
 ### 3. File Management
 - [ ] Save file functionality (Ctrl+S)
@@ -236,10 +240,11 @@ These issues violate core design principles and must be fixed before the project
 
 ## Top Priorities (Ordered by Importance)
 
-### 1. **Context Management Tools** ⚠️ HIGH PRIORITY
-- AI needs tools to manage its own context
-- Create `add_file_to_context`, `remove_file_from_context`, `list_active_files`
-- This unblocks effective AI-driven development
+### 1. **Built-in Tools Complete** ✅ DONE
+- AI has built-in tools for VFS operations (read, write, delete, search_replace)
+- Context management via `update_context` (add/remove files in one call)
+- Token counting and context stats via `list_active_files`
+- These tools work in any repo without approval
 - Manual UI for file management is post-MVP
 
 ### 2. **File Save Functionality** ⚠️ HIGH USABILITY

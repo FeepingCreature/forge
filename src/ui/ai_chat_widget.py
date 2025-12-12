@@ -180,7 +180,9 @@ class AIChatWidget(QWidget):
 
         self.input_field = QTextEdit()
         self.input_field.setMaximumHeight(60)  # Smaller, ~2-3 lines
-        self.input_field.setPlaceholderText("Type your message... (Enter to send, Shift+Enter for new line)")
+        self.input_field.setPlaceholderText(
+            "Type your message... (Enter to send, Shift+Enter for new line)"
+        )
         # Install event filter to catch Enter key
         self.input_field.installEventFilter(self)
 

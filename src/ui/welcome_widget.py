@@ -23,6 +23,7 @@ class WelcomeWidget(QWidget):
 
     new_session_requested = Signal()
     open_file_requested = Signal(str)
+    open_session_requested = Signal(str)  # Emits session_id
 
     def __init__(self, repo: ForgeRepository) -> None:
         super().__init__()
@@ -96,6 +97,10 @@ class WelcomeWidget(QWidget):
         # Quick Access Section
         files_frame = self._create_files_section()
         layout.addWidget(files_frame)
+
+        # Existing Sessions Section
+        sessions_frame = self._create_sessions_section()
+        layout.addWidget(sessions_frame)
 
         # Tips Section
         tips_frame = self._create_tips_section()
@@ -233,7 +238,9 @@ class WelcomeWidget(QWidget):
                         }
                         """
                     )
-                    file_btn.clicked.connect(lambda checked, f=filepath: self.open_file_requested.emit(f))
+                    file_btn.clicked.connect(
+                        lambda checked, f=filepath: self.open_file_requested.emit(f)
+                    )
                     files_layout.addWidget(file_btn)
 
                 layout.addLayout(files_layout)
@@ -244,6 +251,74 @@ class WelcomeWidget(QWidget):
 
         except Exception as e:
             error_label = QLabel(f"Error loading files: {e}")
+            error_label.setStyleSheet("color: #e74c3c;")
+            layout.addWidget(error_label)
+
+        return frame
+
+    def _create_sessions_section(self) -> QFrame:
+        """Create existing sessions section"""
+        frame = QFrame()
+        frame.setFrameStyle(QFrame.Shape.StyledPanel)
+        frame.setStyleSheet(
+            "QFrame { background-color: #ecf0f1; border-radius: 8px; padding: 20px; }"
+        )
+
+        layout = QVBoxLayout(frame)
+
+        # Section title
+        title = QLabel("🤖 Existing AI Sessions")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        layout.addWidget(title)
+
+        layout.addSpacing(10)
+
+        # Get session branches from git
+        try:
+            session_branches = [
+                name for name in self.repo.repo.branches if name.startswith("forge/session/")
+            ]
+
+            if session_branches:
+                sessions_layout = QVBoxLayout()
+                sessions_layout.setSpacing(5)
+
+                for branch_name in sorted(session_branches):
+                    # Extract session ID from branch name
+                    session_id = branch_name.replace("forge/session/", "")
+
+                    # Create button for session
+                    session_btn = QPushButton(f"📋 {session_id[:8]}... ({branch_name})")
+                    session_btn.setStyleSheet(
+                        """
+                        QPushButton {
+                            text-align: left;
+                            padding: 8px 12px;
+                            background-color: white;
+                            border: 1px solid #bdc3c7;
+                            border-radius: 4px;
+                        }
+                        QPushButton:hover {
+                            background-color: #3498db;
+                            color: white;
+                            border-color: #2980b9;
+                        }
+                        """
+                    )
+                    # Emit signal to open this session
+                    session_btn.clicked.connect(
+                        lambda checked, sid=session_id: self.open_session_requested.emit(sid)
+                    )
+                    sessions_layout.addWidget(session_btn)
+
+                layout.addLayout(sessions_layout)
+            else:
+                no_sessions = QLabel("No existing sessions found. Start a new one!")
+                no_sessions.setStyleSheet("color: #7f8c8d; font-style: italic;")
+                layout.addWidget(no_sessions)
+
+        except Exception as e:
+            error_label = QLabel(f"Error loading sessions: {e}")
             error_label.setStyleSheet("color: #e74c3c;")
             layout.addWidget(error_label)
 

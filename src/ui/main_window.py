@@ -4,7 +4,7 @@ Main window for Forge IDE
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .ai_chat_widget import AIChatWidget
@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
         welcome = WelcomeWidget(self.repo)
         welcome.new_session_requested.connect(self._new_ai_session)
         welcome.open_file_requested.connect(self._open_file_by_path)
+        welcome.open_session_requested.connect(self._open_existing_session)
 
         self.tabs.addTab(welcome, "🏠 Welcome")
 
@@ -122,6 +123,14 @@ class MainWindow(QMainWindow):
         edit_menu = menubar.addMenu("&Edit")
         edit_menu.addAction("&Undo")
         edit_menu.addAction("&Redo")
+
+        # Sessions menu
+        sessions_menu = menubar.addMenu("&Sessions")
+        sessions_menu.addAction("&New AI Session", self._new_ai_session)
+        sessions_menu.addSeparator()
+
+        # Add existing sessions to menu
+        self._populate_sessions_menu(sessions_menu)
 
         # Git menu
         git_menu = menubar.addMenu("&Git")
@@ -192,30 +201,61 @@ class MainWindow(QMainWindow):
 
         self.status_bar.showMessage("New AI session created")
 
-    def _load_existing_sessions(self) -> None:
-        """Load existing sessions from git (.forge/sessions/)"""
-        # Get all session files from current HEAD
-        all_files = self.repo.get_all_files()
-        session_files = [
-            f for f in all_files if f.startswith(".forge/sessions/") and f.endswith(".json")
+    def _populate_sessions_menu(self, menu: Any) -> None:
+        """Populate sessions menu with existing sessions"""
+        session_branches = [
+            name for name in self.repo.repo.branches if name.startswith("forge/session/")
         ]
 
-        for session_file in session_files:
-            # Read session data from git
-            content = self.repo.get_file_content(session_file)
+        if session_branches:
+            for branch_name in sorted(session_branches):
+                session_id = branch_name.replace("forge/session/", "")
+                action = menu.addAction(f"📋 {session_id[:8]}...")
+                action.triggered.connect(
+                    lambda checked=False, sid=session_id: self._open_existing_session(sid)
+                )
+        else:
+            menu.addAction("(No existing sessions)").setEnabled(False)
+
+    def _open_existing_session(self, session_id: str) -> None:
+        """Open an existing session by ID"""
+        # Check if session is already open
+        for i in range(self.tabs.count()):
+            widget = self.tabs.widget(i)
+            if isinstance(widget, AIChatWidget) and widget.session_id == session_id:
+                self.tabs.setCurrentIndex(i)
+                self.status_bar.showMessage(f"Session already open: {session_id[:8]}")
+                return
+
+        # Load session data from git
+        branch_name = f"forge/session/{session_id}"
+        session_file = f".forge/sessions/{session_id}.json"
+
+        try:
+            content = self.repo.get_file_content(session_file, branch_name)
             session_data = json.loads(content)
 
             # Create session widget from data
             session_widget = AIChatWidget(
-                session_id=session_data.get("session_id"),
+                session_id=session_id,
                 session_data=session_data,
                 settings=self.settings,
                 repo=self.repo,
             )
 
             # Use session ID for tab name
-            tab_name = f"🤖 {session_widget.session_id[:8]}"
-            self.tabs.addTab(session_widget, tab_name)
+            tab_name = f"🤖 {session_id[:8]}"
+            index = self.tabs.addTab(session_widget, tab_name)
+            self.tabs.setCurrentIndex(index)
+
+            self.status_bar.showMessage(f"Opened session: {session_id[:8]}")
+        except Exception as e:
+            self.status_bar.showMessage(f"Error opening session: {e}")
+
+    def _load_existing_sessions(self) -> None:
+        """Load existing sessions from git branches (called on startup)"""
+        # Don't auto-load sessions on startup - let user open them from welcome screen or menu
+        pass
 
     def _close_tab(self, index: int) -> None:
         """Close a tab (editor or AI session)"""

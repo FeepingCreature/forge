@@ -95,9 +95,9 @@ class ToolManager:
     def commit_pending_approvals(self, amend_if_possible: bool = True) -> pygit2.Oid | None:
         """
         Commit pending tool approvals.
-        
+
         Since sessions always start with an initial commit, we can always amend.
-        
+
         Args:
             amend_if_possible: If True, amend the last commit. If False, create new commit.
 
@@ -122,9 +122,7 @@ class ToolManager:
                 self.branch_name, {self.approved_tools_path: content}
             )
             message = f"chore: approve tools: {tool_names}"
-            new_commit_oid = self.repo.commit_tree(
-                tree_oid, message, self.branch_name
-            )
+            new_commit_oid = self.repo.commit_tree(tree_oid, message, self.branch_name)
 
         # Clear pending approvals
         self._pending_approvals.clear()

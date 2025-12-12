@@ -2,7 +2,6 @@
 Widget for reviewing and approving tool changes
 """
 
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFrame,

@@ -90,17 +90,17 @@ class WelcomeWidget(QWidget):
 
         layout.addSpacing(20)
 
-        # Repository Stats Section
-        stats_frame = self._create_stats_section()
-        layout.addWidget(stats_frame)
+        # Existing Sessions Section
+        sessions_frame = self._create_sessions_section()
+        layout.addWidget(sessions_frame)
 
         # Quick Access Section
         files_frame = self._create_files_section()
         layout.addWidget(files_frame)
 
-        # Existing Sessions Section
-        sessions_frame = self._create_sessions_section()
-        layout.addWidget(sessions_frame)
+        # Repository Stats Section
+        stats_frame = self._create_stats_section()
+        layout.addWidget(stats_frame)
 
         # Tips Section
         tips_frame = self._create_tips_section()

@@ -140,6 +140,13 @@ class AIChatWidget(QWidget):
         assert settings is not None, "Settings are required for AIChatWidget"
         self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
 
+        # Generate repository summaries on session creation (if not already done)
+        if not self.session_manager.repo_summaries:
+            self.add_message("system", "🔍 Generating repository summaries...")
+            self._update_chat_display()
+            self.session_manager.generate_repo_summaries()
+            self.add_message("system", f"✅ Generated summaries for {len(self.session_manager.repo_summaries)} files")
+
         # Streaming worker
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None

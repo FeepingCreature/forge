@@ -200,8 +200,13 @@ Keep it under 72 characters."""
 
         return message
 
-    def generate_repo_summaries(self) -> None:
-        """Generate summaries for all files in repository (with caching)"""
+    def generate_repo_summaries(self, force_refresh: bool = False) -> None:
+        """
+        Generate summaries for all files in repository (with caching)
+        
+        Args:
+            force_refresh: If True, regenerate all summaries even if cached
+        """
         # Get current commit OID for cache key
         commit = self.repo.get_branch_head(self.branch_name)
         commit_oid = str(commit.id)
@@ -216,11 +221,12 @@ Keep it under 72 characters."""
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
 
-            # Check cache first
-            cached_summary = self._get_cached_summary(filepath, commit_oid)
-            if cached_summary:
-                self.repo_summaries[filepath] = cached_summary
-                continue
+            # Check cache first (unless force refresh)
+            if not force_refresh:
+                cached_summary = self._get_cached_summary(filepath, commit_oid)
+                if cached_summary:
+                    self.repo_summaries[filepath] = cached_summary
+                    continue
 
             # Generate summary with cheap LLM
             content = self.repo.get_file_content(filepath, self.branch_name)

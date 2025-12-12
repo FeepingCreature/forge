@@ -28,6 +28,7 @@ class ToolManager:
         "search_replace",
         "update_context",
         "list_active_files",
+        "list_files",
     }
 
     def __init__(

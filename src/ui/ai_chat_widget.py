@@ -466,7 +466,19 @@ class AIChatWidget(QWidget):
 
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
-            tool_args = json.loads(tool_call["function"]["arguments"])
+            arguments_str = tool_call["function"]["arguments"]
+            
+            # Handle empty arguments (LLM may send empty string for no-arg tools)
+            try:
+                tool_args = json.loads(arguments_str) if arguments_str else {}
+            except json.JSONDecodeError as e:
+                # LLM sent invalid JSON - show error and skip this tool
+                self.add_message(
+                    "assistant",
+                    f"❌ Error parsing tool arguments for `{tool_name}`: {e}\n"
+                    f"Arguments string: `{arguments_str}`"
+                )
+                continue
 
             # Display tool execution
             self.add_message(

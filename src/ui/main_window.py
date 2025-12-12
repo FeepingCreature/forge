@@ -94,12 +94,8 @@ class MainWindow(QMainWindow):
         editor = EditorWidget(filepath=filepath)
 
         # Load from git, not filesystem
-        try:
-            content = self.repo.get_file_content(filepath)
-            editor.set_text(content)
-        except Exception as e:
-            self.status_bar.showMessage(f"Error loading file: {e}")
-            return
+        content = self.repo.get_file_content(filepath)
+        editor.set_text(content)
 
         # Use just the filename for the tab label
         filename = Path(filepath).name
@@ -255,26 +251,23 @@ class MainWindow(QMainWindow):
         branch_name = f"forge/session/{session_id}"
         session_file = f".forge/sessions/{session_id}.json"
 
-        try:
-            content = self.repo.get_file_content(session_file, branch_name)
-            session_data = json.loads(content)
+        content = self.repo.get_file_content(session_file, branch_name)
+        session_data = json.loads(content)
 
-            # Create session widget from data
-            session_widget = AIChatWidget(
-                session_id=session_id,
-                session_data=session_data,
-                settings=self.settings,
-                repo=self.repo,
-            )
+        # Create session widget from data
+        session_widget = AIChatWidget(
+            session_id=session_id,
+            session_data=session_data,
+            settings=self.settings,
+            repo=self.repo,
+        )
 
-            # Use session ID for tab name
-            tab_name = f"🤖 {session_id[:8]}"
-            index = self.tabs.addTab(session_widget, tab_name)
-            self.tabs.setCurrentIndex(index)
+        # Use session ID for tab name
+        tab_name = f"🤖 {session_id[:8]}"
+        index = self.tabs.addTab(session_widget, tab_name)
+        self.tabs.setCurrentIndex(index)
 
-            self.status_bar.showMessage(f"Opened session: {session_id[:8]}")
-        except Exception as e:
-            self.status_bar.showMessage(f"Error opening session: {e}")
+        self.status_bar.showMessage(f"Opened session: {session_id[:8]}")
 
     def _load_existing_sessions(self) -> None:
         """Load existing sessions from git branches (called on startup)"""

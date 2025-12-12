@@ -153,13 +153,6 @@ class AIChatWidget(QWidget):
         assert settings is not None, "Settings are required for AIChatWidget"
         self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
 
-        # Generate repository summaries on session creation (if not already done)
-        if not self.session_manager.repo_summaries:
-            self.add_message("system", "🔍 Generating repository summaries...")
-            self._update_chat_display()
-            self.session_manager.generate_repo_summaries()
-            self.add_message("system", f"✅ Generated summaries for {len(self.session_manager.repo_summaries)} files")
-
         # Load existing session or start fresh
         if session_data:
             self.messages = session_data.get("messages", [])
@@ -168,7 +161,16 @@ class AIChatWidget(QWidget):
                 for filepath in session_data["active_files"]:
                     self.session_manager.add_active_file(filepath)
 
+        # Setup UI BEFORE any operations that might call add_message()
         self._setup_ui()
+
+        # Generate repository summaries on session creation (if not already done)
+        if not self.session_manager.repo_summaries:
+            self.add_message("system", "🔍 Generating repository summaries...")
+            self._update_chat_display()
+            self.session_manager.generate_repo_summaries()
+            self.add_message("system", f"✅ Generated summaries for {len(self.session_manager.repo_summaries)} files")
+
         self._update_chat_display()
         self._check_for_unapproved_tools()
 

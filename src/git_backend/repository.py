@@ -190,9 +190,13 @@ class ForgeRepository:
         """
         # Get current HEAD commit
         head_commit = self.get_branch_head(branch_name)
+        print(f"DEBUG amend_commit: branch={branch_name}")
+        print(f"DEBUG amend_commit: head_commit.id={head_commit.id}")
+        print(f"DEBUG amend_commit: head_commit.message={head_commit.message.strip()}")
 
         # Get parent(s) of HEAD
         parents = [p.id for p in head_commit.parents]
+        print(f"DEBUG amend_commit: parents={parents}")
 
         # Create new tree with additional changes on top of HEAD's tree
         tree_builder = self.repo.TreeBuilder(head_commit.tree)
@@ -206,6 +210,7 @@ class ForgeRepository:
 
         # Write the new tree
         tree_oid = tree_builder.write()
+        print(f"DEBUG amend_commit: new tree_oid={tree_oid}")
 
         # Use original message if no new message provided
         message = new_message if new_message is not None else head_commit.message
@@ -213,6 +218,13 @@ class ForgeRepository:
         # Create signature (preserve original author, update committer)
         author = head_commit.author
         committer = pygit2.Signature("Forge AI", "ai@forge.dev")
+
+        # Check what the branch ref currently points to
+        branch_ref = self.repo.branches[branch_name]
+        current_tip = branch_ref.peel(pygit2.Commit)
+        print(f"DEBUG amend_commit: current branch tip={current_tip.id}")
+        print(f"DEBUG amend_commit: head_commit we got={head_commit.id}")
+        print(f"DEBUG amend_commit: are they same? {current_tip.id == head_commit.id}")
 
         # Create new commit with same parents as original
         new_commit_oid = self.repo.create_commit(
@@ -223,6 +235,7 @@ class ForgeRepository:
             tree_oid,
             parents,  # Same parents as original commit
         )
+        print(f"DEBUG amend_commit: created new commit={new_commit_oid}")
 
         return new_commit_oid
 

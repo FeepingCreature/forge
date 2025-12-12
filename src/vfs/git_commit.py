@@ -20,7 +20,7 @@ class GitCommitVFS(VFS):
         try:
             entry = self.tree[path]
             blob = self.repo[entry.id]
-            assert isinstance(blob, pygit2.Blob)
+            assert isinstance(blob, pygit2.Blob), f"Expected Blob, got {type(blob)}"
             return blob.data.decode("utf-8")
         except KeyError as err:
             raise FileNotFoundError(f"File not found: {path}") from err
@@ -35,9 +35,10 @@ class GitCommitVFS(VFS):
 
         def walk_tree(tree: pygit2.Tree, prefix: str = "") -> None:
             for entry in tree:
-                assert entry.name is not None
+                assert entry.name is not None, "Tree entry name should never be None"
                 entry_path = f"{prefix}/{entry.name}" if prefix else entry.name
                 obj = self.repo[entry.id]
+                assert isinstance(obj, (pygit2.Tree, pygit2.Blob)), f"Unexpected git object type: {type(obj)}"
                 if isinstance(obj, pygit2.Tree):
                     walk_tree(obj, entry_path)
                 else:

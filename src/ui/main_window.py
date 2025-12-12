@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
+    QMenu,
     QStatusBar,
     QTabWidget,
     QVBoxLayout,
@@ -226,15 +227,15 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
         for action in menubar.actions():
             if action.text() == "&Sessions":
-                menu = action.menu()
-                if menu:
-                    # Clear existing items
-                    menu.clear()
-                    # Re-add "New AI Session" action
-                    menu.addAction("&New AI Session", self._new_ai_session)
-                    menu.addSeparator()
-                    # Re-populate with current sessions
-                    self._populate_sessions_menu(menu)
+                menu_obj = action.menu()
+                assert isinstance(menu_obj, QMenu), "Sessions menu must be a QMenu"
+                # Clear existing items
+                menu_obj.clear()
+                # Re-add "New AI Session" action
+                menu_obj.addAction("&New AI Session", self._new_ai_session)
+                menu_obj.addSeparator()
+                # Re-populate with current sessions
+                self._populate_sessions_menu(menu_obj)
                 break
 
     def _open_existing_session(self, session_id: str) -> None:

@@ -182,8 +182,7 @@ class ToolManager:
         module_name = f"tools.{tool_path.stem}"
 
         spec = importlib.util.spec_from_file_location(module_name, tool_path)
-        if spec is None or spec.loader is None:
-            return None
+        assert spec is not None and spec.loader is not None, f"Failed to load spec for {tool_path}"
 
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module

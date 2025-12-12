@@ -363,6 +363,7 @@ class ForgeRepository:
                 assert entry.name is not None, "Tree entry name should never be None"
                 entry_path = f"{path}/{entry.name}" if path else entry.name
                 obj = self.repo[entry.id]
+                assert isinstance(obj, (pygit2.Tree, pygit2.Blob)), f"Unexpected git object type: {type(obj)}"
                 if isinstance(obj, pygit2.Tree):
                     # Recursively walk subdirectories
                     walk_tree(obj, entry_path)

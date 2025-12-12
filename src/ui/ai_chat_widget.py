@@ -13,7 +13,6 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -105,14 +104,14 @@ class StreamWorker(QObject):
 class ChatBridge(QObject):
     """Bridge object for JavaScript-to-Python communication"""
 
-    def __init__(self, parent: "AIChatWidget") -> None:
+    def __init__(self, parent_widget: "AIChatWidget") -> None:
         super().__init__()
-        self.parent = parent
+        self.parent_widget = parent_widget
 
     @Slot(str, bool)
     def handleToolApproval(self, tool_name: str, approved: bool) -> None:
         """Handle tool approval from JavaScript"""
-        self.parent._handle_approval(tool_name, approved)
+        self.parent_widget._handle_approval(tool_name, approved)
 
 
 class AIChatWidget(QWidget):
@@ -172,10 +171,10 @@ class AIChatWidget(QWidget):
 
         # Chat display area (using QWebEngineView for markdown/LaTeX)
         self.chat_view = QWebEngineView()
-        
+
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
-        
+
         # Pre-initialize with minimal HTML to avoid flash on first load
         self.chat_view.setHtml(
             """
@@ -198,7 +197,6 @@ class AIChatWidget(QWidget):
         self._update_chat_display()
 
         layout.addWidget(self.chat_view)
-
 
         # Input area
         input_layout = QHBoxLayout()
@@ -232,13 +230,13 @@ class AIChatWidget(QWidget):
                     # Already handled, mark it so buttons render disabled
                     self.handled_approvals.add(tool_name)
                     continue
-                
+
                 self.pending_approvals[tool_name] = {
                     "code": current_code,
                     "is_new": is_new,
                     "old_code": old_code,
                 }
-                
+
                 # Add approval request to chat with interactive buttons
                 status = "New Tool" if is_new else "Modified Tool"
                 self.add_message(
@@ -247,13 +245,12 @@ class AIChatWidget(QWidget):
                     f"Review this tool carefully. Once approved, it will run autonomously.\n\n"
                     f"```python\n{current_code}\n```\n\n"
                     f'<div class="approval-buttons">'
-                    f'<button onclick="approveTool(\'{tool_name}\', this)">✅ Approve</button>'
-                    f'<button onclick="rejectTool(\'{tool_name}\', this)">❌ Reject</button>'
-                    f'</div>'
+                    f"<button onclick=\"approveTool('{tool_name}', this)\">✅ Approve</button>"
+                    f"<button onclick=\"rejectTool('{tool_name}', this)\">❌ Reject</button>"
+                    f"</div>",
                 )
-            
-            self._update_blocking_state()
 
+            self._update_blocking_state()
 
     def _handle_approval(self, tool_name: str, approved: bool) -> None:
         """Handle tool approval/rejection command"""
@@ -278,9 +275,7 @@ class AIChatWidget(QWidget):
 
         # If all approvals done, commit them
         if not self.pending_approvals:
-            new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals(
-                amend_if_possible=True
-            )
+            new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals()
             if new_commit_oid:
                 self.add_message(
                     "system", f"✅ Tool approvals committed: {str(new_commit_oid)[:8]}"
@@ -635,34 +630,34 @@ class AIChatWidget(QWidget):
             <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
             <script>
                 var bridge;
-                
+
                 // Initialize web channel
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     bridge = channel.objects.bridge;
                 });
-                
+
                 function approveTool(toolName, buttonElement) {
                     // Disable the button immediately
                     buttonElement.disabled = true;
-                    
+
                     if (bridge) {
                         bridge.handleToolApproval(toolName, true);
                         // Disable both buttons for this tool
                         disableToolButtons(toolName);
                     }
                 }
-                
+
                 function rejectTool(toolName, buttonElement) {
                     // Disable the button immediately
                     buttonElement.disabled = true;
-                    
+
                     if (bridge) {
                         bridge.handleToolApproval(toolName, false);
                         // Disable both buttons for this tool
                         disableToolButtons(toolName);
                     }
                 }
-                
+
                 function disableToolButtons(toolName) {
                     // Find the button that was clicked and disable both buttons in its container
                     var buttons = document.querySelectorAll('.approval-buttons button');
@@ -689,23 +684,25 @@ class AIChatWidget(QWidget):
         for msg in self.messages:
             role = msg["role"]
             content_md = msg["content"]
-            
+
             # Check if this message contains approval buttons that should be disabled
             # Look for tool names in the content
-            disabled_attr = ""
             for tool_name in self.handled_approvals:
-                if f"onclick=\"approveTool('{tool_name}'" in content_md or f"onclick=\"rejectTool('{tool_name}'" in content_md:
+                if (
+                    f"onclick=\"approveTool('{tool_name}'" in content_md
+                    or f"onclick=\"rejectTool('{tool_name}'" in content_md
+                ):
                     # This message has buttons for a handled tool - mark them disabled
                     # Replace button tags to add disabled attribute
                     content_md = content_md.replace(
-                        f'<button onclick="approveTool(\'{tool_name}\', this)">',
-                        f'<button onclick="approveTool(\'{tool_name}\', this)" disabled>'
+                        f"<button onclick=\"approveTool('{tool_name}', this)\">",
+                        f"<button onclick=\"approveTool('{tool_name}', this)\" disabled>",
                     )
                     content_md = content_md.replace(
-                        f'<button onclick="rejectTool(\'{tool_name}\', this)">',
-                        f'<button onclick="rejectTool(\'{tool_name}\', this)" disabled>'
+                        f"<button onclick=\"rejectTool('{tool_name}', this)\">",
+                        f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
                     )
-            
+
             content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
             html_parts.append(f"""
             <div class="message {role}">

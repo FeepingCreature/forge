@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..config.settings import Settings
 
+from ..git_backend.commit_types import CommitType
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..tools.manager import ToolManager
@@ -90,7 +91,9 @@ class SessionManager:
         self, messages: list[dict[str, Any]], commit_message: str | None = None
     ) -> str:
         """
-        Commit all changes from an AI turn
+        Commit all changes from an AI turn as a major commit.
+
+        If there are [prepare] commits (e.g., tool approvals), they will be absorbed automatically.
 
         Args:
             messages: Session messages to save
@@ -112,10 +115,20 @@ class SessionManager:
             all_changes = self.tool_manager.get_pending_changes()
             commit_message = self.generate_commit_message(all_changes)
 
-        # Commit via VFS
-        commit_oid = self.tool_manager.commit_changes(commit_message)
+        # Build tree from VFS changes
+        tree_oid = self.repo.create_tree_from_changes(
+            self.branch_name, self.tool_manager.get_pending_changes()
+        )
 
-        return commit_oid
+        # Create major commit - will automatically absorb any PREPARE commits
+        commit_oid = self.repo.commit_tree(
+            tree_oid, commit_message, self.branch_name, commit_type=CommitType.MAJOR
+        )
+
+        # Clear VFS pending changes
+        self.tool_manager.clear_pending_changes()
+
+        return str(commit_oid)
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
         """Generate commit message using cheap LLM"""

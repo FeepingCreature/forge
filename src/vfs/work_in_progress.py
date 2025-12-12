@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ..git_backend.commit_types import CommitType
 from .base import VFS
 from .git_commit import GitCommitVFS
 
@@ -104,9 +105,16 @@ class WorkInProgressVFS(VFS):
         message: str,
         author_name: str = "Forge AI",
         author_email: str = "ai@forge.dev",
+        commit_type: CommitType = CommitType.MAJOR,
     ) -> str:
         """
         Create a git commit with all pending changes.
+
+        Args:
+            message: Commit message (without type prefix)
+            author_name: Author name
+            author_email: Author email
+            commit_type: Type of commit for smart amending
 
         Returns:
             Commit OID as string
@@ -122,9 +130,9 @@ class WorkInProgressVFS(VFS):
         # Create tree with changes
         tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes)
 
-        # Create commit
+        # Create commit with type
         commit_oid = self.repo.commit_tree(
-            tree_oid, message, self.branch_name, author_name, author_email
+            tree_oid, message, self.branch_name, author_name, author_email, commit_type
         )
 
         # Clear pending changes

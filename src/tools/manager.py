@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 import pygit2
 
+from ..git_backend.commit_types import CommitType
+
 if TYPE_CHECKING:
     from ..git_backend.repository import ForgeRepository
 
@@ -92,14 +94,11 @@ class ToolManager:
         if tool_name in self._pending_approvals:
             del self._pending_approvals[tool_name]
 
-    def commit_pending_approvals(self, amend_if_possible: bool = True) -> pygit2.Oid | None:
+    def commit_pending_approvals(self) -> pygit2.Oid | None:
         """
-        Commit pending tool approvals.
+        Commit pending tool approvals as a [follow-up] commit.
 
-        Since sessions always start with an initial commit, we can always amend.
-
-        Args:
-            amend_if_possible: If True, amend the last commit. If False, create new commit.
+        This amends the previous commit (which added/modified the tool).
 
         Returns:
             New commit OID if there were pending approvals, None otherwise
@@ -111,18 +110,16 @@ class ToolManager:
         content = json.dumps(self._approved_tools, indent=2)
         tool_names = ", ".join(self._pending_approvals.keys())
 
-        if amend_if_possible:
-            # Amend the last commit (session always has at least one commit)
-            new_commit_oid = self.repo.amend_commit(
-                self.branch_name, {self.approved_tools_path: content}
-            )
-        else:
-            # Create new commit
-            tree_oid = self.repo.create_tree_from_changes(
-                self.branch_name, {self.approved_tools_path: content}
-            )
-            message = f"chore: approve tools: {tool_names}"
-            new_commit_oid = self.repo.commit_tree(tree_oid, message, self.branch_name)
+        # Create tree with approval changes
+        tree_oid = self.repo.create_tree_from_changes(
+            self.branch_name, {self.approved_tools_path: content}
+        )
+
+        # Create [follow-up] commit - amends the previous commit
+        message = f"approve tools: {tool_names}"
+        new_commit_oid = self.repo.commit_tree(
+            tree_oid, message, self.branch_name, commit_type=CommitType.FOLLOW_UP
+        )
 
         # Clear pending approvals
         self._pending_approvals.clear()

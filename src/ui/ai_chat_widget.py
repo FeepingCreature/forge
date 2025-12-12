@@ -474,8 +474,8 @@ class AIChatWidget(QWidget):
                 f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```",
             )
 
-            # Execute tool
-            result = tool_manager.execute_tool(tool_name, tool_args)
+            # Execute tool (pass session_manager for context management)
+            result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
             # Add tool result to messages
             tool_message = {

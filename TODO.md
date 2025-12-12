@@ -65,11 +65,15 @@ These issues violate core design principles and must be fixed before the project
 - Send as initial system message, not inserted mid-conversation
 **Current Status**: Context is built and sent, but timing could be optimized.
 
-### 6. Active Files Management Missing UI ⚠️ HIGH PRIORITY
-**Problem**: `SessionManager` tracks `active_files`, but no UI to add/remove files.
-**Impact**: Users can't control what's in context. The "expand/collapse files" feature doesn't exist.
-**Fix**: Add UI controls (buttons, file tree, etc.) to manage active files.
-**Status**: Backend exists, UI missing. This is blocking effective use of the context system.
+### 6. Active Files Management via Tools ✅ DESIGN DECISION
+**Decision**: AI manages its own context through built-in tool calls, not manual UI.
+**Rationale**: 
+- AI knows what files it needs better than user
+- Reduces UI complexity
+- Follows "tool-first" philosophy
+- Manual UI can be added post-MVP if needed
+**Implementation**: Create `add_file_to_context` and `remove_file_from_context` tools.
+**Status**: Design clarified. Tools need to be implemented.
 
 ### 7. Error Handling Violates "No Fallbacks" Philosophy ⚠️ MEDIUM PRIORITY
 **Problem**: Many try/except blocks with silent failures (e.g., `print(f"Error: {e}")` and continue).
@@ -104,7 +108,7 @@ These issues violate core design principles and must be fixed before the project
 - [x] Display assistant responses in chat
 - [x] Error handling for API failures
 
-### 2. Tool System ✅ COMPLETE
+### 2. Tool System ⚠️ NEEDS CONTEXT MANAGEMENT TOOLS
 - [x] Wire up ToolManager to AI sessions
 - [x] Discover tools on session start
 - [x] Send tool schemas to LLM
@@ -118,6 +122,10 @@ These issues violate core design principles and must be fixed before the project
   - Execution blocked for unapproved tools
 - [x] Track approved vs unapproved tools
 - [x] UI to review and approve pending tools
+- [ ] **Add context management tools**:
+  - [ ] `add_file_to_context` - AI can expand files into full context
+  - [ ] `remove_file_from_context` - AI can remove files from context
+  - [ ] `list_active_files` - AI can see what's currently in context
 
 ### 3. File Management
 - [ ] Save file functionality (Ctrl+S)
@@ -228,29 +236,23 @@ These issues violate core design principles and must be fixed before the project
 
 ## Top Priorities (Ordered by Importance)
 
-### 1. **Tool Approval Workflow** ⚠️ CRITICAL SECURITY
-- Tools currently execute without user review
-- Need approval dialog for new/modified tools
-- Track approved tools in `.forge/approved_tools.json`
-- This is a security requirement before Forge can be safely used
+### 1. **Context Management Tools** ⚠️ HIGH PRIORITY
+- AI needs tools to manage its own context
+- Create `add_file_to_context`, `remove_file_from_context`, `list_active_files`
+- This unblocks effective AI-driven development
+- Manual UI for file management is post-MVP
 
-### 2. **Active Files UI** ⚠️ HIGH USABILITY
-- Backend tracks active files, but no UI to manage them
-- Users can't add/remove files from context
-- Blocks effective use of the context system
-- Add file tree or buttons to manage active files
-
-### 3. **File Save Functionality** ⚠️ HIGH USABILITY
+### 2. **File Save Functionality** ⚠️ HIGH USABILITY
 - Editor can open and display files
 - But Ctrl+S doesn't work - can't save manual edits
 - Need to implement save functionality in EditorWidget
 
-### 4. **Context Optimization** 🔧 MEDIUM PERFORMANCE
+### 3. **Context Optimization** 🔧 MEDIUM PERFORMANCE
 - Context currently rebuilt and sent on every turn
 - Should build once and update incrementally
 - Wastes tokens and API costs
 
-### 5. **Error Handling Cleanup** 🔧 MEDIUM QUALITY
+### 4. **Error Handling Cleanup** 🔧 MEDIUM QUALITY
 - Remove silent try/except blocks
 - Let errors propagate or show to user
 - Follow "no fallbacks" philosophy from CLAUDE.md
@@ -260,7 +262,6 @@ These issues violate core design principles and must be fixed before the project
 **NOTE**: Most critical issues moved to "Phase 0: Critical Design Issues" above.
 
 - [ ] **Editor doesn't save files** - No Ctrl+S implementation (HIGH PRIORITY)
-- [ ] **No UI for active files** - Can't add/remove files from context (HIGH PRIORITY)
 - [ ] **Tool approval missing** - Tools execute without review (CRITICAL SECURITY)
 - [ ] **No keyboard shortcuts** - Most shortcuts not implemented
 - [ ] **Session loading doesn't restore chat display properly** - Messages load but display may be wrong

@@ -190,7 +190,9 @@ class ToolManager:
 
         return module
 
-    def execute_tool(self, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    def execute_tool(
+        self, tool_name: str, args: dict[str, Any], session_manager: Any = None
+    ) -> dict[str, Any]:
         """Execute a tool with VFS (only if approved)"""
         # Check if tool is approved
         if not self.is_tool_approved(tool_name):
@@ -215,6 +217,21 @@ class ToolManager:
 
         # Execute tool with VFS
         result: dict[str, Any] = tool_module.execute(self.vfs, args)
+
+        # Handle context management actions
+        if session_manager and "action" in result:
+            action = result["action"]
+            if action == "add_to_context":
+                filepath = result.get("filepath")
+                if filepath:
+                    session_manager.add_active_file(filepath)
+            elif action == "remove_from_context":
+                filepath = result.get("filepath")
+                if filepath:
+                    session_manager.remove_active_file(filepath)
+            elif action == "list_active_files":
+                result["active_files"] = list(session_manager.active_files)
+
         return result
 
     def get_pending_changes(self) -> dict[str, str]:

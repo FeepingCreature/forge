@@ -546,10 +546,10 @@ Future: `.forge/config.json` for:
 - Format: `path/to/file.py: "Brief description of purpose and key functions"`
 
 **Active Files**:
-- User can expand files into full context
-- AI can request expansion via tool call
-- Full file contents included in context
+- AI manages its own context via tool calls (`add_file_to_context`, `remove_file_from_context`)
+- Full file contents included in context for active files
 - Changes to active file list saved with next commit (not immediately)
+- Manual UI for file management is post-MVP (AI-driven is primary workflow)
 
 **Cost Optimization**:
 - Summaries: ~50 tokens per file × 100 files = 5K tokens (cheap)

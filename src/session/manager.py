@@ -203,7 +203,7 @@ Keep it under 72 characters."""
     def generate_repo_summaries(self, force_refresh: bool = False) -> None:
         """
         Generate summaries for all files in repository (with caching)
-        
+
         Args:
             force_refresh: If True, regenerate all summaries even if cached
         """

@@ -27,8 +27,6 @@ class ToolManager:
         "delete_file",
         "search_replace",
         "update_context",
-        "list_active_files",
-        "list_files",
     }
 
     def __init__(
@@ -274,9 +272,6 @@ class ToolManager:
                     session_manager.add_active_file(filepath)
                 for filepath in remove_files:
                     session_manager.remove_active_file(filepath)
-            elif action == "list_active_files":
-                # Get active files with token counts
-                result["active_files"] = session_manager.get_active_files_with_stats()
 
         return result
 

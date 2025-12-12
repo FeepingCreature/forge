@@ -474,7 +474,7 @@ class AIChatWidget(QWidget):
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
             arguments_str = tool_call["function"]["arguments"]
-            
+
             # Handle empty arguments (LLM may send empty string for no-arg tools)
             try:
                 tool_args = json.loads(arguments_str) if arguments_str else {}

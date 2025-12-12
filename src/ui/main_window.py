@@ -199,6 +199,9 @@ class MainWindow(QMainWindow):
         index = self.tabs.addTab(session_widget, f"🤖 Session {ai_session_count + 1}")
         self.tabs.setCurrentIndex(index)
 
+        # Refresh the Sessions menu to include the new session
+        self._refresh_sessions_menu()
+
         self.status_bar.showMessage("New AI session created")
 
     def _populate_sessions_menu(self, menu: Any) -> None:
@@ -216,6 +219,23 @@ class MainWindow(QMainWindow):
                 )
         else:
             menu.addAction("(No existing sessions)").setEnabled(False)
+
+    def _refresh_sessions_menu(self) -> None:
+        """Refresh the Sessions menu with current sessions"""
+        # Find the Sessions menu
+        menubar = self.menuBar()
+        for action in menubar.actions():
+            if action.text() == "&Sessions":
+                menu = action.menu()
+                if menu:
+                    # Clear existing items
+                    menu.clear()
+                    # Re-add "New AI Session" action
+                    menu.addAction("&New AI Session", self._new_ai_session)
+                    menu.addSeparator()
+                    # Re-populate with current sessions
+                    self._populate_sessions_menu(menu)
+                break
 
     def _open_existing_session(self, session_id: str) -> None:
         """Open an existing session by ID"""

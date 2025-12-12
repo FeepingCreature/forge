@@ -227,15 +227,25 @@ class ForgeRepository:
         print(f"DEBUG amend_commit: are they same? {current_tip.id == head_commit.id}")
 
         # Create new commit with same parents as original
-        new_commit_oid = self.repo.create_commit(
-            f"refs/heads/{branch_name}",  # Update branch ref
-            author,
-            committer,
-            message,
-            tree_oid,
-            parents,  # Same parents as original commit
-        )
-        print(f"DEBUG amend_commit: created new commit={new_commit_oid}")
+        print(f"DEBUG amend_commit: about to create commit")
+        print(f"DEBUG amend_commit: ref=refs/heads/{branch_name}")
+        print(f"DEBUG amend_commit: tree={tree_oid}")
+        print(f"DEBUG amend_commit: parents={parents}")
+        
+        try:
+            new_commit_oid = self.repo.create_commit(
+                f"refs/heads/{branch_name}",  # Update branch ref
+                author,
+                committer,
+                message,
+                tree_oid,
+                parents,  # Same parents as original commit
+            )
+            print(f"DEBUG amend_commit: created new commit={new_commit_oid}")
+        except Exception as e:
+            print(f"DEBUG amend_commit: create_commit failed: {e}")
+            print(f"DEBUG amend_commit: exception type: {type(e)}")
+            raise
 
         return new_commit_oid
 

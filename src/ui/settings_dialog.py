@@ -2,12 +2,11 @@
 Settings dialog for Forge
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -19,6 +18,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from .model_picker_dialog import ModelPickerPopup
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -114,11 +115,14 @@ class SettingsDialog(QDialog):
         )
         layout.addRow("API Key:", self.api_key_input)
 
-        # Model selection
-        self.model_input = QComboBox()
-        self.model_input.setEditable(True)
-        # Add placeholder items - will be replaced when models are fetched
-        self.model_input.addItem("Loading models...")
+        # Model selection with popup picker (click to open)
+        self.model_input = QLineEdit()
+        self.model_input.setReadOnly(True)
+        self.model_input.setPlaceholderText("Loading models...")
+        self.model_input.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.model_input.mousePressEvent = lambda e: self._show_model_picker()
+        self._model_picker_enabled = False
+
         layout.addRow("Model:", self.model_input)
 
         # Base URL
@@ -171,11 +175,14 @@ class SettingsDialog(QDialog):
         self.auto_commit_input = QCheckBox()
         layout.addRow("Auto-commit AI changes:", self.auto_commit_input)
 
-        # Commit message model
-        self.commit_model_input = QComboBox()
-        self.commit_model_input.setEditable(True)
-        # Add placeholder - will be replaced when models are fetched
-        self.commit_model_input.addItem("Loading models...")
+        # Commit message model with popup picker (click to open)
+        self.commit_model_input = QLineEdit()
+        self.commit_model_input.setReadOnly(True)
+        self.commit_model_input.setPlaceholderText("Loading models...")
+        self.commit_model_input.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.commit_model_input.mousePressEvent = lambda e: self._show_commit_model_picker()
+        self._commit_model_picker_enabled = False
+
         layout.addRow("Commit Message Model:", self.commit_model_input)
 
         # Info
@@ -217,38 +224,19 @@ class SettingsDialog(QDialog):
             self.model_thread = None
             self.model_worker = None
 
-        # Save current selections
-        current_model = self.model_input.currentText()
-        current_commit_model = self.commit_model_input.currentText()
+        # Store model list for picker dialog
+        self._available_models = [m.get("id", "") for m in models if m.get("id")]
 
-        # Clear and populate model dropdowns
-        self.model_input.clear()
-        self.commit_model_input.clear()
+        # Enable clicking on model inputs
+        self._model_picker_enabled = True
+        self._commit_model_picker_enabled = True
 
-        # Sort models by id
-        sorted_models = sorted(models, key=lambda m: m.get("id", ""))
-
-        for model in sorted_models:
-            model_id = model.get("id", "")
-            if model_id:
-                self.model_input.addItem(model_id)
-                self.commit_model_input.addItem(model_id)
-
-        # Restore selections from saved settings
+        # Set saved values
         saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
         saved_commit_model = getattr(self, "_saved_commit_model", "anthropic/claude-3-haiku")
 
-        index = self.model_input.findText(saved_model)
-        if index >= 0:
-            self.model_input.setCurrentIndex(index)
-        else:
-            self.model_input.setCurrentText(saved_model)
-
-        index = self.commit_model_input.findText(saved_commit_model)
-        if index >= 0:
-            self.commit_model_input.setCurrentIndex(index)
-        else:
-            self.commit_model_input.setCurrentText(saved_commit_model)
+        self.model_input.setText(saved_model)
+        self.commit_model_input.setText(saved_commit_model)
 
     def _on_models_error(self, error_msg: str) -> None:
         """Handle model fetch error"""
@@ -264,7 +252,7 @@ class SettingsDialog(QDialog):
 
     def _populate_fallback_models(self) -> None:
         """Populate with fallback model list when API is unavailable"""
-        fallback_models = [
+        self._available_models = [
             "anthropic/claude-3.5-sonnet",
             "anthropic/claude-3-opus",
             "anthropic/claude-3-haiku",
@@ -273,22 +261,56 @@ class SettingsDialog(QDialog):
             "openai/gpt-3.5-turbo",
         ]
 
-        # Save current selections
-        current_model = self.model_input.currentText()
-        current_commit_model = self.commit_model_input.currentText()
+        # Enable clicking on model inputs
+        self._model_picker_enabled = True
+        self._commit_model_picker_enabled = True
 
-        self.model_input.clear()
-        self.commit_model_input.clear()
+        # Set saved values
+        saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
+        saved_commit_model = getattr(self, "_saved_commit_model", "anthropic/claude-3-haiku")
 
-        for model_id in fallback_models:
-            self.model_input.addItem(model_id)
-            self.commit_model_input.addItem(model_id)
+        self.model_input.setText(saved_model)
+        self.commit_model_input.setText(saved_commit_model)
 
-        # Restore or set defaults
-        if current_model and current_model != "Loading models...":
-            self.model_input.setCurrentText(current_model)
-        if current_commit_model and current_commit_model != "Loading models...":
-            self.commit_model_input.setCurrentText(current_commit_model)
+    def _show_model_picker(self) -> None:
+        """Show the model picker popup"""
+        if not getattr(self, "_model_picker_enabled", False):
+            return
+
+        models = getattr(self, "_available_models", [])
+
+        picker = ModelPickerPopup(models, self.model_input.text(), self)
+        picker.model_selected.connect(self._on_model_selected)
+
+        # Position below and aligned to left of the input field
+        input_pos = self.model_input.mapToGlobal(
+            self.model_input.rect().bottomLeft()
+        )
+        picker.showAt(input_pos)
+
+    def _on_model_selected(self, model: str) -> None:
+        """Handle model selection from picker"""
+        self.model_input.setText(model)
+
+    def _show_commit_model_picker(self) -> None:
+        """Show the commit model picker popup"""
+        if not getattr(self, "_commit_model_picker_enabled", False):
+            return
+
+        models = getattr(self, "_available_models", [])
+
+        picker = ModelPickerPopup(models, self.commit_model_input.text(), self)
+        picker.model_selected.connect(self._on_commit_model_selected)
+
+        # Position below and aligned to left of the input field
+        input_pos = self.commit_model_input.mapToGlobal(
+            self.commit_model_input.rect().bottomLeft()
+        )
+        picker.showAt(input_pos)
+
+    def _on_commit_model_selected(self, model: str) -> None:
+        """Handle commit model selection from picker"""
+        self.commit_model_input.setText(model)
 
     def _load_settings(self) -> None:
         """Load current settings into UI"""
@@ -299,7 +321,7 @@ class SettingsDialog(QDialog):
         self._saved_commit_model = self.settings.get(
             "git.commit_message_model", "anthropic/claude-3-haiku"
         )
-        self.model_input.setCurrentText(self._saved_model)
+        self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
 
         # Editor settings
@@ -312,13 +334,13 @@ class SettingsDialog(QDialog):
 
         # Git settings
         self.auto_commit_input.setChecked(self.settings.get("git.auto_commit", False))
-        self.commit_model_input.setCurrentText(self._saved_commit_model)
+        self.commit_model_input.setText(self._saved_commit_model)
 
     def _save_and_close(self) -> None:
         """Save settings and close dialog"""
         # LLM settings
         self.settings.set("llm.api_key", self.api_key_input.text())
-        self.settings.set("llm.model", self.model_input.currentText())
+        self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
 
         # Editor settings
@@ -329,9 +351,10 @@ class SettingsDialog(QDialog):
 
         # Git settings
         self.settings.set("git.auto_commit", self.auto_commit_input.isChecked())
-        self.settings.set("git.commit_message_model", self.commit_model_input.currentText())
+        self.settings.set("git.commit_message_model", self.commit_model_input.text())
 
         # Save to file
         self.settings.save()
 
         self.accept()
+

@@ -190,8 +190,7 @@ class AIChatWidget(QWidget):
 
         # Generate repository summaries on session creation (if not already done)
         if not self.session_manager.repo_summaries:
-            self.add_message("system", "🔍 Generating repository summaries in background...")
-            self._update_chat_display()
+            self._add_system_message("🔍 Generating repository summaries in background...")
             self._start_summary_generation()
 
         self._update_chat_display()
@@ -273,7 +272,7 @@ class AIChatWidget(QWidget):
             self.summary_thread = None
             self.summary_worker = None
 
-        self.add_message("system", f"✅ Generated summaries for {count} files")
+        self._add_system_message(f"✅ Generated summaries for {count} files")
 
     def _on_summaries_error(self, error_msg: str) -> None:
         """Handle summary generation error"""
@@ -284,7 +283,7 @@ class AIChatWidget(QWidget):
             self.summary_thread = None
             self.summary_worker = None
 
-        self.add_message("system", f"❌ Error generating summaries: {error_msg}")
+        self._add_system_message(f"❌ Error generating summaries: {error_msg}")
 
     def _check_for_unapproved_tools(self) -> None:
         """Check for unapproved tools and show approval requests in chat"""
@@ -430,7 +429,8 @@ class AIChatWidget(QWidget):
             context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
 
         # Prepend context to messages if we have any
-        messages_with_context = self.messages.copy()
+        # Use only conversation messages (exclude UI-only messages)
+        messages_with_context = self._get_conversation_messages()
         if context_message:
             # Insert context before the last user message
             last_user_idx = len(messages_with_context) - 1
@@ -505,9 +505,8 @@ class AIChatWidget(QWidget):
 
         # This is a final text response with no tool calls - commit now
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
-        self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+        self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
 
-        self._update_chat_display()
         self._reset_input()
 
     def _on_stream_error(self, error_msg: str) -> None:
@@ -541,23 +540,21 @@ class AIChatWidget(QWidget):
                 tool_args = json.loads(arguments_str) if arguments_str else {}
             except json.JSONDecodeError as e:
                 # LLM sent invalid JSON - show error and skip this tool
-                self.add_message(
-                    "assistant",
+                self._add_system_message(
                     f"❌ Error parsing tool arguments for `{tool_name}`: {e}\n"
                     f"Arguments string: `{arguments_str}`"
                 )
                 continue
 
-            # Display tool execution
-            self.add_message(
-                "assistant",
-                f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```",
+            # Display tool execution (UI feedback, not conversation history)
+            self._add_system_message(
+                f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```"
             )
 
             # Execute tool (pass session_manager for context management)
             result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
-            # Add tool result to messages
+            # Add tool result to messages (this IS part of conversation history)
             tool_message = {
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
@@ -565,10 +562,12 @@ class AIChatWidget(QWidget):
             }
             self.messages.append(tool_message)
 
-            # Display result
-            self.add_message(
-                "assistant", f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
+            # Display result (UI feedback)
+            self._add_system_message(
+                f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
             )
+
+        self._update_chat_display()
 
         # Continue conversation with tool results (non-streaming for now)
         follow_up = client.chat(self.messages, tools=tools or None)
@@ -595,7 +594,7 @@ class AIChatWidget(QWidget):
 
             # Commit AI turn - this is the ONLY place we commit - once per AI turn
             commit_oid = self.session_manager.commit_ai_turn(self.messages)
-            self.add_message("assistant", f"✅ Changes committed: {commit_oid[:8]}")
+            self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
 
             self._reset_input()
 
@@ -613,16 +612,26 @@ class AIChatWidget(QWidget):
         self.send_button.setText("Send")
 
     def add_message(self, role: str, content: str) -> None:
-        """Add a message to the chat"""
+        """Add a message to the chat (becomes part of conversation history)"""
         self.messages.append({"role": role, "content": content})
         self._update_chat_display()
+
+    def _add_system_message(self, content: str) -> None:
+        """Add a system/UI feedback message (display only, not sent to LLM)"""
+        # Use a special marker to distinguish UI messages from real system messages
+        self.messages.append({"role": "system", "content": content, "_ui_only": True})
+        self._update_chat_display()
+
+    def _get_conversation_messages(self) -> list[dict[str, Any]]:
+        """Get messages that are part of the actual conversation (excludes UI-only messages)"""
+        return [msg for msg in self.messages if not msg.get("_ui_only", False)]
 
     def get_session_data(self) -> dict[str, Any]:
         """Get session data for persistence (used by SessionManager for git commits)"""
         return {
             "session_id": self.session_id,
             "branch_name": self.branch_name,
-            "messages": self.messages,
+            "messages": self._get_conversation_messages(),
             "active_files": list(self.session_manager.active_files),
         }
 

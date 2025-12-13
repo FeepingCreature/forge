@@ -47,24 +47,25 @@ class SessionManager:
             xdg_cache = Path(__import__("os").environ["XDG_CACHE_HOME"])
         return xdg_cache / "forge" / "summaries"
 
-    def _get_cache_key(self, filepath: str, commit_oid: str) -> str:
-        """Generate cache key from filepath and commit OID"""
+    def _get_cache_key(self, filepath: str, blob_oid: str) -> str:
+        """Generate cache key from filepath and blob OID (content hash)"""
         # Use hash to keep filename reasonable length
-        key_str = f"{commit_oid}:{filepath}"
+        # blob_oid is the content hash, so same content = same cache key
+        key_str = f"{blob_oid}:{filepath}"
         return hashlib.sha256(key_str.encode()).hexdigest()
 
-    def _get_cached_summary(self, filepath: str, commit_oid: str) -> str | None:
-        """Get cached summary for a file at a specific commit"""
-        cache_key = self._get_cache_key(filepath, commit_oid)
+    def _get_cached_summary(self, filepath: str, blob_oid: str) -> str | None:
+        """Get cached summary for a file with a specific content hash"""
+        cache_key = self._get_cache_key(filepath, blob_oid)
         cache_file = self.cache_dir / cache_key
 
         if cache_file.exists():
             return cache_file.read_text()
         return None
 
-    def _cache_summary(self, filepath: str, commit_oid: str, summary: str) -> None:
-        """Cache a summary for a file at a specific commit"""
-        cache_key = self._get_cache_key(filepath, commit_oid)
+    def _cache_summary(self, filepath: str, blob_oid: str, summary: str) -> None:
+        """Cache a summary for a file with a specific content hash"""
+        cache_key = self._get_cache_key(filepath, blob_oid)
         cache_file = self.cache_dir / cache_key
         cache_file.write_text(summary)
 
@@ -207,10 +208,6 @@ Keep it under 72 characters."""
         Args:
             force_refresh: If True, regenerate all summaries even if cached
         """
-        # Get current commit OID for cache key
-        commit = self.repo.get_branch_head(self.branch_name)
-        commit_oid = str(commit.id)
-
         # Use cheap model for summaries
         model = self.settings.get("git.commit_message_model", "anthropic/claude-3-haiku")
         api_key = self.settings.get_api_key()
@@ -223,9 +220,12 @@ Keep it under 72 characters."""
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
 
+            # Get blob OID (content hash) for cache key
+            blob_oid = self.repo.get_file_blob_oid(filepath, self.branch_name)
+
             # Check cache first (unless force refresh)
             if not force_refresh:
-                cached_summary = self._get_cached_summary(filepath, commit_oid)
+                cached_summary = self._get_cached_summary(filepath, blob_oid)
                 if cached_summary:
                     self.repo_summaries[filepath] = cached_summary
                     print(f"   ✓ {filepath} (cached)")
@@ -265,7 +265,7 @@ Respond with ONLY the bulleted list, no introduction or explanation."""
             summary = str(summary_content).strip().strip("\"'")
 
             # Cache the summary
-            self._cache_summary(filepath, commit_oid, summary)
+            self._cache_summary(filepath, blob_oid, summary)
             self.repo_summaries[filepath] = summary
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:

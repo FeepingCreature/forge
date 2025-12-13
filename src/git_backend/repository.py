@@ -351,6 +351,16 @@ class ForgeRepository:
 
         return new_commit_oid
 
+    def get_file_blob_oid(self, filepath: str, branch_name: str | None = None) -> str:
+        """Get the blob OID (content hash) for a file"""
+        if branch_name:
+            commit = self.get_branch_head(branch_name)
+        else:
+            commit = self.repo.head.peel(pygit2.Commit)
+
+        entry = commit.tree[filepath]
+        return str(entry.id)
+
     def get_all_files(self, branch_name: str | None = None) -> list[str]:
         """Get list of all files in repository"""
         if branch_name:

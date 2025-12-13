@@ -18,6 +18,20 @@ class LLMClient:
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1"
 
+    def get_available_models(self) -> list[dict[str, Any]]:
+        """Fetch list of available models from OpenRouter"""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        response = requests.get(f"{self.base_url}/models", headers=headers)
+        response.raise_for_status()
+
+        data: dict[str, Any] = response.json()
+        models: list[dict[str, Any]] = data.get("data", [])
+        return models
+
     def chat(
         self,
         messages: list[dict[str, str]],

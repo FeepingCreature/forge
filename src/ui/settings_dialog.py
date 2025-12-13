@@ -4,6 +4,7 @@ Settings dialog for Forge
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -22,6 +23,28 @@ from PySide6.QtWidgets import (
 if TYPE_CHECKING:
     from ..config.settings import Settings
 
+from ..llm.client import LLMClient
+
+
+class ModelFetchWorker(QObject):
+    """Worker to fetch models in background thread"""
+
+    finished = Signal(list)  # Emits list of model dicts
+    error = Signal(str)  # Emits error message
+
+    def __init__(self, api_key: str) -> None:
+        super().__init__()
+        self.api_key = api_key
+
+    def run(self) -> None:
+        """Fetch models from OpenRouter"""
+        try:
+            client = LLMClient(self.api_key)
+            models = client.get_available_models()
+            self.finished.emit(models)
+        except Exception as e:
+            self.error.emit(str(e))
+
 
 class SettingsDialog(QDialog):
     """Settings dialog window"""
@@ -33,8 +56,13 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
+        # Thread for fetching models
+        self.model_thread: QThread | None = None
+        self.model_worker: ModelFetchWorker | None = None
+
         self._setup_ui()
         self._load_settings()
+        self._fetch_models()
 
     def _setup_ui(self) -> None:
         """Setup the dialog UI"""
@@ -89,16 +117,8 @@ class SettingsDialog(QDialog):
         # Model selection
         self.model_input = QComboBox()
         self.model_input.setEditable(True)
-        self.model_input.addItems(
-            [
-                "anthropic/claude-3.5-sonnet",
-                "anthropic/claude-3-opus",
-                "anthropic/claude-3-haiku",
-                "openai/gpt-4-turbo",
-                "openai/gpt-4",
-                "openai/gpt-3.5-turbo",
-            ]
-        )
+        # Add placeholder items - will be replaced when models are fetched
+        self.model_input.addItem("Loading models...")
         layout.addRow("Model:", self.model_input)
 
         # Base URL
@@ -154,14 +174,8 @@ class SettingsDialog(QDialog):
         # Commit message model
         self.commit_model_input = QComboBox()
         self.commit_model_input.setEditable(True)
-        self.commit_model_input.addItems(
-            [
-                "anthropic/claude-3-haiku",
-                "anthropic/claude-3.5-sonnet",
-                "openai/gpt-3.5-turbo",
-                "openai/gpt-4",
-            ]
-        )
+        # Add placeholder - will be replaced when models are fetched
+        self.commit_model_input.addItem("Loading models...")
         layout.addRow("Commit Message Model:", self.commit_model_input)
 
         # Info
@@ -175,11 +189,117 @@ class SettingsDialog(QDialog):
 
         return widget
 
+    def _fetch_models(self) -> None:
+        """Fetch available models from OpenRouter in background"""
+        api_key = self.settings.get_api_key()
+        if not api_key:
+            # No API key, use fallback list
+            self._populate_fallback_models()
+            return
+
+        self.model_thread = QThread()
+        self.model_worker = ModelFetchWorker(api_key)
+        self.model_worker.moveToThread(self.model_thread)
+
+        # Connect signals
+        self.model_worker.finished.connect(self._on_models_fetched)
+        self.model_worker.error.connect(self._on_models_error)
+        self.model_thread.started.connect(self.model_worker.run)
+
+        self.model_thread.start()
+
+    def _on_models_fetched(self, models: list[dict[str, str]]) -> None:
+        """Handle successful model fetch"""
+        # Clean up thread
+        if self.model_thread:
+            self.model_thread.quit()
+            self.model_thread.wait()
+            self.model_thread = None
+            self.model_worker = None
+
+        # Save current selections
+        current_model = self.model_input.currentText()
+        current_commit_model = self.commit_model_input.currentText()
+
+        # Clear and populate model dropdowns
+        self.model_input.clear()
+        self.commit_model_input.clear()
+
+        # Sort models by id
+        sorted_models = sorted(models, key=lambda m: m.get("id", ""))
+
+        for model in sorted_models:
+            model_id = model.get("id", "")
+            if model_id:
+                self.model_input.addItem(model_id)
+                self.commit_model_input.addItem(model_id)
+
+        # Restore selections from saved settings
+        saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
+        saved_commit_model = getattr(self, "_saved_commit_model", "anthropic/claude-3-haiku")
+
+        index = self.model_input.findText(saved_model)
+        if index >= 0:
+            self.model_input.setCurrentIndex(index)
+        else:
+            self.model_input.setCurrentText(saved_model)
+
+        index = self.commit_model_input.findText(saved_commit_model)
+        if index >= 0:
+            self.commit_model_input.setCurrentIndex(index)
+        else:
+            self.commit_model_input.setCurrentText(saved_commit_model)
+
+    def _on_models_error(self, error_msg: str) -> None:
+        """Handle model fetch error"""
+        # Clean up thread
+        if self.model_thread:
+            self.model_thread.quit()
+            self.model_thread.wait()
+            self.model_thread = None
+            self.model_worker = None
+
+        print(f"Failed to fetch models: {error_msg}")
+        self._populate_fallback_models()
+
+    def _populate_fallback_models(self) -> None:
+        """Populate with fallback model list when API is unavailable"""
+        fallback_models = [
+            "anthropic/claude-3.5-sonnet",
+            "anthropic/claude-3-opus",
+            "anthropic/claude-3-haiku",
+            "openai/gpt-4-turbo",
+            "openai/gpt-4",
+            "openai/gpt-3.5-turbo",
+        ]
+
+        # Save current selections
+        current_model = self.model_input.currentText()
+        current_commit_model = self.commit_model_input.currentText()
+
+        self.model_input.clear()
+        self.commit_model_input.clear()
+
+        for model_id in fallback_models:
+            self.model_input.addItem(model_id)
+            self.commit_model_input.addItem(model_id)
+
+        # Restore or set defaults
+        if current_model and current_model != "Loading models...":
+            self.model_input.setCurrentText(current_model)
+        if current_commit_model and current_commit_model != "Loading models...":
+            self.commit_model_input.setCurrentText(current_commit_model)
+
     def _load_settings(self) -> None:
         """Load current settings into UI"""
         # LLM settings
         self.api_key_input.setText(self.settings.get("llm.api_key", ""))
-        self.model_input.setCurrentText(self.settings.get("llm.model", ""))
+        # Store model values - they'll be applied when models are loaded
+        self._saved_model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        self._saved_commit_model = self.settings.get(
+            "git.commit_message_model", "anthropic/claude-3-haiku"
+        )
+        self.model_input.setCurrentText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
 
         # Editor settings
@@ -192,7 +312,7 @@ class SettingsDialog(QDialog):
 
         # Git settings
         self.auto_commit_input.setChecked(self.settings.get("git.auto_commit", False))
-        self.commit_model_input.setCurrentText(self.settings.get("git.commit_message_model", ""))
+        self.commit_model_input.setCurrentText(self._saved_commit_model)
 
     def _save_and_close(self) -> None:
         """Save settings and close dialog"""

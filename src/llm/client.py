@@ -3,6 +3,7 @@ LLM client for communicating with OpenRouter
 """
 
 import json
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -18,9 +19,12 @@ class LLMClient:
         self.base_url = "https://openrouter.ai/api/v1"
 
     def chat(
-        self, messages: list[dict[str, str]], tools: list[dict[str, Any]] | None = None
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        max_retries: int = 5,
     ) -> dict[str, Any]:
-        """Send chat request to LLM (non-streaming)"""
+        """Send chat request to LLM (non-streaming) with retry on rate limit"""
         print(f"🌐 LLM Request: {self.model} (non-streaming, {len(messages)} messages)")
         
         headers = {
@@ -37,17 +41,35 @@ class LLMClient:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
 
-        response = requests.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
+        for attempt in range(max_retries):
+            response = requests.post(
+                f"{self.base_url}/chat/completions", headers=headers, json=payload
+            )
 
+            if response.status_code == 429:
+                # Rate limited - back off and retry
+                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
+                print(f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                time.sleep(wait_time)
+                continue
+
+            response.raise_for_status()
+            result: dict[str, Any] = response.json()
+            print(f"✅ LLM Response received")
+            return result
+
+        # If we exhausted all retries, raise the last error
         response.raise_for_status()
-        result: dict[str, Any] = response.json()
-        print(f"✅ LLM Response received")
-        return result
+        # This line won't be reached, but satisfies type checker
+        return {}
 
     def chat_stream(
-        self, messages: list[dict[str, str]], tools: list[dict[str, Any]] | None = None
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        max_retries: int = 5,
     ) -> Iterator[dict[str, Any]]:
-        """Send chat request to LLM with streaming"""
+        """Send chat request to LLM with streaming and retry on rate limit"""
         print(f"🌐 LLM Request: {self.model} (streaming, {len(messages)} messages)")
         
         headers = {
@@ -65,11 +87,26 @@ class LLMClient:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
 
-        response = requests.post(
-            f"{self.base_url}/chat/completions", headers=headers, json=payload, stream=True
-        )
+        response = None
+        for attempt in range(max_retries):
+            response = requests.post(
+                f"{self.base_url}/chat/completions", headers=headers, json=payload, stream=True
+            )
 
-        response.raise_for_status()
+            if response.status_code == 429:
+                # Rate limited - back off and retry
+                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
+                print(f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                time.sleep(wait_time)
+                continue
+
+            response.raise_for_status()
+            break
+        else:
+            # Exhausted all retries
+            assert response is not None
+            response.raise_for_status()
+
         print(f"📡 Streaming response started")
 
         # Parse SSE stream

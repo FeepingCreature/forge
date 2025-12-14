@@ -145,10 +145,12 @@ class AIChatWidget(QWidget):
         session_data: dict[str, Any] | None = None,
         settings: "Settings | None" = None,
         repo: ForgeRepository | None = None,
+        branch_name: str | None = None,
     ) -> None:
         super().__init__()
         self.session_id = session_id or str(uuid.uuid4())
-        self.branch_name = f"forge/session/{self.session_id}"
+        # Use provided branch_name, or construct from session_id for session branches
+        self.branch_name = branch_name or f"forge/session/{self.session_id}"
         self.messages = []
         self.settings = settings
         self.repo = repo

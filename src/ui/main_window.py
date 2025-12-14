@@ -139,13 +139,15 @@ class MainWindow(QMainWindow):
                 session_data=session_data,
                 settings=self.settings,
                 repo=self.repo,
+                branch_name=branch_name,
             )
         else:
-            # Non-session branch gets a fresh AI chat
+            # Non-session branch gets a fresh AI chat that operates on this branch
             chat_widget = AIChatWidget(
                 session_id=str(uuid.uuid4()),
                 settings=self.settings,
                 repo=self.repo,
+                branch_name=branch_name,
             )
         
         # Add AI chat as first tab

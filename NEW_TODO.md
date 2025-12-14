@@ -26,9 +26,9 @@ Migrate to branch-first architecture where:
 ## Phase 1: Branch Tabs Infrastructure
 
 ### 1.1 Create BranchWorkspace dataclass
-- [ ] Create `src/ui/branch_workspace.py`
-- [ ] Define `BranchWorkspace` with: branch_name, vfs, open_files, ai_chat state
-- [ ] Handle VFS lifecycle per branch
+- [x] Create `src/ui/branch_workspace.py`
+- [x] Define `BranchWorkspace` with: branch_name, vfs, open_files, ai_chat state
+- [x] Handle VFS lifecycle per branch
 
 ### 1.2 Create BranchTabWidget
 - [ ] Create `src/ui/branch_tab_widget.py`

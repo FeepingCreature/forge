@@ -22,7 +22,6 @@ class ToolManager:
 
     # Built-in tools that are always approved
     BUILTIN_TOOLS = {
-        "read_file",
         "write_file",
         "delete_file",
         "search_replace",

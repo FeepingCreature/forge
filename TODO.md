@@ -123,13 +123,12 @@ These issues violate core design principles and must be fixed before the project
 - [x] Track approved vs unapproved tools
 - [x] UI to review and approve pending tools
 - [x] **Add context management tools**:
-  - [x] `update_context` - AI can add/remove files from context in one call
-  - [x] `list_active_files` - AI can see active files with token counts and context stats
+  - [x] `update_context` - AI can add/remove files from context in one call (batch operation)
 - [x] **Add built-in VFS tools** (always approved, work in any repo):
-  - [x] `read_file` - Read file from VFS
   - [x] `write_file` - Write complete file to VFS
   - [x] `delete_file` - Delete file from VFS
   - [x] `search_replace` - Already exists, now marked as built-in
+  - [x] `update_context` - Add/remove files from active context (batch)
 
 ### 3. File Management
 - [ ] Save file functionality (Ctrl+S)

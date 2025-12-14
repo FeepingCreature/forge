@@ -104,14 +104,18 @@ Tool lifecycle:
 **Trust Model**: Tools are reviewed once at creation/modification time. Once approved, they run autonomously. This amortizes the review cost - you pay it once, not on every use.
 
 **Built-in Tools**: A core set of tools is always available without approval:
-- `read_file` - Read file from VFS (git + pending changes)
 - `write_file` - Write complete file to VFS (create or overwrite)
 - `delete_file` - Delete file from VFS
 - `search_replace` - Make SEARCH/REPLACE edits to files
-- `update_context` - Add/remove files from active context
-- `list_active_files` - List active files with token counts and context stats
+- `update_context` - Add/remove files from active context (batch operation)
 
 These tools live in `src/tools/builtin/` (part of Forge itself) and are marked as `BUILTIN_TOOLS` in ToolManager. They skip approval checks and provide the essential operations needed in any repo from day one.
+
+**Context Model**: The AI always receives:
+1. **Summaries of all files** - cheap, always included
+2. **Full content of active files** - files the user has open in tabs
+
+The AI uses `update_context` to load multiple files at once when it needs full content. This minimizes round-trips and keeps context efficient.
 
 User-created tools go in `./tools/` (repo-specific) and require approval before use.
 

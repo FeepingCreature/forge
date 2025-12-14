@@ -209,8 +209,8 @@ Keep it under 72 characters."""
         Args:
             force_refresh: If True, regenerate all summaries even if cached
         """
-        # Use cheap model for summaries
-        model = self.settings.get("git.commit_message_model", "anthropic/claude-3-haiku")
+        # Use summarization model (typically a cheap/fast model)
+        model = self.settings.get("llm.summarization_model", "anthropic/claude-3-haiku")
         api_key = self.settings.get_api_key()
         client = LLMClient(api_key, model)
 

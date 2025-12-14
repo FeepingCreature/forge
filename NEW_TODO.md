@@ -51,33 +51,33 @@ Migrate to branch-first architecture where:
 
 ---
 
-## Phase 2: Editor VFS Integration
+## Phase 2: Editor VFS Integration ✅ COMPLETE
 
-### 2.1 Wire EditorWidget to VFS
-- [ ] Add VFS parameter to EditorWidget constructor
-- [ ] `load_file()` uses `vfs.read_file()` instead of filesystem
-- [ ] Remove direct filesystem I/O from editor
+### 2.1 Wire EditorWidget to VFS ✅
+- [x] EditorWidget is a pure view component (get_text/set_text only)
+- [x] BranchTabWidget loads files via `workspace.get_file_content()` (VFS)
+- [x] Removed direct filesystem I/O from EditorWidget
 
-### 2.2 Track edits in VFS
-- [ ] On text change, mark file as modified in VFS
-- [ ] Changes accumulate in `WorkInProgressVFS.pending_changes`
-- [ ] Tab shows modified indicator (dot or asterisk)
+### 2.2 Track edits in VFS ✅
+- [x] BranchTabWidget tracks modified files in `_modified_files` set
+- [x] Changes written to VFS via `workspace.set_file_content()`
+- [x] Tab shows modified indicator (dot: `📄 filename •`)
 
-### 2.3 Implement Save = Commit
-- [ ] Ctrl+S calls `vfs.commit()` 
-- [ ] Creates atomic git commit on branch
-- [ ] Clear modified indicator after commit
-- [ ] Show commit hash briefly in status bar
+### 2.3 Implement Save = Commit ✅
+- [x] Ctrl+S wired in MainWindow → `BranchTabWidget.save_current_file()`
+- [x] Creates atomic git commit via `workspace.commit()`
+- [x] Clear modified indicator after commit
+- [x] Status bar shows commit hash
 
-### 2.4 Auto-generate commit messages
-- [ ] Simple format initially: `"edit: filename.py"`
-- [ ] Later: Use cheap LLM for better messages
-- [ ] Reuse existing `SessionManager.generate_commit_message()`
+### 2.4 Auto-generate commit messages ✅
+- [x] Simple format: `"edit: filename.py"` for single file
+- [x] `"edit: N files"` for multiple files
+- [x] LLM-based messages available via SessionManager (for AI turns)
 
-### 2.5 Status bar updates
-- [ ] Show current branch name
-- [ ] Show commit hash after save
-- [ ] Show "modified" state if uncommitted changes
+### 2.5 Status bar updates ✅
+- [x] Show current branch name on tab switch
+- [x] Show commit hash after save (`Saved → abc12345`)
+- [x] Modified state shown in tab title (not status bar)
 
 ---
 

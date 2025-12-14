@@ -20,6 +20,8 @@ Migrate to branch-first architecture where:
 - No working directory dependency
 - Save = Commit (no dirty state)
 - Open files = Active files in AI context
+- **Single session file per branch** (`.forge/session.json`) - diverges naturally with branches
+- **No session UUIDs** - branch name is the identity
 
 ---
 
@@ -195,9 +197,36 @@ Migrate to branch-first architecture where:
 
 ---
 
+## Refactoring: Session Model Simplification
+
+### Remove session UUIDs
+- [ ] Replace `.forge/sessions/{uuid}.json` with `.forge/session.json`
+- [ ] Remove `session_id` parameter from `AIChatWidget`
+- [ ] Remove `session_id` from `SessionManager`
+- [ ] Use `branch_name` as the sole identifier
+- [ ] Update `BranchWorkspace` to remove `session_id` field
+
+### Remove special branch prefix
+- [ ] Remove `is_session_branch` checks (all branches can have sessions)
+- [ ] Remove `forge/session/` prefix requirement
+- [ ] Update `_open_branch()` to not check for prefix
+- [ ] Update display names to just use branch name
+
+### Session file handling
+- [ ] Load session from `.forge/session.json` in branch VFS
+- [ ] Create session file on first AI turn (if missing)
+- [ ] Session file diverges naturally when branching
+
+### TODO: Merge conflict handling
+- [ ] Detect `.forge/session.json` conflicts during merge
+- [ ] Option to archive merged session to `.forge/merged/{branch}.json`
+- [ ] Or simply keep current branch's session (discard incoming)
+
+---
+
 ## Open Questions
 
-1. **Session branch naming**: Keep `forge/session/{uuid}` or allow custom names from start?
-2. **Main branch protection**: Require confirmation before committing to main?
-3. **File tab persistence**: Remember open files per-branch across restarts?
-4. **Conflict during AI turn**: What if user's main branch changes while AI works on session branch?
+1. **Main branch protection**: Require confirmation before committing to main?
+2. **File tab persistence**: Remember open files per-branch across restarts?
+3. **Conflict during AI turn**: What if user's main branch changes while AI works on session branch?
+4. **Session merge strategy**: Archive, discard, or attempt to merge conversation histories?

@@ -90,7 +90,18 @@ Both users and AI agents use the same workspace model:
 - Save = immediate commit
 - AI can be invoked at any time
 
-**Branch identification:** Since we always create a commit when a branch is created, branches can be identified by their initial commit OID. This provides stable identity even if the branch is renamed.
+**Session storage:** Each branch has its own `.forge/session.json` file that stores:
+- Conversation history
+- Active files in context
+- Session metadata
+
+When you branch, the session file comes with it and diverges naturally - just like any other file. This means:
+- Forking a branch forks the conversation
+- Branch rename doesn't break anything
+- No special branch naming required
+- The branch name IS the session identity (no UUIDs)
+
+**Merge handling (TODO):** When merging branches, `.forge/session.json` will conflict since both branches have diverged conversations. The IDE will need to handle this specially - possibly by archiving the merged-in session to `.forge/merged/{branch_name}.json` or allowing user to choose which history to keep.
 
 ### AI Turn Locking
 
@@ -196,17 +207,17 @@ class BranchWorkspace:
 
 ### Session Persistence
 
-Session state stored in `.forge/sessions/{session_id}.json` within the branch:
+Session state stored in `.forge/session.json` within the branch:
 - Conversation history
 - Active files in context
 - Tool call history
 - Session metadata
 
 On branch tab open:
-1. Check if `forge/session/*` branch → AI Session Mode
-2. Load session state from `.forge/sessions/*.json`
-3. Initialize appropriate VFS
-4. Restore open file tabs
+1. Initialize VFS for the branch
+2. Check if `.forge/session.json` exists → load session data
+3. If missing → start fresh session (will be created on first AI turn)
+4. Restore open file tabs from session data
 
 ## User Workflows
 
@@ -238,16 +249,18 @@ On branch tab open:
 1. AI is working on a branch
 2. You spot something you want to fix manually
 3. Click "Fork" → dialog prompts for new branch name
-4. New branch created, new tab opens
+4. New branch created, new tab opens (inherits conversation history!)
 5. Make your edits, save (commits)
 6. Can merge changes back if needed
 
 ### Branch Naming
 
-- **AI session branches:** Auto-named initially (e.g., `forge/session/{uuid}`)
-- AI can rename its branch once it understands the task (via future tool)
-- **User forks:** Dialog prompts for name
-- `forge/session/*` prefix used for session discovery on startup, but branches are otherwise treated equally
+Branches can be named anything - there's no special prefix requirement. Common patterns:
+- `feature/add-login` - feature branch with AI assistance
+- `fix/memory-leak` - bugfix branch
+- `experiment/new-approach` - experimental work
+
+The `forge/session/` prefix is no longer required or special. Any branch can have AI chat.
 
 ## Implementation Plan
 
@@ -285,6 +298,12 @@ On branch tab open:
 1. **File tab state persistence:** When switching branch tabs, should open files be remembered per-branch?
 
 2. **Main branch protection:** Should `main` require confirmation before commit? Or is that overkill given easy revert?
+
+3. **Session merge conflicts:** When merging branches, `.forge/session.json` will conflict. Options:
+   - Archive merged session to `.forge/merged/{source_branch}.json`
+   - Let user choose which history to keep
+   - Attempt to merge conversation histories (complex)
+   - Simply discard the incoming session (simplest)
 
 ## Design Decisions Made
 

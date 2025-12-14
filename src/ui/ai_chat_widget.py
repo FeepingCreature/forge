@@ -708,10 +708,15 @@ class AIChatWidget(QWidget):
         )
         
         # Append raw text to streaming element - browser handles display
+        # Only auto-scroll if user was already at bottom (within 50px threshold)
         js_code = f"""
         (function() {{
             var streamingMsg = document.getElementById('streaming-message');
             if (streamingMsg) {{
+                // Check if user is at bottom before modifying content
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+                
                 var content = streamingMsg.querySelector('.content');
                 if (content) {{
                     // Append to raw text accumulator
@@ -720,7 +725,11 @@ class AIChatWidget(QWidget):
                     // Display as preformatted text during streaming
                     content.innerText = content.dataset.rawText;
                 }}
-                window.scrollTo(0, document.body.scrollHeight);
+                
+                // Only scroll if user was already at bottom
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
             }}
         }})();
         """

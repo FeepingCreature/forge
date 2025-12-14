@@ -31,6 +31,7 @@ The key insight: **git models multi-agent collaboration**. Each branch is an iso
 **File tabs (within a branch):**
 - First tab is always 🤖 AI Chat (can be minimized/hidden but always present)
 - Other tabs are files open for viewing/editing
+- **Open files = active files in AI context** (unified concept)
 - All file operations go through VFS for that branch
 
 ### No Working Directory
@@ -78,41 +79,41 @@ Both users and AI agents use the same workspace model:
 
 **Key unification:** The AI Chat tab is just another "editor" - it edits the conversation and triggers commits that include both conversation state and code changes.
 
-### Branch Modes
+### Branch Model
 
-A branch can be in one of two modes:
+**All branches are equal.** There is no special "forge/session" branch type. Every branch works the same way:
 
-**1. Manual Mode (default for `main`, user-created branches)**
 - User can edit files freely
 - AI Chat is available for assistance
-- AI suggestions require user action to apply
 - Save = immediate commit
+- AI can be invoked at any time
 
-**2. AI Session Mode (branches starting with `forge/session/`)**
-- AI is actively working
-- File tabs are **read-only** (locked)
-- User observes AI making changes
-- User can:
-  - Send messages to guide AI
-  - **Fork** the branch to get an editable copy
-  - Wait for AI to finish
+**Branch identification:** Since we always create a commit when a branch is created, branches can be identified by their initial commit OID. This provides stable identity even if the branch is renamed.
 
-**Forking during AI session:**
-- User clicks "Fork" button
-- New branch created from current commit
-- User gets editable Manual Mode workspace
-- Original AI session continues independently
+### AI Turn Locking
 
-### AI Sessions as Internal PRs
+File tabs become **read-only during an AI turn** (while VFS is AI-controlled). This is not a fundamental limitation - it's to avoid confusing both AI and user with concurrent edits.
 
-AI sessions naturally model pull requests:
+**Pre-turn requirement:** All files must be saved before starting an AI turn. If there are unsaved changes, prompt user to save first.
 
-1. User creates AI session → new branch from `main`
-2. AI works on branch, making commits
-3. When complete, user reviews changes
-4. User merges to `main` (or rebases, cherry-picks, etc.)
+**During AI turn:**
+- File tabs show content but are not editable
+- User can still send messages to guide AI
+- User can observe AI making changes in real-time
 
-**Future enhancement:** Explicit PR view showing diff between session branch and main, with merge/rebase controls.
+**After AI turn:**
+- File tabs become editable again
+- Changes are committed
+- User can continue editing or start another AI turn
+
+### Open Files = Active Files
+
+Converge these concepts: **files open in tabs are the files in AI context**.
+
+- Opening a file tab adds it to context
+- Closing a file tab removes it from context
+- No separate "active files" management needed
+- AI sees exactly what user sees
 
 ## VFS Architecture
 
@@ -254,12 +255,12 @@ On branch tab open:
 - [ ] Auto-generate commit messages
 - [ ] Show commit hash in status bar
 
-### Phase 3: Mode Switching
+### Phase 3: AI Turn Integration
 
-- [ ] Detect AI session branches → AI Session Mode
-- [ ] Lock file tabs during AI execution
-- [ ] Implement Fork button/action
-- [ ] Handle mode transitions cleanly
+- [ ] Lock file tabs during AI execution (read-only)
+- [ ] Require save before AI turn starts
+- [ ] Show visual indicator when AI is working
+- [ ] Re-enable editing when AI turn completes
 
 ### Phase 4: Polish
 
@@ -270,15 +271,41 @@ On branch tab open:
 
 ## Open Questions
 
-1. **Commit message UX:** Auto-generate silently, or mini-prompt, or configurable?
+1. **File tab state persistence:** When switching branch tabs, should open files be remembered per-branch?
 
-2. **Undo across commits:** Ctrl+Z within a file should work normally, but what about undoing a save? Expose git reset somehow?
+2. **Main branch protection:** Should `main` require confirmation before commit? Or is that overkill given easy revert?
 
-3. **File tab state persistence:** When switching branch tabs, should open files be remembered per-branch?
+## Design Decisions Made
 
-4. **Main branch protection:** Should `main` require confirmation before commit? Or is that overkill given easy revert?
+1. **Commit messages:** Auto-generate with cheap LLM. No user prompt needed.
 
-5. **Merge/rebase UI:** How much git workflow UI to build vs. expecting users to use git CLI?
+2. **Undo (Ctrl+Z):** Normal editor undo within a file. Undo across commits handled via repository view (v2).
+
+3. **Branch types:** All branches equal. No special "forge/session" naming convention required.
+
+4. **Open files = active files:** Unified concept. Tab open = in context.
+
+## v2: Repository View
+
+A dedicated repository view is central to the git-first vision. Accessed via a prominent button (top-left), it switches the entire window to show:
+
+### Visual Commit/Branch Overview
+- Every commit visible
+- Every branch visible
+- Abandoned commits shown as pseudo-branches (toggleable) - enables undo even for "lost" work
+
+### Visual Git Operations
+- **Merge:** Drag a commit onto target branch head
+- **Rebase:** Detach and reattach commit chains visually
+- **Cherry-pick:** Drag individual commits between branches
+
+### Smart Merge Indicators
+Merging is expensive, but *checking if merge is clean* is cheap. The UI can show:
+- Green indicator: commit can be cleanly rebased/merged
+- Yellow indicator: merge possible but has conflicts
+- Visual preview of what merge would look like
+
+This makes git operations discoverable and safe - users can see consequences before acting.
 
 ## Migration from v1
 

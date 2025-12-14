@@ -107,6 +107,14 @@ Migrate to branch-first architecture where:
 
 ## Phase 4: Open Files = Active Files
 
+### 4.0 Replace filesystem dialog with VFS file explorer ✅
+- [x] Remove File → Open dialog (uses real filesystem, not VFS)
+- [x] Add file explorer sidebar (left panel) via `FileExplorerWidget`
+- [x] File explorer reads from VFS (shows branch's git tree)
+- [x] Double-click file in explorer → opens in file tab
+- [x] Explorer shows current branch's files only
+- [x] Explorer refreshes after AI changes files
+
 ### 4.1 Unify concepts
 - [ ] Opening a file tab adds it to AI context
 - [ ] Closing a file tab removes it from context

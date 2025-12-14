@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog,
     QInputDialog,
     QMainWindow,
     QMenu,
@@ -355,7 +354,7 @@ class MainWindow(QMainWindow):
 
         # File menu
         file_menu = menubar.addMenu("&File")
-        file_menu.addAction("&Open File...", self._open_file)
+        # Note: File → Open removed - use the file explorer sidebar instead
         file_menu.addAction("&Save", self._save_current_file).setShortcut("Ctrl+S")
         file_menu.addAction("Save &All", self._save_all_files).setShortcut("Ctrl+Shift+S")
         file_menu.addSeparator()
@@ -382,28 +381,6 @@ class MainWindow(QMainWindow):
         git_menu = menubar.addMenu("&Git")
         git_menu.addAction("View Branches")
         git_menu.addAction("Commit History")
-
-    def _open_file(self) -> None:
-        """Open a file in the current branch"""
-        # Get repo root for file dialog
-        repo_root = Path(self.repo.repo.workdir)
-        
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open File", str(repo_root), 
-            "All Files (*);;Python Files (*.py);;Text Files (*.txt)"
-        )
-
-        if file_path:
-            # Convert to relative path
-            try:
-                rel_path = Path(file_path).relative_to(repo_root)
-                self._open_file_by_path(str(rel_path))
-            except ValueError:
-                # File is outside repo
-                QMessageBox.warning(
-                    self, "Warning", 
-                    "File is outside the repository. Cannot open."
-                )
 
     def _save_current_file(self) -> None:
         """Save the current file (Ctrl+S)"""

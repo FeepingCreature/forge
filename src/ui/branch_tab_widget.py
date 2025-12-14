@@ -6,10 +6,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from .branch_workspace import BranchWorkspace
 from .editor_widget import EditorWidget
+from .file_explorer_widget import FileExplorerWidget
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -54,21 +55,38 @@ class BranchTabWidget(QWidget):
         # Track if AI is currently working
         self._ai_working: bool = False
         
+        # File explorer widget
+        self._file_explorer: FileExplorerWidget | None = None
+        
         self._setup_ui()
     
     def _setup_ui(self) -> None:
-        """Setup the tab widget UI"""
+        """Setup the tab widget UI with file explorer sidebar"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # File tabs (AI chat will be first tab, added by parent)
+        # Main splitter: file explorer | file tabs
+        self.splitter = QSplitter()
+        
+        # File explorer (left side)
+        self._file_explorer = FileExplorerWidget(self.workspace)
+        self._file_explorer.file_open_requested.connect(self.open_file)
+        self._file_explorer.setMinimumWidth(150)
+        self._file_explorer.setMaximumWidth(400)
+        self.splitter.addWidget(self._file_explorer)
+        
+        # File tabs (right side - AI chat will be first tab, added by parent)
         self.file_tabs = QTabWidget()
         self.file_tabs.setTabsClosable(True)
         self.file_tabs.setMovable(True)
         self.file_tabs.tabCloseRequested.connect(self._on_tab_close_requested)
         self.file_tabs.currentChanged.connect(self._on_tab_changed)
+        self.splitter.addWidget(self.file_tabs)
         
-        layout.addWidget(self.file_tabs)
+        # Set initial splitter sizes (file explorer: 200px, rest for tabs)
+        self.splitter.setSizes([200, 800])
+        
+        layout.addWidget(self.splitter)
     
     def add_ai_chat_tab(self, chat_widget: QWidget) -> int:
         """
@@ -299,6 +317,10 @@ class BranchTabWidget(QWidget):
         # Then refresh each editor
         for filepath in list(self._editors.keys()):
             self.refresh_file(filepath)
+        
+        # Also refresh the file explorer (AI may have added/removed files)
+        if self._file_explorer:
+            self._file_explorer.refresh()
     
     def set_read_only(self, read_only: bool) -> None:
         """

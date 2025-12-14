@@ -19,11 +19,13 @@ from ..tools.manager import ToolManager
 class SessionManager:
     """Manages AI session lifecycle and git integration"""
 
+    # The single session file path (branch-local, diverges naturally)
+    SESSION_FILE = ".forge/session.json"
+
     def __init__(
-        self, repo: ForgeRepository, session_id: str, branch_name: str, settings: "Settings"
+        self, repo: ForgeRepository, branch_name: str, settings: "Settings"
     ) -> None:
         self.repo = repo
-        self.session_id = session_id
         self.branch_name = branch_name
         self.settings = settings
 
@@ -143,15 +145,14 @@ class SessionManager:
         # Build session state with messages
         session_state = self.get_session_data(messages)
 
-        # Add session state to VFS
-        session_file_path = f".forge/sessions/{self.session_id}.json"
-        self.tool_manager.vfs.write_file(session_file_path, json.dumps(session_state, indent=2))
+        # Add session state to VFS (single file per branch)
+        self.tool_manager.vfs.write_file(self.SESSION_FILE, json.dumps(session_state, indent=2))
 
         # Get all changes including session file
         all_changes = self.tool_manager.get_pending_changes()
 
         # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
-        only_session_changed = len(all_changes) == 1 and session_file_path in all_changes
+        only_session_changed = len(all_changes) == 1 and self.SESSION_FILE in all_changes
         commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
 
         # Generate commit message if not provided
@@ -271,7 +272,6 @@ Respond with ONLY the bulleted list, no introduction or explanation."""
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""
         data: dict[str, Any] = {
-            "session_id": self.session_id,
             "branch_name": self.branch_name,
             "active_files": list(self.active_files),
             "repo_summaries": self.repo_summaries,

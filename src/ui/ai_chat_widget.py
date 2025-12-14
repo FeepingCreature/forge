@@ -3,7 +3,6 @@ AI chat widget with markdown/LaTeX rendering
 """
 
 import json
-import uuid
 from typing import TYPE_CHECKING, Any
 
 import markdown
@@ -141,16 +140,15 @@ class AIChatWidget(QWidget):
 
     def __init__(
         self,
-        session_id: str | None = None,
         session_data: dict[str, Any] | None = None,
         settings: "Settings | None" = None,
         repo: ForgeRepository | None = None,
         branch_name: str | None = None,
     ) -> None:
         super().__init__()
-        self.session_id = session_id or str(uuid.uuid4())
-        # Use provided branch_name, or construct from session_id for session branches
-        self.branch_name = branch_name or f"forge/session/{self.session_id}"
+        # Branch name is the session identity (no UUID needed)
+        assert branch_name is not None, "branch_name is required for AIChatWidget"
+        self.branch_name = branch_name
         self.messages = []
         self.settings = settings
         self.repo = repo
@@ -177,7 +175,7 @@ class AIChatWidget(QWidget):
         # Initialize session manager (repo and settings are required)
         assert repo is not None, "Repository is required for AIChatWidget"
         assert settings is not None, "Settings are required for AIChatWidget"
-        self.session_manager = SessionManager(repo, self.session_id, self.branch_name, settings)
+        self.session_manager = SessionManager(repo, self.branch_name, settings)
 
         # Load existing session or start fresh
         if session_data:
@@ -631,7 +629,6 @@ class AIChatWidget(QWidget):
     def get_session_data(self) -> dict[str, Any]:
         """Get session data for persistence (used by SessionManager for git commits)"""
         return {
-            "session_id": self.session_id,
             "branch_name": self.branch_name,
             "messages": self._get_conversation_messages(),
             "active_files": list(self.session_manager.active_files),

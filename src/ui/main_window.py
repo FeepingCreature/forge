@@ -3,7 +3,6 @@ Main window for Forge IDE - Branch-first architecture
 """
 
 import json
-import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -129,26 +128,14 @@ class MainWindow(QMainWindow):
         branch_widget = BranchTabWidget(workspace, self.settings)
         
         # Create AI chat for this branch
-        is_session = branch_name.startswith("forge/session/")
-        if is_session:
-            session_id = branch_name.replace("forge/session/", "")
-            # Try to load existing session data
-            session_data = self._load_session_data(session_id, branch_name)
-            chat_widget = AIChatWidget(
-                session_id=session_id,
-                session_data=session_data,
-                settings=self.settings,
-                repo=self.repo,
-                branch_name=branch_name,
-            )
-        else:
-            # Non-session branch gets a fresh AI chat that operates on this branch
-            chat_widget = AIChatWidget(
-                session_id=str(uuid.uuid4()),
-                settings=self.settings,
-                repo=self.repo,
-                branch_name=branch_name,
-            )
+        # Try to load existing session data from .forge/session.json
+        session_data = self._load_session_data(branch_name)
+        chat_widget = AIChatWidget(
+            session_data=session_data,
+            settings=self.settings,
+            repo=self.repo,
+            branch_name=branch_name,
+        )
         
         # Add AI chat as first tab
         branch_widget.add_ai_chat_tab(chat_widget)
@@ -160,19 +147,19 @@ class MainWindow(QMainWindow):
         self._workspaces[branch_name] = workspace
         self._branch_widgets[branch_name] = branch_widget
         
-        # Add to tab widget
-        icon = "🤖" if is_session else "🌿"
-        display_name = workspace.display_name if is_session else branch_name
-        index = self.branch_tabs.addTab(branch_widget, f"{icon} {display_name}")
+        # Add to tab widget - all branches get same treatment
+        # Use 🤖 if branch has session data, 🌿 otherwise
+        has_session = session_data is not None
+        icon = "🤖" if has_session else "🌿"
+        index = self.branch_tabs.addTab(branch_widget, f"{icon} {branch_name}")
         self.branch_tabs.setCurrentIndex(index)
         
         self.status_bar.showMessage(f"Opened branch: {branch_name}")
 
-    def _load_session_data(self, session_id: str, branch_name: str) -> dict[str, Any] | None:
-        """Load session data from git if it exists"""
+    def _load_session_data(self, branch_name: str) -> dict[str, Any] | None:
+        """Load session data from .forge/session.json in the branch"""
         try:
-            session_file = f".forge/sessions/{session_id}.json"
-            content = self.repo.get_file_content(session_file, branch_name)
+            content = self.repo.get_file_content(".forge/session.json", branch_name)
             return json.loads(content)
         except (FileNotFoundError, KeyError):
             return None
@@ -215,11 +202,10 @@ class MainWindow(QMainWindow):
         fork_action = menu.addAction("Fork branch...")
         fork_action.triggered.connect(lambda: self._fork_branch(branch_name))
         
-        # Delete action (only for session branches, with confirmation)
-        if branch_name.startswith("forge/session/"):
-            menu.addSeparator()
-            delete_action = menu.addAction("Delete branch...")
-            delete_action.triggered.connect(lambda: self._delete_branch(branch_name, index))
+        # Delete action (with confirmation)
+        menu.addSeparator()
+        delete_action = menu.addAction("Delete branch...")
+        delete_action.triggered.connect(lambda: self._delete_branch(branch_name, index))
         
         menu.exec(tab_bar.mapToGlobal(pos))
 
@@ -391,23 +377,39 @@ class MainWindow(QMainWindow):
 
     def _new_ai_session(self) -> None:
         """Create a new AI session as a branch"""
-        session_id = str(uuid.uuid4())
-        branch_name = f"forge/session/{session_id}"
+        from PySide6.QtWidgets import QInputDialog
+        
+        # Prompt for branch name
+        name, ok = QInputDialog.getText(
+            self,
+            "New AI Session",
+            "Branch name for AI session:",
+            text="ai/"
+        )
+        if not ok or not name:
+            return
+        
+        branch_name = name
 
-        # Create git branch for this session
-        self.repo.create_session_branch(session_id)
+        # Create git branch from current HEAD
+        try:
+            head = self.repo.repo.head
+            commit = head.peel()
+            self.repo.repo.branches.create(branch_name, commit)
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Failed to create branch: {e}")
+            return
 
-        # Create initial session commit with stub session.json
+        # Create initial session commit with .forge/session.json
         session_data = {
-            "session_id": session_id,
             "branch_name": branch_name,
             "messages": [],
             "active_files": [],
             "repo_summaries": {},
         }
-        session_file_path = f".forge/sessions/{session_id}.json"
         tree_oid = self.repo.create_tree_from_changes(
-            branch_name, {session_file_path: json.dumps(session_data, indent=2)}
+            branch_name, {".forge/session.json": json.dumps(session_data, indent=2)}
         )
         self.repo.commit_tree(
             tree_oid, "initialize session", branch_name, commit_type=CommitType.PREPARE
@@ -419,7 +421,7 @@ class MainWindow(QMainWindow):
         # Refresh the branches menu
         self._populate_branches_menu()
 
-        self.status_bar.showMessage("New AI session created")
+        self.status_bar.showMessage(f"New AI session created on branch: {branch_name}")
 
     def _populate_branches_menu(self) -> None:
         """Populate branches submenu with all branches"""
@@ -428,24 +430,12 @@ class MainWindow(QMainWindow):
         # Get all branches
         all_branches = list(self.repo.repo.branches)
         
-        # Separate into regular branches and session branches
-        regular_branches = [b for b in all_branches if not b.startswith("forge/session/")]
-        session_branches = [b for b in all_branches if b.startswith("forge/session/")]
-        
-        # Add regular branches
-        for branch_name in sorted(regular_branches):
-            action = self._branches_submenu.addAction(f"🌿 {branch_name}")
-            action.triggered.connect(
-                lambda checked=False, b=branch_name: self._open_branch(b)
-            )
-        
-        if regular_branches and session_branches:
-            self._branches_submenu.addSeparator()
-        
-        # Add session branches
-        for branch_name in sorted(session_branches):
-            session_id = branch_name.replace("forge/session/", "")
-            action = self._branches_submenu.addAction(f"🤖 {session_id[:8]}...")
+        # Add all branches - they're all equal now
+        for branch_name in sorted(all_branches):
+            # Check if branch has session data
+            has_session = self._load_session_data(branch_name) is not None
+            icon = "🤖" if has_session else "🌿"
+            action = self._branches_submenu.addAction(f"{icon} {branch_name}")
             action.triggered.connect(
                 lambda checked=False, b=branch_name: self._open_branch(b)
             )

@@ -202,21 +202,21 @@ Migrate to branch-first architecture where:
 ### Remove session UUIDs
 - [x] Update `BranchWorkspace` to remove `session_id` field
 - [x] Add `load_session_data()` and `save_session_data()` to BranchWorkspace
-- [ ] Replace `.forge/sessions/{uuid}.json` with `.forge/session.json`
-- [ ] Remove `session_id` parameter from `AIChatWidget`
-- [ ] Remove `session_id` from `SessionManager`
-- [ ] Use `branch_name` as the sole identifier
+- [x] Replace `.forge/sessions/{uuid}.json` with `.forge/session.json`
+- [x] Remove `session_id` parameter from `AIChatWidget`
+- [x] Remove `session_id` from `SessionManager`
+- [x] Use `branch_name` as the sole identifier
 
 ### Remove special branch prefix
 - [x] Remove `is_session_branch` checks - replaced with `has_session`
-- [ ] Remove `forge/session/` prefix requirement from MainWindow
-- [ ] Update `_open_branch()` to not check for prefix
-- [ ] Update display names to just use branch name
+- [x] Remove `forge/session/` prefix requirement from MainWindow
+- [x] Update `_open_branch()` to not check for prefix
+- [x] Update display names to just use branch name
 
 ### Session file handling
 - [x] Add methods to load/save session from `.forge/session.json` in branch VFS
-- [ ] Create session file on first AI turn (if missing)
-- [ ] Session file diverges naturally when branching
+- [x] Create session file on first AI turn (via SessionManager.commit_ai_turn)
+- [x] Session file diverges naturally when branching
 
 ### Merge conflict handling
 - [ ] On merge, archive source branch session to `.forge/merged/{branch_name}.json`

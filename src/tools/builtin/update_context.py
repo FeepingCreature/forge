@@ -14,20 +14,28 @@ def get_schema() -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": "update_context",
-            "description": "Add or remove files from active context. Files in active context have their full content included in future AI turns. Use this to manage token usage.",
+            "description": """Add or remove files from active context in a single call.
+
+IMPORTANT: 
+- Load ALL files you need in ONE call (batch operation) to minimize round-trips
+- CLOSE files you no longer need to keep context size small
+- Files in active context have full content included in every turn (costs tokens)
+- Use file summaries to decide what to load - don't load speculatively
+
+Example: {"add": ["src/a.py", "src/b.py"], "remove": ["src/old.py"]}""",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "add": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of file paths to add to active context",
+                        "description": "File paths to add to context (load multiple at once!)",
                         "default": [],
                     },
                     "remove": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of file paths to remove from active context",
+                        "description": "File paths to remove from context (close files you're done with)",
                         "default": [],
                     },
                 },

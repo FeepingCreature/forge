@@ -1,5 +1,7 @@
 # Forge Design v2 - Branch-First Architecture
 
+> **Note:** This supersedes `DESIGN.md`. See that file for historical context and some implementation details that remain relevant.
+
 ## Core Philosophy
 
 Forge is a git-native IDE where **branches are the fundamental workspace unit**. There is no working directory in the traditional sense. All file access goes through VFS, all saves create commits, and multiple branches can be open simultaneously as tabs.
@@ -132,20 +134,19 @@ class VFS(ABC):
 
 ### VFS Implementations
 
-**BranchVFS** (new - replaces WorkInProgressVFS for user editing):
+**WorkInProgressVFS** (used for both manual editing and AI sessions):
 - Wraps a branch reference
-- `read_file`: reads from branch HEAD
-- `write_file`: creates commit on branch
-- Used for Manual Mode editing
-
-**WorkInProgressVFS** (existing - for AI sessions):
-- Accumulates changes in memory during AI turn
-- Commits atomically at end of turn
-- Used for AI Session Mode
+- `read_file`: reads from branch HEAD + pending changes
+- `write_file`: accumulates changes in memory
+- `commit()`: creates atomic commit on branch
+- For manual editing: user edits accumulate, Save triggers `commit()`
+- For AI sessions: AI edits accumulate, end of turn triggers `commit()`
 
 **GitCommitVFS** (existing):
 - Read-only view of specific commit
 - Used for history viewing, diffs
+
+No separate "BranchVFS" needed - WorkInProgressVFS handles both cases. The only difference is when `commit()` is called (on save vs. on AI turn end).
 
 ### Commit Flow
 
@@ -153,9 +154,11 @@ class VFS(ABC):
 ```
 User types in editor
     ↓
+Changes tracked in WorkInProgressVFS (in memory)
+    ↓
 User presses Ctrl+S
     ↓
-BranchVFS.write_file(path, content)
+vfs.commit() called
     ↓
 Create blob → Update tree → Create commit → Update branch ref
     ↓
@@ -230,14 +233,21 @@ On branch tab open:
 4. Switch between tabs freely
 5. Each is fully isolated
 
-### Forking an AI Session
+### Forking a Branch
 
-1. AI is working on `forge/session/abc`
+1. AI is working on a branch
 2. You spot something you want to fix manually
-3. Click "Fork" → creates `forge/session/abc-fork-1`
-4. New tab opens in Manual Mode
+3. Click "Fork" → dialog prompts for new branch name
+4. New branch created, new tab opens
 5. Make your edits, save (commits)
 6. Can merge changes back if needed
+
+### Branch Naming
+
+- **AI session branches:** Auto-named initially (e.g., `forge/session/{uuid}`)
+- AI can rename its branch once it understands the task (via future tool)
+- **User forks:** Dialog prompts for name
+- `forge/session/*` prefix used for session discovery on startup, but branches are otherwise treated equally
 
 ## Implementation Plan
 
@@ -248,11 +258,12 @@ On branch tab open:
 - [ ] Create `BranchTabWidget` containing file tabs + AI chat
 - [ ] Implement branch tab switching (no checkout)
 
-### Phase 2: BranchVFS for Manual Editing
+### Phase 2: Editor VFS Integration
 
-- [ ] Create `BranchVFS` that commits on write
-- [ ] Wire editor saves through VFS
-- [ ] Auto-generate commit messages
+- [ ] Wire editor to WorkInProgressVFS (read files from VFS, not filesystem)
+- [ ] Track edits in VFS pending changes
+- [ ] Save (Ctrl+S) calls `vfs.commit()`
+- [ ] Auto-generate commit messages with cheap LLM
 - [ ] Show commit hash in status bar
 
 ### Phase 3: AI Turn Integration
@@ -277,7 +288,7 @@ On branch tab open:
 
 ## Design Decisions Made
 
-1. **Commit messages:** Auto-generate with cheap LLM. No user prompt needed.
+1. **Commit messages:** Auto-generate with cheap LLM. No user prompt needed. (Implementation can be deferred - use simple format like `"edit: filename.py"` initially.)
 
 2. **Undo (Ctrl+Z):** Normal editor undo within a file. Undo across commits handled via repository view (v2).
 

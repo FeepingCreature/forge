@@ -1,5 +1,7 @@
 # Forge Design Specification
 
+> **⚠️ DEPRECATED:** This document is superseded by `NEW_DESIGN.md` which describes the branch-first architecture. This file is retained for historical context and some implementation details that remain relevant (VFS architecture, tool system internals, etc.).
+
 ## Core Philosophy
 
 Forge is an AI-assisted development environment where **git is the source of truth**. All AI operations are git-backed, making them safe, auditable, and reversible.

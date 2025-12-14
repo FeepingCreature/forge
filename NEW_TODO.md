@@ -37,15 +37,15 @@ Migrate to branch-first architecture where:
 - [x] Routes file operations through VFS
 
 ### 1.3 Refactor MainWindow
-- [ ] Top-level tabs become branches (not mixed editor/AI)
-- [ ] Each branch tab contains a `BranchTabWidget`
-- [ ] "+" button creates new branch (with dialog for name/type)
-- [ ] Branch tab context menu (close, rename, delete)
+- [x] Top-level tabs become branches (not mixed editor/AI)
+- [x] Each branch tab contains a `BranchTabWidget`
+- [x] "+" button creates new branch (with dialog for name/type)
+- [x] Branch tab context menu (close, rename, delete)
 
 ### 1.4 Branch switching without checkout
-- [ ] Switch tabs just changes which VFS is active
-- [ ] No `git checkout` - working directory untouched
-- [ ] Each branch has independent VFS instance
+- [x] Switch tabs just changes which VFS is active
+- [x] No `git checkout` - working directory untouched
+- [x] Each branch has independent VFS instance
 
 ---
 

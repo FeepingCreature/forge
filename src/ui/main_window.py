@@ -151,6 +151,14 @@ class MainWindow(QMainWindow):
         branch_widget.file_opened.connect(chat_widget.add_file_to_context)
         branch_widget.file_closed.connect(chat_widget.remove_file_from_context)
         
+        # Restore previously open files from session data
+        if session_data and "active_files" in session_data:
+            for filepath in session_data["active_files"]:
+                try:
+                    branch_widget.open_file(filepath)
+                except FileNotFoundError:
+                    pass  # File may have been deleted
+        
         # Store references
         self._workspaces[branch_name] = workspace
         self._branch_widgets[branch_name] = branch_widget
@@ -430,10 +438,8 @@ class MainWindow(QMainWindow):
 
         # Create initial session commit with .forge/session.json
         session_data = {
-            "branch_name": branch_name,
             "messages": [],
             "active_files": [],
-            "repo_summaries": {},
         }
         tree_oid = self.repo.create_tree_from_changes(
             branch_name, {".forge/session.json": json.dumps(session_data, indent=2)}

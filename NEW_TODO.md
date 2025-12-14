@@ -119,6 +119,8 @@ Migrate to branch-first architecture where:
 - [x] Opening a file tab adds it to AI context via `file_opened` signal → `add_file_to_context()`
 - [x] Closing a file tab removes it from context via `file_closed` signal → `remove_file_from_context()`
 - [x] No separate "active files" management UI needed - tabs ARE the context
+- [x] Session data only stores `messages` and `active_files` (no redundant branch_name/repo_summaries)
+- [x] File tabs restored from session data on branch reopen
 
 ### 4.2 Context display
 - [ ] Show token count per open file in tab tooltip

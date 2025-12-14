@@ -179,16 +179,11 @@ class AIChatWidget(QWidget):
         assert settings is not None, "Settings are required for AIChatWidget"
         self.session_manager = SessionManager(repo, self.branch_name, settings)
 
-        # Load existing session or start fresh
+        # Load existing session messages
         if session_data:
             self.messages = session_data.get("messages", [])
-            self.branch_name = session_data.get("branch_name", self.branch_name)
-            # Note: active_files are now managed by open file tabs
-            # We load them here for backward compatibility, but they'll be
-            # re-synced when file tabs are opened
-            if "active_files" in session_data:
-                for filepath in session_data["active_files"]:
-                    self.session_manager.add_active_file(filepath)
+            # Note: active_files are restored by MainWindow opening file tabs
+            # The file_opened signals will sync them to SessionManager
 
         # Setup UI BEFORE any operations that might call add_message()
         self._setup_ui()
@@ -678,7 +673,6 @@ class AIChatWidget(QWidget):
     def get_session_data(self) -> dict[str, Any]:
         """Get session data for persistence (used by SessionManager for git commits)"""
         return {
-            "branch_name": self.branch_name,
             "messages": self._get_conversation_messages(),
             "active_files": list(self.session_manager.active_files),
         }

@@ -272,9 +272,7 @@ Respond with ONLY the bulleted list, no introduction or explanation."""
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""
         data: dict[str, Any] = {
-            "branch_name": self.branch_name,
             "active_files": list(self.active_files),
-            "repo_summaries": self.repo_summaries,
         }
         if messages is not None:
             data["messages"] = messages

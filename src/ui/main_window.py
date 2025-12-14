@@ -137,11 +137,16 @@ class MainWindow(QMainWindow):
             branch_name=branch_name,
         )
         
+        # Set up unsaved changes check callback
+        chat_widget.unsaved_changes_check = lambda bw=branch_widget: self._check_unsaved_before_ai(bw)
+        
         # Add AI chat as first tab
         branch_widget.add_ai_chat_tab(chat_widget)
         
         # Connect signals
         branch_widget.file_saved.connect(self._on_file_saved)
+        branch_widget.ai_turn_started.connect(self._on_ai_turn_started)
+        branch_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
         
         # Store references
         self._workspaces[branch_name] = workspace
@@ -164,9 +169,50 @@ class MainWindow(QMainWindow):
         except (FileNotFoundError, KeyError):
             return None
 
+    def _check_unsaved_before_ai(self, branch_widget: BranchTabWidget) -> bool:
+        """
+        Check for unsaved changes before AI turn.
+        
+        Returns True if OK to proceed, False to abort.
+        """
+        if not branch_widget.has_unsaved_changes():
+            return True
+        
+        # Prompt user
+        reply = QMessageBox.question(
+            self,
+            "Unsaved Changes",
+            "There are unsaved changes. Save before AI turn?\n\n"
+            "(AI needs committed state to work properly)",
+            QMessageBox.StandardButton.Save |
+            QMessageBox.StandardButton.Discard |
+            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save
+        )
+        
+        if reply == QMessageBox.StandardButton.Cancel:
+            return False
+        elif reply == QMessageBox.StandardButton.Save:
+            branch_widget.save_all_files()
+            return True
+        else:
+            # Discard - proceed anyway (user's choice)
+            return True
+    
     def _on_file_saved(self, filepath: str, commit_oid: str) -> None:
         """Handle file save notification"""
         self.status_bar.showMessage(f"Saved {filepath} → {commit_oid[:8]}")
+    
+    def _on_ai_turn_started(self) -> None:
+        """Handle AI turn starting"""
+        self.status_bar.showMessage("🤖 AI working...")
+    
+    def _on_ai_turn_finished(self, commit_oid: str) -> None:
+        """Handle AI turn finishing"""
+        if commit_oid:
+            self.status_bar.showMessage(f"🤖 AI finished → {commit_oid[:8]}")
+        else:
+            self.status_bar.showMessage("🤖 AI finished (no changes)")
 
     def _on_branch_tab_changed(self, index: int) -> None:
         """Handle branch tab switch"""

@@ -81,27 +81,27 @@ Migrate to branch-first architecture where:
 
 ---
 
-## Phase 3: AI Turn Integration
+## Phase 3: AI Turn Integration ✅ COMPLETE
 
-### 3.1 Lock file tabs during AI execution
-- [ ] Set all file tabs to read-only when AI turn starts
-- [ ] Visual indicator (grayed out, overlay, or border)
-- [ ] User can still view files, just not edit
+### 3.1 Lock file tabs during AI execution ✅
+- [x] Set all file tabs to read-only when AI turn starts via `set_read_only(True)`
+- [x] Visual indicator: AI Chat tab shows "🤖 AI Chat ⏳" during processing
+- [x] User can still view files, just not edit
 
-### 3.2 Require save before AI turn
-- [ ] Check for uncommitted changes before AI turn
-- [ ] Prompt user: "Save changes before AI turn?"
-- [ ] Option to save all or cancel
+### 3.2 Require save before AI turn ✅
+- [x] Check for uncommitted changes before AI turn via `unsaved_changes_check` callback
+- [x] Prompt user: "Save before AI turn?" with Save/Discard/Cancel options
+- [x] Option to save all or cancel
 
-### 3.3 Visual AI working indicator
-- [ ] Show spinner or progress in AI chat tab
-- [ ] Status bar shows "AI working..."
-- [ ] Disable send button during AI turn
+### 3.3 Visual AI working indicator ✅
+- [x] AI Chat tab shows ⏳ indicator when AI is working
+- [x] Status bar shows "🤖 AI working..."
+- [x] Send button already disabled during AI turn (existing code)
 
-### 3.4 Re-enable editing on AI turn complete
-- [ ] Unlock file tabs when AI finishes
-- [ ] Refresh file contents from VFS (AI may have changed them)
-- [ ] Show commit hash for AI's commit
+### 3.4 Re-enable editing on AI turn complete ✅
+- [x] Unlock file tabs via `set_read_only(False)` when AI finishes
+- [x] Refresh all open files from VFS via `refresh_all_files()`
+- [x] Status bar shows commit hash: "🤖 AI finished → abc12345"
 
 ---
 

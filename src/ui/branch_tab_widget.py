@@ -29,6 +29,8 @@ class BranchTabWidget(QWidget):
     # Signals
     file_modified = Signal(str)  # Emitted when a file is modified (filepath)
     file_saved = Signal(str, str)  # Emitted when saved (filepath, commit_oid)
+    ai_turn_started = Signal()  # Forwarded from AI chat
+    ai_turn_finished = Signal(str)  # Forwarded from AI chat (commit_oid)
     
     def __init__(
         self,
@@ -45,6 +47,12 @@ class BranchTabWidget(QWidget):
         
         # Track modified state per file
         self._modified_files: set[str] = set()
+        
+        # Track AI chat widget for signals
+        self._chat_widget: QWidget | None = None
+        
+        # Track if AI is currently working
+        self._ai_working: bool = False
         
         self._setup_ui()
     
@@ -71,7 +79,43 @@ class BranchTabWidget(QWidget):
         index = self.file_tabs.insertTab(0, chat_widget, "🤖 AI Chat")
         # AI chat tab is not closable
         self.file_tabs.tabBar().setTabButton(0, self.file_tabs.tabBar().ButtonPosition.RightSide, None)
+        
+        # Store reference and connect signals
+        self._chat_widget = chat_widget
+        
+        # Connect AI turn signals if the widget has them
+        if hasattr(chat_widget, 'ai_turn_started'):
+            chat_widget.ai_turn_started.connect(self._on_ai_turn_started)
+        if hasattr(chat_widget, 'ai_turn_finished'):
+            chat_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
+        
         return index
+    
+    def _on_ai_turn_started(self) -> None:
+        """Handle AI turn starting - lock file editors"""
+        self._ai_working = True
+        self.set_read_only(True)
+        
+        # Update AI chat tab to show working indicator
+        self.file_tabs.setTabText(0, "🤖 AI Chat ⏳")
+        
+        # Forward signal
+        self.ai_turn_started.emit()
+    
+    def _on_ai_turn_finished(self, commit_oid: str) -> None:
+        """Handle AI turn finishing - unlock file editors and refresh"""
+        self._ai_working = False
+        self.set_read_only(False)
+        
+        # Reset AI chat tab text
+        self.file_tabs.setTabText(0, "🤖 AI Chat")
+        
+        # Refresh all open files from VFS (AI may have changed them)
+        if commit_oid:
+            self.refresh_all_files()
+        
+        # Forward signal
+        self.ai_turn_finished.emit(commit_oid)
     
     def open_file(self, filepath: str) -> int:
         """

@@ -136,7 +136,9 @@ class ChatBridge(QObject):
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering"""
 
-    # Note: session_updated signal removed - sessions persist via git commits, not filesystem
+    # Signals for AI turn lifecycle
+    ai_turn_started = Signal()  # Emitted when AI turn begins
+    ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
 
     def __init__(
         self,
@@ -384,11 +386,30 @@ class AIChatWidget(QWidget):
                     "Type your message... (Enter to send, Shift+Enter for new line)"
                 )
 
+    def check_unsaved_changes(self) -> bool:
+        """
+        Check if there are unsaved changes that should be saved before AI turn.
+        
+        Returns True if OK to proceed, False if should abort.
+        Override point for parent widgets to inject save logic.
+        """
+        # Default implementation: always proceed
+        # BranchTabWidget will connect to this
+        return True
+    
+    # Callback for parent to set - returns True if OK to proceed
+    unsaved_changes_check: Any = None
+    
     def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
         if not text or self.is_processing:
             return
+        
+        # Check for unsaved changes if callback is set
+        if self.unsaved_changes_check is not None:
+            if not self.unsaved_changes_check():
+                return  # User cancelled or needs to save first
 
         # Normal message flow
         self.add_message("user", text)
@@ -399,6 +420,9 @@ class AIChatWidget(QWidget):
         self.input_field.setEnabled(False)
         self.send_button.setEnabled(False)
         self.send_button.setText("Thinking...")
+
+        # Emit signal that AI turn is starting
+        self.ai_turn_started.emit()
 
         # Send to LLM
         self._process_llm_request()
@@ -507,6 +531,9 @@ class AIChatWidget(QWidget):
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
 
+        # Emit signal that AI turn is finished
+        self.ai_turn_finished.emit(commit_oid)
+
         self._reset_input()
 
     def _on_stream_error(self, error_msg: str) -> None:
@@ -519,6 +546,10 @@ class AIChatWidget(QWidget):
             self.stream_worker = None
 
         self.add_message("assistant", f"Error: {error_msg}")
+        
+        # Emit signal that AI turn is finished (with empty string indicating no commit)
+        self.ai_turn_finished.emit("")
+        
         self._reset_input()
         return
 
@@ -595,6 +626,9 @@ class AIChatWidget(QWidget):
             # Commit AI turn - this is the ONLY place we commit - once per AI turn
             commit_oid = self.session_manager.commit_ai_turn(self.messages)
             self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
+
+            # Emit signal that AI turn is finished
+            self.ai_turn_finished.emit(commit_oid)
 
             self._reset_input()
 

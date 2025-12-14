@@ -183,6 +183,9 @@ class AIChatWidget(QWidget):
         if session_data:
             self.messages = session_data.get("messages", [])
             self.branch_name = session_data.get("branch_name", self.branch_name)
+            # Note: active_files are now managed by open file tabs
+            # We load them here for backward compatibility, but they'll be
+            # re-synced when file tabs are opened
             if "active_files" in session_data:
                 for filepath in session_data["active_files"]:
                     self.session_manager.add_active_file(filepath)
@@ -386,6 +389,18 @@ class AIChatWidget(QWidget):
                     "Type your message... (Enter to send, Shift+Enter for new line)"
                 )
 
+    def add_file_to_context(self, filepath: str) -> None:
+        """Add a file to the AI context (called when file tab is opened)"""
+        self.session_manager.add_active_file(filepath)
+    
+    def remove_file_from_context(self, filepath: str) -> None:
+        """Remove a file from the AI context (called when file tab is closed)"""
+        self.session_manager.remove_active_file(filepath)
+    
+    def get_active_files(self) -> set[str]:
+        """Get the set of files currently in AI context"""
+        return self.session_manager.active_files.copy()
+    
     def check_unsaved_changes(self) -> bool:
         """
         Check if there are unsaved changes that should be saved before AI turn.

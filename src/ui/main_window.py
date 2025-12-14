@@ -147,6 +147,10 @@ class MainWindow(QMainWindow):
         branch_widget.ai_turn_started.connect(self._on_ai_turn_started)
         branch_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
         
+        # Connect file open/close to AI context sync
+        branch_widget.file_opened.connect(chat_widget.add_file_to_context)
+        branch_widget.file_closed.connect(chat_widget.remove_file_from_context)
+        
         # Store references
         self._workspaces[branch_name] = workspace
         self._branch_widgets[branch_name] = branch_widget

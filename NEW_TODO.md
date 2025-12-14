@@ -115,10 +115,10 @@ Migrate to branch-first architecture where:
 - [x] Explorer shows current branch's files only
 - [x] Explorer refreshes after AI changes files
 
-### 4.1 Unify concepts
-- [ ] Opening a file tab adds it to AI context
-- [ ] Closing a file tab removes it from context
-- [ ] Remove separate "active files" management UI
+### 4.1 Unify concepts ✅
+- [x] Opening a file tab adds it to AI context via `file_opened` signal → `add_file_to_context()`
+- [x] Closing a file tab removes it from context via `file_closed` signal → `remove_file_from_context()`
+- [x] No separate "active files" management UI needed - tabs ARE the context
 
 ### 4.2 Context display
 - [ ] Show token count per open file in tab tooltip

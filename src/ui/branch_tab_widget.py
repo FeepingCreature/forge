@@ -30,6 +30,8 @@ class BranchTabWidget(QWidget):
     # Signals
     file_modified = Signal(str)  # Emitted when a file is modified (filepath)
     file_saved = Signal(str, str)  # Emitted when saved (filepath, commit_oid)
+    file_opened = Signal(str)  # Emitted when a file is opened (filepath) - for AI context sync
+    file_closed = Signal(str)  # Emitted when a file is closed (filepath) - for AI context sync
     ai_turn_started = Signal()  # Forwarded from AI chat
     ai_turn_finished = Signal(str)  # Forwarded from AI chat (commit_oid)
     
@@ -174,6 +176,9 @@ class BranchTabWidget(QWidget):
         self._editors[filepath] = editor
         self.workspace.open_file(filepath)
         
+        # Emit signal for AI context sync
+        self.file_opened.emit(filepath)
+        
         return index
     
     def close_file(self, filepath: str) -> bool:
@@ -202,6 +207,9 @@ class BranchTabWidget(QWidget):
         del self._editors[filepath]
         self._modified_files.discard(filepath)
         self.workspace.close_file(filepath)
+        
+        # Emit signal for AI context sync
+        self.file_closed.emit(filepath)
         
         return True
     

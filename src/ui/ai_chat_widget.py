@@ -237,6 +237,9 @@ class AIChatWidget(QWidget):
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
 
+        # Connect loadFinished to scroll - this ensures we scroll AFTER content loads
+        self.chat_view.loadFinished.connect(self._on_chat_load_finished)
+
         # Pre-initialize with minimal HTML to avoid flash on first load
         self.chat_view.setHtml(
             """
@@ -940,7 +943,11 @@ class AIChatWidget(QWidget):
         html_parts.append("</body></html>")
 
         self.chat_view.setHtml("".join(html_parts))
-        # Scroll to bottom after content loads (check body exists first)
-        self.chat_view.page().runJavaScript(
-            "if (document.body) window.scrollTo(0, document.body.scrollHeight);"
-        )
+        # Scrolling happens in _on_chat_load_finished after content loads
+
+    def _on_chat_load_finished(self, ok: bool) -> None:
+        """Scroll to bottom after chat content has loaded"""
+        if ok:
+            self.chat_view.page().runJavaScript(
+                "window.scrollTo(0, document.body.scrollHeight);"
+            )

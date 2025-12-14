@@ -520,11 +520,11 @@ class AIChatWidget(QWidget):
     def _on_stream_chunk(self, chunk: str) -> None:
         """Handle a streaming chunk"""
         self.streaming_content += chunk
-        # Update the last message with accumulated content
+        # Update the last message with accumulated content (for final state)
         if self.messages and self.messages[-1]["role"] == "assistant":
             self.messages[-1]["content"] = self.streaming_content
-            # Use incremental update instead of full re-render
-            self._update_streaming_content()
+        # Append raw chunk to streaming element - no markdown re-render
+        self._append_streaming_chunk(chunk)
 
     def _on_stream_finished(self, result: dict[str, Any]) -> None:
         """Handle stream completion"""
@@ -541,6 +541,9 @@ class AIChatWidget(QWidget):
         # Update final message
         if result.get("content") and self.messages and self.messages[-1]["role"] == "assistant":
             self.messages[-1]["content"] = result["content"]
+
+        # Finalize streaming content with proper markdown rendering
+        self._finalize_streaming_content()
 
         # Handle tool calls if present
         if result.get("tool_calls"):
@@ -692,8 +695,39 @@ class AIChatWidget(QWidget):
         """Get messages that are part of the actual conversation (excludes UI-only messages)"""
         return [msg for msg in self.messages if not msg.get("_ui_only", False)]
 
-    def _update_streaming_content(self) -> None:
-        """Update just the streaming message content without full re-render"""
+    def _append_streaming_chunk(self, chunk: str) -> None:
+        """Append a raw text chunk to the streaming message (no markdown re-render)"""
+        # Escape the chunk for JavaScript string
+        escaped_chunk = (
+            chunk
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        )
+        
+        # Append raw text to streaming element - browser handles display
+        js_code = f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                var content = streamingMsg.querySelector('.content');
+                if (content) {{
+                    // Append to raw text accumulator
+                    if (!content.dataset.rawText) content.dataset.rawText = '';
+                    content.dataset.rawText += `{escaped_chunk}`;
+                    // Display as preformatted text during streaming
+                    content.innerText = content.dataset.rawText;
+                }}
+                window.scrollTo(0, document.body.scrollHeight);
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
+
+    def _finalize_streaming_content(self) -> None:
+        """Convert accumulated streaming text to markdown (called once at end)"""
         if not self.streaming_content:
             return
         
@@ -711,13 +745,16 @@ class AIChatWidget(QWidget):
             .replace("$", "\\$")
         )
         
-        # Update just the streaming message element
+        # Replace streaming content with rendered markdown
         js_code = f"""
         (function() {{
             var streamingMsg = document.getElementById('streaming-message');
             if (streamingMsg) {{
-                streamingMsg.querySelector('.content').innerHTML = `{escaped_html}`;
-                window.scrollTo(0, document.body.scrollHeight);
+                var content = streamingMsg.querySelector('.content');
+                if (content) {{
+                    content.innerHTML = `{escaped_html}`;
+                    delete content.dataset.rawText;
+                }}
             }}
         }})();
         """
@@ -777,6 +814,11 @@ class AIChatWidget(QWidget):
                     padding: 12px;
                     border-radius: 6px;
                     overflow-x: auto;
+                }
+                /* Streaming content shows as preformatted until finalized */
+                #streaming-message .content {
+                    white-space: pre-wrap;
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 }
                 .approval-buttons {
                     margin-top: 10px;

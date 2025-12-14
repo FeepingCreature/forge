@@ -200,33 +200,42 @@ Migrate to branch-first architecture where:
 ## Refactoring: Session Model Simplification
 
 ### Remove session UUIDs
+- [x] Update `BranchWorkspace` to remove `session_id` field
+- [x] Add `load_session_data()` and `save_session_data()` to BranchWorkspace
 - [ ] Replace `.forge/sessions/{uuid}.json` with `.forge/session.json`
 - [ ] Remove `session_id` parameter from `AIChatWidget`
 - [ ] Remove `session_id` from `SessionManager`
 - [ ] Use `branch_name` as the sole identifier
-- [ ] Update `BranchWorkspace` to remove `session_id` field
 
 ### Remove special branch prefix
-- [ ] Remove `is_session_branch` checks (all branches can have sessions)
-- [ ] Remove `forge/session/` prefix requirement
+- [x] Remove `is_session_branch` checks - replaced with `has_session`
+- [ ] Remove `forge/session/` prefix requirement from MainWindow
 - [ ] Update `_open_branch()` to not check for prefix
 - [ ] Update display names to just use branch name
 
 ### Session file handling
-- [ ] Load session from `.forge/session.json` in branch VFS
+- [x] Add methods to load/save session from `.forge/session.json` in branch VFS
 - [ ] Create session file on first AI turn (if missing)
 - [ ] Session file diverges naturally when branching
 
-### TODO: Merge conflict handling
-- [ ] Detect `.forge/session.json` conflicts during merge
-- [ ] Option to archive merged session to `.forge/merged/{branch}.json`
-- [ ] Or simply keep current branch's session (discard incoming)
+### Merge conflict handling
+- [ ] On merge, archive source branch session to `.forge/merged/{branch_name}.json`
+- [ ] Keep current branch's `.forge/session.json` as-is
+- [ ] No conflict resolution needed - merge means work is done
+
+### Main branch protection
+- [ ] Detect when AI turn is starting on main/master branch
+- [ ] Show confirmation dialog: "Start AI session on main branch?"
+- [ ] Suggest creating a new branch instead
+- [ ] Allow user to proceed if they really want to
+
+### File tab persistence
+- [ ] Track open files in session data
+- [ ] File tab changes are FOLLOW_UP commits (auto-amend)
+- [ ] Restore open files when reopening a branch
 
 ---
 
 ## Open Questions
 
-1. **Main branch protection**: Require confirmation before committing to main?
-2. **File tab persistence**: Remember open files per-branch across restarts?
-3. **Conflict during AI turn**: What if user's main branch changes while AI works on session branch?
-4. **Session merge strategy**: Archive, discard, or attempt to merge conversation histories?
+1. **File tab persistence across restarts:** Remember open files per-branch when app restarts?

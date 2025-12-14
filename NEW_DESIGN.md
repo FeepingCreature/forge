@@ -293,17 +293,19 @@ The `forge/session/` prefix is no longer required or special. Any branch can hav
 - [ ] Keyboard shortcuts for branch navigation
 - [ ] "New branch from here" action
 
+## Design Decisions
+
+1. **Main branch protection:** Require confirmation before starting an AI agent flow on main. Direct manual edits are fine, but AI sessions should prompt.
+
+2. **Concurrent editing:** User can freely edit their branch while AI works on a session branch. That's the whole point of branch isolation.
+
+3. **Session merge strategy:** Archive session on merge. When a branch is merged, its `.forge/session.json` is archived to `.forge/merged/{branch_name}.json`. Merge means the work is done.
+
+4. **File tab persistence:** Open file tab changes are FOLLOW_UP commits, so they auto-amend onto the previous commit. No separate commit noise for tab state.
+
 ## Open Questions
 
-1. **File tab state persistence:** When switching branch tabs, should open files be remembered per-branch?
-
-2. **Main branch protection:** Should `main` require confirmation before commit? Or is that overkill given easy revert?
-
-3. **Session merge conflicts:** When merging branches, `.forge/session.json` will conflict. Options:
-   - Archive merged session to `.forge/merged/{source_branch}.json`
-   - Let user choose which history to keep
-   - Attempt to merge conversation histories (complex)
-   - Simply discard the incoming session (simplest)
+1. **File tab persistence across restarts:** Remember open files per-branch when app restarts?
 
 ## Design Decisions Made
 

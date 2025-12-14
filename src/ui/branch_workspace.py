@@ -28,9 +28,8 @@ class BranchWorkspace:
     # Currently active file tab index (0 = AI chat, 1+ = files)
     active_tab_index: int = 0
     
-    # AI chat state (messages, session_id if applicable)
+    # AI chat state (messages loaded from .forge/session.json)
     ai_messages: list[dict[str, Any]] = field(default_factory=list)
-    session_id: str | None = None
     
     # VFS instance - created lazily
     _vfs: "WorkInProgressVFS | None" = field(default=None, repr=False)
@@ -44,17 +43,13 @@ class BranchWorkspace:
         return self._vfs
     
     @property
-    def is_session_branch(self) -> bool:
-        """Check if this is an AI session branch"""
-        return self.branch_name.startswith("forge/session/")
+    def has_session(self) -> bool:
+        """Check if this branch has a session file"""
+        return self.vfs.file_exists(".forge/session.json")
     
     @property
     def display_name(self) -> str:
         """Get a display-friendly name for the branch"""
-        if self.is_session_branch:
-            # Extract session ID and show abbreviated version
-            session_id = self.branch_name.replace("forge/session/", "")
-            return f"🤖 {session_id[:8]}"
         return self.branch_name
     
     def open_file(self, filepath: str) -> int:
@@ -111,3 +106,17 @@ class BranchWorkspace:
         # Clear and recreate VFS to pick up new HEAD
         from ..vfs.work_in_progress import WorkInProgressVFS
         self._vfs = WorkInProgressVFS(self.repo, self.branch_name)
+    
+    def load_session_data(self) -> dict[str, Any] | None:
+        """Load session data from .forge/session.json in this branch"""
+        import json
+        try:
+            content = self.vfs.read_file(".forge/session.json")
+            return json.loads(content)
+        except FileNotFoundError:
+            return None
+    
+    def save_session_data(self, data: dict[str, Any]) -> None:
+        """Save session data to .forge/session.json (accumulates in VFS)"""
+        import json
+        self.vfs.write_file(".forge/session.json", json.dumps(data, indent=2))

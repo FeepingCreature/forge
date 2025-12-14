@@ -467,6 +467,45 @@ class AIChatWidget(QWidget):
         # Send to LLM
         self._process_llm_request()
 
+    def _build_prompt_messages(self) -> list[dict[str, Any]]:
+        """
+        Build the complete prompt: context (summaries + active files) + conversation messages.
+        
+        This method should be called every time we send to the LLM, ensuring
+        the AI always sees the current state of active files.
+        """
+        # Build context with summaries and active files
+        context = self.session_manager.build_context()
+        context_parts = []
+
+        # Add repository summaries
+        if context["summaries"]:
+            context_parts.append("# Repository Files\n")
+            for filepath, summary in context["summaries"].items():
+                context_parts.append(f"- {filepath}: {summary}\n")
+            context_parts.append("\n")
+
+        # Add active files with full content
+        if context["active_files"]:
+            context_parts.append("# Active Files (Full Content)\n\n")
+            for filepath, content in context["active_files"].items():
+                context_parts.append(f"## {filepath}\n\n```\n{content}\n```\n\n")
+
+        context_message = "".join(context_parts)
+
+        # Get conversation messages (exclude UI-only messages)
+        conversation = self._get_conversation_messages()
+
+        # Build final prompt: context as system message, then conversation
+        prompt_messages: list[dict[str, Any]] = []
+        
+        if context_message:
+            prompt_messages.append({"role": "system", "content": context_message})
+        
+        prompt_messages.extend(conversation)
+        
+        return prompt_messages
+
     def _process_llm_request(self) -> None:
         """Process LLM request with streaming support"""
         api_key = self.session_manager.settings.get_api_key()
@@ -474,33 +513,8 @@ class AIChatWidget(QWidget):
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         client = LLMClient(api_key, model)
 
-        # Build context with summaries and active files
-        context = self.session_manager.build_context()
-        context_message = ""
-
-        # Add repository summaries (loop on possibly-empty dict)
-        for filepath, summary in context["summaries"].items():
-            if not context_message:
-                context_message += "# Repository Files\n\n"
-            context_message += f"- {filepath}: {summary}\n"
-        if context["summaries"]:
-            context_message += "\n"
-
-        # Add active files with full content (loop on possibly-empty dict)
-        for filepath, content in context["active_files"].items():
-            if not any(f in context_message for f in ["# Active Files"]):
-                context_message += "# Active Files (Full Content)\n\n"
-            context_message += f"## {filepath}\n\n```\n{content}\n```\n\n"
-
-        # Prepend context to messages if we have any
-        # Use only conversation messages (exclude UI-only messages)
-        messages_with_context = self._get_conversation_messages()
-        if context_message:
-            # Insert context before the last user message
-            last_user_idx = len(messages_with_context) - 1
-            messages_with_context.insert(
-                last_user_idx, {"role": "system", "content": context_message}
-            )
+        # Build complete prompt with fresh context
+        messages_with_context = self._build_prompt_messages()
 
         # Discover available tools
         tools = self.session_manager.tool_manager.discover_tools()
@@ -648,8 +662,11 @@ class AIChatWidget(QWidget):
         # Store tools for later use in response handler
         self._pending_tools = tools
 
+        # Rebuild prompt with fresh context (in case update_context changed active files)
+        messages_with_context = self._build_prompt_messages()
+
         self.nonstream_thread = QThread()
-        self.nonstream_worker = NonStreamWorker(client, self.messages, tools or None)
+        self.nonstream_worker = NonStreamWorker(client, messages_with_context, tools or None)
         self.nonstream_worker.moveToThread(self.nonstream_thread)
 
         # Connect signals

@@ -165,6 +165,7 @@ class AIChatWidget(QWidget):
         # Streaming worker
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
+        self._is_streaming = False
 
         # Summary worker
         self.summary_thread: QThread | None = None
@@ -513,6 +514,7 @@ class AIChatWidget(QWidget):
     def _start_streaming_message(self) -> None:
         """Add a placeholder message for streaming content"""
         self.messages.append({"role": "assistant", "content": ""})
+        self._is_streaming = True
         self._update_chat_display()
 
     def _on_stream_chunk(self, chunk: str) -> None:
@@ -521,7 +523,8 @@ class AIChatWidget(QWidget):
         # Update the last message with accumulated content
         if self.messages and self.messages[-1]["role"] == "assistant":
             self.messages[-1]["content"] = self.streaming_content
-            self._update_chat_display()
+            # Use incremental update instead of full re-render
+            self._update_streaming_content()
 
     def _on_stream_finished(self, result: dict[str, Any]) -> None:
         """Handle stream completion"""
@@ -531,6 +534,9 @@ class AIChatWidget(QWidget):
             self.stream_thread.wait()
             self.stream_thread = None
             self.stream_worker = None
+
+        # Mark streaming as finished
+        self._is_streaming = False
 
         # Update final message
         if result.get("content") and self.messages and self.messages[-1]["role"] == "assistant":
@@ -572,6 +578,9 @@ class AIChatWidget(QWidget):
             self.stream_thread.wait()
             self.stream_thread = None
             self.stream_worker = None
+
+        # Mark streaming as finished
+        self._is_streaming = False
 
         self.add_message("assistant", f"Error: {error_msg}")
         
@@ -682,6 +691,37 @@ class AIChatWidget(QWidget):
     def _get_conversation_messages(self) -> list[dict[str, Any]]:
         """Get messages that are part of the actual conversation (excludes UI-only messages)"""
         return [msg for msg in self.messages if not msg.get("_ui_only", False)]
+
+    def _update_streaming_content(self) -> None:
+        """Update just the streaming message content without full re-render"""
+        if not self.streaming_content:
+            return
+        
+        # Convert markdown to HTML
+        content_html = markdown.markdown(
+            self.streaming_content, 
+            extensions=["fenced_code", "codehilite"]
+        )
+        
+        # Escape for JavaScript string
+        escaped_html = (
+            content_html
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+        
+        # Update just the streaming message element
+        js_code = f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                streamingMsg.querySelector('.content').innerHTML = `{escaped_html}`;
+                window.scrollTo(0, document.body.scrollHeight);
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
 
     def get_session_data(self) -> dict[str, Any]:
         """Get session data for persistence (used by SessionManager for git commits)"""
@@ -825,9 +865,17 @@ class AIChatWidget(QWidget):
         """
         ]
 
-        for msg in self.messages:
+        for i, msg in enumerate(self.messages):
             role = msg["role"]
             content_md = msg["content"]
+            
+            # Check if this is the currently streaming message (last assistant message while streaming)
+            is_streaming_msg = (
+                self._is_streaming 
+                and i == len(self.messages) - 1 
+                and role == "assistant"
+            )
+            msg_id = 'id="streaming-message"' if is_streaming_msg else ""
 
             # Check if this message contains approval buttons that should be disabled
             # Look for tool names in the content
@@ -849,7 +897,7 @@ class AIChatWidget(QWidget):
 
             content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
             html_parts.append(f"""
-            <div class="message {role}">
+            <div class="message {role}" {msg_id}>
                 <div class="role">{role.capitalize()}</div>
                 <div class="content">{content}</div>
             </div>

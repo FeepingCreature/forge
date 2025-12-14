@@ -31,7 +31,7 @@ def _levenshtein_distance(s1: str, s2: str) -> int:
     return previous_row[-1]
 
 
-def _find_best_match(search: str, content: str, max_candidates: int = 50) -> tuple[str, int, int]:
+def _find_best_match(search: str, content: str, max_candidates: int = 20) -> tuple[str, int, int]:
     """
     Find the substring in content most similar to search.
     
@@ -41,53 +41,95 @@ def _find_best_match(search: str, content: str, max_candidates: int = 50) -> tup
     if search_len == 0:
         return ("", 0, 0)
     
-    # Try different window sizes around the search length
+    print(f"🔍 _find_best_match: search_len={search_len}, content_len={len(content)}")
+    
+    # Cap search length for Levenshtein - too expensive for large strings
+    MAX_SEARCH_LEN = 500
+    if search_len > MAX_SEARCH_LEN:
+        print(f"   ⚠️ Search text too long ({search_len} > {MAX_SEARCH_LEN}), truncating for similarity search")
+        search = search[:MAX_SEARCH_LEN]
+        search_len = MAX_SEARCH_LEN
+    
     best_match = ""
     best_distance = float('inf')
     best_pos = 0
+    calc_count = 0
+    MAX_CALCULATIONS = 100  # Hard cap on Levenshtein calculations
     
-    # Look at windows of similar size to search text
-    for window_delta in range(-min(20, search_len // 2), min(50, search_len)):
-        window_size = search_len + window_delta
-        if window_size <= 0 or window_size > len(content):
+    # Use difflib's SequenceMatcher for quick candidate finding (much faster than Levenshtein)
+    # Find lines that share common substrings with the search
+    search_lines = search.split('\n')
+    content_lines = content.split('\n')
+    
+    print(f"   Search has {len(search_lines)} lines, content has {len(content_lines)} lines")
+    
+    # Strategy 1: Find lines with matching first non-whitespace content
+    first_search_line = search_lines[0].strip() if search_lines else ""
+    candidate_line_nums = []
+    
+    for i, line in enumerate(content_lines):
+        if first_search_line and first_search_line[:20] in line:
+            candidate_line_nums.append(i)
+    
+    print(f"   Found {len(candidate_line_nums)} candidate lines matching start")
+    
+    # Strategy 2: If no matches, sample evenly through file
+    if not candidate_line_nums:
+        step = max(1, len(content_lines) // max_candidates)
+        candidate_line_nums = list(range(0, len(content_lines), step))
+        print(f"   No prefix matches, sampling {len(candidate_line_nums)} positions")
+    
+    # Limit candidates
+    candidate_line_nums = candidate_line_nums[:max_candidates]
+    
+    # Convert line numbers to character positions
+    line_starts = [0]
+    pos = 0
+    for line in content_lines[:-1]:
+        pos += len(line) + 1
+        line_starts.append(pos)
+    
+    # Check each candidate position
+    for line_num in candidate_line_nums:
+        if calc_count >= MAX_CALCULATIONS:
+            print(f"   ⚠️ Hit max calculations ({MAX_CALCULATIONS}), stopping search")
+            break
+        
+        if line_num >= len(line_starts):
             continue
-        
-        # Sample positions throughout the file to find candidates
-        step = max(1, (len(content) - window_size) // max_candidates)
-        
-        for pos in range(0, len(content) - window_size + 1, step):
-            candidate = content[pos:pos + window_size]
             
-            # Quick filter: if first/last chars don't match and candidate is way different, skip
-            # This is a heuristic to speed things up
-            if abs(len(candidate) - search_len) > search_len // 2:
+        start_pos = line_starts[line_num]
+        
+        # Try a few window sizes around search length
+        for size_delta in [-10, 0, 10, 30]:
+            if calc_count >= MAX_CALCULATIONS:
+                break
+                
+            end_pos = start_pos + search_len + size_delta
+            if end_pos <= start_pos or end_pos > len(content):
                 continue
             
+            candidate = content[start_pos:end_pos]
+            
+            # Skip if candidate is way too short
+            if len(candidate) < search_len // 2:
+                continue
+            
+            calc_count += 1
             distance = _levenshtein_distance(search, candidate)
             
             if distance < best_distance:
                 best_distance = distance
                 best_match = candidate
-                best_pos = pos
-    
-    # Also try to find matches starting at each line
-    lines_start = 0
-    for line in content.split('\n'):
-        if len(line) > 0:
-            # Try matching from line starts with similar length
-            for end_offset in range(-10, 50):
-                end_pos = lines_start + search_len + end_offset
-                if end_pos <= lines_start or end_pos > len(content):
-                    continue
-                candidate = content[lines_start:end_pos]
-                distance = _levenshtein_distance(search, candidate)
+                best_pos = start_pos
+                print(f"   New best: distance={distance}, pos={start_pos}, line={line_num + 1}")
                 
-                if distance < best_distance:
-                    best_distance = distance
-                    best_match = candidate
-                    best_pos = lines_start
-        
-        lines_start += len(line) + 1  # +1 for newline
+                # Early exit if we found a very close match
+                if distance < search_len * 0.1:  # Less than 10% edits needed
+                    print(f"   Found close match (<10% edits), stopping early")
+                    return (best_match, int(best_distance), best_pos)
+    
+    print(f"   Done: {calc_count} Levenshtein calculations, best_distance={best_distance}")
     
     return (best_match, int(best_distance), best_pos)
 
@@ -145,6 +187,11 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": f"File not found: {filepath}"}
 
     if search not in content:
+        print(f"❌ Search text not found in {filepath}")
+        print(f"   Search length: {len(search)} chars, {search.count(chr(10))} lines")
+        print(f"   Content length: {len(content)} chars")
+        print(f"   First 100 chars of search: {repr(search[:100])}")
+        
         # Find the closest matching text to help diagnose the issue
         best_match, distance, pos = _find_best_match(search, content)
         

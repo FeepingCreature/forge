@@ -918,7 +918,7 @@ class AIChatWidget(QWidget):
 
         for i, msg in enumerate(self.messages):
             role = msg["role"]
-            content_md = msg["content"]
+            content_md = msg["content"] or ""
             
             # Check if this is the currently streaming message (last assistant message while streaming)
             is_streaming_msg = (

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
+from ..prompts import SYSTEM_PROMPT
 from ..session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -474,24 +475,6 @@ class AIChatWidget(QWidget):
         This method should be called every time we send to the LLM, ensuring
         the AI always sees the current state of active files.
         """
-        # System instructions for efficient tool use
-        system_instructions = """You are an AI coding assistant in Forge, a git-backed IDE.
-
-## Tool Usage Guidelines
-
-**BATCH YOUR TOOL CALLS**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs.
-
-Examples of batching:
-- Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.
-- Need to edit multiple files? Return all `search_replace` calls together in one response.
-- Need to create several files? Return all `write_file` calls at once.
-
-**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
-
-**One commit per turn**: All your tool calls in a single response become one atomic git commit. Use this to your advantage - make all related changes together.
-
-"""
-        
         # Build context with summaries and active files
         context = self.session_manager.build_context()
         context_parts = []
@@ -518,7 +501,7 @@ Examples of batching:
         prompt_messages: list[dict[str, Any]] = []
         
         # Always include system instructions
-        full_system = system_instructions
+        full_system = SYSTEM_PROMPT
         if context_message:
             full_system += context_message
         

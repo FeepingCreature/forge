@@ -46,6 +46,32 @@ class SummaryWorker(QObject):
             self.error.emit(str(e))
 
 
+class NonStreamWorker(QObject):
+    """Worker for handling non-streaming LLM responses in a separate thread"""
+
+    finished = Signal(dict)  # Emitted when complete
+    error = Signal(str)  # Emitted on error
+
+    def __init__(
+        self,
+        client: LLMClient,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+    ) -> None:
+        super().__init__()
+        self.client = client
+        self.messages = messages
+        self.tools = tools
+
+    def run(self) -> None:
+        """Run the non-streaming request"""
+        try:
+            response = self.client.chat(self.messages, self.tools)
+            self.finished.emit(response)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class StreamWorker(QObject):
     """Worker for handling streaming LLM responses in a separate thread"""
 
@@ -164,6 +190,10 @@ class AIChatWidget(QWidget):
         # Streaming worker
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
+
+        # Non-streaming worker (for tool follow-ups)
+        self.nonstream_thread: QThread | None = None
+        self.nonstream_worker: NonStreamWorker | None = None
 
         # Summary worker
         self.summary_thread: QThread | None = None
@@ -565,10 +595,6 @@ class AIChatWidget(QWidget):
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls and continue conversation"""
-        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        api_key = self.session_manager.settings.get_api_key()
-        client = LLMClient(api_key, model)
-
         tools = self.session_manager.tool_manager.discover_tools()
         tool_manager = self.session_manager.tool_manager
 
@@ -610,12 +636,60 @@ class AIChatWidget(QWidget):
 
         self._update_chat_display()
 
-        # Continue conversation with tool results (non-streaming for now)
-        follow_up = client.chat(self.messages, tools=tools or None)
-        self._handle_llm_response(follow_up, client, tools)
+        # Continue conversation with tool results in background thread
+        self._continue_after_tools(tools)
+
+    def _continue_after_tools(self, tools: list[dict[str, Any]]) -> None:
+        """Continue LLM conversation after tool execution (in background thread)"""
+        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        api_key = self.session_manager.settings.get_api_key()
+        client = LLMClient(api_key, model)
+
+        # Store tools for later use in response handler
+        self._pending_tools = tools
+
+        self.nonstream_thread = QThread()
+        self.nonstream_worker = NonStreamWorker(client, self.messages, tools or None)
+        self.nonstream_worker.moveToThread(self.nonstream_thread)
+
+        # Connect signals
+        self.nonstream_worker.finished.connect(self._on_nonstream_finished)
+        self.nonstream_worker.error.connect(self._on_nonstream_error)
+        self.nonstream_thread.started.connect(self.nonstream_worker.run)
+
+        # Start the thread
+        self.nonstream_thread.start()
+
+    def _on_nonstream_finished(self, response: dict[str, Any]) -> None:
+        """Handle non-streaming LLM response completion"""
+        # Clean up thread
+        if self.nonstream_thread:
+            self.nonstream_thread.quit()
+            self.nonstream_thread.wait()
+            self.nonstream_thread = None
+            self.nonstream_worker = None
+
+        tools = getattr(self, '_pending_tools', None)
+        self._handle_llm_response(response, tools)
+
+    def _on_nonstream_error(self, error_msg: str) -> None:
+        """Handle non-streaming LLM error"""
+        # Clean up thread
+        if self.nonstream_thread:
+            self.nonstream_thread.quit()
+            self.nonstream_thread.wait()
+            self.nonstream_thread = None
+            self.nonstream_worker = None
+
+        self.add_message("assistant", f"Error: {error_msg}")
+        
+        # Emit signal that AI turn is finished (with empty string indicating no commit)
+        self.ai_turn_finished.emit("")
+        
+        self._reset_input()
 
     def _handle_llm_response(
-        self, response: dict[str, Any], client: LLMClient, tools: list[dict[str, Any]] | None
+        self, response: dict[str, Any], tools: list[dict[str, Any]] | None
     ) -> None:
         """Handle non-streaming LLM response (used for tool follow-ups)"""
         choice = response["choices"][0]

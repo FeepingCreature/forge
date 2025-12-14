@@ -957,7 +957,3 @@ class AIChatWidget(QWidget):
         html_parts.append("</body></html>")
 
         self.chat_view.setHtml("".join(html_parts))
-        # Scroll to bottom after content loads (check body exists first)
-        self.chat_view.page().runJavaScript(
-            "if (document.body) window.scrollTo(0, document.body.scrollHeight);"
-        )

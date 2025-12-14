@@ -47,32 +47,6 @@ class SummaryWorker(QObject):
             self.error.emit(str(e))
 
 
-class NonStreamWorker(QObject):
-    """Worker for handling non-streaming LLM responses in a separate thread"""
-
-    finished = Signal(dict)  # Emitted when complete
-    error = Signal(str)  # Emitted on error
-
-    def __init__(
-        self,
-        client: LLMClient,
-        messages: list[dict[str, Any]],
-        tools: list[dict[str, Any]] | None,
-    ) -> None:
-        super().__init__()
-        self.client = client
-        self.messages = messages
-        self.tools = tools
-
-    def run(self) -> None:
-        """Run the non-streaming request"""
-        try:
-            response = self.client.chat(self.messages, self.tools)
-            self.finished.emit(response)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
 class StreamWorker(QObject):
     """Worker for handling streaming LLM responses in a separate thread"""
 
@@ -192,10 +166,6 @@ class AIChatWidget(QWidget):
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
 
-        # Non-streaming worker (for tool follow-ups)
-        self.nonstream_thread: QThread | None = None
-        self.nonstream_worker: NonStreamWorker | None = None
-
         # Summary worker
         self.summary_thread: QThread | None = None
         self.summary_worker: SummaryWorker | None = None
@@ -236,9 +206,6 @@ class AIChatWidget(QWidget):
 
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
-
-        # Connect loadFinished to scroll - this ensures we scroll AFTER content loads
-        self.chat_view.loadFinished.connect(self._on_chat_load_finished)
 
         # Pre-initialize with minimal HTML to avoid flash on first load
         self.chat_view.setHtml(
@@ -661,84 +628,32 @@ class AIChatWidget(QWidget):
         self._continue_after_tools(tools)
 
     def _continue_after_tools(self, tools: list[dict[str, Any]]) -> None:
-        """Continue LLM conversation after tool execution (in background thread)"""
+        """Continue LLM conversation after tool execution (in background thread) with streaming"""
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         api_key = self.session_manager.settings.get_api_key()
         client = LLMClient(api_key, model)
 
-        # Store tools for later use in response handler
-        self._pending_tools = tools
-
         # Rebuild prompt with fresh context (in case update_context changed active files)
         messages_with_context = self._build_prompt_messages()
 
-        self.nonstream_thread = QThread()
-        self.nonstream_worker = NonStreamWorker(client, messages_with_context, tools or None)
-        self.nonstream_worker.moveToThread(self.nonstream_thread)
+        # Start streaming (same as initial request)
+        self.streaming_content = ""
+        self._start_streaming_message()
 
-        # Connect signals
-        self.nonstream_worker.finished.connect(self._on_nonstream_finished)
-        self.nonstream_worker.error.connect(self._on_nonstream_error)
-        self.nonstream_thread.started.connect(self.nonstream_worker.run)
+        self.stream_thread = QThread()
+        self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
+        self.stream_worker.moveToThread(self.stream_thread)
+
+        # Connect signals - use the same handlers as initial streaming
+        self.stream_worker.chunk_received.connect(self._on_stream_chunk)
+        self.stream_worker.finished.connect(self._on_stream_finished)
+        self.stream_worker.error.connect(self._on_stream_error)
+        self.stream_thread.started.connect(self.stream_worker.run)
 
         # Start the thread
-        self.nonstream_thread.start()
+        self.stream_thread.start()
 
-    def _on_nonstream_finished(self, response: dict[str, Any]) -> None:
-        """Handle non-streaming LLM response completion"""
-        # Clean up thread
-        if self.nonstream_thread:
-            self.nonstream_thread.quit()
-            self.nonstream_thread.wait()
-            self.nonstream_thread = None
-            self.nonstream_worker = None
 
-        tools = getattr(self, '_pending_tools', None)
-        self._handle_llm_response(response, tools)
-
-    def _on_nonstream_error(self, error_msg: str) -> None:
-        """Handle non-streaming LLM error"""
-        # Clean up thread
-        if self.nonstream_thread:
-            self.nonstream_thread.quit()
-            self.nonstream_thread.wait()
-            self.nonstream_thread = None
-            self.nonstream_worker = None
-
-        self.add_message("assistant", f"Error: {error_msg}")
-        
-        # Emit signal that AI turn is finished (with empty string indicating no commit)
-        self.ai_turn_finished.emit("")
-        
-        self._reset_input()
-
-    def _handle_llm_response(
-        self, response: dict[str, Any], tools: list[dict[str, Any]] | None
-    ) -> None:
-        """Handle non-streaming LLM response (used for tool follow-ups)"""
-        choice = response["choices"][0]
-        message = choice["message"]
-
-        # Check if there are tool calls
-        if "tool_calls" in message and message["tool_calls"]:
-            # Add assistant message with tool calls
-            self.messages.append(message)
-            # Continue with tool execution - don't commit yet
-            self._execute_tool_calls(message["tool_calls"])
-        else:
-            # Regular text response - this is the final response, commit now
-            content = message.get("content", "")
-            if content:
-                self.add_message("assistant", content)
-
-            # Commit AI turn - this is the ONLY place we commit - once per AI turn
-            commit_oid = self.session_manager.commit_ai_turn(self.messages)
-            self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
-
-            # Emit signal that AI turn is finished
-            self.ai_turn_finished.emit(commit_oid)
-
-            self._reset_input()
 
     def _reset_input(self) -> None:
         """Re-enable input after processing (if no pending approvals)"""
@@ -943,11 +858,7 @@ class AIChatWidget(QWidget):
         html_parts.append("</body></html>")
 
         self.chat_view.setHtml("".join(html_parts))
-        # Scrolling happens in _on_chat_load_finished after content loads
-
-    def _on_chat_load_finished(self, ok: bool) -> None:
-        """Scroll to bottom after chat content has loaded"""
-        if ok:
-            self.chat_view.page().runJavaScript(
-                "window.scrollTo(0, document.body.scrollHeight);"
-            )
+        # Scroll to bottom after content loads (check body exists first)
+        self.chat_view.page().runJavaScript(
+            "if (document.body) window.scrollTo(0, document.body.scrollHeight);"
+        )

@@ -31,10 +31,10 @@ Migrate to branch-first architecture where:
 - [x] Handle VFS lifecycle per branch
 
 ### 1.2 Create BranchTabWidget
-- [ ] Create `src/ui/branch_tab_widget.py`
-- [ ] Contains file tabs (QTabWidget) + AI chat as first tab
-- [ ] Manages open files within a single branch
-- [ ] Routes file operations through VFS
+- [x] Create `src/ui/branch_tab_widget.py`
+- [x] Contains file tabs (QTabWidget) + AI chat as first tab
+- [x] Manages open files within a single branch
+- [x] Routes file operations through VFS
 
 ### 1.3 Refactor MainWindow
 - [ ] Top-level tabs become branches (not mixed editor/AI)

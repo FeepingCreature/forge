@@ -679,7 +679,7 @@ class AIChatWidget(QWidget):
             ):
                 filepath = tool_args.get("filepath")
                 if filepath:
-                    self.session_manager.file_was_modified(filepath)
+                    self.session_manager.file_was_modified(filepath, tool_call["id"])
 
             # If search_replace failed and file isn't in context, add it so AI can see actual content
             if not result.get("success") and tool_name == "search_replace":

@@ -140,7 +140,7 @@ class SessionManager:
         # Also remove from prompt manager
         self.prompt_manager.remove_file_content(filepath)
 
-    def file_was_modified(self, filepath: str) -> None:
+    def file_was_modified(self, filepath: str, tool_call_id: str | None = None) -> None:
         """
         Notify that a file was modified (by AI tool).
 
@@ -149,6 +149,10 @@ class SessionManager:
 
         If the file isn't already in active context, it gets added
         so the AI can see its changes in subsequent tool calls.
+
+        Args:
+            filepath: Path to the modified file
+            tool_call_id: The tool call ID that modified this file (for context in prompt)
         """
         # If file not in active context, add it so AI sees its own changes
         if filepath not in self.active_files:
@@ -158,9 +162,7 @@ class SessionManager:
             # Read from VFS to get the NEW content including pending changes
             content = self.tool_manager.vfs.read_file(filepath)
             # append_file_content handles deleting old version and adding new at end
-            self.prompt_manager.append_file_content(
-                filepath, content, note="Content updated - summary at start may be outdated"
-            )
+            self.prompt_manager.append_file_content(filepath, content, tool_call_id=tool_call_id)
         except (FileNotFoundError, KeyError):
             # File was deleted
             self.prompt_manager.remove_file_content(filepath)

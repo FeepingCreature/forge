@@ -84,7 +84,9 @@ class PromptManager:
             )
         )
 
-    def append_file_content(self, filepath: str, content: str, note: str = "") -> None:
+    def append_file_content(
+        self, filepath: str, content: str, note: str = "", tool_call_id: str | None = None
+    ) -> None:
         """
         Add file content to the stream, removing any previous version.
 
@@ -92,6 +94,7 @@ class PromptManager:
             filepath: Path to the file
             content: Full file content
             note: Optional note (e.g., "summary may be outdated")
+            tool_call_id: If this file was just modified by a tool, the tool call ID
         """
         # Delete old version if exists (linear scan is fine for ~200 files max)
         for block in self.blocks:
@@ -103,15 +106,31 @@ class PromptManager:
                 block.deleted = True
                 break
 
-        # Format content block
-        note_text = f"\n\nNOTE: {note}" if note else ""
-        text = f"## {filepath}{note_text}\n\n```\n{content}\n```"
+        # Format content block with explicit annotation
+        # Make it VERY clear this is informative context, not a question
+        if tool_call_id:
+            header = (
+                f"[CONTEXT: File contents for {filepath} after tool call {tool_call_id}. "
+                f"This is purely informative - showing the result of the tool operation.]"
+            )
+        elif note:
+            header = (
+                f"[CONTEXT: File contents for {filepath}. "
+                f"This is purely informative context, not a question. NOTE: {note}]"
+            )
+        else:
+            header = (
+                f"[CONTEXT: File contents for {filepath}. "
+                f"This is purely informative context, not a question.]"
+            )
+
+        text = f"{header}\n\n```\n{content}\n```"
 
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.FILE_CONTENT,
                 content=text,
-                metadata={"filepath": filepath},
+                metadata={"filepath": filepath, "tool_call_id": tool_call_id},
             )
         )
 
@@ -220,6 +239,7 @@ class PromptManager:
             ):
                 # Group ALL consecutive user-role content into a single message
                 # This avoids consecutive user messages which break the Anthropic API
+                # FILE_CONTENT blocks are annotated explicitly to clarify they're context
                 content_blocks = []
                 while i < len(active_blocks) and active_blocks[i].block_type in (
                     BlockType.SUMMARIES,

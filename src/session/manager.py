@@ -100,30 +100,21 @@ class SessionManager:
         Call this before building messages to ensure prompt manager
         has current file contents. Summaries are set once at session start,
         not here.
+
+        NOTE: This only adds/removes files. File UPDATES are handled by
+        file_was_modified() which is called when tools actually change files.
+        This ensures only modified files move to end of prompt (cache optimization).
         """
-        # Sync active files - add any that are missing, update any that changed
         current_prompt_files = set(self.prompt_manager.get_active_files())
 
+        # Add files that are newly in context (not already in prompt manager)
         for filepath in self.active_files:
-            try:
-                # Read from VFS to get pending changes, not just committed content
-                content = self.tool_manager.vfs.read_file(filepath)
-
-                # Check if file is already in prompt manager
-                if filepath in current_prompt_files:
-                    # File exists - check if content changed by comparing
-                    # For now, always update (could optimize with hashing later)
-                    pass
-
-                # Add/update file content (this handles deletion of old version)
-                note = ""
-                if filepath in current_prompt_files:
-                    note = "Content updated - summary at start may be outdated"
-                self.prompt_manager.append_file_content(filepath, content, note)
-
-            except (FileNotFoundError, KeyError):
-                # File was deleted - remove from prompt manager
-                self.prompt_manager.remove_file_content(filepath)
+            if filepath not in current_prompt_files:
+                try:
+                    content = self.tool_manager.vfs.read_file(filepath)
+                    self.prompt_manager.append_file_content(filepath, content)
+                except (FileNotFoundError, KeyError):
+                    pass  # File doesn't exist, skip
 
         # Remove files that are no longer active
         for filepath in current_prompt_files:

@@ -69,7 +69,10 @@ class ForgeRepository:
         deletions: set[str] | None = None,
     ) -> pygit2.Oid:
         """
-        Create a new tree with changes applied to base branch
+        Create a new tree with changes applied to base branch.
+
+        Properly handles multiple files in the same directory by building
+        a nested structure first, then constructing trees recursively.
 
         Args:
             base_branch: Branch name to use as base
@@ -81,118 +84,86 @@ class ForgeRepository:
         """
         # Get base commit
         base_commit = self.get_branch_head(base_branch)
-
-        # Start with base tree
         base_tree = base_commit.tree
 
-        # Build new tree with changes
-        tree_builder = self.repo.TreeBuilder(base_tree)
-
-        # Handle deletions first
-        if deletions:
-            for filepath in deletions:
-                self._remove_from_tree(tree_builder, filepath, base_tree)
-
+        # Build nested structure for changes: {name: blob_oid} or {name: {nested...}}
+        nested_changes: dict = {}
         for filepath, content in changes.items():
-            # Create blob for new content
             blob_oid = self.repo.create_blob(content.encode("utf-8"))
+            parts = filepath.split("/")
+            current = nested_changes
+            for part in parts[:-1]:
+                if part not in current or not isinstance(current[part], dict):
+                    current[part] = {}
+                current = current[part]
+            current[parts[-1]] = blob_oid
 
-            # Add to tree (handles nested paths)
-            self._add_to_tree(tree_builder, filepath, blob_oid, base_tree)
+        # Build nested structure for deletions
+        nested_deletions: set = deletions or set()
 
-        # Write the tree
-        tree_oid = tree_builder.write()
+        # Recursively build tree
+        tree_oid = self._build_tree_recursive(base_tree, nested_changes, nested_deletions, "")
         return tree_oid
 
-    def _add_to_tree(
+    def _build_tree_recursive(
         self,
-        tree_builder: pygit2.TreeBuilder,
-        filepath: str,
-        blob_oid: pygit2.Oid,
         base_tree: pygit2.Tree | None,
-    ) -> None:
-        """Add a file to tree, handling nested directories"""
-        parts = filepath.split("/")
+        changes: dict,
+        deletions: set[str],
+        current_path: str,
+    ) -> pygit2.Oid:
+        """
+        Recursively build a tree from nested changes structure.
 
-        if len(parts) == 1:
-            # Simple file in root
-            tree_builder.insert(parts[0], blob_oid, pygit2.GIT_FILEMODE_BLOB)
-        else:
-            # Handle nested paths by recursively building subtrees
-            dir_name = parts[0]
-            rest_path = "/".join(parts[1:])
+        Args:
+            base_tree: The base tree at this level (or None for new dirs)
+            changes: Nested dict of changes at this level
+            deletions: Full set of deletion paths (we filter by current_path)
+            current_path: Path prefix for this level (for deletion matching)
+        """
+        tree_builder = self.repo.TreeBuilder(base_tree) if base_tree else self.repo.TreeBuilder()
 
-            # Get or create subtree
-            subtree: pygit2.Tree | None = None
-            if base_tree:
-                try:
-                    subtree_entry = base_tree[dir_name]
-                    subtree_obj = self.repo[subtree_entry.id]
-                    assert isinstance(subtree_obj, pygit2.Tree)
-                    subtree = subtree_obj
-                    subtree_builder = self.repo.TreeBuilder(subtree)
-                except KeyError:
-                    # Directory doesn't exist, create new tree
-                    subtree_builder = self.repo.TreeBuilder()
+        # Find deletions at this level
+        for del_path in list(deletions):
+            # Check if this deletion is at the current level
+            if current_path:
+                if not del_path.startswith(current_path + "/"):
+                    continue
+                relative = del_path[len(current_path) + 1:]
             else:
-                # No base tree, create new
-                subtree_builder = self.repo.TreeBuilder()
+                relative = del_path
 
-            # Recursively add to subtree
-            self._add_to_tree(subtree_builder, rest_path, blob_oid, subtree)
-
-            # Write subtree and add to parent
-            subtree_oid = subtree_builder.write()
-            tree_builder.insert(dir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
-
-    def _remove_from_tree(
-        self,
-        tree_builder: pygit2.TreeBuilder,
-        filepath: str,
-        base_tree: pygit2.Tree | None,
-    ) -> None:
-        """Remove a file from tree, handling nested directories"""
-        parts = filepath.split("/")
-
-        if len(parts) == 1:
-            # Simple file in root - just remove it
-            try:
-                tree_builder.remove(parts[0])
-            except KeyError:
-                pass  # File doesn't exist, nothing to remove
-        else:
-            # Handle nested paths by recursively rebuilding subtrees
-            dir_name = parts[0]
-            rest_path = "/".join(parts[1:])
-
-            # Get existing subtree
-            if base_tree:
+            parts = relative.split("/")
+            if len(parts) == 1:
+                # Direct deletion at this level
                 try:
-                    subtree_entry = base_tree[dir_name]
-                    subtree_obj = self.repo[subtree_entry.id]
-                    assert isinstance(subtree_obj, pygit2.Tree)
-                    subtree = subtree_obj
-                    subtree_builder = self.repo.TreeBuilder(subtree)
-
-                    # Recursively remove from subtree
-                    self._remove_from_tree(subtree_builder, rest_path, subtree)
-
-                    # Write subtree and update parent
-                    subtree_oid = subtree_builder.write()
-                    
-                    # Check if subtree is now empty
-                    new_subtree = self.repo[subtree_oid]
-                    assert isinstance(new_subtree, pygit2.Tree)
-                    if len(new_subtree) == 0:
-                        # Remove empty directory
-                        try:
-                            tree_builder.remove(dir_name)
-                        except KeyError:
-                            pass
-                    else:
-                        tree_builder.insert(dir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
+                    tree_builder.remove(parts[0])
                 except KeyError:
-                    pass  # Directory doesn't exist, nothing to remove
+                    pass
+
+        # Process all changes at this level
+        for name, value in changes.items():
+            if isinstance(value, dict):
+                # It's a subdirectory - recurse
+                subtree = None
+                if base_tree:
+                    try:
+                        entry = base_tree[name]
+                        obj = self.repo[entry.id]
+                        if isinstance(obj, pygit2.Tree):
+                            subtree = obj
+                    except KeyError:
+                        pass
+
+                subpath = f"{current_path}/{name}" if current_path else name
+                subtree_oid = self._build_tree_recursive(subtree, value, deletions, subpath)
+                tree_builder.insert(name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
+            else:
+                # It's a file - value is the blob_oid
+                tree_builder.insert(name, value, pygit2.GIT_FILEMODE_BLOB)
+
+        return tree_builder.write()
+
 
     def commit_tree(
         self,
@@ -313,19 +284,23 @@ class ForgeRepository:
         # Use provided tree or build new one
         if new_tree_oid is not None:
             tree_oid = new_tree_oid
-        else:
-            # Create new tree with additional changes on top of HEAD's tree
-            tree_builder = self.repo.TreeBuilder(head_commit.tree)
-
+        elif additional_changes:
+            # Build nested structure and create tree properly
+            nested_changes: dict = {}
             for filepath, content in additional_changes.items():
-                # Create blob for new content
                 blob_oid = self.repo.create_blob(content.encode("utf-8"))
+                parts = filepath.split("/")
+                current = nested_changes
+                for part in parts[:-1]:
+                    if part not in current or not isinstance(current[part], dict):
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = blob_oid
 
-                # Add to tree (handles nested paths)
-                self._add_to_tree(tree_builder, filepath, blob_oid, head_commit.tree)
-
-            # Write the new tree
-            tree_oid = tree_builder.write()
+            tree_oid = self._build_tree_recursive(head_commit.tree, nested_changes, set(), "")
+        else:
+            # No changes, use existing tree
+            tree_oid = head_commit.tree.id
 
         # Use original message if no new message provided
         message = new_message if new_message is not None else head_commit.message

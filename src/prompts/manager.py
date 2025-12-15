@@ -282,17 +282,8 @@ class PromptManager:
 
     def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
         """Create tool result message, with cache_control if it's the last content block"""
-        if is_last:
-            # Use content array format to support cache_control for caching
-            return {
-                "role": "tool",
-                "tool_call_id": block.metadata.get("tool_call_id", ""),
-                "content": [self._make_content_block(block.content, True)],
-            }
-        else:
-            # Standard string content format
-            return {
-                "role": "tool",
-                "tool_call_id": block.metadata.get("tool_call_id", ""),
-                "content": block.content,
-            }
+        return {
+            "role": "tool",
+            "tool_call_id": block.metadata.get("tool_call_id", ""),
+            "content": [self._make_content_block(block.content, is_last)],
+        }

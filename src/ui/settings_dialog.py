@@ -2,7 +2,7 @@
 Settings dialog for Forge
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
@@ -283,9 +283,7 @@ class SettingsDialog(QDialog):
         picker.model_selected.connect(self._on_model_selected)
 
         # Position below and aligned to left of the input field
-        input_pos = self.model_input.mapToGlobal(
-            self.model_input.rect().bottomLeft()
-        )
+        input_pos = self.model_input.mapToGlobal(self.model_input.rect().bottomLeft())
         picker.showAt(input_pos)
 
     def _on_model_selected(self, model: str) -> None:
@@ -303,9 +301,7 @@ class SettingsDialog(QDialog):
         picker.model_selected.connect(self._on_commit_model_selected)
 
         # Position below and aligned to left of the input field
-        input_pos = self.commit_model_input.mapToGlobal(
-            self.commit_model_input.rect().bottomLeft()
-        )
+        input_pos = self.commit_model_input.mapToGlobal(self.commit_model_input.rect().bottomLeft())
         picker.showAt(input_pos)
 
     def _on_commit_model_selected(self, model: str) -> None:
@@ -357,4 +353,3 @@ class SettingsDialog(QDialog):
         self.settings.save()
 
         self.accept()
-

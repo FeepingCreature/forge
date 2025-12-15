@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 @dataclass
 class ItemData:
     """Data stored in each list item"""
+
     model_name: str | None  # Full model name if leaf, None if group
     children: dict[str, Any] | None  # Child hierarchy if group
     child_prefix: str  # Prefix to strip from children's display names
@@ -30,7 +31,7 @@ class ItemData:
 class ModelPickerPopup(QFrame):
     """
     Popup model picker with Miller column navigation.
-    
+
     Shows as a dropdown/popup anchored to a button, with cascading columns.
     """
 
@@ -58,7 +59,9 @@ class ModelPickerPopup(QFrame):
 
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
-        self.setStyleSheet("ModelPickerPopup { background: white; border: 1px solid #888; border-radius: 4px; }")
+        self.setStyleSheet(
+            "ModelPickerPopup { background: white; border: 1px solid #888; border-radius: 4px; }"
+        )
 
         self._setup_ui()
         self._populate_column(0, self._build_hierarchy(self.models), "")
@@ -85,7 +88,7 @@ class ModelPickerPopup(QFrame):
         self.show()
         self.filter_input.setFocus()
         # Adjust if off-screen
-        if (screen := QApplication.screenAt(pos)):
+        if screen := QApplication.screenAt(pos):
             r = screen.availableGeometry()
             g = self.geometry()
             if g.right() > r.right():
@@ -129,9 +132,11 @@ class ModelPickerPopup(QFrame):
                 col.hide()
         self.setFixedWidth(min(900, max(1, visible) * 220 + 10))
 
-    def _build_hierarchy(self, items: list[str], depth: int = 0, prefix_so_far: str = "") -> dict[str, Any]:
+    def _build_hierarchy(
+        self, items: list[str], depth: int = 0, prefix_so_far: str = ""
+    ) -> dict[str, Any]:
         """Build nested dict: key -> full_model_name (leaf) or nested_dict (group)
-        
+
         For leaves, value is the ORIGINAL full model name (not stripped).
         prefix_so_far tracks what we've stripped to reconstruct full names.
         """
@@ -150,7 +155,7 @@ class ModelPickerPopup(QFrame):
         for prefix, group_items in groups.items():
             exact = [i for i in group_items if i == prefix]
             rest = [i for i in group_items if i != prefix]
-            
+
             if len(rest) == 0:
                 # Only exact matches - they are full model names at this level
                 for i in exact:
@@ -163,15 +168,15 @@ class ModelPickerPopup(QFrame):
                 # Find the actual prefix to strip (prefix + delimiter)
                 strip_prefix = self._find_strip_prefix(prefix, rest)
                 stripped_rest = [
-                    item[len(strip_prefix):] if item.startswith(strip_prefix) else item
+                    item[len(strip_prefix) :] if item.startswith(strip_prefix) else item
                     for item in rest
                 ]
-                
+
                 # Only recurse if we actually stripped something (making progress)
                 if stripped_rest != rest:
                     # Pass the accumulated prefix so leaves can reconstruct full names
                     new_prefix = prefix_so_far + strip_prefix
-                    
+
                     # If there are exact matches with the same name as the group key,
                     # include them IN the children to avoid key collision
                     if exact:
@@ -199,33 +204,33 @@ class ModelPickerPopup(QFrame):
         candidate = key + self.PRIMARY_DELIMITER
         if all(item.startswith(candidate) for item in items):
             return candidate
-        
+
         # Try secondary delimiters
         for d in self.SECONDARY_DELIMITERS:
             candidate = key + d
             if all(item.startswith(candidate) for item in items):
                 return candidate
-        
+
         # Just the key itself
         if all(item.startswith(key) for item in items):
             return key
-        
+
         return ""
 
     def _split_on_delimiter(self, items: list[str], delim: str) -> dict[str, list[str]] | None:
         # Find common prefix to strip before splitting (e.g., "gpt-" from all gpt models)
         strip_prefix = self._common_prefix_for_stripping(items)
-        
+
         # Split by first segment after stripping common prefix
         groups: dict[str, list[str]] = {}
         for item in items:
-            stripped = item[len(strip_prefix):] if strip_prefix else item
+            stripped = item[len(strip_prefix) :] if strip_prefix else item
             segment = stripped.split(delim)[0] if delim in stripped else stripped
             groups.setdefault(segment, []).append(item)
-        
+
         if len(groups) <= 1 or len(groups) >= len(items) * 0.8:
             return None
-        
+
         # Refine: find actual common prefix for each group and use as key
         refined: dict[str, list[str]] = {}
         for _, group_items in groups.items():
@@ -234,14 +239,14 @@ class ModelPickerPopup(QFrame):
                 refined[key].extend(group_items)
             else:
                 refined[key] = list(group_items)
-        
+
         return refined
 
     def _common_prefix_for_stripping(self, items: list[str]) -> str:
         """Find common prefix to strip, must end at a delimiter (inclusive)"""
         if not items or len(items) == 1:
             return ""
-        
+
         # Find character-by-character common prefix
         prefix = items[0]
         for item in items[1:]:
@@ -251,7 +256,7 @@ class ModelPickerPopup(QFrame):
             prefix = prefix[:i]
             if not prefix:
                 return ""
-        
+
         # Must end at a delimiter - find the last one
         all_delims = [self.PRIMARY_DELIMITER] + self.SECONDARY_DELIMITERS
         last_pos = -1
@@ -259,21 +264,21 @@ class ModelPickerPopup(QFrame):
             pos = prefix.rfind(d)
             if pos > last_pos:
                 last_pos = pos
-        
+
         if last_pos >= 0:
-            return prefix[:last_pos + 1]  # Include the delimiter
+            return prefix[: last_pos + 1]  # Include the delimiter
         return ""
 
     def _group_key_from_items(self, items: list[str]) -> str:
         """Find the appropriate group key (longest common prefix) from items.
-        
+
         Group keys should not cross the primary delimiter '/'. So if all items
         start with 'anthropic/claude-...', the group key is 'anthropic', not
         'anthropic/claude'.
         """
         if len(items) == 1:
             return items[0]
-        
+
         # Find common prefix character by character
         prefix = items[0]
         for item in items[1:]:
@@ -283,23 +288,23 @@ class ModelPickerPopup(QFrame):
             prefix = prefix[:i]
             if not prefix:
                 return items[0]
-        
+
         # If prefix exactly matches an item, use it
         if prefix in items:
             return prefix
-        
+
         # Truncate at first primary delimiter - don't cross '/' boundary
         primary_pos = prefix.find(self.PRIMARY_DELIMITER)
         if primary_pos > 0:
             return prefix[:primary_pos]
-        
+
         # No primary delimiter, try secondary delimiters (use last one)
         last_pos = -1
         for d in self.SECONDARY_DELIMITERS:
             pos = prefix.rfind(d)
             if pos > last_pos:
                 last_pos = pos
-        
+
         if last_pos > 0:
             return prefix[:last_pos]
         return prefix
@@ -307,7 +312,7 @@ class ModelPickerPopup(QFrame):
     def _find_best_split(self, items: list[str]) -> dict[str, list[str]] | None:
         best, best_cost = None, float("inf")
         for d in self.SECONDARY_DELIMITERS:
-            if (split := self._split_on_delimiter(items, d)):
+            if split := self._split_on_delimiter(items, d):
                 cost = self._split_cost(split)
                 if cost < best_cost:
                     best, best_cost = split, cost
@@ -321,7 +326,6 @@ class ModelPickerPopup(QFrame):
             cost += max(0, n - self.MAX_ITEMS_BEFORE_SPLIT) * 2
             cost += abs(n - self.IDEAL_GROUP_SIZE) * 0.5
         return cost
-
 
     def _populate_column(self, col_idx: int, data: dict[str, Any], parent_prefix: str) -> None:
         col = self._ensure_column(col_idx)
@@ -407,7 +411,6 @@ class ModelPickerPopup(QFrame):
                 if self._hierarchy_contains_model(value, target):
                     return True
         return False
-
 
     def _apply_filter(self, text: str) -> None:
         text = text.lower().strip()

@@ -40,7 +40,7 @@ class LLMClient:
     ) -> dict[str, Any]:
         """Send chat request to LLM (non-streaming) with retry on rate limit"""
         print(f"🌐 LLM Request: {self.model} (non-streaming, {len(messages)} messages)")
-        
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -62,14 +62,16 @@ class LLMClient:
 
             if response.status_code == 429:
                 # Rate limited - back off and retry
-                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
-                print(f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                wait_time = 2**attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
+                print(
+                    f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}"
+                )
                 time.sleep(wait_time)
                 continue
 
             response.raise_for_status()
             result: dict[str, Any] = response.json()
-            print(f"✅ LLM Response received")
+            print("✅ LLM Response received")
             return result
 
         # If we exhausted all retries, raise the last error
@@ -85,7 +87,7 @@ class LLMClient:
     ) -> Iterator[dict[str, Any]]:
         """Send chat request to LLM with streaming and retry on rate limit"""
         print(f"🌐 LLM Request: {self.model} (streaming, {len(messages)} messages)")
-        
+
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -109,8 +111,10 @@ class LLMClient:
 
             if response.status_code == 429:
                 # Rate limited - back off and retry
-                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
-                print(f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
+                wait_time = 2**attempt  # Exponential backoff: 1, 2, 4, 8, 16 seconds
+                print(
+                    f"⏳ Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}"
+                )
                 time.sleep(wait_time)
                 continue
 
@@ -121,7 +125,7 @@ class LLMClient:
             assert response is not None
             response.raise_for_status()
 
-        print(f"📡 Streaming response started")
+        print("📡 Streaming response started")
 
         # Parse SSE stream
         for line in response.iter_lines():

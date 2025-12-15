@@ -43,7 +43,7 @@ class ToolManager:
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
 
         self.branch_name = branch_name
-        
+
         # Keep repo reference private - only used for VFS creation and approval loading
         self._repo = repo
 

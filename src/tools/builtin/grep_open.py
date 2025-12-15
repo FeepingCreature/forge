@@ -59,7 +59,9 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """Search for pattern and add matching files to context"""
     pattern = args.get("pattern")
     include_extensions = args.get("include_extensions", [])
-    exclude_dirs = args.get("exclude_dirs", [".git", "__pycache__", "node_modules", ".venv", "venv"])
+    exclude_dirs = args.get(
+        "exclude_dirs", [".git", "__pycache__", "node_modules", ".venv", "venv"]
+    )
 
     if not isinstance(pattern, str):
         return {"success": False, "error": "pattern must be a string"}
@@ -72,11 +74,11 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
 
     # Get all files
     all_files = vfs.list_files()
-    
+
     # Filter and search
     matches: list[dict[str, Any]] = []
     files_to_add: list[str] = []
-    
+
     for filepath in all_files:
         # Check exclusions
         skip = False
@@ -86,7 +88,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
                 break
         if skip:
             continue
-        
+
         # Check extensions
         if include_extensions:
             ext_match = False
@@ -96,23 +98,25 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
                     break
             if not ext_match:
                 continue
-        
+
         # Read and search
         try:
             content = vfs.read_file(filepath)
         except (FileNotFoundError, UnicodeDecodeError):
             continue
-        
+
         # Count matches
         found = regex.findall(content)
         if found:
-            matches.append({
-                "filepath": filepath,
-                "match_count": len(found),
-                "first_match": found[0][:50] if found else "",
-            })
+            matches.append(
+                {
+                    "filepath": filepath,
+                    "match_count": len(found),
+                    "first_match": found[0][:50] if found else "",
+                }
+            )
             files_to_add.append(filepath)
-    
+
     if not matches:
         return {
             "success": True,
@@ -122,7 +126,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
             "add": [],
             "remove": [],
         }
-    
+
     return {
         "success": True,
         "message": f"Found {len(matches)} files matching '{pattern}'",

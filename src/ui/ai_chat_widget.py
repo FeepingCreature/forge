@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import markdown
-from PySide6.QtCore import QEvent, QObject, Qt, QRunnable, QThread, QThreadPool, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -406,36 +406,36 @@ class AIChatWidget(QWidget):
         """Add a file to the AI context"""
         self.session_manager.add_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())
-    
+
     def remove_file_from_context(self, filepath: str) -> None:
         """Remove a file from the AI context"""
         self.session_manager.remove_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())
-    
+
     def get_active_files(self) -> set[str]:
         """Get the set of files currently in AI context"""
         return self.session_manager.active_files.copy()
-    
+
     def check_unsaved_changes(self) -> bool:
         """
         Check if there are unsaved changes that should be saved before AI turn.
-        
+
         Returns True if OK to proceed, False if should abort.
         Override point for parent widgets to inject save logic.
         """
         # Default implementation: always proceed
         # BranchTabWidget will connect to this
         return True
-    
+
     # Callback for parent to set - returns True if OK to proceed
     unsaved_changes_check: Any = None
-    
+
     def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
         if not text or self.is_processing:
             return
-        
+
         # Check for unsaved changes if callback is set
         if self.unsaved_changes_check is not None:
             if not self.unsaved_changes_check():
@@ -461,14 +461,14 @@ class AIChatWidget(QWidget):
     def _build_prompt_messages(self) -> list[dict[str, Any]]:
         """
         Build the complete prompt using PromptManager.
-        
+
         The PromptManager maintains the prompt as an append-only stream,
         optimized for cache reuse. File contents are ordered so that
         recently-modified files are at the end.
         """
         # Sync prompt manager with current state (summaries, file contents)
         self.session_manager.sync_prompt_manager()
-        
+
         # Get optimized messages from prompt manager
         return self.session_manager.get_prompt_messages()
 
@@ -560,7 +560,7 @@ class AIChatWidget(QWidget):
         # Add to prompt manager
         if result.get("content"):
             self.session_manager.append_assistant_message(result["content"])
-        
+
         # Commit now
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
@@ -583,10 +583,10 @@ class AIChatWidget(QWidget):
         self._is_streaming = False
 
         self.add_message("assistant", f"Error: {error_msg}")
-        
+
         # Emit signal that AI turn is finished (with empty string indicating no commit)
         self.ai_turn_finished.emit("")
-        
+
         self._reset_input()
         return
 
@@ -627,19 +627,25 @@ class AIChatWidget(QWidget):
             }
             self.messages.append(tool_message)
             self.session_manager.append_tool_result(tool_call["id"], result_json)
-            
+
             # If tool modified a file, notify prompt manager to reorder
-            if result.get("success") and tool_name in ("write_file", "search_replace", "delete_file"):
+            if result.get("success") and tool_name in (
+                "write_file",
+                "search_replace",
+                "delete_file",
+            ):
                 filepath = tool_args.get("filepath")
                 if filepath:
                     self.session_manager.file_was_modified(filepath)
-            
+
             # If search_replace failed and file isn't in context, add it so AI can see actual content
             if not result.get("success") and tool_name == "search_replace":
                 filepath = tool_args.get("filepath")
                 if filepath and filepath not in self.session_manager.active_files:
                     self.session_manager.add_active_file(filepath)
-                    self._add_system_message(f"📂 Added `{filepath}` to context so you can see its actual content")
+                    self._add_system_message(
+                        f"📂 Added `{filepath}` to context so you can see its actual content"
+                    )
 
             # Display result (UI feedback)
             self._add_system_message(
@@ -677,8 +683,6 @@ class AIChatWidget(QWidget):
         # Start the thread
         self.stream_thread.start()
 
-
-
     def _reset_input(self) -> None:
         """Re-enable input after processing (if no pending approvals)"""
         self.is_processing = False
@@ -711,14 +715,13 @@ class AIChatWidget(QWidget):
         """Append a raw text chunk to the streaming message (no markdown re-render)"""
         # Escape the chunk for JavaScript string
         escaped_chunk = (
-            chunk
-            .replace("\\", "\\\\")
+            chunk.replace("\\", "\\\\")
             .replace("`", "\\`")
             .replace("$", "\\$")
             .replace("\n", "\\n")
             .replace("\r", "\\r")
         )
-        
+
         # Append raw text to streaming element - browser handles display
         # Only auto-scroll if user was already at bottom (within 50px threshold)
         js_code = f"""
@@ -751,21 +754,15 @@ class AIChatWidget(QWidget):
         """Convert accumulated streaming text to markdown (called once at end)"""
         if not self.streaming_content:
             return
-        
+
         # Convert markdown to HTML
         content_html = markdown.markdown(
-            self.streaming_content, 
-            extensions=["fenced_code", "codehilite"]
+            self.streaming_content, extensions=["fenced_code", "codehilite"]
         )
-        
+
         # Escape for JavaScript string
-        escaped_html = (
-            content_html
-            .replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-        )
-        
+        escaped_html = content_html.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+
         # Replace streaming content with rendered markdown
         js_code = f"""
         (function() {{
@@ -931,12 +928,10 @@ class AIChatWidget(QWidget):
         for i, msg in enumerate(self.messages):
             role = msg["role"]
             content_md = msg["content"] or ""
-            
+
             # Check if this is the currently streaming message (last assistant message while streaming)
             is_streaming_msg = (
-                self._is_streaming 
-                and i == len(self.messages) - 1 
-                and role == "assistant"
+                self._is_streaming and i == len(self.messages) - 1 and role == "assistant"
             )
             msg_id = 'id="streaming-message"' if is_streaming_msg else ""
 

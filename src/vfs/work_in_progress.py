@@ -126,9 +126,7 @@ class WorkInProgressVFS(VFS):
         changes = self.pending_changes.copy()
 
         # Create tree with changes and deletions
-        tree_oid = self.repo.create_tree_from_changes(
-            self.branch_name, changes, self.deleted_files
-        )
+        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)
 
         # Create commit with type
         commit_oid = self.repo.commit_tree(

@@ -4,20 +4,15 @@ Main window for Forge IDE - Branch-first architecture
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QInputDialog,
     QMainWindow,
     QMenu,
     QMessageBox,
     QStatusBar,
-    QTabBar,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -30,7 +25,6 @@ from .ai_chat_widget import AIChatWidget
 from .branch_tab_widget import BranchTabWidget
 from .branch_workspace import BranchWorkspace
 from .settings_dialog import SettingsDialog
-from .welcome_widget import WelcomeWidget
 
 
 class MainWindow(QMainWindow):
@@ -72,10 +66,10 @@ class MainWindow(QMainWindow):
         self.branch_tabs.tabCloseRequested.connect(self._close_branch_tab)
         self.branch_tabs.setMovable(True)
         self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)
-        
+
         # Add "+" button for new branch
         self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)
-        
+
         # Enable context menu on tab bar
         tab_bar = self.branch_tabs.tabBar()
         tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -91,7 +85,7 @@ class MainWindow(QMainWindow):
     def _create_new_branch_button(self) -> QWidget:
         """Create the '+' button for new branches"""
         from PySide6.QtWidgets import QPushButton
-        
+
         btn = QPushButton("+")
         btn.setFixedSize(24, 24)
         btn.setToolTip("New branch...")
@@ -121,11 +115,11 @@ class MainWindow(QMainWindow):
                 if self.branch_tabs.tabText(i).replace("🤖 ", "").replace("🌿 ", "") == branch_name:
                     self.branch_tabs.setCurrentIndex(i)
                     return
-        
+
         # Create workspace and widget
         workspace = BranchWorkspace(branch_name=branch_name, repo=self.repo)
         branch_widget = BranchTabWidget(workspace, self.settings)
-        
+
         # Create AI chat for this branch
         # Try to load existing session data from .forge/session.json
         session_data = self._load_session_data(branch_name)
@@ -135,29 +129,31 @@ class MainWindow(QMainWindow):
             repo=self.repo,
             branch_name=branch_name,
         )
-        
+
         # Set up unsaved changes check callback
-        chat_widget.unsaved_changes_check = lambda bw=branch_widget: self._check_unsaved_before_ai(bw)
-        
+        chat_widget.unsaved_changes_check = lambda bw=branch_widget: self._check_unsaved_before_ai(
+            bw
+        )
+
         # Add AI chat as first tab
         branch_widget.add_ai_chat_tab(chat_widget)
-        
+
         # Connect signals
         branch_widget.file_saved.connect(self._on_file_saved)
         branch_widget.ai_turn_started.connect(self._on_ai_turn_started)
         branch_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
-        
+
         # Connect file open to AI context sync (opening adds to context)
         # Note: closing a tab does NOT remove from context - use file explorer to manage
         branch_widget.file_opened.connect(chat_widget.add_file_to_context)
-        
+
         # Connect file explorer context changes to chat widget
         branch_widget.context_file_added.connect(chat_widget.add_file_to_context)
         branch_widget.context_file_removed.connect(chat_widget.remove_file_from_context)
-        
+
         # Connect chat widget context changes back to file explorer for visual update
         chat_widget.context_changed.connect(branch_widget.update_context_display)
-        
+
         # Restore active files to AI context (but don't force open tabs)
         # The AI's context is restored, but user's UI state is not forced
         if session_data and "active_files" in session_data:
@@ -167,18 +163,18 @@ class MainWindow(QMainWindow):
                     chat_widget.add_file_to_context(filepath)
                 except FileNotFoundError:
                     pass  # File may have been deleted
-        
+
         # Store references
         self._workspaces[branch_name] = workspace
         self._branch_widgets[branch_name] = branch_widget
-        
+
         # Add to tab widget - all branches get same treatment
         # Use 🤖 if branch has session data, 🌿 otherwise
         has_session = session_data is not None
         icon = "🤖" if has_session else "🌿"
         index = self.branch_tabs.addTab(branch_widget, f"{icon} {branch_name}")
         self.branch_tabs.setCurrentIndex(index)
-        
+
         self.status_bar.showMessage(f"Opened branch: {branch_name}")
 
     def _load_session_data(self, branch_name: str) -> dict[str, Any] | None:
@@ -192,24 +188,24 @@ class MainWindow(QMainWindow):
     def _check_unsaved_before_ai(self, branch_widget: BranchTabWidget) -> bool:
         """
         Check for unsaved changes before AI turn.
-        
+
         Returns True if OK to proceed, False to abort.
         """
         if not branch_widget.has_unsaved_changes():
             return True
-        
+
         # Prompt user
         reply = QMessageBox.question(
             self,
             "Unsaved Changes",
             "There are unsaved changes. Save before AI turn?\n\n"
             "(AI needs committed state to work properly)",
-            QMessageBox.StandardButton.Save |
-            QMessageBox.StandardButton.Discard |
-            QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
-        
+
         if reply == QMessageBox.StandardButton.Cancel:
             return False
         elif reply == QMessageBox.StandardButton.Save:
@@ -218,15 +214,15 @@ class MainWindow(QMainWindow):
         else:
             # Discard - proceed anyway (user's choice)
             return True
-    
+
     def _on_file_saved(self, filepath: str, commit_oid: str) -> None:
         """Handle file save notification"""
         self.status_bar.showMessage(f"Saved {filepath} → {commit_oid[:8]}")
-    
+
     def _on_ai_turn_started(self) -> None:
         """Handle AI turn starting"""
         self.status_bar.showMessage("🤖 AI working...")
-    
+
     def _on_ai_turn_finished(self, commit_oid: str) -> None:
         """Handle AI turn finishing"""
         if commit_oid:
@@ -238,7 +234,7 @@ class MainWindow(QMainWindow):
         """Handle branch tab switch"""
         if index < 0:
             return
-        
+
         # Update status bar with current branch
         tab_text = self.branch_tabs.tabText(index)
         # Strip emoji prefix
@@ -251,28 +247,28 @@ class MainWindow(QMainWindow):
         index = tab_bar.tabAt(pos)
         if index < 0:
             return
-        
+
         menu = QMenu(self)
-        
+
         # Get branch name from tab
         tab_text = self.branch_tabs.tabText(index)
         branch_name = self._get_branch_name_from_tab(index)
-        
+
         # Close action
         close_action = menu.addAction("Close")
         close_action.triggered.connect(lambda: self._close_branch_tab(index))
-        
+
         menu.addSeparator()
-        
+
         # Fork action
         fork_action = menu.addAction("Fork branch...")
         fork_action.triggered.connect(lambda: self._fork_branch(branch_name))
-        
+
         # Delete action (with confirmation)
         menu.addSeparator()
         delete_action = menu.addAction("Delete branch...")
         delete_action.triggered.connect(lambda: self._delete_branch(branch_name, index))
-        
+
         menu.exec(tab_bar.mapToGlobal(pos))
 
     def _get_branch_name_from_tab(self, index: int) -> str:
@@ -287,15 +283,15 @@ class MainWindow(QMainWindow):
     def _show_new_branch_dialog(self) -> None:
         """Show dialog to create a new branch"""
         menu = QMenu(self)
-        
+
         # New AI Session
         session_action = menu.addAction("🤖 New AI Session")
         session_action.triggered.connect(self._new_ai_session)
-        
+
         # New feature branch
         feature_action = menu.addAction("🌿 New Branch...")
         feature_action.triggered.connect(self._new_feature_branch)
-        
+
         # Show menu at button position
         btn = self.sender()
         if btn:
@@ -303,12 +299,7 @@ class MainWindow(QMainWindow):
 
     def _new_feature_branch(self) -> None:
         """Create a new feature branch"""
-        name, ok = QInputDialog.getText(
-            self,
-            "New Branch",
-            "Branch name:",
-            text="feature/"
-        )
+        name, ok = QInputDialog.getText(self, "New Branch", "Branch name:", text="feature/")
         if ok and name:
             # Create branch from current HEAD
             try:
@@ -325,7 +316,7 @@ class MainWindow(QMainWindow):
             self,
             "Fork Branch",
             f"New branch name (forking from {source_branch}):",
-            text=f"{source_branch}-fork"
+            text=f"{source_branch}-fork",
         )
         if ok and name:
             try:
@@ -343,18 +334,18 @@ class MainWindow(QMainWindow):
             "Delete Branch",
             f"Are you sure you want to delete branch '{branch_name}'?\n\nThis cannot be undone.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.No,
         )
-        
+
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Close the tab first
                 self._close_branch_tab(tab_index)
-                
+
                 # Delete the branch
                 branch = self.repo.repo.branches[branch_name]
                 branch.delete()
-                
+
                 self.status_bar.showMessage(f"Deleted branch: {branch_name}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to delete branch: {e}")
@@ -393,7 +384,7 @@ class MainWindow(QMainWindow):
         branch_menu.addAction("&New AI Session", self._new_ai_session)
         branch_menu.addAction("New &Branch...", self._new_feature_branch)
         branch_menu.addSeparator()
-        
+
         # Add existing branches submenu
         self._branches_submenu = branch_menu.addMenu("Open Branch")
         self._populate_branches_menu()
@@ -422,17 +413,14 @@ class MainWindow(QMainWindow):
     def _new_ai_session(self) -> None:
         """Create a new AI session as a branch"""
         from PySide6.QtWidgets import QInputDialog
-        
+
         # Prompt for branch name
         name, ok = QInputDialog.getText(
-            self,
-            "New AI Session",
-            "Branch name for AI session:",
-            text="ai/"
+            self, "New AI Session", "Branch name for AI session:", text="ai/"
         )
         if not ok or not name:
             return
-        
+
         branch_name = name
 
         # Create git branch from current HEAD
@@ -442,6 +430,7 @@ class MainWindow(QMainWindow):
             self.repo.repo.branches.create(branch_name, commit)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
+
             QMessageBox.critical(self, "Error", f"Failed to create branch: {e}")
             return
 
@@ -459,7 +448,7 @@ class MainWindow(QMainWindow):
 
         # Open the new session branch
         self._open_branch(branch_name)
-        
+
         # Refresh the branches menu
         self._populate_branches_menu()
 
@@ -468,51 +457,49 @@ class MainWindow(QMainWindow):
     def _populate_branches_menu(self) -> None:
         """Populate branches submenu with all branches"""
         self._branches_submenu.clear()
-        
+
         # Get all branches
         all_branches = list(self.repo.repo.branches)
-        
+
         # Add all branches - they're all equal now
         for branch_name in sorted(all_branches):
             # Check if branch has session data
             has_session = self._load_session_data(branch_name) is not None
             icon = "🤖" if has_session else "🌿"
             action = self._branches_submenu.addAction(f"{icon} {branch_name}")
-            action.triggered.connect(
-                lambda checked=False, b=branch_name: self._open_branch(b)
-            )
-        
+            action.triggered.connect(lambda checked=False, b=branch_name: self._open_branch(b))
+
         if not all_branches:
             self._branches_submenu.addAction("(No branches)").setEnabled(False)
 
     def _close_branch_tab(self, index: int) -> None:
         """Close a branch tab"""
         widget = self.branch_tabs.widget(index)
-        
+
         # Check for unsaved changes
         if isinstance(widget, BranchTabWidget) and widget.has_unsaved_changes():
             reply = QMessageBox.question(
                 self,
                 "Unsaved Changes",
                 "There are unsaved changes. Save before closing?",
-                QMessageBox.StandardButton.Save | 
-                QMessageBox.StandardButton.Discard | 
-                QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
             )
-            
+
             if reply == QMessageBox.StandardButton.Cancel:
                 return
             elif reply == QMessageBox.StandardButton.Save:
                 widget.save_all_files()
-        
+
         # Remove from tracking
         branch_name = self._get_branch_name_from_tab(index)
         if branch_name in self._workspaces:
             del self._workspaces[branch_name]
         if branch_name in self._branch_widgets:
             del self._branch_widgets[branch_name]
-        
+
         # Remove tab
         self.branch_tabs.removeTab(index)
 

@@ -129,7 +129,7 @@ class ForgeRepository:
             if current_path:
                 if not del_path.startswith(current_path + "/"):
                     continue
-                relative = del_path[len(current_path) + 1:]
+                relative = del_path[len(current_path) + 1 :]
             else:
                 relative = del_path
 
@@ -163,7 +163,6 @@ class ForgeRepository:
                 tree_builder.insert(name, value, pygit2.GIT_FILEMODE_BLOB)
 
         return tree_builder.write()
-
 
     def commit_tree(
         self,
@@ -410,7 +409,9 @@ class ForgeRepository:
                 assert entry.name is not None, "Tree entry name should never be None"
                 entry_path = f"{path}/{entry.name}" if path else entry.name
                 obj = self.repo[entry.id]
-                assert isinstance(obj, (pygit2.Tree, pygit2.Blob)), f"Unexpected git object type: {type(obj)}"
+                assert isinstance(obj, (pygit2.Tree, pygit2.Blob)), (
+                    f"Unexpected git object type: {type(obj)}"
+                )
                 if isinstance(obj, pygit2.Tree):
                     # Recursively walk subdirectories
                     walk_tree(obj, entry_path)

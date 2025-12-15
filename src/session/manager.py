@@ -25,15 +25,13 @@ class SessionManager:
     # The single session file path (branch-local, diverges naturally)
     SESSION_FILE = ".forge/session.json"
 
-    def __init__(
-        self, repo: ForgeRepository, branch_name: str, settings: "Settings"
-    ) -> None:
+    def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
         self.branch_name = branch_name
         self.settings = settings
 
         # Tool manager owns the VFS - all file access goes through it
         self.tool_manager = ToolManager(repo, branch_name)
-        
+
         # Keep repo reference only for commit operations (not file reading)
         self._repo = repo
 
@@ -97,37 +95,37 @@ class SessionManager:
     def sync_prompt_manager(self) -> None:
         """
         Sync the prompt manager with current state.
-        
+
         Call this before building messages to ensure prompt manager
         has current summaries and file contents.
         """
         # Update summaries in prompt manager
         self.prompt_manager.set_summaries(self.repo_summaries)
-        
+
         # Sync active files - add any that are missing, update any that changed
         current_prompt_files = set(self.prompt_manager.get_active_files())
-        
+
         for filepath in self.active_files:
             try:
                 # Read from VFS to get pending changes, not just committed content
                 content = self.tool_manager.vfs.read_file(filepath)
-                
+
                 # Check if file is already in prompt manager
                 if filepath in current_prompt_files:
                     # File exists - check if content changed by comparing
                     # For now, always update (could optimize with hashing later)
                     pass
-                
+
                 # Add/update file content (this handles deletion of old version)
                 note = ""
                 if filepath in current_prompt_files:
                     note = "Content updated - summary at start may be outdated"
                 self.prompt_manager.append_file_content(filepath, content, note)
-                
+
             except (FileNotFoundError, KeyError):
                 # File was deleted - remove from prompt manager
                 self.prompt_manager.remove_file_content(filepath)
-        
+
         # Remove files that are no longer active
         for filepath in current_prompt_files:
             if filepath not in self.active_files:
@@ -136,7 +134,7 @@ class SessionManager:
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
         self.active_files.add(filepath)
-        
+
         # Also add to prompt manager with current content (from VFS to include pending changes)
         try:
             content = self.tool_manager.vfs.read_file(filepath)
@@ -147,31 +145,30 @@ class SessionManager:
     def remove_active_file(self, filepath: str) -> None:
         """Remove a file from active context"""
         self.active_files.discard(filepath)
-        
+
         # Also remove from prompt manager
         self.prompt_manager.remove_file_content(filepath)
 
     def file_was_modified(self, filepath: str) -> None:
         """
         Notify that a file was modified (by AI tool).
-        
+
         This moves the file content to the end of the prompt stream
         so that cache can be reused for content before it.
-        
+
         If the file isn't already in active context, it gets added
         so the AI can see its changes in subsequent tool calls.
         """
         # If file not in active context, add it so AI sees its own changes
         if filepath not in self.active_files:
             self.active_files.add(filepath)
-        
+
         try:
             # Read from VFS to get the NEW content including pending changes
             content = self.tool_manager.vfs.read_file(filepath)
             # append_file_content handles deleting old version and adding new at end
             self.prompt_manager.append_file_content(
-                filepath, content, 
-                note="Content updated - summary at start may be outdated"
+                filepath, content, note="Content updated - summary at start may be outdated"
             )
         except (FileNotFoundError, KeyError):
             # File was deleted
@@ -265,7 +262,9 @@ class SessionManager:
         deleted_files = self.tool_manager.vfs.get_deleted_files()
 
         # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
-        has_real_changes = (len(all_changes) > 1 or self.SESSION_FILE not in all_changes or deleted_files)
+        has_real_changes = (
+            len(all_changes) > 1 or self.SESSION_FILE not in all_changes or deleted_files
+        )
         only_session_changed = not has_real_changes
         commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
 
@@ -286,15 +285,16 @@ class SessionManager:
 
         # Clear VFS pending changes and refresh to new HEAD
         self.tool_manager.clear_pending_changes()
-        
+
         # Refresh VFS to point to new commit (so next turn sees committed state)
         self.tool_manager.vfs = self._create_fresh_vfs()
 
         return str(commit_oid)
-    
+
     def _create_fresh_vfs(self) -> "WorkInProgressVFS":
         """Create a fresh VFS pointing to current branch HEAD"""
         from ..vfs.work_in_progress import WorkInProgressVFS
+
         return WorkInProgressVFS(self._repo, self.branch_name)
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
@@ -339,7 +339,7 @@ Keep it under 72 characters."""
         # List files through VFS (includes any pending new files)
         files = self.vfs.list_files()
         print(f"📝 Generating summaries for {len(files)} files (cached summaries will be reused)")
-        
+
         for filepath in files:
             if filepath.startswith(".forge/"):
                 continue  # Skip forge metadata
@@ -351,6 +351,7 @@ Keep it under 72 characters."""
             except KeyError:
                 # File is new (pending), hash the content
                 import hashlib
+
                 content = self.vfs.read_file(filepath)
                 blob_oid = hashlib.sha256(content.encode()).hexdigest()
 

@@ -154,10 +154,7 @@ class FileExplorerWidget(QWidget):
 
         # Extract just the filename (remove any existing icons)
         # The format is either "👁 📄 filename" or "    📄 filename"
-        if "📄" in text:
-            filename = text.split("📄")[-1].strip()
-        else:
-            filename = text.strip()
+        filename = text.split("📄")[-1].strip() if "📄" in text else text.strip()
 
         # Set new text with appropriate icon
         if filepath in self._context_files:

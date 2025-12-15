@@ -2,6 +2,7 @@
 Git repository management using pygit2
 """
 
+import contextlib
 from pathlib import Path
 
 import pygit2
@@ -136,10 +137,8 @@ class ForgeRepository:
             parts = relative.split("/")
             if len(parts) == 1:
                 # Direct deletion at this level
-                try:
+                with contextlib.suppress(KeyError):
                     tree_builder.remove(parts[0])
-                except KeyError:
-                    pass
 
         # Process all changes at this level
         for name, value in changes.items():

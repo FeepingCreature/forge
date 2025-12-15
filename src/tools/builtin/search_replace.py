@@ -44,19 +44,19 @@ def _find_best_match(search: str, content: str, max_candidates: int = 20) -> tup
     print(f"🔍 _find_best_match: search_len={search_len}, content_len={len(content)}")
 
     # Cap search length for Levenshtein - too expensive for large strings
-    MAX_SEARCH_LEN = 500
-    if search_len > MAX_SEARCH_LEN:
+    max_search_len = 500
+    if search_len > max_search_len:
         print(
-            f"   ⚠️ Search text too long ({search_len} > {MAX_SEARCH_LEN}), truncating for similarity search"
+            f"   ⚠️ Search text too long ({search_len} > {max_search_len}), truncating for similarity search"
         )
-        search = search[:MAX_SEARCH_LEN]
-        search_len = MAX_SEARCH_LEN
+        search = search[:max_search_len]
+        search_len = max_search_len
 
     best_match = ""
     best_distance = float("inf")
     best_pos = 0
     calc_count = 0
-    MAX_CALCULATIONS = 100  # Hard cap on Levenshtein calculations
+    max_calculations = 100  # Hard cap on Levenshtein calculations
 
     # Use difflib's SequenceMatcher for quick candidate finding (much faster than Levenshtein)
     # Find lines that share common substrings with the search
@@ -93,8 +93,8 @@ def _find_best_match(search: str, content: str, max_candidates: int = 20) -> tup
 
     # Check each candidate position
     for line_num in candidate_line_nums:
-        if calc_count >= MAX_CALCULATIONS:
-            print(f"   ⚠️ Hit max calculations ({MAX_CALCULATIONS}), stopping search")
+        if calc_count >= max_calculations:
+            print(f"   ⚠️ Hit max calculations ({max_calculations}), stopping search")
             break
 
         if line_num >= len(line_starts):
@@ -104,7 +104,7 @@ def _find_best_match(search: str, content: str, max_candidates: int = 20) -> tup
 
         # Try a few window sizes around search length
         for size_delta in [-10, 0, 10, 30]:
-            if calc_count >= MAX_CALCULATIONS:
+            if calc_count >= max_calculations:
                 break
 
             end_pos = start_pos + search_len + size_delta

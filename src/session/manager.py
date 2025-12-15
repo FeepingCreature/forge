@@ -4,11 +4,12 @@ Session manager for coordinating AI turns and git commits
 
 import hashlib
 import json
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ..config.settings import Settings
     from ..vfs.work_in_progress import WorkInProgressVFS
 

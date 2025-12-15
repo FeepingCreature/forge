@@ -16,7 +16,7 @@ def get_schema() -> dict[str, Any]:
             "name": "update_context",
             "description": """Add or remove files from active context in a single call.
 
-IMPORTANT: 
+IMPORTANT:
 - Load ALL files you need in ONE call (batch operation) to minimize round-trips
 - CLOSE files you no longer need to keep context size small
 - Files in active context have full content included in every turn (costs tokens)

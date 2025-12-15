@@ -2,6 +2,7 @@
 Main window for Forge IDE - Branch-first architecture
 """
 
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
@@ -158,11 +159,9 @@ class MainWindow(QMainWindow):
         # The AI's context is restored, but user's UI state is not forced
         if session_data and "active_files" in session_data:
             for filepath in session_data["active_files"]:
-                try:
-                    # Just add to context, don't open tab
+                # Just add to context, don't open tab
+                with contextlib.suppress(FileNotFoundError):
                     chat_widget.add_file_to_context(filepath)
-                except FileNotFoundError:
-                    pass  # File may have been deleted
 
         # Store references
         self._workspaces[branch_name] = workspace

@@ -24,7 +24,7 @@ Example: To find all files that use `MyClass`, call grep_open with pattern="MyCl
 
 The pattern is a Python regex. Common patterns:
 - "MyClass" - literal string match
-- "def my_function" - find function definitions  
+- "def my_function" - find function definitions
 - "import.*module" - find imports of a module
 - "TODO|FIXME" - find multiple patterns
 

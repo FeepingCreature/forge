@@ -200,11 +200,9 @@ class SettingsDialog(QDialog):
 
         return widget
 
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
         """Handle click events on model input fields"""
-        from PySide6.QtCore import QEvent as QE
-
-        if event.type() == QE.Type.MouseButtonPress:
+        if event.type() == QEvent.Type.MouseButtonPress:
             if obj == self.model_input:
                 self._show_model_picker()
                 return True
@@ -301,7 +299,7 @@ class SettingsDialog(QDialog):
 
         # Position below and aligned to left of the input field
         input_pos = self.model_input.mapToGlobal(self.model_input.rect().bottomLeft())
-        picker.showAt(input_pos)
+        picker.show_at(input_pos)
 
     def _on_model_selected(self, model: str) -> None:
         """Handle model selection from picker"""
@@ -319,7 +317,7 @@ class SettingsDialog(QDialog):
 
         # Position below and aligned to left of the input field
         input_pos = self.commit_model_input.mapToGlobal(self.commit_model_input.rect().bottomLeft())
-        picker.showAt(input_pos)
+        picker.show_at(input_pos)
 
     def _on_commit_model_selected(self, model: str) -> None:
         """Handle commit model selection from picker"""

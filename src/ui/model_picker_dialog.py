@@ -83,7 +83,7 @@ class ModelPickerPopup(QFrame):
         self.columns_layout.setSpacing(1)
         layout.addWidget(self.columns_container)
 
-    def showAt(self, pos: QPoint) -> None:
+    def show_at(self, pos: QPoint) -> None:
         self.move(pos)
         self.show()
         self.filter_input.setFocus()
@@ -96,7 +96,7 @@ class ModelPickerPopup(QFrame):
             if g.bottom() > r.bottom():
                 self.move(g.x(), pos.y() - g.height())
 
-    def focusOutEvent(self, event: QFocusEvent) -> None:
+    def focusOutEvent(self, event: QFocusEvent) -> None:  # noqa: N802
         if not (focused := QApplication.focusWidget()) or not self.isAncestorOf(focused):
             self.cancelled.emit()
             self.close()
@@ -409,9 +409,8 @@ class ModelPickerPopup(QFrame):
                 # Leaf - check if this stripped key matches end of target
                 if target == value or target.endswith(key) or target.endswith("/" + key):
                     return True
-            elif isinstance(value, dict):
-                if self._hierarchy_contains_model(value, target):
-                    return True
+            elif isinstance(value, dict) and self._hierarchy_contains_model(value, target):
+                return True
         return False
 
     def _apply_filter(self, text: str) -> None:

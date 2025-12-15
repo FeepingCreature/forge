@@ -481,9 +481,8 @@ class AIChatWidget(QWidget):
             return
 
         # Check for unsaved changes if callback is set
-        if self.unsaved_changes_check is not None:
-            if not self.unsaved_changes_check():
-                return  # User cancelled or needs to save first
+        if self.unsaved_changes_check is not None and not self.unsaved_changes_check():
+            return  # User cancelled or needs to save first
 
         # Normal message flow - add to both UI messages and prompt manager
         self.add_message("user", text)
@@ -775,7 +774,7 @@ class AIChatWidget(QWidget):
                 // Check if user is at bottom before modifying content
                 var scrollThreshold = 50;
                 var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-                
+
                 var content = streamingMsg.querySelector('.content');
                 if (content) {{
                     // Append to raw text accumulator
@@ -784,7 +783,7 @@ class AIChatWidget(QWidget):
                     // Display as preformatted text during streaming
                     content.innerText = content.dataset.rawText;
                 }}
-                
+
                 // Only scroll if user was already at bottom
                 if (wasAtBottom) {{
                     window.scrollTo(0, document.body.scrollHeight);

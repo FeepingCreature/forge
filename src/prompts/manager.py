@@ -46,9 +46,6 @@ class PromptManager:
         self.blocks: list[ContentBlock] = []
         self.system_prompt = system_prompt
 
-        # Summaries are locked after first set - they're a session-start snapshot
-        self._summaries_locked = False
-
         # Add system prompt as first block
         self.blocks.append(
             ContentBlock(
@@ -59,19 +56,15 @@ class PromptManager:
 
     def set_summaries(self, summaries: dict[str, str]) -> None:
         """
-        Set repository summaries. Only sets once per session (snapshot).
+        Set repository summaries. Should only be called once at session start.
 
-        Summaries are locked after first set to enable prompt caching.
+        This is a snapshot that won't update mid-session, enabling prompt caching.
         The AI will see actual file content for any files in active context,
         so outdated summaries are not a problem.
 
         Args:
             summaries: Dict of filepath -> summary text
         """
-        # Summaries are a one-time snapshot - don't update after initial set
-        if self._summaries_locked:
-            return
-
         if not summaries:
             return
 
@@ -90,9 +83,6 @@ class PromptManager:
                 content="".join(lines),
             )
         )
-
-        # Lock summaries - they're now fixed for this session
-        self._summaries_locked = True
 
     def append_file_content(self, filepath: str, content: str, note: str = "") -> None:
         """

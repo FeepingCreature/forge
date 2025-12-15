@@ -322,6 +322,9 @@ class AIChatWidget(QWidget):
             self.summary_thread = None
             self.summary_worker = None
 
+        # Set summaries in prompt manager (one-time snapshot for this session)
+        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)
+
         # Update the progress message to show completion
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
             self.messages

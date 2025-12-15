@@ -4,8 +4,9 @@ Session manager for coordinating AI turns and git commits
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -97,11 +98,9 @@ class SessionManager:
         Sync the prompt manager with current state.
 
         Call this before building messages to ensure prompt manager
-        has current summaries and file contents.
+        has current file contents. Summaries are set once at session start,
+        not here.
         """
-        # Update summaries in prompt manager
-        self.prompt_manager.set_summaries(self.repo_summaries)
-
         # Sync active files - add any that are missing, update any that changed
         current_prompt_files = set(self.prompt_manager.get_active_files())
 

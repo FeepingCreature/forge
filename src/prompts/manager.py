@@ -1,0 +1,248 @@
+"""
+PromptManager - Manages prompt construction with cache optimization
+
+The prompt is treated as an append-only stream with occasional deletions.
+When a file is modified, its old content block is deleted and new content
+is appended at the end. This maximizes cache reuse since Anthropic caches
+per-block with prefix matching.
+"""
+
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
+
+class BlockType(Enum):
+    SYSTEM = "system"
+    SUMMARIES = "summaries"
+    FILE_CONTENT = "file_content"
+    USER_MESSAGE = "user_message"
+    ASSISTANT_MESSAGE = "assistant_message"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+
+
+@dataclass
+class ContentBlock:
+    """A block in the prompt stream"""
+    block_type: BlockType
+    content: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+    deleted: bool = False
+
+
+class PromptManager:
+    """
+    Manages prompt as an append-only stream with deletions.
+    
+    Key operations:
+    - append_*: Add content to the stream
+    - file_modified: Delete old file content, append new at end
+    - to_messages: Convert to API format with cache_control on last block
+    """
+    
+    def __init__(self, system_prompt: str) -> None:
+        self.blocks: list[ContentBlock] = []
+        self.system_prompt = system_prompt
+        
+        # Add system prompt as first block
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.SYSTEM,
+            content=system_prompt,
+        ))
+    
+    def set_summaries(self, summaries: dict[str, str]) -> None:
+        """
+        Set repository summaries. Replaces any existing summaries block.
+        
+        Args:
+            summaries: Dict of filepath -> summary text
+        """
+        # Find and delete existing summaries block
+        for block in self.blocks:
+            if block.block_type == BlockType.SUMMARIES and not block.deleted:
+                block.deleted = True
+                break
+        
+        if not summaries:
+            return
+        
+        # Format summaries
+        lines = ["# Repository File Summaries\n"]
+        for filepath, summary in sorted(summaries.items()):
+            lines.append(f"## {filepath}\n{summary}\n")
+        
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.SUMMARIES,
+            content="\n".join(lines),
+        ))
+    
+    def append_file_content(self, filepath: str, content: str, note: str = "") -> None:
+        """
+        Add file content to the stream, removing any previous version.
+        
+        Args:
+            filepath: Path to the file
+            content: Full file content
+            note: Optional note (e.g., "summary may be outdated")
+        """
+        # Delete old version if exists (linear scan is fine for ~200 files max)
+        for block in self.blocks:
+            if (block.block_type == BlockType.FILE_CONTENT 
+                and block.metadata.get("filepath") == filepath
+                and not block.deleted):
+                block.deleted = True
+                break
+        
+        # Format content block
+        note_text = f"\n\nNOTE: {note}" if note else ""
+        text = f"## {filepath}{note_text}\n\n```\n{content}\n```"
+        
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.FILE_CONTENT,
+            content=text,
+            metadata={"filepath": filepath},
+        ))
+    
+    def remove_file_content(self, filepath: str) -> None:
+        """
+        Remove a file's content from the stream.
+        
+        Note: Caller should ensure summary is updated before calling this,
+        since the summary will be the only hint about this file.
+        """
+        for block in self.blocks:
+            if (block.block_type == BlockType.FILE_CONTENT
+                and block.metadata.get("filepath") == filepath
+                and not block.deleted):
+                block.deleted = True
+                break
+    
+    def append_user_message(self, content: str) -> None:
+        """Add a user message to the stream"""
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.USER_MESSAGE,
+            content=content,
+        ))
+    
+    def append_assistant_message(self, content: str) -> None:
+        """Add an assistant message to the stream"""
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.ASSISTANT_MESSAGE,
+            content=content,
+        ))
+    
+    def append_tool_call(self, tool_calls: list[dict[str, Any]]) -> None:
+        """Add tool calls to the stream"""
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.TOOL_CALL,
+            content="",  # Content is in metadata for tool calls
+            metadata={"tool_calls": tool_calls},
+        ))
+    
+    def append_tool_result(self, tool_call_id: str, result: str) -> None:
+        """Add a tool result to the stream"""
+        self.blocks.append(ContentBlock(
+            block_type=BlockType.TOOL_RESULT,
+            content=result,
+            metadata={"tool_call_id": tool_call_id},
+        ))
+    
+    def get_active_files(self) -> list[str]:
+        """Get list of files currently in context (not deleted)"""
+        files = []
+        for block in self.blocks:
+            if (block.block_type == BlockType.FILE_CONTENT
+                and not block.deleted
+                and "filepath" in block.metadata):
+                files.append(block.metadata["filepath"])
+        return files
+    
+    def to_messages(self) -> list[dict[str, Any]]:
+        """
+        Convert the block stream to API message format.
+        
+        Skips deleted blocks. Places cache_control on the last block.
+        """
+        messages: list[dict[str, Any]] = []
+        
+        # Filter out deleted blocks
+        active_blocks = [b for b in self.blocks if not b.deleted]
+        
+        if not active_blocks:
+            return messages
+        
+        # Group consecutive blocks by role for proper message structure
+        # System blocks -> system message
+        # Summaries + file content + user messages -> user messages
+        # Assistant messages + tool calls -> assistant messages
+        # Tool results -> tool messages
+        
+        i = 0
+        while i < len(active_blocks):
+            block = active_blocks[i]
+            is_last = (i == len(active_blocks) - 1)
+            
+            if block.block_type == BlockType.SYSTEM:
+                messages.append(self._make_system_message(block, is_last))
+            
+            elif block.block_type in (BlockType.SUMMARIES, BlockType.FILE_CONTENT, BlockType.USER_MESSAGE):
+                messages.append(self._make_user_message(block, is_last))
+            
+            elif block.block_type == BlockType.ASSISTANT_MESSAGE:
+                messages.append(self._make_assistant_message(block, is_last))
+            
+            elif block.block_type == BlockType.TOOL_CALL:
+                messages.append(self._make_assistant_tool_call(block, is_last))
+            
+            elif block.block_type == BlockType.TOOL_RESULT:
+                messages.append(self._make_tool_result(block, is_last))
+            
+            i += 1
+        
+        return messages
+    
+    def _make_content_block(self, text: str, is_last: bool) -> dict[str, Any]:
+        """Create a content block, adding cache_control if it's the last one"""
+        block: dict[str, Any] = {"type": "text", "text": text}
+        if is_last:
+            block["cache_control"] = {"type": "ephemeral"}
+        return block
+    
+    def _make_system_message(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        return {
+            "role": "system",
+            "content": [self._make_content_block(block.content, is_last)],
+        }
+    
+    def _make_user_message(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        return {
+            "role": "user",
+            "content": [self._make_content_block(block.content, is_last)],
+        }
+    
+    def _make_assistant_message(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        return {
+            "role": "assistant",
+            "content": [self._make_content_block(block.content, is_last)],
+        }
+    
+    def _make_assistant_tool_call(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        """Create assistant message with tool_calls"""
+        tool_calls = block.metadata.get("tool_calls", [])
+        msg: dict[str, Any] = {
+            "role": "assistant",
+            "tool_calls": tool_calls,
+        }
+        # Note: tool_calls don't use content blocks, so no cache_control here
+        return msg
+    
+    def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        msg: dict[str, Any] = {
+            "role": "tool",
+            "tool_call_id": block.metadata.get("tool_call_id", ""),
+            "content": block.content,
+        }
+        # Tool results also don't typically use content blocks
+        return msg

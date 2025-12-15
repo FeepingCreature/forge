@@ -633,6 +633,13 @@ class AIChatWidget(QWidget):
                 filepath = tool_args.get("filepath")
                 if filepath:
                     self.session_manager.file_was_modified(filepath)
+            
+            # If search_replace failed and file isn't in context, add it so AI can see actual content
+            if not result.get("success") and tool_name == "search_replace":
+                filepath = tool_args.get("filepath")
+                if filepath and filepath not in self.session_manager.active_files:
+                    self.session_manager.add_active_file(filepath)
+                    self._add_system_message(f"📂 Added `{filepath}` to context so you can see its actual content")
 
             # Display result (UI feedback)
             self._add_system_message(

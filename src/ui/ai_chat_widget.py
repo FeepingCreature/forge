@@ -653,11 +653,14 @@ class AIChatWidget(QWidget):
             result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
             # Add tool result to messages (this IS part of conversation history)
+            # Mark as _ui_only=False but _skip_display=True - it's sent to LLM but not rendered
+            # (we render a pretty-printed version separately below)
             result_json = json.dumps(result)
             tool_message = {
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
                 "content": result_json,
+                "_skip_display": True,  # Don't render raw JSON, we show pretty version
             }
             self.messages.append(tool_message)
             self.session_manager.append_tool_result(tool_call["id"], result_json)
@@ -680,7 +683,7 @@ class AIChatWidget(QWidget):
             tool_display_parts = [
                 f"🔧 **Tool call:** `{tool_name}`",
                 f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                f"**Result:**",
+                "**Result:**",
                 f"```json\n{json.dumps(result, indent=2)}\n```",
             ]
 
@@ -968,6 +971,10 @@ class AIChatWidget(QWidget):
         ]
 
         for i, msg in enumerate(self.messages):
+            # Skip messages marked for no display (e.g., raw tool results)
+            if msg.get("_skip_display"):
+                continue
+
             role = msg["role"]
             content_md = msg["content"] or ""
 

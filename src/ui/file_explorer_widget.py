@@ -81,7 +81,9 @@ class FileExplorerWidget(QWidget):
         self.tree.header().setSectionResizeMode(COL_CONTEXT, self.tree.header().ResizeMode.Fixed)
 
         # Add tooltip explaining the context icons
-        self.tree.setToolTip("Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
+        self.tree.setToolTip(
+            "Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context"
+        )
 
         layout.addWidget(self.tree)
 

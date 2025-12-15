@@ -6,7 +6,8 @@ from enum import Enum
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -66,10 +67,11 @@ class FileExplorerWidget(QWidget):
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self.tree.itemClicked.connect(self._on_item_clicked)
+        # Use viewport event filter to detect clicks on the icon area only
+        self.tree.viewport().installEventFilter(self)
 
         # Add tooltip explaining the context icons
-        self.tree.setToolTip("Double-click to open file\nSingle-click to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
+        self.tree.setToolTip("Double-click to open file\nClick ◯/● icon to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
 
         layout.addWidget(self.tree)
 
@@ -252,3 +254,42 @@ class FileExplorerWidget(QWidget):
         elif item_type == "dir":
             # Toggle expansion
             item.setExpanded(not item.isExpanded())
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:
+        """Filter events to detect clicks on the context icon area only"""
+        if watched == self.tree.viewport() and event.type() == QEvent.Type.MouseButtonPress:
+            mouse_event = event  # type: QMouseEvent
+            if mouse_event.button() == Qt.MouseButton.LeftButton:
+                pos = mouse_event.pos()
+                item = self.tree.itemAt(pos)
+                if item is not None:
+                    # Get the item's visual rect
+                    rect = self.tree.visualItemRect(item)
+                    # Calculate click position relative to item start
+                    # Account for indentation
+                    indent = self.tree.indentation()
+                    level = self._get_item_level(item)
+                    item_start_x = rect.x() + (indent * level)
+                    click_x = pos.x() - item_start_x
+
+                    # The icon is roughly the first 2 characters (icon + space)
+                    # Use font metrics to calculate icon width
+                    font_metrics = QFontMetrics(self.tree.font())
+                    # Icon is "● " or "◯ " - about 2 characters wide
+                    icon_width = font_metrics.horizontalAdvance("● ")
+
+                    if 0 <= click_x <= icon_width:
+                        # Click was on the icon - toggle context
+                        self._on_item_clicked(item, 0)
+                        return True  # Event handled
+
+        return super().eventFilter(watched, event)
+
+    def _get_item_level(self, item: QTreeWidgetItem) -> int:
+        """Get the nesting level of an item (0 for top-level)"""
+        level = 0
+        parent = item.parent()
+        while parent is not None:
+            level += 1
+            parent = parent.parent()
+        return level

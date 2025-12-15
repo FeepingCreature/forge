@@ -113,9 +113,9 @@ class FileExplorerWidget(QWidget):
 
         # Expand top-level directories by default
         for i in range(self.tree.topLevelItemCount()):
-            item = self.tree.topLevelItem(i)
-            if item and item.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
-                item.setExpanded(True)
+            top_item = self.tree.topLevelItem(i)
+            if top_item is not None and top_item.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
+                top_item.setExpanded(True)
 
     def set_context_files(self, context_files: set[str]) -> None:
         """Update which files are shown as being in AI context"""

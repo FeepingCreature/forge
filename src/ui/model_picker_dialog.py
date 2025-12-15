@@ -311,7 +311,7 @@ class ModelPickerPopup(QFrame):
 
     def _find_best_split(self, items: list[str]) -> dict[str, list[str]] | None:
         best: dict[str, list[str]] | None = None
-        best_cost = float("inf")
+        best_cost: float = float("inf")
         for d in self.SECONDARY_DELIMITERS:
             if split := self._split_on_delimiter(items, d):
                 cost = self._split_cost(split)

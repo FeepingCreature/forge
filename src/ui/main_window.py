@@ -235,7 +235,6 @@ class MainWindow(QMainWindow):
         """Handle branch tab switch"""
         if index < 0:
             return
-
         # Update status bar with current branch
         tab_text = self.branch_tabs.tabText(index)
         # Strip emoji prefix
@@ -271,7 +270,10 @@ class MainWindow(QMainWindow):
         delete_action = menu.addAction("Delete branch...")
         delete_action.triggered.connect(lambda: self._delete_branch(branch_name, index))
 
-        menu.exec(tab_bar.mapToGlobal(pos))
+        from PySide6.QtWidgets import QTabBar
+
+        if isinstance(tab_bar, QTabBar):
+            menu.exec(tab_bar.mapToGlobal(pos))
 
     def _get_branch_name_from_tab(self, index: int) -> str:
         """Get the actual branch name from a tab index"""
@@ -301,14 +303,14 @@ class MainWindow(QMainWindow):
 
     def _new_feature_branch(self) -> None:
         """Create a new feature branch"""
+        import pygit2
+
         name, ok = QInputDialog.getText(self, "New Branch", "Branch name:", text="feature/")
         if ok and name:
             # Create branch from current HEAD
             try:
                 head = self.repo.repo.head
-                commit = head.peel()
-                if not hasattr(commit, "id"):
-                    raise TypeError("Expected a Commit object")
+                commit = head.peel(pygit2.Commit)
                 self.repo.repo.branches.create(name, commit)
                 self._open_branch(name)
             except Exception as e:
@@ -316,6 +318,8 @@ class MainWindow(QMainWindow):
 
     def _fork_branch(self, source_branch: str) -> None:
         """Fork an existing branch"""
+        import pygit2
+
         name, ok = QInputDialog.getText(
             self,
             "Fork Branch",
@@ -324,13 +328,9 @@ class MainWindow(QMainWindow):
         )
         if ok and name:
             try:
-                # Get source branch head - returns Commit | Tree | Tag | Blob
+                # Get source branch head and peel to Commit
                 source_obj = self.repo.get_branch_head(source_branch)
-                # branches.create needs a Commit, peel to ensure we have one
-                if hasattr(source_obj, "peel"):
-                    source_commit = source_obj.peel(None)  # type: ignore[union-attr]
-                else:
-                    source_commit = source_obj
+                source_commit = source_obj.peel(pygit2.Commit)
                 self.repo.repo.branches.create(name, source_commit)
                 self._open_branch(name)
             except Exception as e:
@@ -421,6 +421,7 @@ class MainWindow(QMainWindow):
 
     def _new_ai_session(self) -> None:
         """Create a new AI session as a branch"""
+        import pygit2
         from PySide6.QtWidgets import QInputDialog
 
         # Prompt for branch name
@@ -435,12 +436,7 @@ class MainWindow(QMainWindow):
         # Create git branch from current HEAD
         try:
             head = self.repo.repo.head
-            head_obj = head.peel()
-            # Ensure we have a commit for branches.create
-            if hasattr(head_obj, "peel"):
-                commit = head_obj.peel(None)  # type: ignore[union-attr]
-            else:
-                commit = head_obj
+            commit = head.peel(pygit2.Commit)
             self.repo.repo.branches.create(branch_name, commit)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox

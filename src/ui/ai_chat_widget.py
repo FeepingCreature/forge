@@ -197,7 +197,8 @@ class AIChatWidget(QWidget):
                     self.session_manager.append_user_message(content)
                 elif role == "assistant":
                     if "tool_calls" in msg:
-                        self.session_manager.append_tool_call(msg["tool_calls"])
+                        # Pass both tool_calls and content (content may be the AI's reasoning)
+                        self.session_manager.append_tool_call(msg["tool_calls"], content)
                     elif content:
                         self.session_manager.append_assistant_message(content)
                 elif role == "tool":
@@ -572,28 +573,21 @@ class AIChatWidget(QWidget):
         # Mark streaming as finished
         self._is_streaming = False
 
-        # Update final message
-        if result.get("content") and self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["content"] = result["content"]
-
         # Finalize streaming content with proper markdown rendering
         self._finalize_streaming_content()
 
+        # Handle the streaming message - update with final content and tool_calls if present
+        if self.messages and self.messages[-1]["role"] == "assistant":
+            # Update content if present in result
+            if result.get("content"):
+                self.messages[-1]["content"] = result["content"]
+
+            # Add tool_calls if present
+            if result.get("tool_calls"):
+                self.messages[-1]["tool_calls"] = result["tool_calls"]
+
         # Handle tool calls if present
         if result.get("tool_calls"):
-            # Update the streaming message to include tool calls (or remove if empty)
-            if self.messages and self.messages[-1]["role"] == "assistant":
-                if not self.messages[-1]["content"]:
-                    # Remove empty streaming message, we'll add a proper one
-                    self.messages.pop()
-                    # Add assistant message with tool calls
-                    assistant_msg: dict[str, Any] = {"role": "assistant", "content": result.get("content")}
-                    assistant_msg["tool_calls"] = result["tool_calls"]
-                    self.messages.append(assistant_msg)
-                else:
-                    # Streaming message has content - just add tool_calls to it
-                    self.messages[-1]["tool_calls"] = result["tool_calls"]
-
             # Include content with tool calls so AI sees its own reasoning
             self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 

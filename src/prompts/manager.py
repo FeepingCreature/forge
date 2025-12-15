@@ -168,12 +168,12 @@ class PromptManager:
             )
         )
 
-    def append_tool_call(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Add tool calls to the stream"""
+    def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
+        """Add tool calls to the stream, optionally with accompanying text content"""
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_CALL,
-                content="",  # Content is in metadata for tool calls
+                content=content,  # Assistant's text that accompanied the tool calls
                 metadata={"tool_calls": tool_calls},
             )
         )
@@ -296,13 +296,15 @@ class PromptManager:
         }
 
     def _make_assistant_tool_call(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
-        """Create assistant message with tool_calls"""
+        """Create assistant message with tool_calls and optional content"""
         tool_calls = block.metadata.get("tool_calls", [])
         msg: dict[str, Any] = {
             "role": "assistant",
             "tool_calls": tool_calls,
         }
-        # Note: tool_calls don't use content blocks, so no cache_control here
+        # Include content if present (assistant may explain what it's doing)
+        if block.content:
+            msg["content"] = block.content
         return msg
 
     def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:

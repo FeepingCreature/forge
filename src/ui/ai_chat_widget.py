@@ -593,7 +593,8 @@ class AIChatWidget(QWidget):
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": result.get("content")}
             assistant_msg["tool_calls"] = result["tool_calls"]
             self.messages.append(assistant_msg)
-            self.session_manager.append_tool_call(result["tool_calls"])
+            # Include content with tool calls so AI sees its own reasoning
+            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
             # Execute tools - don't commit yet, AI will respond again
             self._execute_tool_calls(result["tool_calls"])

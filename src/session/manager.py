@@ -175,9 +175,9 @@ class SessionManager:
         """Add an assistant message to the prompt stream"""
         self.prompt_manager.append_assistant_message(content)
 
-    def append_tool_call(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Add tool calls to the prompt stream"""
-        self.prompt_manager.append_tool_call(tool_calls)
+    def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
+        """Add tool calls to the prompt stream, with any accompanying text content"""
+        self.prompt_manager.append_tool_call(tool_calls, content)
 
     def append_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add a tool result to the prompt stream"""

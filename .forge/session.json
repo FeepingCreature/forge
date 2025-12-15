@@ -118,6 +118,44 @@
     {
       "role": "assistant",
       "content": "The changes have been applied. Now both `CLAUDE.md` and `AGENTS.md` will be automatically added to the active context (with full file contents, not just summaries) in two scenarios:\n\n1. **New sessions**: After summaries are generated, these files are added to context in `_on_summaries_finished()`\n2. **Restored sessions**: When loading an existing session, these files are ensured to be in context\n\nThis means the AI will always have access to the full contents of project-specific instructions in these files, which is the standard convention for AI coding assistants."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: eedd2173",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Next, when adding tool calls to the UI, we don't stay at the bottom if we were scrolled to the bottom, as we do for normal content; we reset to the top. Can you fix that?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll look at how the chat display is updated and how scrolling is handled. The issue is that `_update_chat_display()` completely replaces the HTML, which resets scroll position. The streaming code handles this correctly with JavaScript that checks scroll position before updating.\n\nLet me find where tool calls trigger the display update:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        self.chat_view.setHtml(\\\"\\\".join(html_parts))\", \"replace\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        # Check if we were at the bottom before updating, then restore scroll position\\n        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n        self.chat_view.page().runJavaScript(\\n            \\\"\\\"\\\"\\n            (function() {\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                return wasAtBottom;\\n            })();\\n            \\\"\\\"\\\",\\n            lambda was_at_bottom: self._set_html_and_scroll(\\\"\\\".join(html_parts), was_at_bottom),\\n        )\\n\\n    def _set_html_and_scroll(self, html: str, scroll_to_bottom: bool) -> None:\\n        \\\"\\\"\\\"Set HTML content and optionally scroll to bottom\\\"\\\"\\\"\\n        self.chat_view.setHtml(html)\\n        if scroll_to_bottom:\\n            # Use a small delay to let the content render before scrolling\\n            self.chat_view.page().runJavaScript(\\n                \\\"\\\"\\\"\\n                setTimeout(function() {\\n                    window.scrollTo(0, document.body.scrollHeight);\\n                }, 10);\\n                \\\"\\\"\\\"\\n            )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GatEJ9LHLT3XtDXH5LENsw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GatEJ9LHLT3XtDXH5LENsw",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        self.chat_view.setHtml(\\\"\\\".join(html_parts))\",\n  \"replace\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        # Check if we were at the bottom before updating, then restore scroll position\\n        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n        self.chat_view.page().runJavaScript(\\n            \\\"\\\"\\\"\\n            (function() {\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                return wasAtBottom;\\n            })();\\n            \\\"\\\"\\\",\\n            lambda was_at_bottom: self._set_html_and_scroll(\\\"\\\".join(html_parts), was_at_bottom),\\n        )\\n\\n    def _set_html_and_scroll(self, html: str, scroll_to_bottom: bool) -> None:\\n        \\\"\\\"\\\"Set HTML content and optionally scroll to bottom\\\"\\\"\\\"\\n        self.chat_view.setHtml(html)\\n        if scroll_to_bottom:\\n            # Use a small delay to let the content render before scrolling\\n            self.chat_view.page().runJavaScript(\\n                \\\"\\\"\\\"\\n                setTimeout(function() {\\n                    window.scrollTo(0, document.body.scrollHeight);\\n                }, 10);\\n                \\\"\\\"\\\"\\n            )\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The fix has been applied. Now when `_update_chat_display()` is called (including when tool calls are added), it:\n\n1. First checks if the user was scrolled to the bottom (within 50px threshold)\n2. Then updates the HTML content\n3. If they were at the bottom, scrolls back to the bottom after content renders\n\nThis matches the behavior already used in `_append_streaming_chunk()` for streaming content, so the scrolling behavior should now be consistent across normal messages, tool calls, and streaming updates."
     }
   ]
 }

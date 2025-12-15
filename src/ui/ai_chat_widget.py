@@ -206,7 +206,7 @@ class AIChatWidget(QWidget):
                     self.session_manager.append_tool_result(tool_call_id, content)
             # Note: active_files are restored by MainWindow opening file tabs
             # The file_opened signals will sync them to SessionManager
-            
+
             # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions
             for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
                 if self.session_manager.vfs.file_exists(instructions_file):
@@ -1027,4 +1027,28 @@ class AIChatWidget(QWidget):
 
         html_parts.append("</body></html>")
 
-        self.chat_view.setHtml("".join(html_parts))
+        # Check if we were at the bottom before updating, then restore scroll position
+        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed
+        self.chat_view.page().runJavaScript(
+            """
+            (function() {
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+                return wasAtBottom;
+            })();
+            """,
+            lambda was_at_bottom: self._set_html_and_scroll("".join(html_parts), was_at_bottom),
+        )
+
+    def _set_html_and_scroll(self, html: str, scroll_to_bottom: bool) -> None:
+        """Set HTML content and optionally scroll to bottom"""
+        self.chat_view.setHtml(html)
+        if scroll_to_bottom:
+            # Use a small delay to let the content render before scrolling
+            self.chat_view.page().runJavaScript(
+                """
+                setTimeout(function() {
+                    window.scrollTo(0, document.body.scrollHeight);
+                }, 10);
+                """
+            )

@@ -42,10 +42,12 @@ class ToolManager:
         # Built-in tools directory (part of Forge)
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
 
-        self.repo = repo
         self.branch_name = branch_name
+        
+        # Keep repo reference private - only used for VFS creation and approval loading
+        self._repo = repo
 
-        # Create VFS for this session
+        # Create VFS for this session - this is THE source of truth for file content
         from ..vfs.work_in_progress import WorkInProgressVFS
 
         self.vfs: WorkInProgressVFS = WorkInProgressVFS(repo, branch_name)
@@ -63,11 +65,11 @@ class ToolManager:
         self._load_approved_tools()
 
     def _load_approved_tools(self) -> None:
-        """Load approved tools from git commit"""
+        """Load approved tools from VFS (git commit + pending changes)"""
         try:
-            content = self.repo.get_file_content(self.approved_tools_path, self.branch_name)
+            content = self.vfs.read_file(self.approved_tools_path)
             self._approved_tools = json.loads(content)
-        except (FileNotFoundError, KeyError):
+        except FileNotFoundError:
             # File doesn't exist yet, start with empty dict
             self._approved_tools = {}
 
@@ -129,13 +131,13 @@ class ToolManager:
         tool_names = ", ".join(self._pending_approvals.keys())
 
         # Create tree with approval changes
-        tree_oid = self.repo.create_tree_from_changes(
+        tree_oid = self._repo.create_tree_from_changes(
             self.branch_name, {self.approved_tools_path: content}
         )
 
         # Create [follow-up] commit - amends the previous commit
         message = f"approve tools: {tool_names}"
-        new_commit_oid = self.repo.commit_tree(
+        new_commit_oid = self._repo.commit_tree(
             tree_oid, message, self.branch_name, commit_type=CommitType.FOLLOW_UP
         )
 

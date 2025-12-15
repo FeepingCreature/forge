@@ -2,7 +2,6 @@
 BranchWorkspace - manages per-branch state for the branch-first architecture
 """
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -10,36 +9,39 @@ if TYPE_CHECKING:
     from ..vfs.work_in_progress import WorkInProgressVFS
 
 
-@dataclass
 class BranchWorkspace:
     """
     Manages state for a single branch tab.
     
     Each open branch in the UI has its own BranchWorkspace instance,
     containing its VFS, open files, and AI chat state.
+    
+    All file access goes through the VFS - the repo is only used
+    for git operations (commits, branch management).
     """
     
-    branch_name: str
-    repo: "ForgeRepository"
-    
-    # Open file tabs within this branch (paths)
-    open_files: list[str] = field(default_factory=list)
-    
-    # Currently active file tab index (0 = AI chat, 1+ = files)
-    active_tab_index: int = 0
-    
-    # AI chat state (messages loaded from .forge/session.json)
-    ai_messages: list[dict[str, Any]] = field(default_factory=list)
-    
-    # VFS instance - created lazily
-    _vfs: "WorkInProgressVFS | None" = field(default=None, repr=False)
+    def __init__(self, branch_name: str, repo: "ForgeRepository") -> None:
+        self.branch_name = branch_name
+        self._repo = repo  # Private - only for git operations, not file reading
+        
+        # Open file tabs within this branch (paths)
+        self.open_files: list[str] = []
+        
+        # Currently active file tab index (0 = AI chat, 1+ = files)
+        self.active_tab_index: int = 0
+        
+        # AI chat state (messages loaded from .forge/session.json)
+        self.ai_messages: list[dict[str, Any]] = []
+        
+        # VFS instance - created lazily, THE source of truth for file content
+        self._vfs: "WorkInProgressVFS | None" = None
     
     @property
     def vfs(self) -> "WorkInProgressVFS":
-        """Get or create the VFS for this branch"""
+        """Get or create the VFS for this branch - THE source of truth for file content"""
         if self._vfs is None:
             from ..vfs.work_in_progress import WorkInProgressVFS
-            self._vfs = WorkInProgressVFS(self.repo, self.branch_name)
+            self._vfs = WorkInProgressVFS(self._repo, self.branch_name)
         return self._vfs
     
     @property
@@ -105,7 +107,7 @@ class BranchWorkspace:
         """
         # Clear and recreate VFS to pick up new HEAD
         from ..vfs.work_in_progress import WorkInProgressVFS
-        self._vfs = WorkInProgressVFS(self.repo, self.branch_name)
+        self._vfs = WorkInProgressVFS(self._repo, self.branch_name)
     
     def load_session_data(self) -> dict[str, Any] | None:
         """Load session data from .forge/session.json in this branch"""

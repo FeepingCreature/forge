@@ -28,12 +28,14 @@ class SessionManager:
     def __init__(
         self, repo: ForgeRepository, branch_name: str, settings: "Settings"
     ) -> None:
-        self.repo = repo
         self.branch_name = branch_name
         self.settings = settings
 
-        # Tool manager for this session
+        # Tool manager owns the VFS - all file access goes through it
         self.tool_manager = ToolManager(repo, branch_name)
+        
+        # Keep repo reference only for commit operations (not file reading)
+        self._repo = repo
 
         # Prompt manager for cache-optimized prompt construction
         self.prompt_manager = PromptManager(SYSTEM_PROMPT)
@@ -195,6 +197,11 @@ class SessionManager:
         """Get the current prompt messages for LLM API"""
         return self.prompt_manager.to_messages()
 
+    @property
+    def vfs(self) -> "WorkInProgressVFS":
+        """Access the VFS through tool_manager - single source of truth for file content"""
+        return self.tool_manager.vfs
+
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimate (4 chars per token average)"""
         return len(text) // 4
@@ -206,7 +213,7 @@ class SessionManager:
 
         for filepath in sorted(self.active_files):
             try:
-                content = self.repo.get_file_content(filepath, self.branch_name)
+                content = self.vfs.read_file(filepath)
                 tokens = self._estimate_tokens(content)
                 total_tokens += tokens
                 files_info.append(
@@ -270,10 +277,10 @@ class SessionManager:
                 commit_message = self.generate_commit_message(all_changes)
 
         # Build tree from VFS changes (including deletions)
-        tree_oid = self.repo.create_tree_from_changes(self.branch_name, all_changes, deleted_files)
+        tree_oid = self._repo.create_tree_from_changes(self.branch_name, all_changes, deleted_files)
 
         # Create commit - will automatically absorb any PREPARE commits if MAJOR
-        commit_oid = self.repo.commit_tree(
+        commit_oid = self._repo.commit_tree(
             tree_oid, commit_message, self.branch_name, commit_type=commit_type
         )
 
@@ -288,7 +295,7 @@ class SessionManager:
     def _create_fresh_vfs(self) -> "WorkInProgressVFS":
         """Create a fresh VFS pointing to current branch HEAD"""
         from ..vfs.work_in_progress import WorkInProgressVFS
-        return WorkInProgressVFS(self.repo, self.branch_name)
+        return WorkInProgressVFS(self._repo, self.branch_name)
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
         """Generate commit message using cheap LLM"""
@@ -329,7 +336,8 @@ Keep it under 72 characters."""
         api_key = self.settings.get_api_key()
         client = LLMClient(api_key, model)
 
-        files = self.repo.get_all_files(self.branch_name)
+        # List files through VFS (includes any pending new files)
+        files = self.vfs.list_files()
         print(f"📝 Generating summaries for {len(files)} files (cached summaries will be reused)")
         
         for filepath in files:
@@ -337,7 +345,14 @@ Keep it under 72 characters."""
                 continue  # Skip forge metadata
 
             # Get blob OID (content hash) for cache key
-            blob_oid = self.repo.get_file_blob_oid(filepath, self.branch_name)
+            # For pending files, use a hash of the content itself
+            try:
+                blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)
+            except KeyError:
+                # File is new (pending), hash the content
+                import hashlib
+                content = self.vfs.read_file(filepath)
+                blob_oid = hashlib.sha256(content.encode()).hexdigest()
 
             # Check cache first (unless force refresh)
             if not force_refresh:
@@ -349,7 +364,7 @@ Keep it under 72 characters."""
 
             # Generate summary with cheap LLM
             print(f"   🔄 {filepath} (generating...)")
-            content = self.repo.get_file_content(filepath, self.branch_name)
+            content = self.vfs.read_file(filepath)
 
             # Truncate very large files for summary generation
             max_chars = 10000

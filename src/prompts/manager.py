@@ -46,6 +46,9 @@ class PromptManager:
         self.blocks: list[ContentBlock] = []
         self.system_prompt = system_prompt
 
+        # Summaries are locked after first set - they're a session-start snapshot
+        self._summaries_locked = False
+
         # Add system prompt as first block
         self.blocks.append(
             ContentBlock(
@@ -56,31 +59,40 @@ class PromptManager:
 
     def set_summaries(self, summaries: dict[str, str]) -> None:
         """
-        Set repository summaries. Replaces any existing summaries block.
+        Set repository summaries. Only sets once per session (snapshot).
+
+        Summaries are locked after first set to enable prompt caching.
+        The AI will see actual file content for any files in active context,
+        so outdated summaries are not a problem.
 
         Args:
             summaries: Dict of filepath -> summary text
         """
-        # Find and delete existing summaries block
-        for block in self.blocks:
-            if block.block_type == BlockType.SUMMARIES and not block.deleted:
-                block.deleted = True
-                break
+        # Summaries are a one-time snapshot - don't update after initial set
+        if self._summaries_locked:
+            return
 
         if not summaries:
             return
 
-        # Format summaries
-        lines = ["# Repository File Summaries\n"]
+        # Format summaries with note about being a snapshot
+        lines = [
+            "# Repository File Summaries (snapshot from session start)\n\n",
+            "*These summaries were generated when your session started and won't update. ",
+            "When you work with a file, you'll see its actual current content below.*\n\n",
+        ]
         for filepath, summary in sorted(summaries.items()):
             lines.append(f"## {filepath}\n{summary}\n")
 
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.SUMMARIES,
-                content="\n".join(lines),
+                content="".join(lines),
             )
         )
+
+        # Lock summaries - they're now fixed for this session
+        self._summaries_locked = True
 
     def append_file_content(self, filepath: str, content: str, note: str = "") -> None:
         """

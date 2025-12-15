@@ -123,12 +123,12 @@ class WorkInProgressVFS(VFS):
             raise ValueError("No changes to commit")
 
         # Build changes dict for create_tree_from_changes
-        # For now, we only handle modifications and additions
-        # Deletions would require modifying create_tree_from_changes
         changes = self.pending_changes.copy()
 
-        # Create tree with changes
-        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes)
+        # Create tree with changes and deletions
+        tree_oid = self.repo.create_tree_from_changes(
+            self.branch_name, changes, self.deleted_files
+        )
 
         # Create commit with type
         commit_oid = self.repo.commit_tree(

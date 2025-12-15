@@ -62,13 +62,19 @@ class ForgeRepository:
         assert isinstance(blob, pygit2.Blob)
         return blob.data.decode("utf-8")
 
-    def create_tree_from_changes(self, base_branch: str, changes: dict[str, str]) -> pygit2.Oid:
+    def create_tree_from_changes(
+        self,
+        base_branch: str,
+        changes: dict[str, str],
+        deletions: set[str] | None = None,
+    ) -> pygit2.Oid:
         """
         Create a new tree with changes applied to base branch
 
         Args:
             base_branch: Branch name to use as base
             changes: Dict of filepath -> new_content
+            deletions: Set of filepaths to delete
 
         Returns:
             OID of the new tree
@@ -81,6 +87,11 @@ class ForgeRepository:
 
         # Build new tree with changes
         tree_builder = self.repo.TreeBuilder(base_tree)
+
+        # Handle deletions first
+        if deletions:
+            for filepath in deletions:
+                self._remove_from_tree(tree_builder, filepath, base_tree)
 
         for filepath, content in changes.items():
             # Create blob for new content
@@ -133,6 +144,55 @@ class ForgeRepository:
             # Write subtree and add to parent
             subtree_oid = subtree_builder.write()
             tree_builder.insert(dir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
+
+    def _remove_from_tree(
+        self,
+        tree_builder: pygit2.TreeBuilder,
+        filepath: str,
+        base_tree: pygit2.Tree | None,
+    ) -> None:
+        """Remove a file from tree, handling nested directories"""
+        parts = filepath.split("/")
+
+        if len(parts) == 1:
+            # Simple file in root - just remove it
+            try:
+                tree_builder.remove(parts[0])
+            except KeyError:
+                pass  # File doesn't exist, nothing to remove
+        else:
+            # Handle nested paths by recursively rebuilding subtrees
+            dir_name = parts[0]
+            rest_path = "/".join(parts[1:])
+
+            # Get existing subtree
+            if base_tree:
+                try:
+                    subtree_entry = base_tree[dir_name]
+                    subtree_obj = self.repo[subtree_entry.id]
+                    assert isinstance(subtree_obj, pygit2.Tree)
+                    subtree = subtree_obj
+                    subtree_builder = self.repo.TreeBuilder(subtree)
+
+                    # Recursively remove from subtree
+                    self._remove_from_tree(subtree_builder, rest_path, subtree)
+
+                    # Write subtree and update parent
+                    subtree_oid = subtree_builder.write()
+                    
+                    # Check if subtree is now empty
+                    new_subtree = self.repo[subtree_oid]
+                    assert isinstance(new_subtree, pygit2.Tree)
+                    if len(new_subtree) == 0:
+                        # Remove empty directory
+                        try:
+                            tree_builder.remove(dir_name)
+                        except KeyError:
+                            pass
+                    else:
+                        tree_builder.insert(dir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
+                except KeyError:
+                    pass  # Directory doesn't exist, nothing to remove
 
     def commit_tree(
         self,

@@ -298,8 +298,11 @@ class SessionManager:
 
         client = LLMClient(api_key, model)
 
-        # Build prompt
-        file_list = "\n".join(f"- {path}" for path in changes)
+        # Build prompt - filter out session file for description purposes
+        # (it always changes but isn't interesting to mention)
+        interesting_files = [path for path in changes if path != self.SESSION_FILE]
+        file_list = "\n".join(f"- {path}" for path in interesting_files)
+
         prompt = f"""Generate a concise git commit message for these changes:
 
 {file_list}

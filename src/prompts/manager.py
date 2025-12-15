@@ -68,6 +68,8 @@ class PromptManager:
         if not summaries:
             return
 
+        print(f"📋 PromptManager: Setting summaries for {len(summaries)} files")
+
         # Format summaries with note about being a snapshot
         lines = [
             "# Repository File Summaries (snapshot from session start)\n\n",
@@ -96,6 +98,8 @@ class PromptManager:
             note: Optional note (e.g., "summary may be outdated")
             tool_call_id: If this file was just modified by a tool, the tool call ID
         """
+        print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
+
         # Delete old version if exists (linear scan is fine for ~200 files max)
         for block in self.blocks:
             if (
@@ -104,6 +108,7 @@ class PromptManager:
                 and not block.deleted
             ):
                 block.deleted = True
+                print(f"   ↳ Deleted old version of {filepath}")
                 break
 
         # Format content block with explicit annotation
@@ -141,6 +146,7 @@ class PromptManager:
         Note: Caller should ensure summary is updated before calling this,
         since the summary will be the only hint about this file.
         """
+        print(f"🗑️  PromptManager: Removing file content for {filepath}")
         for block in self.blocks:
             if (
                 block.block_type == BlockType.FILE_CONTENT
@@ -148,10 +154,12 @@ class PromptManager:
                 and not block.deleted
             ):
                 block.deleted = True
+                print(f"   ↳ Found and deleted {filepath}")
                 break
 
     def append_user_message(self, content: str) -> None:
         """Add a user message to the stream"""
+        print(f"👤 PromptManager: Appending user message ({len(content)} chars)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.USER_MESSAGE,
@@ -161,6 +169,7 @@ class PromptManager:
 
     def append_assistant_message(self, content: str) -> None:
         """Add an assistant message to the stream"""
+        print(f"🤖 PromptManager: Appending assistant message ({len(content)} chars)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.ASSISTANT_MESSAGE,
@@ -170,6 +179,8 @@ class PromptManager:
 
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the stream, optionally with accompanying text content"""
+        tool_names = [tc.get("function", {}).get("name", "?") for tc in tool_calls]
+        print(f"🔧 PromptManager: Appending tool calls: {tool_names}")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_CALL,
@@ -180,6 +191,7 @@ class PromptManager:
 
     def append_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add a tool result to the stream"""
+        print(f"📋 PromptManager: Appending tool result for {tool_call_id} ({len(result)} chars)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_RESULT,

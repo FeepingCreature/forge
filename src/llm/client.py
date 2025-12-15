@@ -102,8 +102,6 @@ class LLMClient:
             f"{response.status_code} {response.reason} for {response.url}\n\nResponse body:\n{error_body}",
             response=response,
         )
-        # This line won't be reached, but satisfies type checker
-        return {}
 
     def chat_stream(
         self,

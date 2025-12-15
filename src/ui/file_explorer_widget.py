@@ -6,8 +6,7 @@ from enum import Enum
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QFontMetrics
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
@@ -31,6 +30,10 @@ class ContextState(Enum):
 ICON_NONE = "◯"  # Empty circle - not in context
 ICON_PARTIAL = "◐"  # Half-filled circle - partial context
 ICON_FULL = "●"  # Filled circle - full context
+
+# Column indices
+COL_NAME = 0
+COL_CONTEXT = 1
 
 
 class FileExplorerWidget(QWidget):
@@ -65,13 +68,20 @@ class FileExplorerWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.tree = QTreeWidget()
+        self.tree.setColumnCount(2)
         self.tree.setHeaderHidden(True)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
-        # Use viewport event filter to detect clicks on the icon area only
-        self.tree.viewport().installEventFilter(self)
+        self.tree.itemClicked.connect(self._on_item_clicked)
+
+        # Make the context column narrow
+        self.tree.setColumnWidth(COL_CONTEXT, 24)
+        # Stretch the name column
+        self.tree.header().setStretchLastSection(False)
+        self.tree.header().setSectionResizeMode(COL_NAME, self.tree.header().ResizeMode.Stretch)
+        self.tree.header().setSectionResizeMode(COL_CONTEXT, self.tree.header().ResizeMode.Fixed)
 
         # Add tooltip explaining the context icons
-        self.tree.setToolTip("Double-click to open file\nClick ◯/● icon to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
+        self.tree.setToolTip("Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
 
         layout.addWidget(self.tree)
 
@@ -99,10 +109,10 @@ class FileExplorerWidget(QWidget):
 
                 if current_path not in root_items:
                     item = QTreeWidgetItem()
-                    # Initial icon will be set by _update_all_context_icons
-                    item.setText(0, f"{ICON_NONE} 📁 {part}")
-                    item.setData(0, Qt.ItemDataRole.UserRole, current_path)  # Store path in data
-                    item.setData(0, Qt.ItemDataRole.UserRole + 1, "dir")  # Mark as directory
+                    item.setText(COL_NAME, f"📁 {part}")
+                    item.setText(COL_CONTEXT, ICON_NONE)  # Context icon in separate column
+                    item.setData(COL_NAME, Qt.ItemDataRole.UserRole, current_path)  # Store path
+                    item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "dir")  # Mark as directory
 
                     if isinstance(current_parent, QTreeWidget):
                         current_parent.addTopLevelItem(item)
@@ -116,11 +126,12 @@ class FileExplorerWidget(QWidget):
             # Add the file itself
             filename = parts[-1]
             file_item = QTreeWidgetItem()
-            # Initial icon will be set by _update_all_context_icons
-            file_item.setText(0, f"{ICON_NONE} 📄 {filename}")
-            file_item.setData(0, Qt.ItemDataRole.UserRole, filepath)  # Store full path
-            file_item.setData(0, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
-            file_item.setToolTip(0, f"{filepath}\nClick to toggle AI context")
+            file_item.setText(COL_NAME, f"📄 {filename}")
+            file_item.setText(COL_CONTEXT, ICON_NONE)  # Context icon in separate column
+            file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole, filepath)  # Store full path
+            file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
+            file_item.setToolTip(COL_NAME, filepath)
+            file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
 
             if isinstance(current_parent, QTreeWidget):
                 current_parent.addTopLevelItem(file_item)
@@ -197,31 +208,19 @@ class FileExplorerWidget(QWidget):
 
     def _set_item_icon(self, item: QTreeWidgetItem, state: ContextState) -> None:
         """Set the context icon for an item based on state"""
-        item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
-        text = item.text(0)
-
-        # Extract the name (remove existing icon prefix)
-        if item_type == "file":
-            # Format: "ICON 📄 filename"
-            name = text.split("📄")[-1].strip() if "📄" in text else text.strip()
-            icon = {
-                ContextState.NONE: ICON_NONE,
-                ContextState.PARTIAL: ICON_PARTIAL,  # Shouldn't happen for files
-                ContextState.FULL: ICON_FULL,
-            }[state]
-            item.setText(0, f"{icon} 📄 {name}")
-        else:
-            # Format: "ICON 📁 foldername"
-            name = text.split("📁")[-1].strip() if "📁" in text else text.strip()
-            icon = {
-                ContextState.NONE: ICON_NONE,
-                ContextState.PARTIAL: ICON_PARTIAL,
-                ContextState.FULL: ICON_FULL,
-            }[state]
-            item.setText(0, f"{icon} 📁 {name}")
+        icon = {
+            ContextState.NONE: ICON_NONE,
+            ContextState.PARTIAL: ICON_PARTIAL,
+            ContextState.FULL: ICON_FULL,
+        }[state]
+        item.setText(COL_CONTEXT, icon)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
-        """Handle single click on item - toggle context"""
+        """Handle single click on item - toggle context only if clicking the icon column"""
+        # Only toggle context when clicking the context icon column
+        if column != COL_CONTEXT:
+            return
+
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
 
         if item_type == "file":
@@ -254,42 +253,3 @@ class FileExplorerWidget(QWidget):
         elif item_type == "dir":
             # Toggle expansion
             item.setExpanded(not item.isExpanded())
-
-    def eventFilter(self, watched: object, event: QEvent) -> bool:
-        """Filter events to detect clicks on the context icon area only"""
-        if watched == self.tree.viewport() and event.type() == QEvent.Type.MouseButtonPress:
-            mouse_event = event  # type: QMouseEvent
-            if mouse_event.button() == Qt.MouseButton.LeftButton:
-                pos = mouse_event.pos()
-                item = self.tree.itemAt(pos)
-                if item is not None:
-                    # Get the item's visual rect
-                    rect = self.tree.visualItemRect(item)
-                    # Calculate click position relative to item start
-                    # Account for indentation
-                    indent = self.tree.indentation()
-                    level = self._get_item_level(item)
-                    item_start_x = rect.x() + (indent * level)
-                    click_x = pos.x() - item_start_x
-
-                    # The icon is roughly the first 2 characters (icon + space)
-                    # Use font metrics to calculate icon width
-                    font_metrics = QFontMetrics(self.tree.font())
-                    # Icon is "● " or "◯ " - about 2 characters wide
-                    icon_width = font_metrics.horizontalAdvance("● ")
-
-                    if 0 <= click_x <= icon_width:
-                        # Click was on the icon - toggle context
-                        self._on_item_clicked(item, 0)
-                        return True  # Event handled
-
-        return super().eventFilter(watched, event)
-
-    def _get_item_level(self, item: QTreeWidgetItem) -> int:
-        """Get the nesting level of an item (0 for top-level)"""
-        level = 0
-        parent = item.parent()
-        while parent is not None:
-            level += 1
-            parent = parent.parent()
-        return level

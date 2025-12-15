@@ -31,7 +31,9 @@ class BranchTabWidget(QWidget):
     file_modified = Signal(str)  # Emitted when a file is modified (filepath)
     file_saved = Signal(str, str)  # Emitted when saved (filepath, commit_oid)
     file_opened = Signal(str)  # Emitted when a file is opened (filepath) - for AI context sync
-    file_closed = Signal(str)  # Emitted when a file is closed (filepath) - for AI context sync
+    file_closed = Signal(str)  # Emitted when a file is closed (filepath) - NOT used for context removal
+    context_file_added = Signal(str)  # Emitted when file added to context via explorer
+    context_file_removed = Signal(str)  # Emitted when file removed from context via explorer
     ai_turn_started = Signal()  # Forwarded from AI chat
     ai_turn_finished = Signal(str)  # Forwarded from AI chat (commit_oid)
     
@@ -73,6 +75,7 @@ class BranchTabWidget(QWidget):
         # File explorer (left side)
         self._file_explorer = FileExplorerWidget(self.workspace)
         self._file_explorer.file_open_requested.connect(self.open_file)
+        self._file_explorer.context_toggle_requested.connect(self._on_context_toggle)
         self._file_explorer.setMinimumWidth(150)
         self._file_explorer.setMaximumWidth(400)
         self.splitter.addWidget(self._file_explorer)
@@ -384,6 +387,18 @@ class BranchTabWidget(QWidget):
         
         if filepath:
             self.close_file(filepath)
+    
+    def _on_context_toggle(self, filepath: str, add_to_context: bool) -> None:
+        """Handle context toggle from file explorer"""
+        if add_to_context:
+            self.context_file_added.emit(filepath)
+        else:
+            self.context_file_removed.emit(filepath)
+    
+    def update_context_display(self, active_files: set[str]) -> None:
+        """Update file explorer to show which files are in context"""
+        if self._file_explorer:
+            self._file_explorer.set_context_files(active_files)
     
     def _on_tab_changed(self, index: int) -> None:
         """Handle tab change"""

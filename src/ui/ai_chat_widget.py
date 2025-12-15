@@ -140,6 +140,7 @@ class AIChatWidget(QWidget):
     # Signals for AI turn lifecycle
     ai_turn_started = Signal()  # Emitted when AI turn begins
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
+    context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
 
     def __init__(
         self,
@@ -387,12 +388,14 @@ class AIChatWidget(QWidget):
                 )
 
     def add_file_to_context(self, filepath: str) -> None:
-        """Add a file to the AI context (called when file tab is opened)"""
+        """Add a file to the AI context"""
         self.session_manager.add_active_file(filepath)
+        self.context_changed.emit(self.session_manager.active_files.copy())
     
     def remove_file_from_context(self, filepath: str) -> None:
-        """Remove a file from the AI context (called when file tab is closed)"""
+        """Remove a file from the AI context"""
         self.session_manager.remove_active_file(filepath)
+        self.context_changed.emit(self.session_manager.active_files.copy())
     
     def get_active_files(self) -> set[str]:
         """Get the set of files currently in AI context"""

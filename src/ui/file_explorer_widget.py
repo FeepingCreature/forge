@@ -23,14 +23,19 @@ class FileExplorerWidget(QWidget):
     
     Displays the branch's files in a tree structure.
     Double-clicking a file emits a signal to open it.
+    Shows an eye icon (👁) for files in AI context.
     """
     
     # Emitted when user wants to open a file
     file_open_requested = Signal(str)  # filepath
     
+    # Emitted when user toggles a file's context status
+    context_toggle_requested = Signal(str, bool)  # filepath, add_to_context
+    
     def __init__(self, workspace: "BranchWorkspace", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.workspace = workspace
+        self._context_files: set[str] = set()  # Files currently in AI context
         self._setup_ui()
         self.refresh()
     
@@ -42,6 +47,10 @@ class FileExplorerWidget(QWidget):
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        self.tree.itemClicked.connect(self._on_item_clicked)
+        
+        # Add tooltip explaining the eye icon
+        self.tree.setToolTip("Double-click to open file\nClick 👁 to toggle AI context")
         
         layout.addWidget(self.tree)
     
@@ -88,9 +97,14 @@ class FileExplorerWidget(QWidget):
             # Add the file itself
             filename = parts[-1]
             file_item = QTreeWidgetItem()
-            file_item.setText(0, f"📄 {filename}")
+            # Show eye icon if file is in context
+            if filepath in self._context_files:
+                file_item.setText(0, f"👁 📄 {filename}")
+            else:
+                file_item.setText(0, f"    📄 {filename}")
             file_item.setData(0, Qt.ItemDataRole.UserRole, filepath)  # Store full path
             file_item.setData(0, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
+            file_item.setToolTip(0, f"{filepath}\nClick 👁 area to toggle AI context")
             
             if isinstance(current_parent, QTreeWidget):
                 current_parent.addTopLevelItem(file_item)
@@ -102,6 +116,65 @@ class FileExplorerWidget(QWidget):
             item = self.tree.topLevelItem(i)
             if item and item.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
                 item.setExpanded(True)
+    
+    def set_context_files(self, context_files: set[str]) -> None:
+        """Update which files are shown as being in AI context"""
+        self._context_files = context_files.copy()
+        self._update_context_icons()
+    
+    def _update_context_icons(self) -> None:
+        """Update the eye icons on all file items"""
+        self._update_context_icons_recursive(None)
+    
+    def _update_context_icons_recursive(self, parent: QTreeWidgetItem | None) -> None:
+        """Recursively update context icons"""
+        if parent is None:
+            # Top level items
+            for i in range(self.tree.topLevelItemCount()):
+                item = self.tree.topLevelItem(i)
+                if item:
+                    self._update_item_icon(item)
+                    self._update_context_icons_recursive(item)
+        else:
+            # Child items
+            for i in range(parent.childCount()):
+                item = parent.child(i)
+                if item:
+                    self._update_item_icon(item)
+                    self._update_context_icons_recursive(item)
+    
+    def _update_item_icon(self, item: QTreeWidgetItem) -> None:
+        """Update a single item's icon based on context status"""
+        item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        if item_type != "file":
+            return
+        
+        filepath = item.data(0, Qt.ItemDataRole.UserRole)
+        text = item.text(0)
+        
+        # Extract just the filename (remove any existing icons)
+        # The format is either "👁 📄 filename" or "    📄 filename"
+        if "📄" in text:
+            filename = text.split("📄")[-1].strip()
+        else:
+            filename = text.strip()
+        
+        # Set new text with appropriate icon
+        if filepath in self._context_files:
+            item.setText(0, f"👁 📄 {filename}")
+        else:
+            item.setText(0, f"    📄 {filename}")
+    
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        """Handle single click on item - check if clicking on eye icon area"""
+        item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        
+        if item_type == "file":
+            filepath = item.data(0, Qt.ItemDataRole.UserRole)
+            # Toggle context when clicking (single click toggles context)
+            # The eye icon is at the start, so any click on the item toggles
+            is_in_context = filepath in self._context_files
+            self.context_toggle_requested.emit(filepath, not is_in_context)
     
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         """Handle double-click on item"""

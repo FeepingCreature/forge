@@ -124,8 +124,10 @@ File tabs become **read-only during an AI turn** (while VFS is AI-controlled). T
 The relationship is one-way: **files open in tabs are always in AI context, but AI can have additional files in context**.
 
 - Opening a file tab adds it to context
-- Closing a file tab removes it from context
+- **Closing a file tab does NOT remove it from context** - context is managed separately
 - AI can add files to context without opening tabs (via `update_context` or `grep_open`)
+- File explorer shows 👁 icon next to files in AI context
+- Click on a file in explorer to toggle its context status
 - This allows AI to efficiently work with many files without cluttering the UI
 
 ## VFS Architecture

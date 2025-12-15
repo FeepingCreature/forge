@@ -147,9 +147,16 @@ class MainWindow(QMainWindow):
         branch_widget.ai_turn_started.connect(self._on_ai_turn_started)
         branch_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
         
-        # Connect file open/close to AI context sync
+        # Connect file open to AI context sync (opening adds to context)
+        # Note: closing a tab does NOT remove from context - use file explorer to manage
         branch_widget.file_opened.connect(chat_widget.add_file_to_context)
-        branch_widget.file_closed.connect(chat_widget.remove_file_from_context)
+        
+        # Connect file explorer context changes to chat widget
+        branch_widget.context_file_added.connect(chat_widget.add_file_to_context)
+        branch_widget.context_file_removed.connect(chat_widget.remove_file_from_context)
+        
+        # Connect chat widget context changes back to file explorer for visual update
+        chat_widget.context_changed.connect(branch_widget.update_context_display)
         
         # Restore active files to AI context (but don't force open tabs)
         # The AI's context is restored, but user's UI state is not forced

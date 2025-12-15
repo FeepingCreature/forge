@@ -117,11 +117,13 @@ Migrate to branch-first architecture where:
 
 ### 4.1 Open files ⊆ Active files ✅
 - [x] Opening a file tab adds it to AI context via `file_opened` signal → `add_file_to_context()`
-- [x] Closing a file tab removes it from context via `file_closed` signal → `remove_file_from_context()`
+- [x] Closing a file tab does NOT remove from context (context managed via file explorer)
 - [x] AI can add files to context without opening tabs (via tools)
 - [x] Session data stores `messages` and `active_files` 
 - [x] File tabs NOT force-restored from session - only AI context is restored
 - [x] `grep_open` tool lets AI discover and add relevant files to context
+- [x] File explorer shows 👁 icon for files in AI context
+- [x] Click file in explorer to toggle context status
 
 ### 4.2 Context display
 - [ ] Show token count per open file in tab tooltip

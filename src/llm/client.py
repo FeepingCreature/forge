@@ -5,6 +5,7 @@ LLM client for communicating with OpenRouter
 import json
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -55,6 +56,13 @@ class LLMClient:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
 
+        # Debug: dump full request to file
+        debug_dir = Path("/tmp/forge_debug")
+        debug_dir.mkdir(exist_ok=True)
+        debug_file = debug_dir / f"request_{int(time.time() * 1000)}.json"
+        debug_file.write_text(json.dumps(payload, indent=2))
+        print(f"   📝 Request dumped to: {debug_file}")
+
         for attempt in range(max_retries):
             response = requests.post(
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
@@ -102,6 +110,13 @@ class LLMClient:
         if tools:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
+
+        # Debug: dump full request to file
+        debug_dir = Path("/tmp/forge_debug")
+        debug_dir.mkdir(exist_ok=True)
+        debug_file = debug_dir / f"request_stream_{int(time.time() * 1000)}.json"
+        debug_file.write_text(json.dumps(payload, indent=2))
+        print(f"   📝 Request dumped to: {debug_file}")
 
         response = None
         for attempt in range(max_retries):

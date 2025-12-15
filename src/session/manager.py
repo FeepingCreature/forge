@@ -324,12 +324,17 @@ Keep it under 72 characters."""
 
         return message
 
-    def generate_repo_summaries(self, force_refresh: bool = False) -> None:
+    def generate_repo_summaries(
+        self,
+        force_refresh: bool = False,
+        progress_callback: "Callable[[int, int, str], None] | None" = None,
+    ) -> None:
         """
         Generate summaries for all files in repository (with caching)
 
         Args:
             force_refresh: If True, regenerate all summaries even if cached
+            progress_callback: Optional callback(current, total, filepath) for progress updates
         """
         # Use summarization model (typically a cheap/fast model)
         model = self.settings.get("llm.summarization_model", "anthropic/claude-3-haiku")
@@ -338,11 +343,15 @@ Keep it under 72 characters."""
 
         # List files through VFS (includes any pending new files)
         files = self.vfs.list_files()
-        print(f"📝 Generating summaries for {len(files)} files (cached summaries will be reused)")
+        # Filter out forge metadata files upfront
+        files = [f for f in files if not f.startswith(".forge/")]
+        total_files = len(files)
+        print(f"📝 Generating summaries for {total_files} files (cached summaries will be reused)")
 
-        for filepath in files:
-            if filepath.startswith(".forge/"):
-                continue  # Skip forge metadata
+        for i, filepath in enumerate(files):
+            # Report progress
+            if progress_callback:
+                progress_callback(i, total_files, filepath)
 
             # Get blob OID (content hash) for cache key
             # For pending files, use a hash of the content itself
@@ -399,6 +408,10 @@ Respond with ONLY the bulleted list, no introduction or explanation."""
             # Cache the summary
             self._cache_summary(filepath, blob_oid, summary)
             self.repo_summaries[filepath] = summary
+
+        # Final progress update
+        if progress_callback:
+            progress_callback(total_files, total_files, "")
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""

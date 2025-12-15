@@ -31,6 +31,7 @@ class SummaryWorker(QObject):
 
     finished = Signal(int)  # Emitted with number of summaries generated
     error = Signal(str)  # Emitted on error
+    progress = Signal(int, int, str)  # Emitted for progress (current, total, filepath)
 
     def __init__(self, session_manager: SessionManager) -> None:
         super().__init__()
@@ -39,7 +40,9 @@ class SummaryWorker(QObject):
     def run(self) -> None:
         """Generate summaries"""
         try:
-            self.session_manager.generate_repo_summaries()
+            self.session_manager.generate_repo_summaries(
+                progress_callback=lambda cur, total, fp: self.progress.emit(cur, total, fp)
+            )
             count = len(self.session_manager.repo_summaries)
             self.finished.emit(count)
         except Exception as e:
@@ -276,10 +279,35 @@ class AIChatWidget(QWidget):
         # Connect signals
         self.summary_worker.finished.connect(self._on_summaries_finished)
         self.summary_worker.error.connect(self._on_summaries_error)
+        self.summary_worker.progress.connect(self._on_summaries_progress)
         self.summary_thread.started.connect(self.summary_worker.run)
+
+        # Track the message index for in-place updates
+        self._summary_message_index = len(self.messages) - 1  # Index of the "Generating..." message
 
         # Start the thread
         self.summary_thread.start()
+
+    def _on_summaries_progress(self, current: int, total: int, filepath: str) -> None:
+        """Handle summary generation progress update"""
+        if total == 0:
+            return
+
+        # Build progress bar
+        bar_width = 20
+        filled = int(bar_width * current / total)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        percent = int(100 * current / total)
+
+        # Truncate filepath if too long
+        display_path = filepath if len(filepath) <= 40 else "..." + filepath[-37:]
+
+        progress_text = f"🔍 Generating summaries [{bar}] {percent}% ({current}/{total})\n`{display_path}`"
+
+        # Update the existing message in place
+        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(self.messages):
+            self.messages[self._summary_message_index]["content"] = progress_text
+            self._update_chat_display()
 
     def _on_summaries_finished(self, count: int) -> None:
         """Handle summary generation completion"""
@@ -290,7 +318,12 @@ class AIChatWidget(QWidget):
             self.summary_thread = None
             self.summary_worker = None
 
-        self._add_system_message(f"✅ Generated summaries for {count} files")
+        # Update the progress message to show completion
+        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(self.messages):
+            self.messages[self._summary_message_index]["content"] = f"✅ Generated summaries for {count} files"
+            self._update_chat_display()
+        else:
+            self._add_system_message(f"✅ Generated summaries for {count} files")
 
     def _on_summaries_error(self, error_msg: str) -> None:
         """Handle summary generation error"""

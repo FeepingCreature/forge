@@ -1,0 +1,123 @@
+{
+  "active_files": [
+    "src/prompts/manager.py",
+    "src/session/manager.py",
+    "src/ui/ai_chat_widget.py",
+    "src/prompts/system.py"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 47 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! Can you make sure that CLAUDE.md or AGENTS.md are included fully by default?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll look at how the system prompt and context are built to understand where CLAUDE.md/AGENTS.md should be included.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/prompts/system.py\",\"src/prompts/manager.py\",\"src/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01CSDfYrJrxTSqyJTi86t3cV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CSDfYrJrxTSqyJTi86t3cV",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/prompts/system.py\", \"src/prompts/manager.py\", \"src/session/manager.py\"], \"remove\": [], \"message\": \"Added 3 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/prompts/system.py\",\n    \"src/prompts/manager.py\",\n    \"src/session/manager.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/prompts/system.py\",\n    \"src/prompts/manager.py\",\n    \"src/session/manager.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 3 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see that:\n\n1. `SessionManager.generate_repo_summaries()` generates summaries for all files but explicitly filters out `.forge/` files\n2. The summaries are set via `prompt_manager.set_summaries()` and included in context\n3. There's no special handling for `CLAUDE.md` or `AGENTS.md` files\n\nThe best approach would be to automatically add `CLAUDE.md` and `AGENTS.md` (if they exist) to the active context at session start, so they're included as full file contents rather than just summaries. Let me check how sessions are initialized.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"SessionManager\\\\(\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_015kPFXn7QVVqFRhDURRWMoa",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015kPFXn7QVVqFRhDURRWMoa",
+      "content": "{\"success\": true, \"message\": \"Found 1 files matching 'SessionManager\\\\('\", \"matches\": [{\"filepath\": \"src/ui/ai_chat_widget.py\", \"match_count\": 1, \"first_match\": \"SessionManager(\"}], \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": []}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_open`\n```json\n{\n  \"pattern\": \"SessionManager\\\\(\",\n  \"include_extensions\": [\n    \".py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Found 1 files matching 'SessionManager\\\\('\",\n  \"matches\": [\n    {\n      \"filepath\": \"src/ui/ai_chat_widget.py\",\n      \"match_count\": 1,\n      \"first_match\": \"SessionManager(\"\n    }\n  ],\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": []\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I understand the flow. The `SessionManager` is initialized in `AIChatWidget.__init__()`, and after summaries are generated, `set_summaries()` is called. The active files are managed separately.\n\nThe best place to add `CLAUDE.md` and `AGENTS.md` is right after summaries are set, so they're automatically in context for every session. I'll modify the `_on_summaries_finished` method in `ai_chat_widget.py` to add these files to the active context.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _on_summaries_finished(self, count: int) -> None:\\n        \\\"\\\"\\\"Handle summary generation completion\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.summary_thread:\\n            self.summary_thread.quit()\\n            self.summary_thread.wait()\\n            self.summary_thread = None\\n            self.summary_worker = None\\n\\n        # Set summaries in prompt manager (one-time snapshot for this session)\\n        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)\\n\\n        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\", \"replace\": \"    def _on_summaries_finished(self, count: int) -> None:\\n        \\\"\\\"\\\"Handle summary generation completion\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.summary_thread:\\n            self.summary_thread.quit()\\n            self.summary_thread.wait()\\n            self.summary_thread = None\\n            self.summary_worker = None\\n\\n        # Set summaries in prompt manager (one-time snapshot for this session)\\n        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)\\n\\n        # Auto-add CLAUDE.md and AGENTS.md to context if they exist\\n        # These files contain important project-specific instructions for the AI\\n        for instructions_file in [\\\"CLAUDE.md\\\", \\\"AGENTS.md\\\"]:\\n            if self.session_manager.vfs.file_exists(instructions_file):\\n                self.session_manager.add_active_file(instructions_file)\\n\\n        # Emit context changed signal if we added any files\\n        if self.session_manager.active_files:\\n            self.context_changed.emit(self.session_manager.active_files.copy())\\n\\n        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01LKDhLLjyVP5YySuN84VtZf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LKDhLLjyVP5YySuN84VtZf",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def _on_summaries_finished(self, count: int) -> None:\\n        \\\"\\\"\\\"Handle summary generation completion\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.summary_thread:\\n            self.summary_thread.quit()\\n            self.summary_thread.wait()\\n            self.summary_thread = None\\n            self.summary_worker = None\\n\\n        # Set summaries in prompt manager (one-time snapshot for this session)\\n        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)\\n\\n        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\\u2705 Generated summaries for {count} files\\\")\",\n  \"replace\": \"    def _on_summaries_finished(self, count: int) -> None:\\n        \\\"\\\"\\\"Handle summary generation completion\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.summary_thread:\\n            self.summary_thread.quit()\\n            self.summary_thread.wait()\\n            self.summary_thread = None\\n            self.summary_worker = None\\n\\n        # Set summaries in prompt manager (one-time snapshot for this session)\\n        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)\\n\\n        # Auto-add CLAUDE.md and AGENTS.md to context if they exist\\n        # These files contain important project-specific instructions for the AI\\n        for instructions_file in [\\\"CLAUDE.md\\\", \\\"AGENTS.md\\\"]:\\n            if self.session_manager.vfs.file_exists(instructions_file):\\n                self.session_manager.add_active_file(instructions_file)\\n\\n        # Emit context changed signal if we added any files\\n        if self.session_manager.active_files:\\n            self.context_changed.emit(self.session_manager.active_files.copy())\\n\\n        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\\u2705 Generated summaries for {count} files\\\")\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The change looks good. Now when summaries finish generating, `CLAUDE.md` and `AGENTS.md` will automatically be added to the active context if they exist in the repository. This means they'll be included as full file contents (not just summaries) in every conversation with the AI.\n\nLet me also check if there's session restoration logic that should also ensure these files are in context when loading an existing session:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Load existing session messages and restore prompt manager state\\n        if session_data:\\n            self.messages = session_data.get(\\\"messages\\\", [])\\n            # Restore messages to prompt manager\\n            for msg in self.messages:\\n                if msg.get(\\\"_ui_only\\\"):\\n                    continue  # Skip UI-only messages\\n                role = msg.get(\\\"role\\\")\\n                content = msg.get(\\\"content\\\", \\\"\\\")\\n                if role == \\\"user\\\":\\n                    self.session_manager.append_user_message(content)\\n                elif role == \\\"assistant\\\":\\n                    if \\\"tool_calls\\\" in msg:\\n                        # Pass both tool_calls and content (content may be the AI's reasoning)\\n                        self.session_manager.append_tool_call(msg[\\\"tool_calls\\\"], content)\\n                    elif content:\\n                        self.session_manager.append_assistant_message(content)\\n                elif role == \\\"tool\\\":\\n                    tool_call_id = msg.get(\\\"tool_call_id\\\", \\\"\\\")\\n                    self.session_manager.append_tool_result(tool_call_id, content)\\n            # Note: active_files are restored by MainWindow opening file tabs\\n            # The file_opened signals will sync them to SessionManager\", \"replace\": \"        # Load existing session messages and restore prompt manager state\\n        if session_data:\\n            self.messages = session_data.get(\\\"messages\\\", [])\\n            # Restore messages to prompt manager\\n            for msg in self.messages:\\n                if msg.get(\\\"_ui_only\\\"):\\n                    continue  # Skip UI-only messages\\n                role = msg.get(\\\"role\\\")\\n                content = msg.get(\\\"content\\\", \\\"\\\")\\n                if role == \\\"user\\\":\\n                    self.session_manager.append_user_message(content)\\n                elif role == \\\"assistant\\\":\\n                    if \\\"tool_calls\\\" in msg:\\n                        # Pass both tool_calls and content (content may be the AI's reasoning)\\n                        self.session_manager.append_tool_call(msg[\\\"tool_calls\\\"], content)\\n                    elif content:\\n                        self.session_manager.append_assistant_message(content)\\n                elif role == \\\"tool\\\":\\n                    tool_call_id = msg.get(\\\"tool_call_id\\\", \\\"\\\")\\n                    self.session_manager.append_tool_result(tool_call_id, content)\\n            # Note: active_files are restored by MainWindow opening file tabs\\n            # The file_opened signals will sync them to SessionManager\\n            \\n            # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions\\n            for instructions_file in [\\\"CLAUDE.md\\\", \\\"AGENTS.md\\\"]:\\n                if self.session_manager.vfs.file_exists(instructions_file):\\n                    self.session_manager.add_active_file(instructions_file)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GMkRkL3KfRF4yNY4JvExwm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GMkRkL3KfRF4yNY4JvExwm",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Load existing session messages and restore prompt manager state\\n        if session_data:\\n            self.messages = session_data.get(\\\"messages\\\", [])\\n            # Restore messages to prompt manager\\n            for msg in self.messages:\\n                if msg.get(\\\"_ui_only\\\"):\\n                    continue  # Skip UI-only messages\\n                role = msg.get(\\\"role\\\")\\n                content = msg.get(\\\"content\\\", \\\"\\\")\\n                if role == \\\"user\\\":\\n                    self.session_manager.append_user_message(content)\\n                elif role == \\\"assistant\\\":\\n                    if \\\"tool_calls\\\" in msg:\\n                        # Pass both tool_calls and content (content may be the AI's reasoning)\\n                        self.session_manager.append_tool_call(msg[\\\"tool_calls\\\"], content)\\n                    elif content:\\n                        self.session_manager.append_assistant_message(content)\\n                elif role == \\\"tool\\\":\\n                    tool_call_id = msg.get(\\\"tool_call_id\\\", \\\"\\\")\\n                    self.session_manager.append_tool_result(tool_call_id, content)\\n            # Note: active_files are restored by MainWindow opening file tabs\\n            # The file_opened signals will sync them to SessionManager\",\n  \"replace\": \"        # Load existing session messages and restore prompt manager state\\n        if session_data:\\n            self.messages = session_data.get(\\\"messages\\\", [])\\n            # Restore messages to prompt manager\\n            for msg in self.messages:\\n                if msg.get(\\\"_ui_only\\\"):\\n                    continue  # Skip UI-only messages\\n                role = msg.get(\\\"role\\\")\\n                content = msg.get(\\\"content\\\", \\\"\\\")\\n                if role == \\\"user\\\":\\n                    self.session_manager.append_user_message(content)\\n                elif role == \\\"assistant\\\":\\n                    if \\\"tool_calls\\\" in msg:\\n                        # Pass both tool_calls and content (content may be the AI's reasoning)\\n                        self.session_manager.append_tool_call(msg[\\\"tool_calls\\\"], content)\\n                    elif content:\\n                        self.session_manager.append_assistant_message(content)\\n                elif role == \\\"tool\\\":\\n                    tool_call_id = msg.get(\\\"tool_call_id\\\", \\\"\\\")\\n                    self.session_manager.append_tool_result(tool_call_id, content)\\n            # Note: active_files are restored by MainWindow opening file tabs\\n            # The file_opened signals will sync them to SessionManager\\n            \\n            # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions\\n            for instructions_file in [\\\"CLAUDE.md\\\", \\\"AGENTS.md\\\"]:\\n                if self.session_manager.vfs.file_exists(instructions_file):\\n                    self.session_manager.add_active_file(instructions_file)\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The changes have been applied. Now both `CLAUDE.md` and `AGENTS.md` will be automatically added to the active context (with full file contents, not just summaries) in two scenarios:\n\n1. **New sessions**: After summaries are generated, these files are added to context in `_on_summaries_finished()`\n2. **Restored sessions**: When loading an existing session, these files are ensured to be in context\n\nThis means the AI will always have access to the full contents of project-specific instructions in these files, which is the standard convention for AI coding assistants."
+    }
+  ]
+}

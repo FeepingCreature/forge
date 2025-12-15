@@ -206,6 +206,11 @@ class AIChatWidget(QWidget):
                     self.session_manager.append_tool_result(tool_call_id, content)
             # Note: active_files are restored by MainWindow opening file tabs
             # The file_opened signals will sync them to SessionManager
+            
+            # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions
+            for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
+                if self.session_manager.vfs.file_exists(instructions_file):
+                    self.session_manager.add_active_file(instructions_file)
 
         # Setup UI BEFORE any operations that might call add_message()
         self._setup_ui()
@@ -325,6 +330,16 @@ class AIChatWidget(QWidget):
 
         # Set summaries in prompt manager (one-time snapshot for this session)
         self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)
+
+        # Auto-add CLAUDE.md and AGENTS.md to context if they exist
+        # These files contain important project-specific instructions for the AI
+        for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
+            if self.session_manager.vfs.file_exists(instructions_file):
+                self.session_manager.add_active_file(instructions_file)
+
+        # Emit context changed signal if we added any files
+        if self.session_manager.active_files:
+            self.context_changed.emit(self.session_manager.active_files.copy())
 
         # Update the progress message to show completion
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(

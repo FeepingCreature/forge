@@ -649,11 +649,6 @@ class AIChatWidget(QWidget):
                 )
                 continue
 
-            # Display tool execution (UI feedback, not conversation history)
-            self._add_system_message(
-                f"🔧 Calling tool: `{tool_name}`\n```json\n{json.dumps(tool_args, indent=2)}\n```"
-            )
-
             # Execute tool (pass session_manager for context management)
             result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
@@ -677,19 +672,25 @@ class AIChatWidget(QWidget):
                 if filepath:
                     self.session_manager.file_was_modified(filepath, tool_call["id"])
 
-            # If search_replace failed and file isn't in context, add it so AI can see actual content
+            # Build unified tool call display message
+            tool_display_parts = [
+                f"🔧 **Tool call:** `{tool_name}`",
+                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                f"**Result:**",
+                f"```json\n{json.dumps(result, indent=2)}\n```",
+            ]
+
+            # If search_replace failed and file isn't in context, add note about adding it
             if not result.get("success") and tool_name == "search_replace":
                 filepath = tool_args.get("filepath")
                 if filepath and filepath not in self.session_manager.active_files:
                     self.session_manager.add_active_file(filepath)
-                    self._add_system_message(
-                        f"📂 Added `{filepath}` to context so you can see its actual content"
+                    tool_display_parts.append(
+                        f"\n📂 Added `{filepath}` to context so you can see its actual content"
                     )
 
-            # Display result (UI feedback)
-            self._add_system_message(
-                f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
-            )
+            # Display as single unified block (UI feedback)
+            self._add_system_message("\n".join(tool_display_parts))
 
         # Continue conversation with tool results in background thread
         self._continue_after_tools(tools)

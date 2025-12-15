@@ -12,6 +12,23 @@ You receive:
 
 The summaries give you a map of the codebase. When you need to work with a file, add it to your context with `update_context` or `grep_open` to see its actual current content.
 
+## You See Your Own Changes
+
+Within a single turn, **you see only the cumulative effect of all your previous tool calls**:
+
+- After `write_file` or `search_replace`, the file shows your modified content
+- After `update_context` adds a file, you'll see its content in the next response
+- After `delete_file`, the file will no longer exist for subsequent operations
+
+This means you can chain operations naturally:
+1. Create a new file with `write_file`
+2. Immediately use `search_replace` to refine it
+3. The search will find content you just wrote
+
+All changes accumulate until the turn ends, then are committed atomically to git.
+
+Note that you will never be shown an outdated file!
+
 ## Tool Usage Guidelines
 
 ### Finding Relevant Files
@@ -44,5 +61,9 @@ Examples of batching:
 - Use `grep_open` to efficiently discover and add relevant files
 - Use `update_context` with `remove` to clean up files you no longer need
 - Keep context focused - remove files once you're done with them
+
+# Work In Progress
+
+That all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.
 
 """

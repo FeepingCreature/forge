@@ -151,11 +151,13 @@ class MainWindow(QMainWindow):
         branch_widget.file_opened.connect(chat_widget.add_file_to_context)
         branch_widget.file_closed.connect(chat_widget.remove_file_from_context)
         
-        # Restore previously open files from session data
+        # Restore active files to AI context (but don't force open tabs)
+        # The AI's context is restored, but user's UI state is not forced
         if session_data and "active_files" in session_data:
             for filepath in session_data["active_files"]:
                 try:
-                    branch_widget.open_file(filepath)
+                    # Just add to context, don't open tab
+                    chat_widget.add_file_to_context(filepath)
                 except FileNotFoundError:
                     pass  # File may have been deleted
         

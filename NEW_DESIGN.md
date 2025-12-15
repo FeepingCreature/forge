@@ -119,14 +119,14 @@ File tabs become **read-only during an AI turn** (while VFS is AI-controlled). T
 - Changes are committed
 - User can continue editing or start another AI turn
 
-### Open Files = Active Files
+### Open Files ⊆ Active Files
 
-Converge these concepts: **files open in tabs are the files in AI context**.
+The relationship is one-way: **files open in tabs are always in AI context, but AI can have additional files in context**.
 
 - Opening a file tab adds it to context
 - Closing a file tab removes it from context
-- No separate "active files" management needed
-- AI sees exactly what user sees
+- AI can add files to context without opening tabs (via `update_context` or `grep_open`)
+- This allows AI to efficiently work with many files without cluttering the UI
 
 ## VFS Architecture
 
@@ -315,7 +315,7 @@ The `forge/session/` prefix is no longer required or special. Any branch can hav
 
 3. **Branch types:** All branches equal. No special "forge/session" naming convention required.
 
-4. **Open files = active files:** Unified concept. Tab open = in context.
+4. **Open files ⊆ active files:** One-way relationship. Tab open = in context, but AI can have more files in context.
 
 ## v2: Repository View
 

@@ -26,6 +26,7 @@ class ToolManager:
         "delete_file",
         "search_replace",
         "update_context",
+        "grep_open",
     }
 
     def __init__(

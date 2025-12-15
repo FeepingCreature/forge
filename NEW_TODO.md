@@ -115,12 +115,13 @@ Migrate to branch-first architecture where:
 - [x] Explorer shows current branch's files only
 - [x] Explorer refreshes after AI changes files
 
-### 4.1 Unify concepts ✅
+### 4.1 Open files ⊆ Active files ✅
 - [x] Opening a file tab adds it to AI context via `file_opened` signal → `add_file_to_context()`
 - [x] Closing a file tab removes it from context via `file_closed` signal → `remove_file_from_context()`
-- [x] No separate "active files" management UI needed - tabs ARE the context
-- [x] Session data only stores `messages` and `active_files` (no redundant branch_name/repo_summaries)
-- [x] File tabs restored from session data on branch reopen
+- [x] AI can add files to context without opening tabs (via tools)
+- [x] Session data stores `messages` and `active_files` 
+- [x] File tabs NOT force-restored from session - only AI context is restored
+- [x] `grep_open` tool lets AI discover and add relevant files to context
 
 ### 4.2 Context display
 - [ ] Show token count per open file in tab tooltip

@@ -672,6 +672,10 @@ class AIChatWidget(QWidget):
                 if filepath:
                     self.session_manager.file_was_modified(filepath, tool_call["id"])
 
+            # If tool modified context (update_context, grep_open), emit signal to update UI
+            if result.get("action") == "update_context":
+                self.context_changed.emit(self.session_manager.active_files.copy())
+
             # Build unified tool call display message
             tool_display_parts = [
                 f"🔧 **Tool call:** `{tool_name}`",

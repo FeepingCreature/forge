@@ -243,9 +243,8 @@ class MainWindow(QMainWindow):
 
     def _show_branch_context_menu(self, pos: Any) -> None:
         """Show context menu for branch tab"""
+
         tab_bar = self.branch_tabs.tabBar()
-        if tab_bar is None:
-            return
         index = tab_bar.tabAt(pos)
         if index < 0:
             return
@@ -270,10 +269,7 @@ class MainWindow(QMainWindow):
         delete_action = menu.addAction("Delete branch...")
         delete_action.triggered.connect(lambda: self._delete_branch(branch_name, index))
 
-        from PySide6.QtWidgets import QTabBar
-
-        if isinstance(tab_bar, QTabBar):
-            menu.exec(tab_bar.mapToGlobal(pos))
+        menu.exec(tab_bar.mapToGlobal(pos))
 
     def _get_branch_name_from_tab(self, index: int) -> str:
         """Get the actual branch name from a tab index"""
@@ -286,6 +282,8 @@ class MainWindow(QMainWindow):
 
     def _show_new_branch_dialog(self) -> None:
         """Show dialog to create a new branch"""
+        from PySide6.QtWidgets import QPushButton
+
         menu = QMenu(self)
 
         # New AI Session
@@ -298,7 +296,7 @@ class MainWindow(QMainWindow):
 
         # Show menu at button position
         btn = self.sender()
-        if btn:
+        if isinstance(btn, QPushButton):
             menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _new_feature_branch(self) -> None:

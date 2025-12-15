@@ -106,7 +106,8 @@ class SessionManager:
         
         for filepath in self.active_files:
             try:
-                content = self.repo.get_file_content(filepath, self.branch_name)
+                # Read from VFS to get pending changes, not just committed content
+                content = self.tool_manager.vfs.read_file(filepath)
                 
                 # Check if file is already in prompt manager
                 if filepath in current_prompt_files:
@@ -133,9 +134,9 @@ class SessionManager:
         """Add a file to active context"""
         self.active_files.add(filepath)
         
-        # Also add to prompt manager with current content
+        # Also add to prompt manager with current content (from VFS to include pending changes)
         try:
-            content = self.repo.get_file_content(filepath, self.branch_name)
+            content = self.tool_manager.vfs.read_file(filepath)
             self.prompt_manager.append_file_content(filepath, content)
         except (FileNotFoundError, KeyError):
             pass  # File doesn't exist yet
@@ -153,12 +154,17 @@ class SessionManager:
         
         This moves the file content to the end of the prompt stream
         so that cache can be reused for content before it.
+        
+        If the file isn't already in active context, it gets added
+        so the AI can see its changes in subsequent tool calls.
         """
+        # If file not in active context, add it so AI sees its own changes
         if filepath not in self.active_files:
-            return
+            self.active_files.add(filepath)
         
         try:
-            content = self.repo.get_file_content(filepath, self.branch_name)
+            # Read from VFS to get the NEW content including pending changes
+            content = self.tool_manager.vfs.read_file(filepath)
             # append_file_content handles deleting old version and adding new at end
             self.prompt_manager.append_file_content(
                 filepath, content, 

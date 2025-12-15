@@ -2,6 +2,7 @@
 File explorer widget that reads from VFS (git tree)
 """
 
+from enum import Enum
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
@@ -17,13 +18,30 @@ if TYPE_CHECKING:
     from .branch_workspace import BranchWorkspace
 
 
+class ContextState(Enum):
+    """Context state for files and folders"""
+
+    NONE = "none"  # Not in context (grey eye)
+    PARTIAL = "partial"  # Some children in context (half eye) - folders only
+    FULL = "full"  # Fully in context (black eye)
+
+
+# Eye icons for different states
+ICON_NONE = "◯"  # Empty circle - not in context
+ICON_PARTIAL = "◐"  # Half-filled circle - partial context
+ICON_FULL = "●"  # Filled circle - full context
+
+
 class FileExplorerWidget(QWidget):
     """
     File explorer that shows files from VFS (git tree).
 
     Displays the branch's files in a tree structure.
     Double-clicking a file emits a signal to open it.
-    Shows an eye icon (👁) for files in AI context.
+    Shows context icons:
+    - ◯ (empty) for files/folders not in context
+    - ◐ (half) for folders with some files in context
+    - ● (full) for files in context or folders fully in context
     """
 
     # Emitted when user wants to open a file
@@ -36,6 +54,7 @@ class FileExplorerWidget(QWidget):
         super().__init__(parent)
         self.workspace = workspace
         self._context_files: set[str] = set()  # Files currently in AI context
+        self._all_files: list[str] = []  # All files in the VFS (cached for context calculations)
         self._setup_ui()
         self.refresh()
 
@@ -49,8 +68,8 @@ class FileExplorerWidget(QWidget):
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         self.tree.itemClicked.connect(self._on_item_clicked)
 
-        # Add tooltip explaining the eye icon
-        self.tree.setToolTip("Double-click to open file\nClick 👁 to toggle AI context")
+        # Add tooltip explaining the context icons
+        self.tree.setToolTip("Double-click to open file\nSingle-click to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context")
 
         layout.addWidget(self.tree)
 
@@ -58,17 +77,14 @@ class FileExplorerWidget(QWidget):
         """Refresh the file tree from VFS"""
         self.tree.clear()
 
-        # Get all files from VFS
+        # Get all files from VFS and cache them
         files = self.workspace.vfs.list_files()
+        self._all_files = [f for f in files if not f.startswith(".forge/")]
 
         # Build tree structure
         root_items: dict[str, QTreeWidgetItem] = {}
 
-        for filepath in sorted(files):
-            # Skip .forge directory (internal)
-            if filepath.startswith(".forge/"):
-                continue
-
+        for filepath in sorted(self._all_files):
             path = PurePosixPath(filepath)
             parts = path.parts
 
@@ -81,7 +97,8 @@ class FileExplorerWidget(QWidget):
 
                 if current_path not in root_items:
                     item = QTreeWidgetItem()
-                    item.setText(0, f"📁 {part}")
+                    # Initial icon will be set by _update_all_context_icons
+                    item.setText(0, f"{ICON_NONE} 📁 {part}")
                     item.setData(0, Qt.ItemDataRole.UserRole, current_path)  # Store path in data
                     item.setData(0, Qt.ItemDataRole.UserRole + 1, "dir")  # Mark as directory
 
@@ -97,14 +114,11 @@ class FileExplorerWidget(QWidget):
             # Add the file itself
             filename = parts[-1]
             file_item = QTreeWidgetItem()
-            # Show eye icon if file is in context
-            if filepath in self._context_files:
-                file_item.setText(0, f"👁 📄 {filename}")
-            else:
-                file_item.setText(0, f"    📄 {filename}")
+            # Initial icon will be set by _update_all_context_icons
+            file_item.setText(0, f"{ICON_NONE} 📄 {filename}")
             file_item.setData(0, Qt.ItemDataRole.UserRole, filepath)  # Store full path
             file_item.setData(0, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
-            file_item.setToolTip(0, f"{filepath}\nClick 👁 area to toggle AI context")
+            file_item.setToolTip(0, f"{filepath}\nClick to toggle AI context")
 
             if isinstance(current_parent, QTreeWidget):
                 current_parent.addTopLevelItem(file_item)
@@ -117,61 +131,116 @@ class FileExplorerWidget(QWidget):
             if top_item is not None and top_item.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
                 top_item.setExpanded(True)
 
+        # Update all context icons
+        self._update_all_context_icons()
+
     def set_context_files(self, context_files: set[str]) -> None:
         """Update which files are shown as being in AI context"""
         self._context_files = context_files.copy()
-        self._update_context_icons()
+        self._update_all_context_icons()
 
-    def _update_context_icons(self) -> None:
-        """Update the eye icons on all file items"""
-        self._update_context_icons_recursive(None)
+    def _update_all_context_icons(self) -> None:
+        """Update context icons on all items (files and folders)"""
+        # Update from bottom up so folders can calculate state from children
+        self._update_icons_recursive(None)
 
-    def _update_context_icons_recursive(self, parent: QTreeWidgetItem | None) -> None:
-        """Recursively update context icons"""
+    def _update_icons_recursive(self, parent: QTreeWidgetItem | None) -> ContextState:
+        """
+        Recursively update context icons, returning the aggregate state.
+
+        For files: FULL if in context, NONE otherwise
+        For folders: FULL if all children FULL, PARTIAL if some, NONE if none
+        """
         if parent is None:
-            # Top level items
+            # Process top level items
             for i in range(self.tree.topLevelItemCount()):
                 item = self.tree.topLevelItem(i)
                 if item:
-                    self._update_item_icon(item)
-                    self._update_context_icons_recursive(item)
-        else:
-            # Child items
+                    self._update_icons_recursive(item)
+            return ContextState.NONE  # Return value not used at top level
+
+        item_type = parent.data(0, Qt.ItemDataRole.UserRole + 1)
+
+        if item_type == "file":
+            # File: simple in-context check
+            filepath = parent.data(0, Qt.ItemDataRole.UserRole)
+            state = ContextState.FULL if filepath in self._context_files else ContextState.NONE
+            self._set_item_icon(parent, state)
+            return state
+
+        elif item_type == "dir":
+            # Folder: aggregate children states
+            child_states: list[ContextState] = []
+
             for i in range(parent.childCount()):
                 child = parent.child(i)
                 if child is not None:
-                    self._update_item_icon(child)
-                    self._update_context_icons_recursive(child)
+                    child_state = self._update_icons_recursive(child)
+                    child_states.append(child_state)
 
-    def _update_item_icon(self, item: QTreeWidgetItem) -> None:
-        """Update a single item's icon based on context status"""
+            # Calculate folder state
+            if not child_states:
+                state = ContextState.NONE
+            elif all(s == ContextState.FULL for s in child_states):
+                state = ContextState.FULL
+            elif all(s == ContextState.NONE for s in child_states):
+                state = ContextState.NONE
+            else:
+                state = ContextState.PARTIAL
+
+            self._set_item_icon(parent, state)
+            return state
+
+        return ContextState.NONE
+
+    def _set_item_icon(self, item: QTreeWidgetItem, state: ContextState) -> None:
+        """Set the context icon for an item based on state"""
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
-        if item_type != "file":
-            return
-
-        filepath = item.data(0, Qt.ItemDataRole.UserRole)
         text = item.text(0)
 
-        # Extract just the filename (remove any existing icons)
-        # The format is either "👁 📄 filename" or "    📄 filename"
-        filename = text.split("📄")[-1].strip() if "📄" in text else text.strip()
-
-        # Set new text with appropriate icon
-        if filepath in self._context_files:
-            item.setText(0, f"👁 📄 {filename}")
+        # Extract the name (remove existing icon prefix)
+        if item_type == "file":
+            # Format: "ICON 📄 filename"
+            name = text.split("📄")[-1].strip() if "📄" in text else text.strip()
+            icon = {
+                ContextState.NONE: ICON_NONE,
+                ContextState.PARTIAL: ICON_PARTIAL,  # Shouldn't happen for files
+                ContextState.FULL: ICON_FULL,
+            }[state]
+            item.setText(0, f"{icon} 📄 {name}")
         else:
-            item.setText(0, f"    📄 {filename}")
+            # Format: "ICON 📁 foldername"
+            name = text.split("📁")[-1].strip() if "📁" in text else text.strip()
+            icon = {
+                ContextState.NONE: ICON_NONE,
+                ContextState.PARTIAL: ICON_PARTIAL,
+                ContextState.FULL: ICON_FULL,
+            }[state]
+            item.setText(0, f"{icon} 📁 {name}")
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
-        """Handle single click on item - check if clicking on eye icon area"""
+        """Handle single click on item - toggle context"""
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
 
         if item_type == "file":
             filepath = item.data(0, Qt.ItemDataRole.UserRole)
-            # Toggle context when clicking (single click toggles context)
-            # The eye icon is at the start, so any click on the item toggles
+            # Toggle context for file
             is_in_context = filepath in self._context_files
             self.context_toggle_requested.emit(filepath, not is_in_context)
+
+        elif item_type == "dir":
+            # Toggle context for all files in this folder
+            folder_path = item.data(0, Qt.ItemDataRole.UserRole)
+            folder_files = [f for f in self._all_files if f.startswith(folder_path + "/")]
+
+            if not folder_files:
+                return
+
+            # If any file in folder is NOT in context, add all; otherwise remove all
+            all_in_context = all(f in self._context_files for f in folder_files)
+
+            for filepath in folder_files:
+                self.context_toggle_requested.emit(filepath, not all_in_context)
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
         """Handle double-click on item"""

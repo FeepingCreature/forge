@@ -1,0 +1,152 @@
+{
+  "active_files": [
+    "src/ui/ai_chat_widget.py"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 47 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! I think we have a bug where we add tool? messages to the AI chat UI widget multiple times. Can you have a look?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll investigate the AI chat widget to understand how tool messages are being added. Let me start by looking at the relevant file."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll investigate the AI chat widget to understand how tool messages are being added. Let me start by looking at the relevant file.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01XP93qy7KZ4ejDPXKhP59wT",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 Calling tool: `update_context`\n```json\n{\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XP93qy7KZ4ejDPXKhP59wT",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}"
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udccb Tool result:\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the issue. In `_execute_tool_calls`, tool-related messages are being added to the UI twice:\n\n1. **First addition** - When calling tools, the method adds system messages for both the tool call and result:\n   - Line ~548: `self._add_system_message(f\"\ud83d\udd27 Calling tool: ...\")` \n   - Line ~576: `self._add_system_message(f\"\ud83d\udccb Tool result: ...\")`\n\n2. **Second addition** - At line ~578, `self._update_chat_display()` is called at the end of the loop.\n\nBut the real bug is more subtle. Let me trace through more carefully:\n\nLooking at `_add_system_message`:\n```python\ndef _add_system_message(self, content: str) -> None:\n    self.messages.append({\"role\": \"system\", \"content\": content, \"_ui_only\": True})\n    self._update_chat_display()  # <-- Updates display immediately\n```\n\nAnd then at the end of `_execute_tool_calls`:\n```python\nself._update_chat_display()  # <-- Updates display AGAIN after loop\n```\n\nHowever, this just causes an extra re-render, not duplicate messages.\n\nLet me look more carefully at the tool execution flow... I see it now! The issue is in how tool results are added:\n\n1. `_add_system_message` is called for \"\ud83d\udd27 Calling tool\" - adds to `self.messages` and updates display\n2. Tool result message is appended: `self.messages.append(tool_message)` (the actual tool role message)\n3. `_add_system_message` is called for \"\ud83d\udccb Tool result\" - adds to `self.messages` and updates display\n4. Then `self._update_chat_display()` is called again at line 578\n\nBut wait - I notice the real issue. When there are multiple tool calls, for each iteration of the loop:\n- We add system message for tool call \u2192 updates display\n- We append tool result to messages (but don't update display here)\n- We add system message for result \u2192 updates display\n\nThen after the loop, we call `_update_chat_display()` one more time.\n\nThe actual bug is the redundant `_update_chat_display()` call at the end of `_execute_tool_calls`. Let me remove it:"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the issue. In `_execute_tool_calls`, tool-related messages are being added to the UI twice:\n\n1. **First addition** - When calling tools, the method adds system messages for both the tool call and result:\n   - Line ~548: `self._add_system_message(f\"\ud83d\udd27 Calling tool: ...\")` \n   - Line ~576: `self._add_system_message(f\"\ud83d\udccb Tool result: ...\")`\n\n2. **Second addition** - At line ~578, `self._update_chat_display()` is called at the end of the loop.\n\nBut the real bug is more subtle. Let me trace through more carefully:\n\nLooking at `_add_system_message`:\n```python\ndef _add_system_message(self, content: str) -> None:\n    self.messages.append({\"role\": \"system\", \"content\": content, \"_ui_only\": True})\n    self._update_chat_display()  # <-- Updates display immediately\n```\n\nAnd then at the end of `_execute_tool_calls`:\n```python\nself._update_chat_display()  # <-- Updates display AGAIN after loop\n```\n\nHowever, this just causes an extra re-render, not duplicate messages.\n\nLet me look more carefully at the tool execution flow... I see it now! The issue is in how tool results are added:\n\n1. `_add_system_message` is called for \"\ud83d\udd27 Calling tool\" - adds to `self.messages` and updates display\n2. Tool result message is appended: `self.messages.append(tool_message)` (the actual tool role message)\n3. `_add_system_message` is called for \"\ud83d\udccb Tool result\" - adds to `self.messages` and updates display\n4. Then `self._update_chat_display()` is called again at line 578\n\nBut wait - I notice the real issue. When there are multiple tool calls, for each iteration of the loop:\n- We add system message for tool call \u2192 updates display\n- We append tool result to messages (but don't update display here)\n- We add system message for result \u2192 updates display\n\nThen after the loop, we call `_update_chat_display()` one more time.\n\nThe actual bug is the redundant `_update_chat_display()` call at the end of `_execute_tool_calls`. Let me remove it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"            # Display result (UI feedback)\\n            self._add_system_message(\\n                f\\\"\ud83d\udccb Tool result:\\\\n```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\"\\n            )\\n\\n        self._update_chat_display()\\n\\n        # Continue conversation with tool results in background thread\\n        self._continue_after_tools(tools)\", \"replace\": \"            # Display result (UI feedback)\\n            self._add_system_message(\\n                f\\\"\ud83d\udccb Tool result:\\\\n```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\"\\n            )\\n\\n        # Continue conversation with tool results in background thread\\n        self._continue_after_tools(tools)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01R3J1SpCyWpUtAUB5JgtsKe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 Calling tool: `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"            # Display result (UI feedback)\\n            self._add_system_message(\\n                f\\\"\\ud83d\\udccb Tool result:\\\\n```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\"\\n            )\\n\\n        self._update_chat_display()\\n\\n        # Continue conversation with tool results in background thread\\n        self._continue_after_tools(tools)\",\n  \"replace\": \"            # Display result (UI feedback)\\n            self._add_system_message(\\n                f\\\"\\ud83d\\udccb Tool result:\\\\n```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\"\\n            )\\n\\n        # Continue conversation with tool results in background thread\\n        self._continue_after_tools(tools)\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01R3J1SpCyWpUtAUB5JgtsKe",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}"
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udccb Tool result:\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The fix I made removes the redundant `self._update_chat_display()` call at the end of the `_execute_tool_calls` method. \n\nLooking at the code flow:\n1. For each tool call in the loop, `_add_system_message()` is called twice - once for \"\ud83d\udd27 Calling tool\" and once for \"\ud83d\udccb Tool result\"\n2. Each `_add_system_message()` call already includes `self._update_chat_display()` at the end\n3. There was an extra `self._update_chat_display()` call after the loop, which was unnecessary\n\nThis extra call didn't cause duplicate *messages* (since messages are only appended once), but it did cause an extra re-render of the entire chat display. The fix removes this redundant re-render.\n\nHowever, looking more carefully - I should double-check if there was actually a bug causing duplicate messages, or just redundant renders. Let me search for any other places where tool messages might be added:"
+    },
+    {
+      "role": "assistant",
+      "content": "The fix I made removes the redundant `self._update_chat_display()` call at the end of the `_execute_tool_calls` method. \n\nLooking at the code flow:\n1. For each tool call in the loop, `_add_system_message()` is called twice - once for \"\ud83d\udd27 Calling tool\" and once for \"\ud83d\udccb Tool result\"\n2. Each `_add_system_message()` call already includes `self._update_chat_display()` at the end\n3. There was an extra `self._update_chat_display()` call after the loop, which was unnecessary\n\nThis extra call didn't cause duplicate *messages* (since messages are only appended once), but it did cause an extra re-render of the entire chat display. The fix removes this redundant re-render.\n\nHowever, looking more carefully - I should double-check if there was actually a bug causing duplicate messages, or just redundant renders. Let me search for any other places where tool messages might be added:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"Tool result|Calling tool\"}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_0172VTZXN4EoGnNrLfTyQrqh",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 Calling tool: `grep_open`\n```json\n{\n  \"pattern\": \"Tool result|Calling tool\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0172VTZXN4EoGnNrLfTyQrqh",
+      "content": "{\"success\": true, \"message\": \"Found 1 files matching 'Tool result|Calling tool'\", \"matches\": [{\"filepath\": \"src/ui/ai_chat_widget.py\", \"match_count\": 2, \"first_match\": \"Calling tool\"}], \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": []}"
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udccb Tool result:\n```json\n{\n  \"success\": true,\n  \"message\": \"Found 1 files matching 'Tool result|Calling tool'\",\n  \"matches\": [\n    {\n      \"filepath\": \"src/ui/ai_chat_widget.py\",\n      \"match_count\": 2,\n      \"first_match\": \"Calling tool\"\n    }\n  ],\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": []\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the full file now. Looking at my earlier fix, I realize the issue was just removing a redundant `_update_chat_display()` call - but that wouldn't cause duplicate *messages*, just an extra render.\n\nLet me look more carefully at where duplicate messages might actually be added. Looking at the `_execute_tool_calls` method, I see:\n\n1. `_add_system_message(f\"\ud83d\udd27 Calling tool: ...\")` - adds UI message + updates display\n2. `self.messages.append(tool_message)` - adds the actual tool result message (no display update)\n3. `_add_system_message(f\"\ud83d\udccb Tool result: ...\")` - adds UI message + updates display\n\nThese are all different messages - one is the \"Calling tool\" UI message, one is the actual tool result (role=\"tool\"), and one is the \"Tool result\" UI message.\n\nWait - I see it now! Look at line 576-578 in my current version. After the loop, there was:\n\n```python\nself._update_chat_display()\n```\n\nThat was just an extra render, not duplicate messages. My fix was correct to remove it.\n\nBut let me check if there's another issue - maybe the user is seeing duplicate UI messages specifically. Let me check if `_add_system_message` is being called from multiple places for the same tool call:\n\nLooking at the flow again:\n1. In `_execute_tool_calls`: We add \"\ud83d\udd27 Calling tool\" and \"\ud83d\udccb Tool result\" messages\n2. After tool execution completes, `_continue_after_tools` is called\n3. The LLM responds, and if it has more tool calls, `_on_stream_finished` calls `_execute_tool_calls` again\n\nThat's the expected flow. Each tool call should only show once...\n\nActually, wait! I see a potential issue. Let me look at `_on_stream_finished`:\n\n```python\n# Add assistant message with tool calls to both UI and prompt manager\nassistant_msg: dict[str, Any] = {\"role\": \"assistant\", \"content\": result.get(\"content\")}\nassistant_msg[\"tool_calls\"] = result[\"tool_calls\"]\nself.messages.append(assistant_msg)\n```\n\nThis adds the assistant message with tool_calls. But earlier in the same function, there's:\n\n```python\n# Update final message\nif result.get(\"content\") and self.messages and self.messages[-1][\"role\"] == \"assistant\":\n    self.messages[-1][\"content\"] = result[\"content\"]\n```\n\nAnd then later:\n\n```python\n# Remove the streaming message if it was empty\nif (\n    self.messages\n    and self.messages[-1][\"role\"] == \"assistant\"\n    and not self.messages[-1][\"content\"]\n):\n    self.messages.pop()\n```\n\nSo if there's content AND tool calls, we update the streaming message content, then DON'T pop it (because it has content), then append ANOTHER assistant message with the tool calls. That would create a duplicate!\n\nLet me fix this properly:"
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the full file now. Looking at my earlier fix, I realize the issue was just removing a redundant `_update_chat_display()` call - but that wouldn't cause duplicate *messages*, just an extra render.\n\nLet me look more carefully at where duplicate messages might actually be added. Looking at the `_execute_tool_calls` method, I see:\n\n1. `_add_system_message(f\"\ud83d\udd27 Calling tool: ...\")` - adds UI message + updates display\n2. `self.messages.append(tool_message)` - adds the actual tool result message (no display update)\n3. `_add_system_message(f\"\ud83d\udccb Tool result: ...\")` - adds UI message + updates display\n\nThese are all different messages - one is the \"Calling tool\" UI message, one is the actual tool result (role=\"tool\"), and one is the \"Tool result\" UI message.\n\nWait - I see it now! Look at line 576-578 in my current version. After the loop, there was:\n\n```python\nself._update_chat_display()\n```\n\nThat was just an extra render, not duplicate messages. My fix was correct to remove it.\n\nBut let me check if there's another issue - maybe the user is seeing duplicate UI messages specifically. Let me check if `_add_system_message` is being called from multiple places for the same tool call:\n\nLooking at the flow again:\n1. In `_execute_tool_calls`: We add \"\ud83d\udd27 Calling tool\" and \"\ud83d\udccb Tool result\" messages\n2. After tool execution completes, `_continue_after_tools` is called\n3. The LLM responds, and if it has more tool calls, `_on_stream_finished` calls `_execute_tool_calls` again\n\nThat's the expected flow. Each tool call should only show once...\n\nActually, wait! I see a potential issue. Let me look at `_on_stream_finished`:\n\n```python\n# Add assistant message with tool calls to both UI and prompt manager\nassistant_msg: dict[str, Any] = {\"role\": \"assistant\", \"content\": result.get(\"content\")}\nassistant_msg[\"tool_calls\"] = result[\"tool_calls\"]\nself.messages.append(assistant_msg)\n```\n\nThis adds the assistant message with tool_calls. But earlier in the same function, there's:\n\n```python\n# Update final message\nif result.get(\"content\") and self.messages and self.messages[-1][\"role\"] == \"assistant\":\n    self.messages[-1][\"content\"] = result[\"content\"]\n```\n\nAnd then later:\n\n```python\n# Remove the streaming message if it was empty\nif (\n    self.messages\n    and self.messages[-1][\"role\"] == \"assistant\"\n    and not self.messages[-1][\"content\"]\n):\n    self.messages.pop()\n```\n\nSo if there's content AND tool calls, we update the streaming message content, then DON'T pop it (because it has content), then append ANOTHER assistant message with the tool calls. That would create a duplicate!\n\nLet me fix this properly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Handle tool calls if present\\n        if result.get(\\\"tool_calls\\\"):\\n            # Remove the streaming message if it was empty\\n            if (\\n                self.messages\\n                and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\"\\n                and not self.messages[-1][\\\"content\\\"]\\n            ):\\n                self.messages.pop()\\n\\n            # Add assistant message with tool calls to both UI and prompt manager\\n            assistant_msg: dict[str, Any] = {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": result.get(\\\"content\\\")}\\n            assistant_msg[\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n            self.messages.append(assistant_msg)\\n            # Include content with tool calls so AI sees its own reasoning\\n            self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\", \"replace\": \"        # Handle tool calls if present\\n        if result.get(\\\"tool_calls\\\"):\\n            # Update the streaming message to include tool calls (or remove if empty)\\n            if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n                if not self.messages[-1][\\\"content\\\"]:\\n                    # Remove empty streaming message, we'll add a proper one\\n                    self.messages.pop()\\n                    # Add assistant message with tool calls\\n                    assistant_msg: dict[str, Any] = {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": result.get(\\\"content\\\")}\\n                    assistant_msg[\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n                    self.messages.append(assistant_msg)\\n                else:\\n                    # Streaming message has content - just add tool_calls to it\\n                    self.messages[-1][\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n\\n            # Include content with tool calls so AI sees its own reasoning\\n            self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018R7kbjKufJ7fZqkfxwvYuz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 Calling tool: `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Handle tool calls if present\\n        if result.get(\\\"tool_calls\\\"):\\n            # Remove the streaming message if it was empty\\n            if (\\n                self.messages\\n                and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\"\\n                and not self.messages[-1][\\\"content\\\"]\\n            ):\\n                self.messages.pop()\\n\\n            # Add assistant message with tool calls to both UI and prompt manager\\n            assistant_msg: dict[str, Any] = {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": result.get(\\\"content\\\")}\\n            assistant_msg[\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n            self.messages.append(assistant_msg)\\n            # Include content with tool calls so AI sees its own reasoning\\n            self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\",\n  \"replace\": \"        # Handle tool calls if present\\n        if result.get(\\\"tool_calls\\\"):\\n            # Update the streaming message to include tool calls (or remove if empty)\\n            if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n                if not self.messages[-1][\\\"content\\\"]:\\n                    # Remove empty streaming message, we'll add a proper one\\n                    self.messages.pop()\\n                    # Add assistant message with tool calls\\n                    assistant_msg: dict[str, Any] = {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": result.get(\\\"content\\\")}\\n                    assistant_msg[\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n                    self.messages.append(assistant_msg)\\n                else:\\n                    # Streaming message has content - just add tool_calls to it\\n                    self.messages[-1][\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n\\n            # Include content with tool calls so AI sees its own reasoning\\n            self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018R7kbjKufJ7fZqkfxwvYuz",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}"
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udccb Tool result:\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code more carefully now, I see my fix was correct but incomplete. Let me trace through the issue more thoroughly.\n\nThe issue I fixed addresses the case where:\n1. The streaming message has content (e.g., \"I'll help you with that...\")\n2. Tool calls are also present\n3. Before my fix: we would update the streaming message content, NOT pop it (because it has content), then append ANOTHER assistant message with tool_calls - creating a duplicate\n\nHowever, I notice there's still a potential issue. Looking at the flow:\n\n1. `_on_stream_chunk` updates `self.messages[-1][\"content\"]` as chunks arrive\n2. `_on_stream_finished` is called with the final result\n3. It updates `self.messages[-1][\"content\"]` again with `result[\"content\"]` \n4. Then with my fix, if the message has content, we just add `tool_calls` to it\n\nBut wait - looking at lines 479-481:\n```python\n# Update final message\nif result.get(\"content\") and self.messages and self.messages[-1][\"role\"] == \"assistant\":\n    self.messages[-1][\"content\"] = result[\"content\"]\n```\n\nThis updates the content. Then at line 484, `_finalize_streaming_content()` is called which renders markdown.\n\nThen at 487-498, my new code handles tool_calls. This looks correct now.\n\nBut I just realized there may be another source of duplicates! Let me check if `_update_chat_display()` is being called too frequently during tool execution, causing visual duplication. Looking at `_add_system_message`:\n\n```python\ndef _add_system_message(self, content: str) -> None:\n    self.messages.append({\"role\": \"system\", \"content\": content, \"_ui_only\": True})\n    self._update_chat_display()\n```\n\nEach system message triggers a full re-render. That's fine - it shouldn't cause duplicates.\n\nLet me check if there's something in `_execute_tool_calls` that might be adding duplicate messages. Looking at line 554-555:\n\n```python\nself.messages.append(tool_message)\nself.session_manager.append_tool_result(tool_call[\"id\"], result_json)\n```\n\nThis is correct - one append to messages, one to session manager.\n\nActually, wait - I should double-check my fix handles all cases. What if there's NO content but there ARE tool_calls? Let me trace that:\n\n1. Streaming starts, empty message added\n2. No content chunks arrive (just tool calls)\n3. `_on_stream_finished` called with `result = {\"content\": None, \"tool_calls\": [...]}`\n4. Line 479-481: condition fails (no content), message NOT updated\n5. Line 484: `_finalize_streaming_content()` called but `self.streaming_content` is empty, returns early\n6. Line 487-498: `result.get(\"tool_calls\")` is truthy, we check the last message\n7. `self.messages[-1][\"content\"]` is `\"\"` (empty string, falsy), so we pop and add new message\n\nThat looks correct!\n\nWhat about content WITH tool_calls?\n1. Streaming starts, empty message added\n2. Content chunks arrive, message content updated\n3. `_on_stream_finished` called with `result = {\"content\": \"I'll do X\", \"tool_calls\": [...]}`\n4. Line 479-481: condition succeeds, message content updated to final\n5. Line 484: `_finalize_streaming_content()` renders markdown\n6. Line 487-498: We check last message, it HAS content, so we just add `tool_calls` to it\n\nThat also looks correct!\n\nThe fix I made should resolve the duplicate message issue. The redundant `_update_chat_display()` I removed was just an extra render but shouldn't have caused duplicates by itself.\n\nIs there anything else you'd like me to check, or would you like to test the fix?"
+    }
+  ]
+}

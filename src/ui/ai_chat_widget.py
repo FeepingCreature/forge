@@ -581,18 +581,19 @@ class AIChatWidget(QWidget):
 
         # Handle tool calls if present
         if result.get("tool_calls"):
-            # Remove the streaming message if it was empty
-            if (
-                self.messages
-                and self.messages[-1]["role"] == "assistant"
-                and not self.messages[-1]["content"]
-            ):
-                self.messages.pop()
+            # Update the streaming message to include tool calls (or remove if empty)
+            if self.messages and self.messages[-1]["role"] == "assistant":
+                if not self.messages[-1]["content"]:
+                    # Remove empty streaming message, we'll add a proper one
+                    self.messages.pop()
+                    # Add assistant message with tool calls
+                    assistant_msg: dict[str, Any] = {"role": "assistant", "content": result.get("content")}
+                    assistant_msg["tool_calls"] = result["tool_calls"]
+                    self.messages.append(assistant_msg)
+                else:
+                    # Streaming message has content - just add tool_calls to it
+                    self.messages[-1]["tool_calls"] = result["tool_calls"]
 
-            # Add assistant message with tool calls to both UI and prompt manager
-            assistant_msg: dict[str, Any] = {"role": "assistant", "content": result.get("content")}
-            assistant_msg["tool_calls"] = result["tool_calls"]
-            self.messages.append(assistant_msg)
             # Include content with tool calls so AI sees its own reasoning
             self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
@@ -695,8 +696,6 @@ class AIChatWidget(QWidget):
             self._add_system_message(
                 f"📋 Tool result:\n```json\n{json.dumps(result, indent=2)}\n```"
             )
-
-        self._update_chat_display()
 
         # Continue conversation with tool results in background thread
         self._continue_after_tools(tools)

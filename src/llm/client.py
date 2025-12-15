@@ -77,13 +77,31 @@ class LLMClient:
                 time.sleep(wait_time)
                 continue
 
-            response.raise_for_status()
+            if not response.ok:
+                # Include response body in error for debugging
+                try:
+                    error_body = response.text
+                except Exception:
+                    error_body = "(could not read response body)"
+                raise requests.HTTPError(
+                    f"{response.status_code} {response.reason} for {response.url}\n\nResponse body:\n{error_body}",
+                    response=response,
+                )
+
             result: dict[str, Any] = response.json()
             print("✅ LLM Response received")
             return result
 
         # If we exhausted all retries, raise the last error
-        response.raise_for_status()
+        assert response is not None
+        try:
+            error_body = response.text
+        except Exception:
+            error_body = "(could not read response body)"
+        raise requests.HTTPError(
+            f"{response.status_code} {response.reason} for {response.url}\n\nResponse body:\n{error_body}",
+            response=response,
+        )
         # This line won't be reached, but satisfies type checker
         return {}
 
@@ -133,12 +151,29 @@ class LLMClient:
                 time.sleep(wait_time)
                 continue
 
-            response.raise_for_status()
+            if not response.ok:
+                # Include response body in error for debugging
+                try:
+                    error_body = response.text
+                except Exception:
+                    error_body = "(could not read response body)"
+                raise requests.HTTPError(
+                    f"{response.status_code} {response.reason} for {response.url}\n\nResponse body:\n{error_body}",
+                    response=response,
+                )
             break
         else:
             # Exhausted all retries
             assert response is not None
-            response.raise_for_status()
+            if not response.ok:
+                try:
+                    error_body = response.text
+                except Exception:
+                    error_body = "(could not read response body)"
+                raise requests.HTTPError(
+                    f"{response.status_code} {response.reason} for {response.url}\n\nResponse body:\n{error_body}",
+                    response=response,
+                )
 
         print("📡 Streaming response started")
 

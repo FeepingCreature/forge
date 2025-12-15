@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
+    from ..vfs.work_in_progress import WorkInProgressVFS
 
 from ..git_backend.commit_types import CommitType
 from ..git_backend.repository import ForgeRepository
@@ -254,9 +255,11 @@ class SessionManager:
 
         # Get all changes including session file
         all_changes = self.tool_manager.get_pending_changes()
+        deleted_files = self.tool_manager.vfs.get_deleted_files()
 
         # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
-        only_session_changed = len(all_changes) == 1 and self.SESSION_FILE in all_changes
+        has_real_changes = (len(all_changes) > 1 or self.SESSION_FILE not in all_changes or deleted_files)
+        only_session_changed = not has_real_changes
         commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
 
         # Generate commit message if not provided
@@ -266,18 +269,26 @@ class SessionManager:
             else:
                 commit_message = self.generate_commit_message(all_changes)
 
-        # Build tree from VFS changes
-        tree_oid = self.repo.create_tree_from_changes(self.branch_name, all_changes)
+        # Build tree from VFS changes (including deletions)
+        tree_oid = self.repo.create_tree_from_changes(self.branch_name, all_changes, deleted_files)
 
         # Create commit - will automatically absorb any PREPARE commits if MAJOR
         commit_oid = self.repo.commit_tree(
             tree_oid, commit_message, self.branch_name, commit_type=commit_type
         )
 
-        # Clear VFS pending changes
+        # Clear VFS pending changes and refresh to new HEAD
         self.tool_manager.clear_pending_changes()
+        
+        # Refresh VFS to point to new commit (so next turn sees committed state)
+        self.tool_manager.vfs = self._create_fresh_vfs()
 
         return str(commit_oid)
+    
+    def _create_fresh_vfs(self) -> "WorkInProgressVFS":
+        """Create a fresh VFS pointing to current branch HEAD"""
+        from ..vfs.work_in_progress import WorkInProgressVFS
+        return WorkInProgressVFS(self.repo, self.branch_name)
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
         """Generate commit message using cheap LLM"""

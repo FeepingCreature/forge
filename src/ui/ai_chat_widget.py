@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
 
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
-from ..prompts import SYSTEM_PROMPT
 from ..session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -182,9 +181,25 @@ class AIChatWidget(QWidget):
         assert settings is not None, "Settings are required for AIChatWidget"
         self.session_manager = SessionManager(repo, self.branch_name, settings)
 
-        # Load existing session messages
+        # Load existing session messages and restore prompt manager state
         if session_data:
             self.messages = session_data.get("messages", [])
+            # Restore messages to prompt manager
+            for msg in self.messages:
+                if msg.get("_ui_only"):
+                    continue  # Skip UI-only messages
+                role = msg.get("role")
+                content = msg.get("content", "")
+                if role == "user":
+                    self.session_manager.append_user_message(content)
+                elif role == "assistant":
+                    if "tool_calls" in msg:
+                        self.session_manager.append_tool_call(msg["tool_calls"])
+                    elif content:
+                        self.session_manager.append_assistant_message(content)
+                elif role == "tool":
+                    tool_call_id = msg.get("tool_call_id", "")
+                    self.session_manager.append_tool_result(tool_call_id, content)
             # Note: active_files are restored by MainWindow opening file tabs
             # The file_opened signals will sync them to SessionManager
 
@@ -426,8 +441,9 @@ class AIChatWidget(QWidget):
             if not self.unsaved_changes_check():
                 return  # User cancelled or needs to save first
 
-        # Normal message flow
+        # Normal message flow - add to both UI messages and prompt manager
         self.add_message("user", text)
+        self.session_manager.append_user_message(text)
         self.input_field.clear()
 
         # Disable input while processing
@@ -444,45 +460,17 @@ class AIChatWidget(QWidget):
 
     def _build_prompt_messages(self) -> list[dict[str, Any]]:
         """
-        Build the complete prompt: context (summaries + active files) + conversation messages.
+        Build the complete prompt using PromptManager.
         
-        This method should be called every time we send to the LLM, ensuring
-        the AI always sees the current state of active files.
+        The PromptManager maintains the prompt as an append-only stream,
+        optimized for cache reuse. File contents are ordered so that
+        recently-modified files are at the end.
         """
-        # Build context with summaries and active files
-        context = self.session_manager.build_context()
-        context_parts = []
-
-        # Add repository summaries
-        if context["summaries"]:
-            context_parts.append("# Repository Files\n")
-            for filepath, summary in context["summaries"].items():
-                context_parts.append(f"- {filepath}: {summary}\n")
-            context_parts.append("\n")
-
-        # Add active files with full content
-        if context["active_files"]:
-            context_parts.append("# Active Files (Full Content)\n\n")
-            for filepath, content in context["active_files"].items():
-                context_parts.append(f"## {filepath}\n\n```\n{content}\n```\n\n")
-
-        context_message = "".join(context_parts)
-
-        # Get conversation messages (exclude UI-only messages)
-        conversation = self._get_conversation_messages()
-
-        # Build final prompt: system instructions + context + conversation
-        prompt_messages: list[dict[str, Any]] = []
+        # Sync prompt manager with current state (summaries, file contents)
+        self.session_manager.sync_prompt_manager()
         
-        # Always include system instructions
-        full_system = SYSTEM_PROMPT
-        if context_message:
-            full_system += context_message
-        
-        prompt_messages.append({"role": "system", "content": full_system})
-        prompt_messages.extend(conversation)
-        
-        return prompt_messages
+        # Get optimized messages from prompt manager
+        return self.session_manager.get_prompt_messages()
 
     def _process_llm_request(self) -> None:
         """Process LLM request with streaming support"""
@@ -558,16 +546,22 @@ class AIChatWidget(QWidget):
             ):
                 self.messages.pop()
 
-            # Add assistant message with tool calls
+            # Add assistant message with tool calls to both UI and prompt manager
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": result.get("content")}
             assistant_msg["tool_calls"] = result["tool_calls"]
             self.messages.append(assistant_msg)
+            self.session_manager.append_tool_call(result["tool_calls"])
 
             # Execute tools - don't commit yet, AI will respond again
             self._execute_tool_calls(result["tool_calls"])
             return
 
-        # This is a final text response with no tool calls - commit now
+        # This is a final text response with no tool calls
+        # Add to prompt manager
+        if result.get("content"):
+            self.session_manager.append_assistant_message(result["content"])
+        
+        # Commit now
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
 
@@ -625,12 +619,20 @@ class AIChatWidget(QWidget):
             result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
             # Add tool result to messages (this IS part of conversation history)
+            result_json = json.dumps(result)
             tool_message = {
                 "role": "tool",
                 "tool_call_id": tool_call["id"],
-                "content": json.dumps(result),
+                "content": result_json,
             }
             self.messages.append(tool_message)
+            self.session_manager.append_tool_result(tool_call["id"], result_json)
+            
+            # If tool modified a file, notify prompt manager to reorder
+            if result.get("success") and tool_name in ("write_file", "search_replace", "delete_file"):
+                filepath = tool_args.get("filepath")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath)
 
             # Display result (UI feedback)
             self._add_system_message(

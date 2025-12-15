@@ -130,6 +130,29 @@ The relationship is one-way: **files open in tabs are always in AI context, but 
 - Click on a file in explorer to toggle its context status
 - This allows AI to efficiently work with many files without cluttering the UI
 
+### Prompt Cache Optimization
+
+The prompt is structured as an **append-only stream with deletions** to maximize Anthropic cache reuse:
+
+```
+[system prompt] ← cache checkpoint
+[summaries for all files]
+[file content: oldest-modified first]
+[file content: recently-modified last]
+[conversation: user message]
+[conversation: assistant response]
+[conversation: tool calls + results]
+...
+[latest content] ← cache checkpoint (always at end)
+```
+
+**Key optimization:** When a file is modified:
+1. Delete its old content block from the stream
+2. Append new content at the end with note "summary may be outdated"
+3. Cache is preserved for everything before the old position
+
+This means successive edits to the same file(s) get ~90% cache reuse.
+
 ## VFS Architecture
 
 ### Single Access Layer

@@ -163,7 +163,9 @@ class PromptManager:
         """
         Convert the block stream to API message format.
         
-        Skips deleted blocks. Places cache_control on the last block.
+        Skips deleted blocks. Places cache_control on the last content block.
+        
+        Groups consecutive same-role blocks into single messages where appropriate.
         """
         messages: list[dict[str, Any]] = []
         
@@ -173,33 +175,52 @@ class PromptManager:
         if not active_blocks:
             return messages
         
-        # Group consecutive blocks by role for proper message structure
-        # System blocks -> system message
-        # Summaries + file content + user messages -> user messages
-        # Assistant messages + tool calls -> assistant messages
-        # Tool results -> tool messages
+        # Find the index of the last content block (for cache_control placement)
+        last_content_idx = -1
+        for i, block in enumerate(active_blocks):
+            if block.block_type not in (BlockType.TOOL_CALL,):
+                last_content_idx = i
         
         i = 0
         while i < len(active_blocks):
             block = active_blocks[i]
-            is_last = (i == len(active_blocks) - 1)
+            is_last_content = (i == last_content_idx)
             
             if block.block_type == BlockType.SYSTEM:
-                messages.append(self._make_system_message(block, is_last))
+                messages.append(self._make_system_message(block, is_last_content))
+                i += 1
             
-            elif block.block_type in (BlockType.SUMMARIES, BlockType.FILE_CONTENT, BlockType.USER_MESSAGE):
-                messages.append(self._make_user_message(block, is_last))
+            elif block.block_type in (BlockType.SUMMARIES, BlockType.FILE_CONTENT):
+                # Group consecutive context blocks into a single user message
+                content_blocks = []
+                while i < len(active_blocks) and active_blocks[i].block_type in (
+                    BlockType.SUMMARIES, BlockType.FILE_CONTENT
+                ):
+                    is_this_last = (i == last_content_idx)
+                    content_blocks.append(
+                        self._make_content_block(active_blocks[i].content, is_this_last)
+                    )
+                    i += 1
+                messages.append({"role": "user", "content": content_blocks})
+            
+            elif block.block_type == BlockType.USER_MESSAGE:
+                messages.append(self._make_user_message(block, is_last_content))
+                i += 1
             
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
-                messages.append(self._make_assistant_message(block, is_last))
+                messages.append(self._make_assistant_message(block, is_last_content))
+                i += 1
             
             elif block.block_type == BlockType.TOOL_CALL:
-                messages.append(self._make_assistant_tool_call(block, is_last))
+                messages.append(self._make_assistant_tool_call(block, False))
+                i += 1
             
             elif block.block_type == BlockType.TOOL_RESULT:
-                messages.append(self._make_tool_result(block, is_last))
+                messages.append(self._make_tool_result(block, is_last_content))
+                i += 1
             
-            i += 1
+            else:
+                i += 1
         
         return messages
     

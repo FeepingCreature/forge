@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 from ..git_backend.commit_types import CommitType
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
+from ..prompts.manager import PromptManager
+from ..prompts.system import SYSTEM_PROMPT
 from ..tools.manager import ToolManager
 
 
@@ -32,7 +34,10 @@ class SessionManager:
         # Tool manager for this session
         self.tool_manager = ToolManager(repo, branch_name)
 
-        # Active files in context
+        # Prompt manager for cache-optimized prompt construction
+        self.prompt_manager = PromptManager(SYSTEM_PROMPT)
+
+        # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()
 
         # Repository summaries cache (in-memory)
@@ -72,23 +77,116 @@ class SessionManager:
         cache_file.write_text(summary)
 
     def build_context(self) -> dict[str, Any]:
-        """Build context for LLM with summaries and active files"""
+        """Build context for LLM with summaries and active files (legacy method)"""
         context = {"summaries": self.repo_summaries, "active_files": {}}
 
         # Add full content for active files
         for filepath in self.active_files:
-            content = self.repo.get_file_content(filepath, self.branch_name)
-            context["active_files"][filepath] = content
+            try:
+                content = self.repo.get_file_content(filepath, self.branch_name)
+                context["active_files"][filepath] = content
+            except (FileNotFoundError, KeyError):
+                # File may have been deleted
+                pass
 
         return context
+
+    def sync_prompt_manager(self) -> None:
+        """
+        Sync the prompt manager with current state.
+        
+        Call this before building messages to ensure prompt manager
+        has current summaries and file contents.
+        """
+        # Update summaries in prompt manager
+        self.prompt_manager.set_summaries(self.repo_summaries)
+        
+        # Sync active files - add any that are missing, update any that changed
+        current_prompt_files = set(self.prompt_manager.get_active_files())
+        
+        for filepath in self.active_files:
+            try:
+                content = self.repo.get_file_content(filepath, self.branch_name)
+                
+                # Check if file is already in prompt manager
+                if filepath in current_prompt_files:
+                    # File exists - check if content changed by comparing
+                    # For now, always update (could optimize with hashing later)
+                    pass
+                
+                # Add/update file content (this handles deletion of old version)
+                note = ""
+                if filepath in current_prompt_files:
+                    note = "Content updated - summary at start may be outdated"
+                self.prompt_manager.append_file_content(filepath, content, note)
+                
+            except (FileNotFoundError, KeyError):
+                # File was deleted - remove from prompt manager
+                self.prompt_manager.remove_file_content(filepath)
+        
+        # Remove files that are no longer active
+        for filepath in current_prompt_files:
+            if filepath not in self.active_files:
+                self.prompt_manager.remove_file_content(filepath)
 
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
         self.active_files.add(filepath)
+        
+        # Also add to prompt manager with current content
+        try:
+            content = self.repo.get_file_content(filepath, self.branch_name)
+            self.prompt_manager.append_file_content(filepath, content)
+        except (FileNotFoundError, KeyError):
+            pass  # File doesn't exist yet
 
     def remove_active_file(self, filepath: str) -> None:
         """Remove a file from active context"""
         self.active_files.discard(filepath)
+        
+        # Also remove from prompt manager
+        self.prompt_manager.remove_file_content(filepath)
+
+    def file_was_modified(self, filepath: str) -> None:
+        """
+        Notify that a file was modified (by AI tool).
+        
+        This moves the file content to the end of the prompt stream
+        so that cache can be reused for content before it.
+        """
+        if filepath not in self.active_files:
+            return
+        
+        try:
+            content = self.repo.get_file_content(filepath, self.branch_name)
+            # append_file_content handles deleting old version and adding new at end
+            self.prompt_manager.append_file_content(
+                filepath, content, 
+                note="Content updated - summary at start may be outdated"
+            )
+        except (FileNotFoundError, KeyError):
+            # File was deleted
+            self.prompt_manager.remove_file_content(filepath)
+
+    def append_user_message(self, content: str) -> None:
+        """Add a user message to the prompt stream"""
+        self.prompt_manager.append_user_message(content)
+
+    def append_assistant_message(self, content: str) -> None:
+        """Add an assistant message to the prompt stream"""
+        self.prompt_manager.append_assistant_message(content)
+
+    def append_tool_call(self, tool_calls: list[dict[str, Any]]) -> None:
+        """Add tool calls to the prompt stream"""
+        self.prompt_manager.append_tool_call(tool_calls)
+
+    def append_tool_result(self, tool_call_id: str, result: str) -> None:
+        """Add a tool result to the prompt stream"""
+        self.prompt_manager.append_tool_result(tool_call_id, result)
+
+    def get_prompt_messages(self) -> list[dict[str, Any]]:
+        """Get the current prompt messages for LLM API"""
+        return self.prompt_manager.to_messages()
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimate (4 chars per token average)"""

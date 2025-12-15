@@ -125,7 +125,14 @@ Migrate to branch-first architecture where:
 - [x] File explorer shows 👁 icon for files in AI context
 - [x] Click file in explorer to toggle context status
 
-### 4.2 Context display
+### 4.2 PromptManager for cache optimization ✅
+- [x] Create PromptManager class for append-only prompt stream
+- [x] Track file content blocks with deletion support
+- [x] Move modified files to end of prompt for cache reuse
+- [x] Place cache_control on last content block
+- [x] Integrate with SessionManager and AIChatWidget
+
+### 4.3 Context display
 - [ ] Show token count per open file in tab tooltip
 - [ ] Show total context tokens in status bar
 - [ ] Warn if context exceeds model limit

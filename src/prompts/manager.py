@@ -185,7 +185,8 @@ class PromptManager:
 
         Skips deleted blocks. Places cache_control on the last content block.
 
-        Groups consecutive same-role blocks into single messages where appropriate.
+        Groups consecutive user-role blocks (SUMMARIES, FILE_CONTENT, USER_MESSAGE)
+        into single messages to avoid consecutive user messages which break the API.
         """
         messages: list[dict[str, Any]] = []
 
@@ -210,12 +211,18 @@ class PromptManager:
                 messages.append(self._make_system_message(block, is_last_content))
                 i += 1
 
-            elif block.block_type in (BlockType.SUMMARIES, BlockType.FILE_CONTENT):
-                # Group consecutive context blocks into a single user message
+            elif block.block_type in (
+                BlockType.SUMMARIES,
+                BlockType.FILE_CONTENT,
+                BlockType.USER_MESSAGE,
+            ):
+                # Group ALL consecutive user-role content into a single message
+                # This avoids consecutive user messages which break the Anthropic API
                 content_blocks = []
                 while i < len(active_blocks) and active_blocks[i].block_type in (
                     BlockType.SUMMARIES,
                     BlockType.FILE_CONTENT,
+                    BlockType.USER_MESSAGE,
                 ):
                     is_this_last = i == last_content_idx
                     content_blocks.append(
@@ -223,10 +230,6 @@ class PromptManager:
                     )
                     i += 1
                 messages.append({"role": "user", "content": content_blocks})
-
-            elif block.block_type == BlockType.USER_MESSAGE:
-                messages.append(self._make_user_message(block, is_last_content))
-                i += 1
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
                 messages.append(self._make_assistant_message(block, is_last_content))

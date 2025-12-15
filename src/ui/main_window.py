@@ -254,7 +254,6 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
 
         # Get branch name from tab
-        tab_text = self.branch_tabs.tabText(index)
         branch_name = self._get_branch_name_from_tab(index)
 
         # Close action
@@ -308,6 +307,8 @@ class MainWindow(QMainWindow):
             try:
                 head = self.repo.repo.head
                 commit = head.peel()
+                if not hasattr(commit, "id"):
+                    raise TypeError("Expected a Commit object")
                 self.repo.repo.branches.create(name, commit)
                 self._open_branch(name)
             except Exception as e:
@@ -323,10 +324,13 @@ class MainWindow(QMainWindow):
         )
         if ok and name:
             try:
-                # Get source branch head
-                source_commit = self.repo.get_branch_head(source_branch)
-                if not hasattr(source_commit, "id"):
-                    raise TypeError("Expected a Commit object")
+                # Get source branch head - returns Commit | Tree | Tag | Blob
+                source_obj = self.repo.get_branch_head(source_branch)
+                # branches.create needs a Commit, peel to ensure we have one
+                if hasattr(source_obj, "peel"):
+                    source_commit = source_obj.peel(None)  # type: ignore[union-attr]
+                else:
+                    source_commit = source_obj
                 self.repo.repo.branches.create(name, source_commit)
                 self._open_branch(name)
             except Exception as e:
@@ -431,9 +435,12 @@ class MainWindow(QMainWindow):
         # Create git branch from current HEAD
         try:
             head = self.repo.repo.head
-            commit = head.peel()
-            if not hasattr(commit, "id"):
-                raise TypeError("Expected a Commit object")
+            head_obj = head.peel()
+            # Ensure we have a commit for branches.create
+            if hasattr(head_obj, "peel"):
+                commit = head_obj.peel(None)  # type: ignore[union-attr]
+            else:
+                commit = head_obj
             self.repo.repo.branches.create(branch_name, commit)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox

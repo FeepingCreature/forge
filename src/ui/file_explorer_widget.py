@@ -76,7 +76,7 @@ class FileExplorerWidget(QWidget):
             current_parent: QTreeWidgetItem | QTreeWidget = self.tree
             current_path = ""
 
-            for i, part in enumerate(parts[:-1]):  # All but the filename
+            for part in parts[:-1]:  # All but the filename
                 current_path = str(PurePosixPath(current_path) / part) if current_path else part
 
                 if current_path not in root_items:

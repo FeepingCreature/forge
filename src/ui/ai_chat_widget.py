@@ -302,10 +302,14 @@ class AIChatWidget(QWidget):
         # Truncate filepath if too long
         display_path = filepath if len(filepath) <= 40 else "..." + filepath[-37:]
 
-        progress_text = f"🔍 Generating summaries [{bar}] {percent}% ({current}/{total})\n`{display_path}`"
+        progress_text = (
+            f"🔍 Generating summaries [{bar}] {percent}% ({current}/{total})\n`{display_path}`"
+        )
 
         # Update the existing message in place
-        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(self.messages):
+        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
+            self.messages
+        ):
             self.messages[self._summary_message_index]["content"] = progress_text
             self._update_chat_display()
 
@@ -319,8 +323,12 @@ class AIChatWidget(QWidget):
             self.summary_worker = None
 
         # Update the progress message to show completion
-        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(self.messages):
-            self.messages[self._summary_message_index]["content"] = f"✅ Generated summaries for {count} files"
+        if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
+            self.messages
+        ):
+            self.messages[self._summary_message_index]["content"] = (
+                f"✅ Generated summaries for {count} files"
+            )
             self._update_chat_display()
         else:
             self._add_system_message(f"✅ Generated summaries for {count} files")

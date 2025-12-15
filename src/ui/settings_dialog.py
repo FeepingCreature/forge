@@ -4,7 +4,7 @@ Settings dialog for Forge
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -120,7 +120,6 @@ class SettingsDialog(QDialog):
         self.model_input.setReadOnly(True)
         self.model_input.setPlaceholderText("Loading models...")
         self.model_input.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.model_input.mousePressEvent = lambda e: self._show_model_picker()
         self._model_picker_enabled = False
 
         layout.addRow("Model:", self.model_input)
@@ -138,6 +137,9 @@ class SettingsDialog(QDialog):
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
+
+        # Connect click events using event filter or subclass approach
+        self.model_input.installEventFilter(self)
 
         return widget
 
@@ -180,7 +182,6 @@ class SettingsDialog(QDialog):
         self.commit_model_input.setReadOnly(True)
         self.commit_model_input.setPlaceholderText("Loading models...")
         self.commit_model_input.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.commit_model_input.mousePressEvent = lambda e: self._show_commit_model_picker()
         self._commit_model_picker_enabled = False
 
         layout.addRow("Commit Message Model:", self.commit_model_input)
@@ -194,7 +195,23 @@ class SettingsDialog(QDialog):
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
 
+        # Connect click events using event filter
+        self.commit_model_input.installEventFilter(self)
+
         return widget
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Handle click events on model input fields"""
+        from PySide6.QtCore import QEvent as QE
+
+        if event.type() == QE.Type.MouseButtonPress:
+            if obj == self.model_input:
+                self._show_model_picker()
+                return True
+            elif obj == self.commit_model_input:
+                self._show_commit_model_picker()
+                return True
+        return super().eventFilter(obj, event)
 
     def _fetch_models(self) -> None:
         """Fetch available models from OpenRouter in background"""

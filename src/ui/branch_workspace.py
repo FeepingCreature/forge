@@ -117,7 +117,8 @@ class BranchWorkspace:
 
         try:
             content = self.vfs.read_file(".forge/session.json")
-            return json.loads(content)
+            result: dict[str, Any] = json.loads(content)
+            return result
         except FileNotFoundError:
             return None
 

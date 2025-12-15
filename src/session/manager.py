@@ -5,7 +5,7 @@ Session manager for coordinating AI turns and git commits
 import hashlib
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -84,7 +84,7 @@ class SessionManager:
         # Add full content for active files
         for filepath in self.active_files:
             try:
-                content = self.repo.get_file_content(filepath, self.branch_name)
+                content = self._repo.get_file_content(filepath, self.branch_name)
                 context["active_files"][filepath] = content
             except (FileNotFoundError, KeyError):
                 # File may have been deleted

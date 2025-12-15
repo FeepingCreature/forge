@@ -181,7 +181,8 @@ class MainWindow(QMainWindow):
         """Load session data from .forge/session.json in the branch"""
         try:
             content = self.repo.get_file_content(".forge/session.json", branch_name)
-            return json.loads(content)
+            result: dict[str, Any] = json.loads(content)
+            return result
         except (FileNotFoundError, KeyError):
             return None
 
@@ -244,6 +245,8 @@ class MainWindow(QMainWindow):
     def _show_branch_context_menu(self, pos: Any) -> None:
         """Show context menu for branch tab"""
         tab_bar = self.branch_tabs.tabBar()
+        if tab_bar is None:
+            return
         index = tab_bar.tabAt(pos)
         if index < 0:
             return
@@ -322,6 +325,8 @@ class MainWindow(QMainWindow):
             try:
                 # Get source branch head
                 source_commit = self.repo.get_branch_head(source_branch)
+                if not hasattr(source_commit, "id"):
+                    raise TypeError("Expected a Commit object")
                 self.repo.repo.branches.create(name, source_commit)
                 self._open_branch(name)
             except Exception as e:
@@ -427,6 +432,8 @@ class MainWindow(QMainWindow):
         try:
             head = self.repo.repo.head
             commit = head.peel()
+            if not hasattr(commit, "id"):
+                raise TypeError("Expected a Commit object")
             self.repo.repo.branches.create(branch_name, commit)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
@@ -435,7 +442,7 @@ class MainWindow(QMainWindow):
             return
 
         # Create initial session commit with .forge/session.json
-        session_data = {
+        session_data: dict[str, Any] = {
             "messages": [],
             "active_files": [],
         }

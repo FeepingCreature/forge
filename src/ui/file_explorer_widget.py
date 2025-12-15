@@ -138,10 +138,10 @@ class FileExplorerWidget(QWidget):
         else:
             # Child items
             for i in range(parent.childCount()):
-                item = parent.child(i)
-                if item:
-                    self._update_item_icon(item)
-                    self._update_context_icons_recursive(item)
+                child = parent.child(i)
+                if child is not None:
+                    self._update_item_icon(child)
+                    self._update_context_icons_recursive(child)
 
     def _update_item_icon(self, item: QTreeWidgetItem) -> None:
         """Update a single item's icon based on context status"""

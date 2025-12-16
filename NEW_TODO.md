@@ -1,242 +1,110 @@
-# Forge TODO - Branch-First Architecture Migration
+# Forge TODO - Branch-First Architecture
 
-> Derived from `NEW_DESIGN.md`. This replaces the old `TODO.md` which tracked MVP completion.
+> Derived from `NEW_DESIGN.md`. Tracks implementation status of the branch-first architecture.
 
 ## Current State
 
-The MVP is functional:
+The branch-first architecture is **largely complete**:
 - ✅ Git-backed AI sessions with atomic commits
 - ✅ VFS abstraction (GitCommitVFS, WorkInProgressVFS)
 - ✅ Tool system with approval workflow
-- ✅ Built-in tools (read_file, write_file, delete_file, search_replace, update_context)
+- ✅ Built-in tools (write_file, delete_file, search_replace, update_context, grep_open)
 - ✅ Repository summaries with caching
-- ✅ LLM integration via OpenRouter
-
-## Goal
-
-Migrate to branch-first architecture where:
-- Branches are the fundamental workspace unit (not files/sessions)
-- Multiple branches open as tabs simultaneously
-- No working directory dependency
-- Save = Commit (no dirty state)
-- Open files = Active files in AI context
-- **Single session file per branch** (`.forge/session.json`) - diverges naturally with branches
-- **No session UUIDs** - branch name is the identity
+- ✅ LLM integration via OpenRouter with streaming
+- ✅ Branch tabs as primary workspace unit
+- ✅ File explorer sidebar with context management
+- ✅ PromptManager for cache-optimized prompts
+- ✅ Auto-include CLAUDE.md/AGENTS.md in context
 
 ---
 
-## Phase 1: Branch Tabs Infrastructure
+## Phase 1: Branch Tabs Infrastructure ✅ COMPLETE
 
-### 1.1 Create BranchWorkspace dataclass
-- [x] Create `src/ui/branch_workspace.py`
-- [x] Define `BranchWorkspace` with: branch_name, vfs, open_files, ai_chat state
-- [x] Handle VFS lifecycle per branch
-
-### 1.2 Create BranchTabWidget
-- [x] Create `src/ui/branch_tab_widget.py`
-- [x] Contains file tabs (QTabWidget) + AI chat as first tab
-- [x] Manages open files within a single branch
-- [x] Routes file operations through VFS
-
-### 1.3 Refactor MainWindow
-- [x] Top-level tabs become branches (not mixed editor/AI)
-- [x] Each branch tab contains a `BranchTabWidget`
-- [x] "+" button creates new branch (with dialog for name/type)
-- [x] Branch tab context menu (close, rename, delete)
-
-### 1.4 Branch switching without checkout
-- [x] Switch tabs just changes which VFS is active
-- [x] No `git checkout` - working directory untouched
-- [x] Each branch has independent VFS instance
+- [x] Create `src/ui/branch_workspace.py` - BranchWorkspace class
+- [x] Create `src/ui/branch_tab_widget.py` - Container for file tabs + AI chat
+- [x] Refactor MainWindow for branch-level tabs
+- [x] "+" button creates new branch with dialog
+- [x] Branch tab context menu (close, fork, delete)
+- [x] Branch switching without checkout (VFS-based)
 
 ---
 
 ## Phase 2: Editor VFS Integration ✅ COMPLETE
 
-### 2.1 Wire EditorWidget to VFS ✅
-- [x] EditorWidget is a pure view component (get_text/set_text only)
-- [x] BranchTabWidget loads files via `workspace.get_file_content()` (VFS)
-- [x] Removed direct filesystem I/O from EditorWidget
-
-### 2.2 Track edits in VFS ✅
-- [x] BranchTabWidget tracks modified files in `_modified_files` set
-- [x] Changes written to VFS via `workspace.set_file_content()`
-- [x] Tab shows modified indicator (dot: `📄 filename •`)
-
-### 2.3 Implement Save = Commit ✅
-- [x] Ctrl+S wired in MainWindow → `BranchTabWidget.save_current_file()`
-- [x] Creates atomic git commit via `workspace.commit()`
-- [x] Clear modified indicator after commit
-- [x] Status bar shows commit hash
-
-### 2.4 Auto-generate commit messages ✅
-- [x] Simple format: `"edit: filename.py"` for single file
-- [x] `"edit: N files"` for multiple files
-- [x] LLM-based messages available via SessionManager (for AI turns)
-
-### 2.5 Status bar updates ✅
-- [x] Show current branch name on tab switch
-- [x] Show commit hash after save (`Saved → abc12345`)
-- [x] Modified state shown in tab title (not status bar)
+- [x] EditorWidget is pure view (get_text/set_text only)
+- [x] BranchTabWidget loads files via VFS
+- [x] Changes tracked in `_modified_files` set
+- [x] Tab shows modified indicator (`📄 filename •`)
+- [x] Ctrl+S → `workspace.commit()` → atomic git commit
+- [x] Auto-generated commit messages (`edit: filename.py`)
+- [x] Status bar shows branch and commit hash
 
 ---
 
 ## Phase 3: AI Turn Integration ✅ COMPLETE
 
-### 3.1 Lock file tabs during AI execution ✅
-- [x] Set all file tabs to read-only when AI turn starts via `set_read_only(True)`
-- [x] Visual indicator: AI Chat tab shows "🤖 AI Chat ⏳" during processing
-- [x] User can still view files, just not edit
-
-### 3.2 Require save before AI turn ✅
-- [x] Check for uncommitted changes before AI turn via `unsaved_changes_check` callback
-- [x] Prompt user: "Save before AI turn?" with Save/Discard/Cancel options
-- [x] Option to save all or cancel
-
-### 3.3 Visual AI working indicator ✅
-- [x] AI Chat tab shows ⏳ indicator when AI is working
+- [x] Lock file tabs during AI execution (read-only)
+- [x] Visual indicator: AI Chat tab shows "🤖 AI Chat ⏳"
 - [x] Status bar shows "🤖 AI working..."
-- [x] Send button already disabled during AI turn (existing code)
-
-### 3.4 Re-enable editing on AI turn complete ✅
-- [x] Unlock file tabs via `set_read_only(False)` when AI finishes
-- [x] Refresh all open files from VFS via `refresh_all_files()`
-- [x] Status bar shows commit hash: "🤖 AI finished → abc12345"
+- [x] Pre-turn save check with Save/Discard/Cancel dialog
+- [x] Re-enable editing when AI turn completes
+- [x] Refresh all open files from VFS after AI changes
 
 ---
 
-## Phase 4: Open Files = Active Files
+## Phase 4: Context Management ✅ COMPLETE
 
-### 4.0 Replace filesystem dialog with VFS file explorer ✅
-- [x] Remove File → Open dialog (uses real filesystem, not VFS)
-- [x] Add file explorer sidebar (left panel) via `FileExplorerWidget`
-- [x] File explorer reads from VFS (shows branch's git tree)
-- [x] Double-click file in explorer → opens in file tab
-- [x] Explorer shows current branch's files only
-- [x] Explorer refreshes after AI changes files
+- [x] File explorer sidebar (`FileExplorerWidget`)
+- [x] Explorer reads from VFS (shows branch's git tree)
+- [x] Double-click file → opens in file tab
+- [x] Context icons: ◯ (none), ◐ (partial), ● (full)
+- [x] Click icon to toggle AI context
+- [x] Opening file tab adds to context (one-way)
+- [x] Closing file tab does NOT remove from context
+- [x] AI can add files via `update_context` and `grep_open`
+- [x] `grep_open` tool for discovering relevant files
+- [x] PromptManager for cache-optimized prompt stream
+- [x] Modified files move to end of prompt for cache reuse
+- [x] Auto-include CLAUDE.md/AGENTS.md at session start
 
-### 4.1 Open files ⊆ Active files ✅
-- [x] Opening a file tab adds it to AI context via `file_opened` signal → `add_file_to_context()`
-- [x] Closing a file tab does NOT remove from context (context managed via file explorer)
-- [x] AI can add files to context without opening tabs (via tools)
-- [x] Session data stores `messages` and `active_files` 
-- [x] File tabs NOT force-restored from session - only AI context is restored
-- [x] `grep_open` tool lets AI discover and add relevant files to context
-- [x] File explorer shows 👁 icon for files in AI context
-- [x] Click file in explorer to toggle context status
+---
 
-### 4.2 PromptManager for cache optimization ✅
-- [x] Create PromptManager class for append-only prompt stream
-- [x] Track file content blocks with deletion support
-- [x] Move modified files to end of prompt for cache reuse
-- [x] Place cache_control on last content block
-- [x] Integrate with SessionManager and AIChatWidget
+## Phase 5: Polish (In Progress)
 
-### 4.3 Context display
-- [ ] Show token count per open file in tab tooltip
+### 5.1 Branch tab context menu
+- [x] Close branch tab (with unsaved changes check)
+- [x] Fork branch (create new branch from current state)
+- [x] Delete branch (with confirmation)
+- [ ] Rename branch
+- [ ] Merge to... (opens merge dialog)
+
+### 5.2 Visual indicators
+- [x] 🤖 icon for branches with session data
+- [x] 🌿 icon for branches without session data
+- [ ] Branch ahead/behind main indicator
+- [ ] Uncommitted changes indicator on branch tab
+
+### 5.3 Keyboard shortcuts
+- [x] Ctrl+S: Save (commit) current file
+- [x] Ctrl+Shift+S: Save all open files
+- [ ] Ctrl+Tab / Ctrl+Shift+Tab: Switch branch tabs
+- [ ] Ctrl+W: Close current file tab
+- [ ] Ctrl+Shift+W: Close current branch tab
+- [ ] Ctrl+N: New branch dialog
+
+### 5.4 Context display
+- [ ] Show token count per file in tab tooltip
 - [ ] Show total context tokens in status bar
 - [ ] Warn if context exceeds model limit
 
-### 4.3 AI can request file opens
-- [ ] AI suggests files to open (via tool or message)
-- [ ] UI shows suggestion, user can accept/decline
-- [ ] Accepted files open as new tabs
-
----
-
-## Phase 5: Polish
-
-### 5.1 Branch tab context menu
-- [ ] Close branch tab (with confirmation if changes)
-- [ ] Rename branch
-- [ ] Delete branch (with strong confirmation)
-- [ ] Merge to... (opens merge dialog)
-- [ ] Fork branch (create new branch from current state)
-
-### 5.2 Visual indicators
-- [ ] Branch ahead/behind main indicator
-- [ ] Uncommitted changes indicator on branch tab
-- [ ] AI session branches have distinct icon (🤖)
-
-### 5.3 Keyboard shortcuts
-- [ ] Ctrl+Tab / Ctrl+Shift+Tab: Switch branch tabs
-- [ ] Ctrl+W: Close current file tab (not branch)
-- [ ] Ctrl+Shift+W: Close current branch tab
-- [ ] Ctrl+N: New branch dialog
-- [ ] Ctrl+S: Save (commit) current file
-- [ ] Ctrl+Shift+S: Save all open files
-
-### 5.4 New branch from here
+### 5.5 New branch actions
+- [x] New AI Session (creates branch + initial session commit)
+- [x] New Branch (simple branch creation)
 - [ ] Right-click on commit → "New branch from here"
-- [ ] Fork current branch at HEAD
-- [ ] Dialog for branch name
 
 ---
 
-## Phase 6: Repository View (v2)
-
-### 6.1 Visual commit/branch overview
-- [ ] Dedicated repository view (button in top-left)
-- [ ] Show all commits as graph
-- [ ] Show all branches
-- [ ] Abandoned commits visible (toggleable)
-
-### 6.2 Visual git operations
-- [ ] Drag commit onto branch → merge
-- [ ] Drag commit to reorder → rebase
-- [ ] Right-click commit → cherry-pick
-
-### 6.3 Smart merge indicators
-- [ ] Green: can merge cleanly
-- [ ] Yellow: has conflicts
-- [ ] Preview merge result before executing
-
----
-
-## Migration Notes
-
-### Files to modify:
-- `src/ui/main_window.py` - Major refactor for branch tabs
-- `src/ui/editor_widget.py` - Wire to VFS
-- `src/ui/ai_chat_widget.py` - Integrate into BranchTabWidget
-
-### Files to create:
-- `src/ui/branch_workspace.py` - BranchWorkspace dataclass
-- `src/ui/branch_tab_widget.py` - Container for file tabs + AI chat
-
-### Files that can stay mostly unchanged:
-- `src/vfs/*` - VFS abstraction already suitable
-- `src/git_backend/*` - Git operations already suitable
-- `src/tools/*` - Tool system works with VFS
-- `src/session/manager.py` - May need minor adjustments
-
-### Breaking changes:
-- Tab model completely changes (branch tabs > file tabs)
-- Editor no longer reads from filesystem directly
-- "Dirty state" concept disappears (save = commit)
-
----
-
-## Refactoring: Session Model Simplification
-
-### Remove session UUIDs
-- [x] Update `BranchWorkspace` to remove `session_id` field
-- [x] Add `load_session_data()` and `save_session_data()` to BranchWorkspace
-- [x] Replace `.forge/sessions/{uuid}.json` with `.forge/session.json`
-- [x] Remove `session_id` parameter from `AIChatWidget`
-- [x] Remove `session_id` from `SessionManager`
-- [x] Use `branch_name` as the sole identifier
-
-### Remove special branch prefix
-- [x] Remove `is_session_branch` checks - replaced with `has_session`
-- [x] Remove `forge/session/` prefix requirement from MainWindow
-- [x] Update `_open_branch()` to not check for prefix
-- [x] Update display names to just use branch name
-
-### Session file handling
-- [x] Add methods to load/save session from `.forge/session.json` in branch VFS
-- [x] Create session file on first AI turn (via SessionManager.commit_ai_turn)
-- [x] Session file diverges naturally when branching
+## Phase 6: Session Management Improvements
 
 ### Merge conflict handling
 - [ ] On merge, archive source branch session to `.forge/merged/{branch_name}.json`
@@ -251,11 +119,65 @@ Migrate to branch-first architecture where:
 
 ### File tab persistence
 - [ ] Track open files in session data
+- [ ] Restore open file tabs when reopening a branch
 - [ ] File tab changes are FOLLOW_UP commits (auto-amend)
-- [ ] Restore open files when reopening a branch
+
+---
+
+## Phase 7: Repository View (v2 - Future)
+
+### 7.1 Visual commit/branch overview
+- [ ] Dedicated repository view (button in top-left)
+- [ ] Show all commits as graph
+- [ ] Show all branches
+- [ ] Abandoned commits visible (toggleable)
+
+### 7.2 Visual git operations
+- [ ] Drag commit onto branch → merge
+- [ ] Drag commit to reorder → rebase
+- [ ] Right-click commit → cherry-pick
+
+### 7.3 Smart merge indicators
+- [ ] Green: can merge cleanly
+- [ ] Yellow: has conflicts
+- [ ] Preview merge result before executing
+
+---
+
+## Known Issues / Tech Debt
+
+- [ ] Error handling uses too many try/except blocks (violates "no fallbacks" philosophy)
+- [ ] Some type hints use `Any` instead of proper types
+- [ ] Context token counting implemented but not displayed in UI
 
 ---
 
 ## Open Questions
 
-1. **File tab persistence across restarts:** Remember open files per-branch when app restarts?
+1. **File tab persistence across restarts:** Remember open files per-branch when app restarts? Currently not implemented - only AI context is restored.
+
+---
+
+## Implementation Notes
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/ui/main_window.py` | Branch tabs, menu bar, branch management |
+| `src/ui/branch_tab_widget.py` | File tabs + AI chat container, file operations |
+| `src/ui/branch_workspace.py` | Per-branch state, VFS access |
+| `src/ui/file_explorer_widget.py` | VFS-based file tree with context icons |
+| `src/ui/ai_chat_widget.py` | AI chat, streaming, tool execution |
+| `src/session/manager.py` | Session lifecycle, prompt building, commits |
+| `src/prompts/manager.py` | Cache-optimized prompt construction |
+| `src/vfs/work_in_progress.py` | Writable VFS layer for branches |
+| `src/tools/manager.py` | Tool discovery, approval, execution |
+
+### Architecture Invariants
+
+1. **All file access through VFS** - No direct filesystem I/O for repo content
+2. **Save = Commit** - No dirty state concept
+3. **Branch = Workspace** - Each branch tab is fully isolated
+4. **One session file per branch** - `.forge/session.json` diverges with branches
+5. **Open files ⊆ Active files** - One-way relationship, managed via file explorer

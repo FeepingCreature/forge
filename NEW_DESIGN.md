@@ -14,26 +14,33 @@ The key insight: **git models multi-agent collaboration**. Each branch is an iso
 
 ```
 ┌─ Branch Tabs (top level) ─────────────────────────────┐
-│ [main] [forge/session/abc123] [feature/xyz] [+]       │
+│ [🌿 main] [🤖 ai/feature] [🌿 feature/xyz] [+]        │
 ├───────────────────────────────────────────────────────┤
-│ ┌─ File Tabs (within branch) ──────────────────────┐  │
-│ │ [🤖 AI Chat] [README.md] [src/main.py]           │  │
-│ ├──────────────────────────────────────────────────┤  │
-│ │                                                  │  │
-│ │  (content area - chat or editor)                 │  │
-│ │                                                  │  │
-│ └──────────────────────────────────────────────────┘  │
+│ ┌─────────┬─ File Tabs (within branch) ────────────┐  │
+│ │ File    │ [🤖 AI Chat] [README.md] [src/main.py] │  │
+│ │ Explorer├────────────────────────────────────────┤  │
+│ │         │                                        │  │
+│ │ 📁 src  │  (content area - chat or editor)       │  │
+│ │  📄 a.py│                                        │  │
+│ │  ● b.py │  (● = in AI context)                   │  │
+│ │ 📄 README│                                       │  │
+│ └─────────┴────────────────────────────────────────┘  │
 ├───────────────────────────────────────────────────────┤
-│ Status: branch info, commit hash, etc                 │
+│ Status: Branch: main | Saved → abc1234               │
 └───────────────────────────────────────────────────────┘
 ```
 
-**Branch tabs:** Each tab is a complete, isolated view of a branch. Switching tabs does NOT checkout - it just changes which VFS you're viewing.
+**Branch tabs:** Each tab is a complete, isolated view of a branch. Switching tabs does NOT checkout - it just changes which VFS you're viewing. Branches with session data show 🤖, others show 🌿.
+
+**File explorer (left sidebar):**
+- Shows files from VFS (git tree), not filesystem
+- Context icons: ◯ (not in context), ◐ (partial), ● (full)
+- Double-click to open file, click icon to toggle AI context
+- Refreshes after AI makes changes
 
 **File tabs (within a branch):**
-- First tab is always 🤖 AI Chat (can be minimized/hidden but always present)
+- First tab is always 🤖 AI Chat (not closable)
 - Other tabs are files open for viewing/editing
-- **Open files = active files in AI context** (unified concept)
 - All file operations go through VFS for that branch
 
 ### No Working Directory
@@ -57,7 +64,7 @@ There is no dirty state. Saving a file creates a commit.
 
 **Commit behavior:**
 - Save (Ctrl+S) → immediate commit to current branch
-- Commit message: auto-generated (`edit: filename.py`) or use cheap LLM
+- Commit message: auto-generated (`edit: filename.py`) or multi-file (`edit: 3 files`)
 - No staging area exposed to user
 - Every save is atomic and reversible
 
@@ -73,7 +80,7 @@ Both users and AI agents use the same workspace model:
 
 | Action | Human | AI Agent |
 |--------|-------|----------|
-| View file | Open in file tab | `read_file` tool |
+| View file | Open in file tab | `update_context` / `grep_open` |
 | Edit file | Type + Save | `write_file` / `search_replace` |
 | Create file | New file + Save | `write_file` |
 | Delete file | Delete action | `delete_file` |
@@ -93,7 +100,6 @@ Both users and AI agents use the same workspace model:
 **Session storage:** Each branch has its own `.forge/session.json` file that stores:
 - Conversation history
 - Active files in context
-- Session metadata
 
 When you branch, the session file comes with it and diverges naturally - just like any other file. This means:
 - Forking a branch forks the conversation
@@ -107,51 +113,56 @@ When you branch, the session file comes with it and diverges naturally - just li
 
 File tabs become **read-only during an AI turn** (while VFS is AI-controlled). This is not a fundamental limitation - it's to avoid confusing both AI and user with concurrent edits.
 
-**Pre-turn requirement:** All files must be saved before starting an AI turn. If there are unsaved changes, prompt user to save first.
+**Pre-turn requirement:** All files must be saved before starting an AI turn. If there are unsaved changes, prompt user to save first (Save/Discard/Cancel dialog).
 
 **During AI turn:**
 - File tabs show content but are not editable
-- User can still send messages to guide AI
-- User can observe AI making changes in real-time
+- AI Chat tab shows ⏳ indicator
+- Status bar shows "🤖 AI working..."
+- User can still send messages to guide AI (queued)
 
 **After AI turn:**
 - File tabs become editable again
+- All open files refresh from VFS (AI may have changed them)
 - Changes are committed
-- User can continue editing or start another AI turn
+- Status bar shows "🤖 AI finished → abc12345"
 
 ### Open Files ⊆ Active Files
 
-The relationship is one-way: **files open in tabs are always in AI context, but AI can have additional files in context**.
+The relationship is one-way: **opening a file adds it to AI context, but closing does NOT remove it**.
 
-- Opening a file tab adds it to context
-- **Closing a file tab does NOT remove it from context** - context is managed separately
+- Opening a file tab adds it to context (via `file_opened` signal)
+- **Closing a file tab does NOT remove it from context**
+- Context is managed via the file explorer sidebar (click ◯/● to toggle)
 - AI can add files to context without opening tabs (via `update_context` or `grep_open`)
-- File explorer shows 👁 icon next to files in AI context
-- Click on a file in explorer to toggle its context status
 - This allows AI to efficiently work with many files without cluttering the UI
+
+**Auto-included files:** `CLAUDE.md` and `AGENTS.md` are automatically added to context at session start if they exist. These contain project-specific AI instructions.
 
 ### Prompt Cache Optimization
 
 The prompt is structured as an **append-only stream with deletions** to maximize Anthropic cache reuse:
 
 ```
-[system prompt] ← cache checkpoint
-[summaries for all files]
+[system prompt] ← stable prefix
+[summaries for all files] ← generated once at session start
 [file content: oldest-modified first]
 [file content: recently-modified last]
 [conversation: user message]
 [conversation: assistant response]
 [conversation: tool calls + results]
 ...
-[latest content] ← cache checkpoint (always at end)
+[latest content] ← cache_control: ephemeral (always at end)
 ```
 
 **Key optimization:** When a file is modified:
 1. Delete its old content block from the stream
-2. Append new content at the end with note "summary may be outdated"
+2. Append new content at the end with tool_call_id reference
 3. Cache is preserved for everything before the old position
 
 This means successive edits to the same file(s) get ~90% cache reuse.
+
+**Implementation:** `PromptManager` class in `src/prompts/manager.py` handles this as a list of `ContentBlock` objects with soft deletion.
 
 ## VFS Architecture
 
@@ -174,6 +185,7 @@ class VFS(ABC):
 - Wraps a branch reference
 - `read_file`: reads from branch HEAD + pending changes
 - `write_file`: accumulates changes in memory
+- `delete_file`: marks file for deletion
 - `commit()`: creates atomic commit on branch
 - For manual editing: user edits accumulate, Save triggers `commit()`
 - For AI sessions: AI edits accumulate, end of turn triggers `commit()`
@@ -181,8 +193,7 @@ class VFS(ABC):
 **GitCommitVFS** (existing):
 - Read-only view of specific commit
 - Used for history viewing, diffs
-
-No separate "BranchVFS" needed - WorkInProgressVFS handles both cases. The only difference is when `commit()` is called (on save vs. on AI turn end).
+- Base layer for WorkInProgressVFS
 
 ### Commit Flow
 
@@ -194,24 +205,24 @@ Changes tracked in WorkInProgressVFS (in memory)
     ↓
 User presses Ctrl+S
     ↓
-vfs.commit() called
+BranchTabWidget.save_file() → workspace.commit()
     ↓
 Create blob → Update tree → Create commit → Update branch ref
     ↓
-Editor shows saved state (commit hash in status bar)
+Status bar shows "Saved → abc12345"
 ```
 
 **AI turn:**
 ```
-AI uses tools (read_file, write_file, etc.)
+AI uses tools (write_file, search_replace, etc.)
     ↓
 Changes accumulate in WorkInProgressVFS
     ↓
-AI turn ends
+AI turn ends (final response with no tool calls)
     ↓
-vfs.commit() creates atomic commit
+SessionManager.commit_ai_turn() creates atomic commit
     ↓
-Branch ref updated, file tabs refresh
+Branch ref updated, file tabs refresh via refresh_all_files()
 ```
 
 ## Data Model
@@ -221,126 +232,109 @@ Branch ref updated, file tabs refresh
 Each open branch tab maintains:
 
 ```python
-@dataclass
 class BranchWorkspace:
     branch_name: str
-    vfs: VFS  # BranchVFS or WorkInProgressVFS depending on mode
-    mode: Literal["manual", "ai_session"]
+    _vfs: WorkInProgressVFS  # Created lazily
     open_files: list[str]  # Paths of open file tabs
-    ai_chat: AIChatState | None  # Conversation state
+    active_tab_index: int  # Currently focused tab
+    
+    @property
+    def vfs(self) -> WorkInProgressVFS  # Single source of truth
+    
+    def get_file_content(self, filepath: str) -> str
+    def set_file_content(self, filepath: str, content: str) -> None
+    def commit(self, message: str) -> str  # Returns commit OID
 ```
 
 ### Session Persistence
 
 Session state stored in `.forge/session.json` within the branch:
-- Conversation history
-- Active files in context
-- Tool call history
-- Session metadata
+- `messages`: Conversation history (user, assistant, tool messages)
+- `active_files`: List of files in AI context
 
 On branch tab open:
 1. Initialize VFS for the branch
 2. Check if `.forge/session.json` exists → load session data
-3. If missing → start fresh session (will be created on first AI turn)
-4. Restore open file tabs from session data
+3. If missing → start fresh (file created on first AI turn)
+4. Restore active files to AI context (but don't force-open tabs)
 
 ## User Workflows
 
 ### Simple Editing (like a normal editor)
 
 1. Open Forge in a repo
-2. `main` branch tab opens by default
-3. Open files, edit, Ctrl+S saves (commits)
-4. Use AI Chat tab if you want AI help
+2. Current branch tab opens by default
+3. Use file explorer to open files
+4. Edit, Ctrl+S saves (commits)
+5. Use AI Chat tab if you want AI help
 
 ### AI-Assisted Development
 
 1. Click [+] → "New AI Session"
-2. New branch `forge/session/{uuid}` created
-3. Branch tab opens in AI Session Mode
+2. Enter branch name (e.g., `ai/feature-x`)
+3. Branch created with initial session commit
 4. Chat with AI, watch it make changes
 5. When done, merge to main
 
 ### Concurrent Workflows
 
 1. Have `main` open for quick fixes
-2. Have `forge/session/feature-a` for AI working on feature A
-3. Have `forge/session/refactor` for AI doing refactoring
+2. Have `ai/feature-a` for AI working on feature A
+3. Have `refactor/cleanup` for manual refactoring
 4. Switch between tabs freely
 5. Each is fully isolated
 
 ### Forking a Branch
 
-1. AI is working on a branch
-2. You spot something you want to fix manually
-3. Click "Fork" → dialog prompts for new branch name
-4. New branch created, new tab opens (inherits conversation history!)
-5. Make your edits, save (commits)
+1. Right-click branch tab → "Fork branch..."
+2. Enter new branch name
+3. New branch created from current HEAD
+4. New tab opens (inherits conversation history!)
+5. Make edits independently
 6. Can merge changes back if needed
 
-### Branch Naming
+## Implementation Status
 
-Branches can be named anything - there's no special prefix requirement. Common patterns:
-- `feature/add-login` - feature branch with AI assistance
-- `fix/memory-leak` - bugfix branch
-- `experiment/new-approach` - experimental work
+### ✅ Complete
 
-The `forge/session/` prefix is no longer required or special. Any branch can have AI chat.
+- Branch tabs infrastructure (BranchWorkspace, BranchTabWidget)
+- Editor VFS integration (no filesystem I/O)
+- Save = Commit workflow
+- AI turn locking (read-only during AI work)
+- Pre-turn save requirement with dialog
+- File explorer sidebar with VFS integration
+- Context management (open files ⊆ active files)
+- PromptManager for cache optimization
+- Auto-include CLAUDE.md/AGENTS.md
 
-## Implementation Plan
+### 🔧 TODO
 
-### Phase 1: Branch Tabs Infrastructure
-
-- [ ] Create `BranchWorkspace` class to manage per-branch state
-- [ ] Refactor `MainWindow` to use branch-level tabs
-- [ ] Create `BranchTabWidget` containing file tabs + AI chat
-- [ ] Implement branch tab switching (no checkout)
-
-### Phase 2: Editor VFS Integration
-
-- [ ] Wire editor to WorkInProgressVFS (read files from VFS, not filesystem)
-- [ ] Track edits in VFS pending changes
-- [ ] Save (Ctrl+S) calls `vfs.commit()`
-- [ ] Auto-generate commit messages with cheap LLM
-- [ ] Show commit hash in status bar
-
-### Phase 3: AI Turn Integration
-
-- [ ] Lock file tabs during AI execution (read-only)
-- [ ] Require save before AI turn starts
-- [ ] Show visual indicator when AI is working
-- [ ] Re-enable editing when AI turn completes
-
-### Phase 4: Polish
-
-- [ ] Branch tab context menu (close, rename, delete, merge)
-- [ ] Visual indicators for branch state (ahead/behind main, etc.)
-- [ ] Keyboard shortcuts for branch navigation
-- [ ] "New branch from here" action
+- Branch tab context menu enhancements (rename, merge dialog)
+- Visual indicators (ahead/behind main)
+- Keyboard shortcuts for branch navigation
+- Token count display in UI
+- Merge conflict handling for session files
+- Main branch AI session confirmation
+- File tab persistence across restarts
+- Repository view (v2 - visual git operations)
 
 ## Design Decisions
 
-1. **Main branch protection:** Require confirmation before starting an AI agent flow on main. Direct manual edits are fine, but AI sessions should prompt.
+1. **All branches equal:** No special `forge/session/` prefix. Any branch can have AI chat. Branches with `.forge/session.json` show 🤖 icon.
 
-2. **Concurrent editing:** User can freely edit their branch while AI works on a session branch. That's the whole point of branch isolation.
+2. **One-way context:** Opening adds to context, closing doesn't remove. Context managed via file explorer icons.
 
-3. **Session merge strategy:** Archive session on merge. When a branch is merged, its `.forge/session.json` is archived to `.forge/merged/{branch_name}.json`. Merge means the work is done.
+3. **Concurrent editing:** User can freely edit their branch while AI works on a session branch. That's the whole point of branch isolation.
 
-4. **File tab persistence:** Open file tab changes are FOLLOW_UP commits, so they auto-amend onto the previous commit. No separate commit noise for tab state.
+4. **Session merge strategy:** Archive session on merge. When a branch is merged, its `.forge/session.json` is archived to `.forge/merged/{branch_name}.json`. Merge means the work is done.
+
+5. **Commit messages:** Auto-generated. `"edit: filename.py"` for single file, `"edit: N files"` for multiple. AI turns use LLM-generated messages.
+
+6. **Undo (Ctrl+Z):** Normal editor undo within a file. Undo across commits handled via repository view (v2).
 
 ## Open Questions
 
-1. **File tab persistence across restarts:** Remember open files per-branch when app restarts?
-
-## Design Decisions Made
-
-1. **Commit messages:** Auto-generate with cheap LLM. No user prompt needed. (Implementation can be deferred - use simple format like `"edit: filename.py"` initially.)
-
-2. **Undo (Ctrl+Z):** Normal editor undo within a file. Undo across commits handled via repository view (v2).
-
-3. **Branch types:** All branches equal. No special "forge/session" naming convention required.
-
-4. **Open files ⊆ active files:** One-way relationship. Tab open = in context, but AI can have more files in context.
+1. **File tab persistence across restarts:** Remember open files per-branch when app restarts? Currently not implemented.
 
 ## v2: Repository View
 
@@ -363,16 +357,3 @@ Merging is expensive, but *checking if merge is clean* is cheap. The UI can show
 - Visual preview of what merge would look like
 
 This makes git operations discoverable and safe - users can see consequences before acting.
-
-## Migration from v1
-
-The current codebase has:
-- Filesystem-based editor (needs VFS)
-- AI sessions already use VFS (good!)
-- Mixed tab model (editor tabs + AI tabs at same level)
-
-Migration path:
-1. Add branch tab layer above current tabs
-2. Wire editor through VFS
-3. Unify session loading to be branch-based
-4. Remove filesystem assumptions

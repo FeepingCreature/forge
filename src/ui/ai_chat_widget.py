@@ -237,26 +237,8 @@ class AIChatWidget(QWidget):
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
 
-        # Pre-initialize with minimal HTML to avoid flash on first load
-        self.chat_view.setHtml(
-            """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                        padding: 20px;
-                        background: #ffffff;
-                    }
-                </style>
-            </head>
-            <body></body>
-            </html>
-            """
-        )
-        # Update with actual content after initialization
-        self._update_chat_display()
+        # Initialize with stable HTML shell - content will be injected via JavaScript
+        self._init_chat_shell()
 
         layout.addWidget(self.chat_view)
 
@@ -935,185 +917,213 @@ class AIChatWidget(QWidget):
             "active_files": list(self.session_manager.active_files),
         }
 
-    def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:
-        """Update the chat display with all messages
-        
-        Args:
-            scroll_to_bottom: If True, always scroll to bottom after update.
-                            If False, preserve user's scroll position.
+    def _get_chat_styles(self) -> str:
+        """Return CSS styles for the chat display"""
+        return """
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                padding: 20px;
+                background: #ffffff;
+                margin: 0;
+            }
+            #messages-container {
+                /* Container for all messages - content is injected here */
+            }
+            .message {
+                margin-bottom: 20px;
+                padding: 15px;
+                border-radius: 8px;
+            }
+            .user {
+                background: #e3f2fd;
+                margin-left: 20%;
+            }
+            .assistant {
+                background: #f5f5f5;
+                margin-right: 20%;
+            }
+            .system {
+                background: #fff3cd;
+                border: 2px solid #ffc107;
+                margin: 0 10%;
+            }
+            .role {
+                font-weight: bold;
+                margin-bottom: 8px;
+                color: #666;
+            }
+            code {
+                background: #f0f0f0;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: "Courier New", monospace;
+            }
+            pre {
+                background: #f0f0f0;
+                padding: 12px;
+                border-radius: 6px;
+                overflow-x: auto;
+            }
+            /* Streaming content shows as preformatted until finalized */
+            #streaming-message .content {
+                white-space: pre-wrap;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+            /* Streaming tool calls */
+            .streaming-tools {
+                margin-top: 12px;
+                border-top: 1px solid #ddd;
+                padding-top: 12px;
+            }
+            .streaming-tool-call {
+                margin-bottom: 10px;
+            }
+            .streaming-tool-call .tool-name {
+                font-weight: bold;
+                color: #1976d2;
+                font-size: 14px;
+            }
+            .streaming-tool-call .tool-args {
+                background: #f5f5f5;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 8px 12px;
+                margin-top: 6px;
+                font-family: "Courier New", monospace;
+                font-size: 12px;
+                white-space: pre-wrap;
+                word-break: break-all;
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            .streaming-tool-call .cursor {
+                animation: blink 1s step-end infinite;
+                color: #1976d2;
+            }
+            @keyframes blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0; }
+            }
+            .approval-buttons {
+                margin-top: 10px;
+                display: flex;
+                gap: 10px;
+            }
+            .approval-buttons button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            .approval-buttons button:first-child {
+                background: #4caf50;
+                color: white;
+            }
+            .approval-buttons button:first-child:hover {
+                background: #45a049;
+            }
+            .approval-buttons button:last-child {
+                background: #f44336;
+                color: white;
+            }
+            .approval-buttons button:last-child:hover {
+                background: #da190b;
+            }
+            .approval-buttons button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
         """
-        html_parts = [
-            """
+
+    def _get_chat_scripts(self) -> str:
+        """Return JavaScript for the chat display"""
+        return """
+            var bridge;
+
+            // Initialize web channel
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                bridge = channel.objects.bridge;
+            });
+
+            function approveTool(toolName, buttonElement) {
+                // Disable the button immediately
+                buttonElement.disabled = true;
+
+                if (bridge) {
+                    bridge.handleToolApproval(toolName, true);
+                    // Disable both buttons for this tool
+                    disableToolButtons(toolName);
+                }
+            }
+
+            function rejectTool(toolName, buttonElement) {
+                // Disable the button immediately
+                buttonElement.disabled = true;
+
+                if (bridge) {
+                    bridge.handleToolApproval(toolName, false);
+                    // Disable both buttons for this tool
+                    disableToolButtons(toolName);
+                }
+            }
+
+            function disableToolButtons(toolName) {
+                // Find the button that was clicked and disable both buttons in its container
+                var buttons = document.querySelectorAll('.approval-buttons button');
+                buttons.forEach(function(btn) {
+                    var onclick = btn.getAttribute('onclick');
+                    if (onclick && onclick.includes(toolName)) {
+                        // Found a button for this tool - disable its parent container's buttons
+                        var container = btn.closest('.approval-buttons');
+                        if (container) {
+                            var containerButtons = container.querySelectorAll('button');
+                            containerButtons.forEach(function(b) {
+                                b.disabled = true;
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Update messages container content (called from Python)
+            function updateMessages(html, scrollToBottom) {
+                var container = document.getElementById('messages-container');
+                if (container) {
+                    container.innerHTML = html;
+                    if (scrollToBottom) {
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }
+                }
+            }
+        """
+
+    def _init_chat_shell(self) -> None:
+        """Initialize the stable HTML shell for the chat display.
+        
+        This is called once at startup. All subsequent updates inject content
+        into the #messages-container div via JavaScript, preserving scroll position.
+        """
+        html = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    padding: 20px;
-                    background: #ffffff;
-                }
-                .message {
-                    margin-bottom: 20px;
-                    padding: 15px;
-                    border-radius: 8px;
-                }
-                .user {
-                    background: #e3f2fd;
-                    margin-left: 20%;
-                }
-                .assistant {
-                    background: #f5f5f5;
-                    margin-right: 20%;
-                }
-                .system {
-                    background: #fff3cd;
-                    border: 2px solid #ffc107;
-                    margin: 0 10%;
-                }
-                .role {
-                    font-weight: bold;
-                    margin-bottom: 8px;
-                    color: #666;
-                }
-                code {
-                    background: #f0f0f0;
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                    font-family: "Courier New", monospace;
-                }
-                pre {
-                    background: #f0f0f0;
-                    padding: 12px;
-                    border-radius: 6px;
-                    overflow-x: auto;
-                }
-                /* Streaming content shows as preformatted until finalized */
-                #streaming-message .content {
-                    white-space: pre-wrap;
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                }
-                /* Streaming tool calls */
-                .streaming-tools {
-                    margin-top: 12px;
-                    border-top: 1px solid #ddd;
-                    padding-top: 12px;
-                }
-                .streaming-tool-call {
-                    margin-bottom: 10px;
-                }
-                .streaming-tool-call .tool-name {
-                    font-weight: bold;
-                    color: #1976d2;
-                    font-size: 14px;
-                }
-                .streaming-tool-call .tool-args {
-                    background: #f5f5f5;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 4px;
-                    padding: 8px 12px;
-                    margin-top: 6px;
-                    font-family: "Courier New", monospace;
-                    font-size: 12px;
-                    white-space: pre-wrap;
-                    word-break: break-all;
-                    max-height: 200px;
-                    overflow-y: auto;
-                }
-                .streaming-tool-call .cursor {
-                    animation: blink 1s step-end infinite;
-                    color: #1976d2;
-                }
-                @keyframes blink {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0; }
-                }
-                .approval-buttons {
-                    margin-top: 10px;
-                    display: flex;
-                    gap: 10px;
-                }
-                .approval-buttons button {
-                    padding: 8px 16px;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                .approval-buttons button:first-child {
-                    background: #4caf50;
-                    color: white;
-                }
-                .approval-buttons button:first-child:hover {
-                    background: #45a049;
-                }
-                .approval-buttons button:last-child {
-                    background: #f44336;
-                    color: white;
-                }
-                .approval-buttons button:last-child:hover {
-                    background: #da190b;
-                }
-                .approval-buttons button:disabled {
-                    opacity: 0.5;
-                    cursor: not-allowed;
-                }
-            </style>
+            <style>{self._get_chat_styles()}</style>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            <script>
-                var bridge;
-
-                // Initialize web channel
-                new QWebChannel(qt.webChannelTransport, function(channel) {
-                    bridge = channel.objects.bridge;
-                });
-
-                function approveTool(toolName, buttonElement) {
-                    // Disable the button immediately
-                    buttonElement.disabled = true;
-
-                    if (bridge) {
-                        bridge.handleToolApproval(toolName, true);
-                        // Disable both buttons for this tool
-                        disableToolButtons(toolName);
-                    }
-                }
-
-                function rejectTool(toolName, buttonElement) {
-                    // Disable the button immediately
-                    buttonElement.disabled = true;
-
-                    if (bridge) {
-                        bridge.handleToolApproval(toolName, false);
-                        // Disable both buttons for this tool
-                        disableToolButtons(toolName);
-                    }
-                }
-
-                function disableToolButtons(toolName) {
-                    // Find the button that was clicked and disable both buttons in its container
-                    var buttons = document.querySelectorAll('.approval-buttons button');
-                    buttons.forEach(function(btn) {
-                        var onclick = btn.getAttribute('onclick');
-                        if (onclick && onclick.includes(toolName)) {
-                            // Found a button for this tool - disable its parent container's buttons
-                            var container = btn.closest('.approval-buttons');
-                            if (container) {
-                                var containerButtons = container.querySelectorAll('button');
-                                containerButtons.forEach(function(b) {
-                                    b.disabled = true;
-                                });
-                            }
-                        }
-                    });
-                }
-            </script>
+            <script>{self._get_chat_scripts()}</script>
         </head>
         <body>
+            <div id="messages-container"></div>
+        </body>
+        </html>
         """
-        ]
+        self.chat_view.setHtml(html)
+
+    def _build_messages_html(self) -> str:
+        """Build HTML for all messages (to inject into the container)"""
+        html_parts = []
 
         for i, msg in enumerate(self.messages):
             # Skip messages marked for no display (e.g., raw tool results)
@@ -1155,37 +1165,31 @@ class AIChatWidget(QWidget):
             </div>
             """)
 
-        html_parts.append("</body></html>")
+        return "".join(html_parts)
+
+    def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:
+        """Update the chat display with all messages.
         
-        # Capture the HTML string for the callback
-        final_html = "".join(html_parts)
-
-        if scroll_to_bottom:
-            # Caller requested scroll to bottom - just do it
-            self._set_html_and_scroll(final_html, True)
-        else:
-            # Check if we were at the bottom before updating, then restore scroll position
-            # We use runJavaScript to get current scroll state, update HTML, then scroll if needed
-            self.chat_view.page().runJavaScript(
-                """
-                (function() {
-                    var scrollThreshold = 50;
-                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-                    return wasAtBottom;
-                })();
-                """,
-                lambda was_at_bottom: self._set_html_and_scroll(final_html, was_at_bottom),
-            )
-
-    def _set_html_and_scroll(self, html: str, scroll_to_bottom: bool) -> None:
-        """Set HTML content and optionally scroll to bottom"""
-        self.chat_view.setHtml(html)
-        if scroll_to_bottom:
-            # Use a small delay to let the content render before scrolling
-            self.chat_view.page().runJavaScript(
-                """
-                setTimeout(function() {
-                    window.scrollTo(0, document.body.scrollHeight);
-                }, 10);
-                """
-            )
+        This injects content into the stable HTML shell via JavaScript,
+        which naturally preserves scroll position.
+        
+        Args:
+            scroll_to_bottom: If True, scroll to bottom after update.
+                            If False, scroll position is preserved automatically.
+        """
+        messages_html = self._build_messages_html()
+        
+        # Escape for JavaScript string
+        escaped_html = (
+            messages_html
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+        
+        scroll_js = "true" if scroll_to_bottom else "false"
+        
+        # Inject content via JavaScript - scroll position preserved automatically
+        self.chat_view.page().runJavaScript(
+            f"updateMessages(`{escaped_html}`, {scroll_js});"
+        )

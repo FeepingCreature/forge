@@ -352,7 +352,7 @@ class AIChatWidget(QWidget):
             self.messages[self._summary_message_index]["content"] = (
                 f"✅ Generated summaries for {count} files"
             )
-            self._update_chat_display()
+            self._update_chat_display(scroll_to_bottom=True)
         else:
             self._add_system_message(f"✅ Generated summaries for {count} files")
 
@@ -849,13 +849,13 @@ class AIChatWidget(QWidget):
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat (becomes part of conversation history)"""
         self.messages.append({"role": role, "content": content})
-        self._update_chat_display()
+        self._update_chat_display(scroll_to_bottom=True)
 
     def _add_system_message(self, content: str) -> None:
         """Add a system/UI feedback message (display only, not sent to LLM)"""
         # Use a special marker to distinguish UI messages from real system messages
         self.messages.append({"role": "system", "content": content, "_ui_only": True})
-        self._update_chat_display()
+        self._update_chat_display(scroll_to_bottom=True)
 
     def _get_conversation_messages(self) -> list[dict[str, Any]]:
         """Get messages that are part of the actual conversation (excludes UI-only messages)"""
@@ -935,8 +935,13 @@ class AIChatWidget(QWidget):
             "active_files": list(self.session_manager.active_files),
         }
 
-    def _update_chat_display(self) -> None:
-        """Update the chat display with all messages"""
+    def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:
+        """Update the chat display with all messages
+        
+        Args:
+            scroll_to_bottom: If True, always scroll to bottom after update.
+                            If False, preserve user's scroll position.
+        """
         html_parts = [
             """
         <!DOCTYPE html>
@@ -1151,19 +1156,26 @@ class AIChatWidget(QWidget):
             """)
 
         html_parts.append("</body></html>")
+        
+        # Capture the HTML string for the callback
+        final_html = "".join(html_parts)
 
-        # Check if we were at the bottom before updating, then restore scroll position
-        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed
-        self.chat_view.page().runJavaScript(
-            """
-            (function() {
-                var scrollThreshold = 50;
-                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-                return wasAtBottom;
-            })();
-            """,
-            lambda was_at_bottom: self._set_html_and_scroll("".join(html_parts), was_at_bottom),
-        )
+        if scroll_to_bottom:
+            # Caller requested scroll to bottom - just do it
+            self._set_html_and_scroll(final_html, True)
+        else:
+            # Check if we were at the bottom before updating, then restore scroll position
+            # We use runJavaScript to get current scroll state, update HTML, then scroll if needed
+            self.chat_view.page().runJavaScript(
+                """
+                (function() {
+                    var scrollThreshold = 50;
+                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+                    return wasAtBottom;
+                })();
+                """,
+                lambda was_at_bottom: self._set_html_and_scroll(final_html, was_at_bottom),
+            )
 
     def _set_html_and_scroll(self, html: str, scroll_to_bottom: bool) -> None:
         """Set HTML content and optionally scroll to bottom"""

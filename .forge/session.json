@@ -1,47 +1,47 @@
 {
   "active_files": [
-    "README.md",
-    "CLAUDE.md",
-    "main.py",
-    "src/llm/__init__.py",
-    "pyproject.toml",
-    "src/vfs/work_in_progress.py",
-    "src/vfs/git_commit.py",
-    "src/tools/builtin/grep_open.py",
-    "src/tools/builtin/write_file.py",
-    "src/git_backend/repository.py",
     "src/prompts.py",
-    "src/tools/manager.py",
-    "src/ui/settings_dialog.py",
-    "src/ui/ai_chat_widget.py",
-    "src/vfs/__init__.py",
+    "src/git_backend/commit_types.py",
     "src/tools/builtin/update_context.py",
-    ".gitignore",
+    "src/tools/builtin/delete_file.py",
+    "src/config/settings.py",
+    "CLAUDE.md",
+    "src/config/__init__.py",
     "src/llm/client.py",
-    "src/prompts/system.py",
-    "src/session/__init__.py",
-    "src/ui/__init__.py",
-    "Makefile",
+    "README.md",
     "src/ui/editor_widget.py",
     "src/ui/model_picker_dialog.py",
-    "test_cache.py",
-    "src/git_backend/__init__.py",
-    "src/config/settings.py",
-    "src/tools/builtin/delete_file.py",
-    "requirements.txt",
-    "src/prompts/manager.py",
+    ".gitignore",
+    "src/vfs/__init__.py",
+    "Makefile",
     "src/ui/welcome_widget.py",
+    "src/prompts/__init__.py",
+    "src/session/__init__.py",
+    "src/tools/builtin/write_file.py",
+    "src/ui/__init__.py",
+    "src/vfs/base.py",
+    "pyproject.toml",
+    "src/prompts/manager.py",
+    "src/git_backend/repository.py",
+    "requirements.txt",
     "DESIGN.md",
     "src/session/manager.py",
     "src/tools/builtin/__init__.py",
-    "src/vfs/base.py",
-    "src/git_backend/commit_types.py",
-    "src/tools/__init__.py",
-    "src/ui/branch_workspace.py",
-    "src/prompts/__init__.py",
+    "src/ui/ai_chat_widget.py",
+    "TODO.md",
+    "src/tools/manager.py",
     "src/tools/builtin/search_replace.py",
-    "src/config/__init__.py",
-    "TODO.md"
+    "src/prompts/system.py",
+    "src/git_backend/__init__.py",
+    "src/ui/settings_dialog.py",
+    "src/tools/__init__.py",
+    "main.py",
+    "src/ui/branch_workspace.py",
+    "src/llm/__init__.py",
+    "src/vfs/work_in_progress.py",
+    "src/vfs/git_commit.py",
+    "src/tools/builtin/grep_open.py",
+    "test_cache.py"
   ],
   "messages": [
     {
@@ -641,6 +641,138 @@
     {
       "role": "assistant",
       "content": "The implementation is complete. Here's a summary of the changes:\n\n## Summary of Changes\n\n### StreamWorker\n- Renamed `tool_call_received` signal to `tool_call_delta(int, dict)` - emits tool call index and current state as arguments stream in\n\n### AIChatWidget\n- Added `_streaming_tool_calls` list to track tool calls as they stream\n- Connected `tool_call_delta` signal in both `_process_llm_request()` and `_continue_after_tools()`\n- Added `_on_tool_call_delta()` handler that updates the streaming tool call state\n- Added `_update_streaming_tool_calls()` that renders tool calls to the streaming message via JavaScript\n- Reset `_streaming_tool_calls` at the start of each stream and clear when finished\n\n### UI/CSS\n- Added `.streaming-tools` container styling\n- Added `.streaming-tool-call` with `.tool-name` and `.tool-args` styling\n- Added blinking cursor animation (\u258b) to show active streaming\n- Tool arguments shown in a monospace pre block with max-height and overflow scroll\n\n### Behavior\n- As tool call arguments stream in, you'll see:\n  - \ud83d\udd27 followed by the tool name\n  - Arguments appearing character by character with a blinking cursor\n- Respects scroll position (only auto-scrolls if user was already at bottom)\n- Multiple concurrent tool calls are supported (each gets its own section)"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 47 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! We still have a problem where system messages being added or updated scrolls the UI to the top even if we should be at the bottom. Can you look into it?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the issue. The `_add_system_message` method calls `_update_chat_display()`, which now properly handles scroll preservation. But there's a race condition - the JavaScript to check scroll position runs asynchronously, and by the time it returns, the state may have changed.\n\nLet me trace through the flow more carefully. The `_update_chat_display` method now uses:\n\n```python\nself.chat_view.page().runJavaScript(\n    \"... check wasAtBottom ...\",\n    lambda was_at_bottom: self._set_html_and_scroll(\"\".join(html_parts), was_at_bottom),\n)\n```\n\nThe problem is that `html_parts` is a local variable that gets joined inside the lambda, but by the time the callback runs, we've already built the HTML. Actually wait - the join happens in the lambda call, so `html_parts` should still be in scope... \n\nOh, I see the issue! The `html_parts` list is being passed to the lambda, but we're calling `\"\".join(html_parts)` inside the lambda. However, `html_parts` is a local list that could potentially be modified before the callback runs.\n\nBut more importantly, I notice that for **new** content (first load or when `_is_streaming` changes), we should scroll to bottom by default. Let me check if the issue is that on first load or when there's no prior scroll state, we're not scrolling.\n\nLet me also check for the progress updates - `_on_summaries_progress` calls `_update_chat_display()` repeatedly. Each call triggers an async JavaScript check, and if the timing is off, we might get stale scroll state.\n\nLet me fix this by:\n1. Capturing the HTML string before the async call\n2. Adding a flag to force scroll-to-bottom for certain updates (like new messages being added)",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _add_system_message(self, content: str) -> None:\\n        \\\"\\\"\\\"Add a system/UI feedback message (display only, not sent to LLM)\\\"\\\"\\\"\\n        # Use a special marker to distinguish UI messages from real system messages\\n        self.messages.append({\\\"role\\\": \\\"system\\\", \\\"content\\\": content, \\\"_ui_only\\\": True})\\n        self._update_chat_display()\", \"replace\": \"    def _add_system_message(self, content: str) -> None:\\n        \\\"\\\"\\\"Add a system/UI feedback message (display only, not sent to LLM)\\\"\\\"\\\"\\n        # Use a special marker to distinguish UI messages from real system messages\\n        self.messages.append({\\\"role\\\": \\\"system\\\", \\\"content\\\": content, \\\"_ui_only\\\": True})\\n        self._update_chat_display(scroll_to_bottom=True)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018n5WAdiDm4eCbhgF1PZoH8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018n5WAdiDm4eCbhgF1PZoH8",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def _add_system_message(self, content: str) -> None:\\n        \\\"\\\"\\\"Add a system/UI feedback message (display only, not sent to LLM)\\\"\\\"\\\"\\n        # Use a special marker to distinguish UI messages from real system messages\\n        self.messages.append({\\\"role\\\": \\\"system\\\", \\\"content\\\": content, \\\"_ui_only\\\": True})\\n        self._update_chat_display()\",\n  \"replace\": \"    def _add_system_message(self, content: str) -> None:\\n        \\\"\\\"\\\"Add a system/UI feedback message (display only, not sent to LLM)\\\"\\\"\\\"\\n        # Use a special marker to distinguish UI messages from real system messages\\n        self.messages.append({\\\"role\\\": \\\"system\\\", \\\"content\\\": content, \\\"_ui_only\\\": True})\\n        self._update_chat_display(scroll_to_bottom=True)\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update `_update_chat_display` to accept the `scroll_to_bottom` parameter and use it to force scrolling when needed:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _update_chat_display(self) -> None:\\n        \\\"\\\"\\\"Update the chat display with all messages\\\"\\\"\\\"\", \"replace\": \"    def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:\\n        \\\"\\\"\\\"Update the chat display with all messages\\n        \\n        Args:\\n            scroll_to_bottom: If True, always scroll to bottom after update.\\n                            If False, preserve user's scroll position.\\n        \\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01V5ErKuPMTGhK5bzSfkfk5d",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01V5ErKuPMTGhK5bzSfkfk5d",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def _update_chat_display(self) -> None:\\n        \\\"\\\"\\\"Update the chat display with all messages\\\"\\\"\\\"\",\n  \"replace\": \"    def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:\\n        \\\"\\\"\\\"Update the chat display with all messages\\n        \\n        Args:\\n            scroll_to_bottom: If True, always scroll to bottom after update.\\n                            If False, preserve user's scroll position.\\n        \\\"\\\"\\\"\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue now. The `_update_chat_display` method has a `scroll_to_bottom` parameter, but it's not being used correctly. The lambda callback receives `was_at_bottom` from the JavaScript check, but we're ignoring the `scroll_to_bottom` parameter that was passed to the method.\n\nWhen `scroll_to_bottom=True` is passed (like from `_add_system_message`), we should always scroll to bottom regardless of the JavaScript check. Let me fix this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        # Check if we were at the bottom before updating, then restore scroll position\\n        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n        self.chat_view.page().runJavaScript(\\n            \\\"\\\"\\\"\\n            (function() {\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                return wasAtBottom;\\n            })();\\n            \\\"\\\"\\\",\\n            lambda was_at_bottom: self._set_html_and_scroll(\\\"\\\".join(html_parts), was_at_bottom),\\n        )\", \"replace\": \"        html_parts.append(\\\"</body></html>\\\")\\n        \\n        # Capture the HTML string for the callback\\n        final_html = \\\"\\\".join(html_parts)\\n\\n        if scroll_to_bottom:\\n            # Caller requested scroll to bottom - just do it\\n            self._set_html_and_scroll(final_html, True)\\n        else:\\n            # Check if we were at the bottom before updating, then restore scroll position\\n            # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n            self.chat_view.page().runJavaScript(\\n                \\\"\\\"\\\"\\n                (function() {\\n                    var scrollThreshold = 50;\\n                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                    return wasAtBottom;\\n                })();\\n                \\\"\\\"\\\",\\n                lambda was_at_bottom: self._set_html_and_scroll(final_html, was_at_bottom),\\n            )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018yDp6fkAJnwYYjK3jz4aNd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018yDp6fkAJnwYYjK3jz4aNd",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        html_parts.append(\\\"</body></html>\\\")\\n\\n        # Check if we were at the bottom before updating, then restore scroll position\\n        # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n        self.chat_view.page().runJavaScript(\\n            \\\"\\\"\\\"\\n            (function() {\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                return wasAtBottom;\\n            })();\\n            \\\"\\\"\\\",\\n            lambda was_at_bottom: self._set_html_and_scroll(\\\"\\\".join(html_parts), was_at_bottom),\\n        )\",\n  \"replace\": \"        html_parts.append(\\\"</body></html>\\\")\\n        \\n        # Capture the HTML string for the callback\\n        final_html = \\\"\\\".join(html_parts)\\n\\n        if scroll_to_bottom:\\n            # Caller requested scroll to bottom - just do it\\n            self._set_html_and_scroll(final_html, True)\\n        else:\\n            # Check if we were at the bottom before updating, then restore scroll position\\n            # We use runJavaScript to get current scroll state, update HTML, then scroll if needed\\n            self.chat_view.page().runJavaScript(\\n                \\\"\\\"\\\"\\n                (function() {\\n                    var scrollThreshold = 50;\\n                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n                    return wasAtBottom;\\n                })();\\n                \\\"\\\"\\\",\\n                lambda was_at_bottom: self._set_html_and_scroll(final_html, was_at_bottom),\\n            )\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the changes are applied. Now I need to check a few other places that call `_update_chat_display()` without passing `scroll_to_bottom=True` but probably should:\n\n1. `_on_summaries_progress` - updates progress bar, should scroll if at bottom (default behavior is fine)\n2. `_on_summaries_finished` - completion message, should scroll to bottom\n3. `add_message` - adding user/assistant messages, should scroll to bottom\n\nLet me update those:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\", \"replace\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display(scroll_to_bottom=True)\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01RqzZDcLa8z1wqpEy2iyd9j",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def add_message(self, role: str, content: str) -> None:\\n        \\\"\\\"\\\"Add a message to the chat (becomes part of conversation history)\\\"\\\"\\\"\\n        self.messages.append({\\\"role\\\": role, \\\"content\\\": content})\\n        self._update_chat_display()\", \"replace\": \"    def add_message(self, role: str, content: str) -> None:\\n        \\\"\\\"\\\"Add a message to the chat (becomes part of conversation history)\\\"\\\"\\\"\\n        self.messages.append({\\\"role\\\": role, \\\"content\\\": content})\\n        self._update_chat_display(scroll_to_bottom=True)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NnDnrhE9fhJD8rZtwcaeDE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RqzZDcLa8z1wqpEy2iyd9j",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display()\\n        else:\\n            self._add_system_message(f\\\"\\u2705 Generated summaries for {count} files\\\")\",\n  \"replace\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display(scroll_to_bottom=True)\\n        else:\\n            self._add_system_message(f\\\"\\u2705 Generated summaries for {count} files\\\")\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NnDnrhE9fhJD8rZtwcaeDE",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def add_message(self, role: str, content: str) -> None:\\n        \\\"\\\"\\\"Add a message to the chat (becomes part of conversation history)\\\"\\\"\\\"\\n        self.messages.append({\\\"role\\\": role, \\\"content\\\": content})\\n        self._update_chat_display()\",\n  \"replace\": \"    def add_message(self, role: str, content: str) -> None:\\n        \\\"\\\"\\\"Add a message to the chat (becomes part of conversation history)\\\"\\\"\\\"\\n        self.messages.append({\\\"role\\\": role, \\\"content\\\": content})\\n        self._update_chat_display(scroll_to_bottom=True)\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The changes are now in place. Let me summarize what was fixed:\n\n## Summary of Scroll Fixes\n\n1. **Added `scroll_to_bottom` parameter to `_update_chat_display()`** - This parameter allows callers to force scroll-to-bottom behavior when adding new content.\n\n2. **Fixed `_add_system_message()`** - Now passes `scroll_to_bottom=True` so system messages (like progress updates, commit notifications, etc.) always scroll to bottom.\n\n3. **Fixed `add_message()`** - Now passes `scroll_to_bottom=True` so new user/assistant messages always scroll to bottom.\n\n4. **Fixed `_on_summaries_finished()`** - The completion message update now passes `scroll_to_bottom=True`.\n\n5. **Captured HTML before async call** - Changed from `\"\".join(html_parts)` inside the lambda to capturing `final_html = \"\".join(html_parts)` before the async JavaScript call. This ensures the HTML string is stable even if the callback is delayed.\n\n6. **Short-circuit for forced scroll** - When `scroll_to_bottom=True`, we skip the JavaScript check entirely and just call `_set_html_and_scroll(final_html, True)` directly. This avoids race conditions with the async scroll position check.\n\nThe default behavior (`scroll_to_bottom=False`) preserves the user's scroll position - if they were scrolled up reading older messages, the view won't jump when content updates. But when new messages are explicitly added, we force scroll to bottom so users see the latest content."
     }
   ]
 }

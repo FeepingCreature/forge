@@ -53,7 +53,7 @@ class StreamWorker(QObject):
     """Worker for handling streaming LLM responses in a separate thread"""
 
     chunk_received = Signal(str)  # Emitted for each text chunk
-    tool_call_received = Signal(dict)  # Emitted when tool call is complete
+    tool_call_delta = Signal(int, dict)  # Emitted for tool call updates (index, current_state)
     finished = Signal(dict)  # Emitted when stream is complete
     error = Signal(str)  # Emitted on error
 
@@ -112,6 +112,9 @@ class StreamWorker(QObject):
                                     "arguments"
                                 ]
 
+                        # Emit delta with current state of this tool call
+                        self.tool_call_delta.emit(index, self.current_tool_calls[index].copy())
+
             # Emit final result
             result = {
                 "content": self.current_content if self.current_content else None,
@@ -169,6 +172,7 @@ class AIChatWidget(QWidget):
         self.stream_thread: QThread | None = None
         self.stream_worker: StreamWorker | None = None
         self._is_streaming = False
+        self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls
 
         # Summary worker
         self.summary_thread: QThread | None = None
@@ -546,6 +550,7 @@ class AIChatWidget(QWidget):
 
         # Start streaming in a separate thread
         self.streaming_content = ""
+        self._streaming_tool_calls = []  # Reset streaming tool calls
         self._start_streaming_message()
 
         self.stream_thread = QThread()
@@ -554,6 +559,7 @@ class AIChatWidget(QWidget):
 
         # Connect signals
         self.stream_worker.chunk_received.connect(self._on_stream_chunk)
+        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
         self.stream_worker.finished.connect(self._on_stream_finished)
         self.stream_worker.error.connect(self._on_stream_error)
         self.stream_thread.started.connect(self.stream_worker.run)
@@ -576,6 +582,87 @@ class AIChatWidget(QWidget):
         # Append raw chunk to streaming element - no markdown re-render
         self._append_streaming_chunk(chunk)
 
+    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
+        """Handle a streaming tool call update"""
+        # Ensure we have enough slots
+        while len(self._streaming_tool_calls) <= index:
+            self._streaming_tool_calls.append({})
+
+        # Update the tool call at this index
+        self._streaming_tool_calls[index] = tool_call
+
+        # Update the streaming display to show tool call progress
+        self._update_streaming_tool_calls()
+
+    def _update_streaming_tool_calls(self) -> None:
+        """Update the streaming message to show tool call progress"""
+        if not self._streaming_tool_calls:
+            return
+
+        # Build HTML for streaming tool calls
+        tool_html_parts = []
+        for i, tc in enumerate(self._streaming_tool_calls):
+            func = tc.get("function", {})
+            name = func.get("name", "")
+            args = func.get("arguments", "")
+
+            # Show tool name with spinning indicator
+            if name:
+                tool_html_parts.append(f'<div class="streaming-tool-call">')
+                tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
+
+                # Try to pretty-print arguments if they're valid JSON so far
+                if args:
+                    # Show arguments as they stream (may be partial JSON)
+                    # Escape for display
+                    escaped_args = (
+                        args.replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                    )
+                    tool_html_parts.append(
+                        f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
+                    )
+
+                tool_html_parts.append("</div>")
+
+        tool_html = "".join(tool_html_parts)
+
+        # Escape for JavaScript
+        escaped_html = (
+            tool_html.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+            .replace("\n", "\\n")
+        )
+
+        # Update the streaming message to show tool calls
+        js_code = f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                // Check if user is at bottom before modifying content
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                // Find or create tool calls container
+                var toolsContainer = streamingMsg.querySelector('.streaming-tools');
+                if (!toolsContainer) {{
+                    toolsContainer = document.createElement('div');
+                    toolsContainer.className = 'streaming-tools';
+                    streamingMsg.appendChild(toolsContainer);
+                }}
+                toolsContainer.innerHTML = `{escaped_html}`;
+
+                // Only scroll if user was already at bottom
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
+
     def _on_stream_finished(self, result: dict[str, Any]) -> None:
         """Handle stream completion"""
         # Clean up thread
@@ -587,6 +674,7 @@ class AIChatWidget(QWidget):
 
         # Mark streaming as finished
         self._is_streaming = False
+        self._streaming_tool_calls = []  # Clear streaming tool calls
 
         # Finalize streaming content with proper markdown rendering
         self._finalize_streaming_content()
@@ -728,6 +816,7 @@ class AIChatWidget(QWidget):
 
         # Start streaming (same as initial request)
         self.streaming_content = ""
+        self._streaming_tool_calls = []  # Reset streaming tool calls
         self._start_streaming_message()
 
         self.stream_thread = QThread()
@@ -736,6 +825,7 @@ class AIChatWidget(QWidget):
 
         # Connect signals - use the same handlers as initial streaming
         self.stream_worker.chunk_received.connect(self._on_stream_chunk)
+        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
         self.stream_worker.finished.connect(self._on_stream_finished)
         self.stream_worker.error.connect(self._on_stream_error)
         self.stream_thread.started.connect(self.stream_worker.run)
@@ -897,6 +987,41 @@ class AIChatWidget(QWidget):
                 #streaming-message .content {
                     white-space: pre-wrap;
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                }
+                /* Streaming tool calls */
+                .streaming-tools {
+                    margin-top: 12px;
+                    border-top: 1px solid #ddd;
+                    padding-top: 12px;
+                }
+                .streaming-tool-call {
+                    margin-bottom: 10px;
+                }
+                .streaming-tool-call .tool-name {
+                    font-weight: bold;
+                    color: #1976d2;
+                    font-size: 14px;
+                }
+                .streaming-tool-call .tool-args {
+                    background: #f5f5f5;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    margin-top: 6px;
+                    font-family: "Courier New", monospace;
+                    font-size: 12px;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                    max-height: 200px;
+                    overflow-y: auto;
+                }
+                .streaming-tool-call .cursor {
+                    animation: blink 1s step-end infinite;
+                    color: #1976d2;
+                }
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0; }
                 }
                 .approval-buttons {
                     margin-top: 10px;

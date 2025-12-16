@@ -2,16 +2,13 @@
   "active_files": [
     "README.md",
     "CLAUDE.md",
-    "src/ui/file_explorer_widget.py",
     "main.py",
     "src/llm/__init__.py",
     "pyproject.toml",
     "src/vfs/work_in_progress.py",
     "src/vfs/git_commit.py",
-    "NEW_DESIGN.md",
     "src/tools/builtin/grep_open.py",
     "src/tools/builtin/write_file.py",
-    "NEW_TODO.md",
     "src/git_backend/repository.py",
     "src/prompts.py",
     "src/tools/manager.py",
@@ -20,10 +17,8 @@
     "src/vfs/__init__.py",
     "src/tools/builtin/update_context.py",
     ".gitignore",
-    "src/ui/branch_tab_widget.py",
     "src/llm/client.py",
     "src/prompts/system.py",
-    "src/ui/main_window.py",
     "src/session/__init__.py",
     "src/ui/__init__.py",
     "Makefile",
@@ -370,6 +365,282 @@
     {
       "role": "assistant",
       "content": "I've updated both documents to accurately reflect the current state of the codebase:\n\n**NEW_DESIGN.md changes:**\n- Updated UI hierarchy diagram to show file explorer sidebar\n- Clarified one-way context relationship (opening adds, closing doesn't remove)\n- Added section on auto-included files (CLAUDE.md, AGENTS.md)\n- Updated Implementation Status to show what's complete vs TODO\n- Cleaned up the v2 Repository View section as future work\n\n**NEW_TODO.md changes:**\n- Added \"Current State\" summary at top showing what's complete\n- Reorganized into clear phases with completion status\n- Phases 1-4 marked as \u2705 COMPLETE\n- Phase 5 (Polish) shows what's in progress vs remaining\n- Phase 6-7 are future work\n- Added \"Known Issues / Tech Debt\" section\n- Added \"Implementation Notes\" with key files table and architecture invariants\n- Removed redundant/outdated items\n\nThe documents now serve as accurate reference for the project's state and remaining work."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bb21e2d5",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Okay, next... we can get tool call progress with (I added a test tool): Raw chunk: {\"id\": \"gen-1765856134-frDvX0KvboVNFf7Ols9B\", \"provider\": \"Amazon Bedrock\", \"model\": \"anthropic/claude-opus-4.5\", \"object\": \"chat.completion.chunk\", \"created\": 1765856\n135, \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": null, \"tool_calls\": [{\"index\": 0, \"type\": \"function\", \"function\": {\"arguments\": \"{\\\"a\\\": 12345\"}}]}, \"fini\nsh_reason\": null, \"native_finish_reason\": null, \"logprobs\": null}]} \nText delta: None \nTool call 0 delta: \n type: function \n arguments delta: {\"a\": 12345\n\nCan you hook up AI chat UI streaming for tool calls as they come in?"
+    },
+    {
+      "role": "assistant",
+      "content": "I need to look at how the streaming worker and chat widget handle tool calls currently, then add UI feedback as tool call arguments stream in.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"NEW_DESIGN.md\",\"NEW_TODO.md\",\"src/ui/branch_tab_widget.py\",\"src/ui/file_explorer_widget.py\",\"src/ui/main_window.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_0138tH1HGrKeCHwd9wGtkT3Z",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_0138tH1HGrKeCHwd9wGtkT3Z",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"NEW_DESIGN.md\", \"NEW_TODO.md\", \"src/ui/branch_tab_widget.py\", \"src/ui/file_explorer_widget.py\", \"src/ui/main_window.py\"], \"message\": \"Added 0 files, removed 5 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"NEW_DESIGN.md\",\n    \"NEW_TODO.md\",\n    \"src/ui/branch_tab_widget.py\",\n    \"src/ui/file_explorer_widget.py\",\n    \"src/ui/main_window.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"NEW_DESIGN.md\",\n    \"NEW_TODO.md\",\n    \"src/ui/branch_tab_widget.py\",\n    \"src/ui/file_explorer_widget.py\",\n    \"src/ui/main_window.py\"\n  ],\n  \"message\": \"Added 0 files, removed 5 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the current code in `ai_chat_widget.py`, I can see:\n\n1. `StreamWorker` accumulates tool calls in `self.current_tool_calls` but only emits them at the end via `finished` signal\n2. There's a `tool_call_received` signal defined but never used\n3. The UI only shows tool calls after the stream finishes\n\nI need to:\n1. Emit `tool_call_received` signal as tool calls stream in (with partial data)\n2. Add UI handling in `AIChatWidget` to show streaming tool calls\n3. Update the streaming message display to show tool call progress",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"class StreamWorker(QObject):\\n    \\\"\\\"\\\"Worker for handling streaming LLM responses in a separate thread\\\"\\\"\\\"\\n\\n    chunk_received = Signal(str)  # Emitted for each text chunk\\n    tool_call_received = Signal(dict)  # Emitted when tool call is complete\\n    finished = Signal(dict)  # Emitted when stream is complete\\n    error = Signal(str)  # Emitted on error\\n\\n    def __init__(\\n        self,\\n        client: LLMClient,\\n        messages: list[dict[str, Any]],\\n        tools: list[dict[str, Any]] | None,\\n    ) -> None:\\n        super().__init__()\\n        self.client = client\\n        self.messages = messages\\n        self.tools = tools\\n        self.current_content = \\\"\\\"\\n        self.current_tool_calls: list[dict[str, Any]] = []\\n\\n    def run(self) -> None:\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n                    self.current_content += content\\n                    self.chunk_received.emit(content)\\n\\n                # Handle tool calls\\n                if \\\"tool_calls\\\" in delta:\\n                    for tool_call_delta in delta[\\\"tool_calls\\\"]:\\n                        index = tool_call_delta.get(\\\"index\\\", 0)\\n\\n                        # Ensure we have enough tool calls in the list\\n                        while len(self.current_tool_calls) <= index:\\n                            self.current_tool_calls.append(\\n                                {\\n                                    \\\"id\\\": \\\"\\\",\\n                                    \\\"type\\\": \\\"function\\\",\\n                                    \\\"function\\\": {\\\"name\\\": \\\"\\\", \\\"arguments\\\": \\\"\\\"},\\n                                }\\n                            )\\n\\n                        # Update tool call\\n                        if \\\"id\\\" in tool_call_delta:\\n                            self.current_tool_calls[index][\\\"id\\\"] = tool_call_delta[\\\"id\\\"]\\n                        if \\\"function\\\" in tool_call_delta:\\n                            func = tool_call_delta[\\\"function\\\"]\\n                            if \\\"name\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"name\\\"] = func[\\\"name\\\"]\\n                            if \\\"arguments\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"arguments\\\"] += func[\\n                                    \\\"arguments\\\"\\n                                ]\\n\\n            # Emit final result\\n            result = {\\n                \\\"content\\\": self.current_content if self.current_content else None,\\n                \\\"tool_calls\\\": self.current_tool_calls if self.current_tool_calls else None,\\n            }\\n            self.finished.emit(result)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\", \"replace\": \"class StreamWorker(QObject):\\n    \\\"\\\"\\\"Worker for handling streaming LLM responses in a separate thread\\\"\\\"\\\"\\n\\n    chunk_received = Signal(str)  # Emitted for each text chunk\\n    tool_call_delta = Signal(int, dict)  # Emitted for tool call updates (index, current_state)\\n    finished = Signal(dict)  # Emitted when stream is complete\\n    error = Signal(str)  # Emitted on error\\n\\n    def __init__(\\n        self,\\n        client: LLMClient,\\n        messages: list[dict[str, Any]],\\n        tools: list[dict[str, Any]] | None,\\n    ) -> None:\\n        super().__init__()\\n        self.client = client\\n        self.messages = messages\\n        self.tools = tools\\n        self.current_content = \\\"\\\"\\n        self.current_tool_calls: list[dict[str, Any]] = []\\n\\n    def run(self) -> None:\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n                    self.current_content += content\\n                    self.chunk_received.emit(content)\\n\\n                # Handle tool calls\\n                if \\\"tool_calls\\\" in delta:\\n                    for tool_call_delta in delta[\\\"tool_calls\\\"]:\\n                        index = tool_call_delta.get(\\\"index\\\", 0)\\n\\n                        # Ensure we have enough tool calls in the list\\n                        while len(self.current_tool_calls) <= index:\\n                            self.current_tool_calls.append(\\n                                {\\n                                    \\\"id\\\": \\\"\\\",\\n                                    \\\"type\\\": \\\"function\\\",\\n                                    \\\"function\\\": {\\\"name\\\": \\\"\\\", \\\"arguments\\\": \\\"\\\"},\\n                                }\\n                            )\\n\\n                        # Update tool call\\n                        if \\\"id\\\" in tool_call_delta:\\n                            self.current_tool_calls[index][\\\"id\\\"] = tool_call_delta[\\\"id\\\"]\\n                        if \\\"function\\\" in tool_call_delta:\\n                            func = tool_call_delta[\\\"function\\\"]\\n                            if \\\"name\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"name\\\"] = func[\\\"name\\\"]\\n                            if \\\"arguments\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"arguments\\\"] += func[\\n                                    \\\"arguments\\\"\\n                                ]\\n\\n                        # Emit delta with current state of this tool call\\n                        self.tool_call_delta.emit(index, self.current_tool_calls[index].copy())\\n\\n            # Emit final result\\n            result = {\\n                \\\"content\\\": self.current_content if self.current_content else None,\\n                \\\"tool_calls\\\": self.current_tool_calls if self.current_tool_calls else None,\\n            }\\n            self.finished.emit(result)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NfX736vDT4XcMGWUc7Fdit",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NfX736vDT4XcMGWUc7Fdit",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"class StreamWorker(QObject):\\n    \\\"\\\"\\\"Worker for handling streaming LLM responses in a separate thread\\\"\\\"\\\"\\n\\n    chunk_received = Signal(str)  # Emitted for each text chunk\\n    tool_call_received = Signal(dict)  # Emitted when tool call is complete\\n    finished = Signal(dict)  # Emitted when stream is complete\\n    error = Signal(str)  # Emitted on error\\n\\n    def __init__(\\n        self,\\n        client: LLMClient,\\n        messages: list[dict[str, Any]],\\n        tools: list[dict[str, Any]] | None,\\n    ) -> None:\\n        super().__init__()\\n        self.client = client\\n        self.messages = messages\\n        self.tools = tools\\n        self.current_content = \\\"\\\"\\n        self.current_tool_calls: list[dict[str, Any]] = []\\n\\n    def run(self) -> None:\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n                    self.current_content += content\\n                    self.chunk_received.emit(content)\\n\\n                # Handle tool calls\\n                if \\\"tool_calls\\\" in delta:\\n                    for tool_call_delta in delta[\\\"tool_calls\\\"]:\\n                        index = tool_call_delta.get(\\\"index\\\", 0)\\n\\n                        # Ensure we have enough tool calls in the list\\n                        while len(self.current_tool_calls) <= index:\\n                            self.current_tool_calls.append(\\n                                {\\n                                    \\\"id\\\": \\\"\\\",\\n                                    \\\"type\\\": \\\"function\\\",\\n                                    \\\"function\\\": {\\\"name\\\": \\\"\\\", \\\"arguments\\\": \\\"\\\"},\\n                                }\\n                            )\\n\\n                        # Update tool call\\n                        if \\\"id\\\" in tool_call_delta:\\n                            self.current_tool_calls[index][\\\"id\\\"] = tool_call_delta[\\\"id\\\"]\\n                        if \\\"function\\\" in tool_call_delta:\\n                            func = tool_call_delta[\\\"function\\\"]\\n                            if \\\"name\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"name\\\"] = func[\\\"name\\\"]\\n                            if \\\"arguments\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"arguments\\\"] += func[\\n                                    \\\"arguments\\\"\\n                                ]\\n\\n            # Emit final result\\n            result = {\\n                \\\"content\\\": self.current_content if self.current_content else None,\\n                \\\"tool_calls\\\": self.current_tool_calls if self.current_tool_calls else None,\\n            }\\n            self.finished.emit(result)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\",\n  \"replace\": \"class StreamWorker(QObject):\\n    \\\"\\\"\\\"Worker for handling streaming LLM responses in a separate thread\\\"\\\"\\\"\\n\\n    chunk_received = Signal(str)  # Emitted for each text chunk\\n    tool_call_delta = Signal(int, dict)  # Emitted for tool call updates (index, current_state)\\n    finished = Signal(dict)  # Emitted when stream is complete\\n    error = Signal(str)  # Emitted on error\\n\\n    def __init__(\\n        self,\\n        client: LLMClient,\\n        messages: list[dict[str, Any]],\\n        tools: list[dict[str, Any]] | None,\\n    ) -> None:\\n        super().__init__()\\n        self.client = client\\n        self.messages = messages\\n        self.tools = tools\\n        self.current_content = \\\"\\\"\\n        self.current_tool_calls: list[dict[str, Any]] = []\\n\\n    def run(self) -> None:\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n                    self.current_content += content\\n                    self.chunk_received.emit(content)\\n\\n                # Handle tool calls\\n                if \\\"tool_calls\\\" in delta:\\n                    for tool_call_delta in delta[\\\"tool_calls\\\"]:\\n                        index = tool_call_delta.get(\\\"index\\\", 0)\\n\\n                        # Ensure we have enough tool calls in the list\\n                        while len(self.current_tool_calls) <= index:\\n                            self.current_tool_calls.append(\\n                                {\\n                                    \\\"id\\\": \\\"\\\",\\n                                    \\\"type\\\": \\\"function\\\",\\n                                    \\\"function\\\": {\\\"name\\\": \\\"\\\", \\\"arguments\\\": \\\"\\\"},\\n                                }\\n                            )\\n\\n                        # Update tool call\\n                        if \\\"id\\\" in tool_call_delta:\\n                            self.current_tool_calls[index][\\\"id\\\"] = tool_call_delta[\\\"id\\\"]\\n                        if \\\"function\\\" in tool_call_delta:\\n                            func = tool_call_delta[\\\"function\\\"]\\n                            if \\\"name\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"name\\\"] = func[\\\"name\\\"]\\n                            if \\\"arguments\\\" in func:\\n                                self.current_tool_calls[index][\\\"function\\\"][\\\"arguments\\\"] += func[\\n                                    \\\"arguments\\\"\\n                                ]\\n\\n                        # Emit delta with current state of this tool call\\n                        self.tool_call_delta.emit(index, self.current_tool_calls[index].copy())\\n\\n            # Emit final result\\n            result = {\\n                \\\"content\\\": self.current_content if self.current_content else None,\\n                \\\"tool_calls\\\": self.current_tool_calls if self.current_tool_calls else None,\\n            }\\n            self.finished.emit(result)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to connect the `tool_call_delta` signal to a handler in `AIChatWidget` that will update the UI as tool calls stream in. I'll add a handler and track streaming tool calls:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Streaming worker\\n        self.stream_thread: QThread | None = None\\n        self.stream_worker: StreamWorker | None = None\\n        self._is_streaming = False\", \"replace\": \"        # Streaming worker\\n        self.stream_thread: QThread | None = None\\n        self.stream_worker: StreamWorker | None = None\\n        self._is_streaming = False\\n        self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01G3ggnDNyfiUQUGHds4JomL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01G3ggnDNyfiUQUGHds4JomL",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Streaming worker\\n        self.stream_thread: QThread | None = None\\n        self.stream_worker: StreamWorker | None = None\\n        self._is_streaming = False\",\n  \"replace\": \"        # Streaming worker\\n        self.stream_thread: QThread | None = None\\n        self.stream_worker: StreamWorker | None = None\\n        self._is_streaming = False\\n        self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to connect the `tool_call_delta` signal to a handler and update the UI to show streaming tool calls. Let me add the handler and update the streaming display logic:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Connect signals\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\\n\\n        # Start the thread\\n        self.stream_thread.start()\", \"replace\": \"        # Connect signals\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\\n\\n        # Start the thread\\n        self.stream_thread.start()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KjgbwgVYkioqFFtTgNA4Ai",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KjgbwgVYkioqFFtTgNA4Ai",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Connect signals\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\\n\\n        # Start the thread\\n        self.stream_thread.start()\",\n  \"replace\": \"        # Connect signals\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\\n\\n        # Start the thread\\n        self.stream_thread.start()\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_on_tool_call_delta` handler and update the streaming display to show tool calls as they stream in. Let me add the handler:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _on_stream_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle a streaming chunk\\\"\\\"\\\"\\n        self.streaming_content += chunk\\n        # Update the last message with accumulated content (for final state)\\n        if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n            self.messages[-1][\\\"content\\\"] = self.streaming_content\\n        # Append raw chunk to streaming element - no markdown re-render\\n        self._append_streaming_chunk(chunk)\", \"replace\": \"    def _on_stream_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle a streaming chunk\\\"\\\"\\\"\\n        self.streaming_content += chunk\\n        # Update the last message with accumulated content (for final state)\\n        if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n            self.messages[-1][\\\"content\\\"] = self.streaming_content\\n        # Append raw chunk to streaming element - no markdown re-render\\n        self._append_streaming_chunk(chunk)\\n\\n    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01SUUy6Lib8xcYrqZCm2DQTg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SUUy6Lib8xcYrqZCm2DQTg",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def _on_stream_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle a streaming chunk\\\"\\\"\\\"\\n        self.streaming_content += chunk\\n        # Update the last message with accumulated content (for final state)\\n        if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n            self.messages[-1][\\\"content\\\"] = self.streaming_content\\n        # Append raw chunk to streaming element - no markdown re-render\\n        self._append_streaming_chunk(chunk)\",\n  \"replace\": \"    def _on_stream_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle a streaming chunk\\\"\\\"\\\"\\n        self.streaming_content += chunk\\n        # Update the last message with accumulated content (for final state)\\n        if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n            self.messages[-1][\\\"content\\\"] = self.streaming_content\\n        # Append raw chunk to streaming element - no markdown re-render\\n        self._append_streaming_chunk(chunk)\\n\\n    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_update_streaming_tool_calls` method that updates the UI to show tool calls as they stream in. I'll also need to clear the streaming tool calls when starting a new stream and when finished:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Start streaming (same as initial request)\\n        self.streaming_content = \\\"\\\"\\n        self._start_streaming_message()\", \"replace\": \"        # Start streaming (same as initial request)\\n        self.streaming_content = \\\"\\\"\\n        self._streaming_tool_calls = []  # Reset streaming tool calls\\n        self._start_streaming_message()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01YC6pwFtSmdKDHRYTw8mfmC",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Start streaming in a separate thread\\n        self.streaming_content = \\\"\\\"\\n        self._start_streaming_message()\", \"replace\": \"        # Start streaming in a separate thread\\n        self.streaming_content = \\\"\\\"\\n        self._streaming_tool_calls = []  # Reset streaming tool calls\\n        self._start_streaming_message()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012W7E2uTkEQQDnx61KnAhnF",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        # Finalize streaming content with proper markdown rendering\\n        self._finalize_streaming_content()\", \"replace\": \"        # Mark streaming as finished\\n        self._is_streaming = False\\n        self._streaming_tool_calls = []  # Clear streaming tool calls\\n\\n        # Finalize streaming content with proper markdown rendering\\n        self._finalize_streaming_content()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GMAE3w3uaJhv2agpLsF6Lr",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YC6pwFtSmdKDHRYTw8mfmC",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Start streaming (same as initial request)\\n        self.streaming_content = \\\"\\\"\\n        self._start_streaming_message()\",\n  \"replace\": \"        # Start streaming (same as initial request)\\n        self.streaming_content = \\\"\\\"\\n        self._streaming_tool_calls = []  # Reset streaming tool calls\\n        self._start_streaming_message()\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012W7E2uTkEQQDnx61KnAhnF",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Start streaming in a separate thread\\n        self.streaming_content = \\\"\\\"\\n        self._start_streaming_message()\",\n  \"replace\": \"        # Start streaming in a separate thread\\n        self.streaming_content = \\\"\\\"\\n        self._streaming_tool_calls = []  # Reset streaming tool calls\\n        self._start_streaming_message()\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GMAE3w3uaJhv2agpLsF6Lr",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        # Finalize streaming content with proper markdown rendering\\n        self._finalize_streaming_content()\",\n  \"replace\": \"        # Mark streaming as finished\\n        self._is_streaming = False\\n        self._streaming_tool_calls = []  # Clear streaming tool calls\\n\\n        # Finalize streaming content with proper markdown rendering\\n        self._finalize_streaming_content()\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_update_streaming_tool_calls` method that will update the UI to show tool calls as they stream in. I'll add it after `_on_tool_call_delta`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\", \"replace\": \"    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\\n\\n    def _update_streaming_tool_calls(self) -> None:\\n        \\\"\\\"\\\"Update the streaming message to show tool call progress\\\"\\\"\\\"\\n        if not self._streaming_tool_calls:\\n            return\\n\\n        # Build HTML for streaming tool calls\\n        tool_html_parts = []\\n        for i, tc in enumerate(self._streaming_tool_calls):\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            # Show tool name with spinning indicator\\n            if name:\\n                tool_html_parts.append(f'<div class=\\\"streaming-tool-call\\\">')\\n                tool_html_parts.append(f'<span class=\\\"tool-name\\\">\ud83d\udd27 {name}</span>')\\n\\n                # Try to pretty-print arguments if they're valid JSON so far\\n                if args:\\n                    # Show arguments as they stream (may be partial JSON)\\n                    # Escape for display\\n                    escaped_args = (\\n                        args.replace(\\\"&\\\", \\\"&amp;\\\")\\n                        .replace(\\\"<\\\", \\\"&lt;\\\")\\n                        .replace(\\\">\\\", \\\"&gt;\\\")\\n                    )\\n                    tool_html_parts.append(\\n                        f'<pre class=\\\"tool-args\\\">{escaped_args}<span class=\\\"cursor\\\">\u258b</span></pre>'\\n                    )\\n\\n                tool_html_parts.append(\\\"</div>\\\")\\n\\n        tool_html = \\\"\\\".join(tool_html_parts)\\n\\n        # Escape for JavaScript\\n        escaped_html = (\\n            tool_html.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\")\\n            .replace(\\\"`\\\", \\\"\\\\\\\\`\\\")\\n            .replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n            .replace(\\\"\\\\n\\\", \\\"\\\\\\\\n\\\")\\n        )\\n\\n        # Update the streaming message to show tool calls\\n        js_code = f\\\"\\\"\\\"\\n        (function() {{\\n            var streamingMsg = document.getElementById('streaming-message');\\n            if (streamingMsg) {{\\n                // Check if user is at bottom before modifying content\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n\\n                // Find or create tool calls container\\n                var toolsContainer = streamingMsg.querySelector('.streaming-tools');\\n                if (!toolsContainer) {{\\n                    toolsContainer = document.createElement('div');\\n                    toolsContainer.className = 'streaming-tools';\\n                    streamingMsg.appendChild(toolsContainer);\\n                }}\\n                toolsContainer.innerHTML = `{escaped_html}`;\\n\\n                // Only scroll if user was already at bottom\\n                if (wasAtBottom) {{\\n                    window.scrollTo(0, document.body.scrollHeight);\\n                }}\\n            }}\\n        }})();\\n        \\\"\\\"\\\"\\n        self.chat_view.page().runJavaScript(js_code)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NfgnVDC4tXnaCNZAVKznhW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NfgnVDC4tXnaCNZAVKznhW",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\",\n  \"replace\": \"    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n        \\\"\\\"\\\"Handle a streaming tool call update\\\"\\\"\\\"\\n        # Ensure we have enough slots\\n        while len(self._streaming_tool_calls) <= index:\\n            self._streaming_tool_calls.append({})\\n\\n        # Update the tool call at this index\\n        self._streaming_tool_calls[index] = tool_call\\n\\n        # Update the streaming display to show tool call progress\\n        self._update_streaming_tool_calls()\\n\\n    def _update_streaming_tool_calls(self) -> None:\\n        \\\"\\\"\\\"Update the streaming message to show tool call progress\\\"\\\"\\\"\\n        if not self._streaming_tool_calls:\\n            return\\n\\n        # Build HTML for streaming tool calls\\n        tool_html_parts = []\\n        for i, tc in enumerate(self._streaming_tool_calls):\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            # Show tool name with spinning indicator\\n            if name:\\n                tool_html_parts.append(f'<div class=\\\"streaming-tool-call\\\">')\\n                tool_html_parts.append(f'<span class=\\\"tool-name\\\">\\ud83d\\udd27 {name}</span>')\\n\\n                # Try to pretty-print arguments if they're valid JSON so far\\n                if args:\\n                    # Show arguments as they stream (may be partial JSON)\\n                    # Escape for display\\n                    escaped_args = (\\n                        args.replace(\\\"&\\\", \\\"&amp;\\\")\\n                        .replace(\\\"<\\\", \\\"&lt;\\\")\\n                        .replace(\\\">\\\", \\\"&gt;\\\")\\n                    )\\n                    tool_html_parts.append(\\n                        f'<pre class=\\\"tool-args\\\">{escaped_args}<span class=\\\"cursor\\\">\\u258b</span></pre>'\\n                    )\\n\\n                tool_html_parts.append(\\\"</div>\\\")\\n\\n        tool_html = \\\"\\\".join(tool_html_parts)\\n\\n        # Escape for JavaScript\\n        escaped_html = (\\n            tool_html.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\")\\n            .replace(\\\"`\\\", \\\"\\\\\\\\`\\\")\\n            .replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n            .replace(\\\"\\\\n\\\", \\\"\\\\\\\\n\\\")\\n        )\\n\\n        # Update the streaming message to show tool calls\\n        js_code = f\\\"\\\"\\\"\\n        (function() {{\\n            var streamingMsg = document.getElementById('streaming-message');\\n            if (streamingMsg) {{\\n                // Check if user is at bottom before modifying content\\n                var scrollThreshold = 50;\\n                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n\\n                // Find or create tool calls container\\n                var toolsContainer = streamingMsg.querySelector('.streaming-tools');\\n                if (!toolsContainer) {{\\n                    toolsContainer = document.createElement('div');\\n                    toolsContainer.className = 'streaming-tools';\\n                    streamingMsg.appendChild(toolsContainer);\\n                }}\\n                toolsContainer.innerHTML = `{escaped_html}`;\\n\\n                // Only scroll if user was already at bottom\\n                if (wasAtBottom) {{\\n                    window.scrollTo(0, document.body.scrollHeight);\\n                }}\\n            }}\\n        }})();\\n        \\\"\\\"\\\"\\n        self.chat_view.page().runJavaScript(js_code)\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add CSS styles for the streaming tool calls in the chat display. Let me add that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"                /* Streaming content shows as preformatted until finalized */\\n                #streaming-message .content {\\n                    white-space: pre-wrap;\\n                    font-family: -apple-system, BlinkMacSystemFont, \\\"Segoe UI\\\", Roboto, sans-serif;\\n                }\", \"replace\": \"                /* Streaming content shows as preformatted until finalized */\\n                #streaming-message .content {\\n                    white-space: pre-wrap;\\n                    font-family: -apple-system, BlinkMacSystemFont, \\\"Segoe UI\\\", Roboto, sans-serif;\\n                }\\n                /* Streaming tool calls */\\n                .streaming-tools {\\n                    margin-top: 12px;\\n                    border-top: 1px solid #ddd;\\n                    padding-top: 12px;\\n                }\\n                .streaming-tool-call {\\n                    margin-bottom: 10px;\\n                }\\n                .streaming-tool-call .tool-name {\\n                    font-weight: bold;\\n                    color: #1976d2;\\n                    font-size: 14px;\\n                }\\n                .streaming-tool-call .tool-args {\\n                    background: #f5f5f5;\\n                    border: 1px solid #e0e0e0;\\n                    border-radius: 4px;\\n                    padding: 8px 12px;\\n                    margin-top: 6px;\\n                    font-family: \\\"Courier New\\\", monospace;\\n                    font-size: 12px;\\n                    white-space: pre-wrap;\\n                    word-break: break-all;\\n                    max-height: 200px;\\n                    overflow-y: auto;\\n                }\\n                .streaming-tool-call .cursor {\\n                    animation: blink 1s step-end infinite;\\n                    color: #1976d2;\\n                }\\n                @keyframes blink {\\n                    0%, 100% { opacity: 1; }\\n                    50% { opacity: 0; }\\n                }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_015Tgc5qFP5aaSTr6Z5e54cT",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015Tgc5qFP5aaSTr6Z5e54cT",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"                /* Streaming content shows as preformatted until finalized */\\n                #streaming-message .content {\\n                    white-space: pre-wrap;\\n                    font-family: -apple-system, BlinkMacSystemFont, \\\"Segoe UI\\\", Roboto, sans-serif;\\n                }\",\n  \"replace\": \"                /* Streaming content shows as preformatted until finalized */\\n                #streaming-message .content {\\n                    white-space: pre-wrap;\\n                    font-family: -apple-system, BlinkMacSystemFont, \\\"Segoe UI\\\", Roboto, sans-serif;\\n                }\\n                /* Streaming tool calls */\\n                .streaming-tools {\\n                    margin-top: 12px;\\n                    border-top: 1px solid #ddd;\\n                    padding-top: 12px;\\n                }\\n                .streaming-tool-call {\\n                    margin-bottom: 10px;\\n                }\\n                .streaming-tool-call .tool-name {\\n                    font-weight: bold;\\n                    color: #1976d2;\\n                    font-size: 14px;\\n                }\\n                .streaming-tool-call .tool-args {\\n                    background: #f5f5f5;\\n                    border: 1px solid #e0e0e0;\\n                    border-radius: 4px;\\n                    padding: 8px 12px;\\n                    margin-top: 6px;\\n                    font-family: \\\"Courier New\\\", monospace;\\n                    font-size: 12px;\\n                    white-space: pre-wrap;\\n                    word-break: break-all;\\n                    max-height: 200px;\\n                    overflow-y: auto;\\n                }\\n                .streaming-tool-call .cursor {\\n                    animation: blink 1s step-end infinite;\\n                    color: #1976d2;\\n                }\\n                @keyframes blink {\\n                    0%, 100% { opacity: 1; }\\n                    50% { opacity: 0; }\\n                }\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The streaming tool call UI is now implemented. The changes include:\n\n1. **`StreamWorker`**: Now emits `tool_call_delta(index, tool_call)` signal as tool call arguments stream in\n\n2. **`_on_tool_call_delta`**: Handler that accumulates streaming tool calls and updates the UI\n\n3. **`_update_streaming_tool_calls`**: Updates the streaming message with a live display of tool calls, showing:\n   - Tool name with \ud83d\udd27 icon\n   - Arguments streaming in with a blinking cursor (\u258b)\n   - Respects scroll position (only auto-scrolls if user was at bottom)\n\n4. **CSS styles**: Added styling for `.streaming-tools`, `.streaming-tool-call`, `.tool-name`, `.tool-args`, and a blinking cursor animation\n\n5. **State cleanup**: `_streaming_tool_calls` is reset when starting a new stream and cleared when finished\n\nHowever, I notice that `_continue_after_tools` doesn't connect the `tool_call_delta` signal. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"        # Connect signals - use the same handlers as initial streaming\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\", \"replace\": \"        # Connect signals - use the same handlers as initial streaming\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Np1MdCQvDJ7FyKdEqxURgu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Np1MdCQvDJ7FyKdEqxURgu",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"        # Connect signals - use the same handlers as initial streaming\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\",\n  \"replace\": \"        # Connect signals - use the same handlers as initial streaming\\n        self.stream_worker.chunk_received.connect(self._on_stream_chunk)\\n        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)\\n        self.stream_worker.finished.connect(self._on_stream_finished)\\n        self.stream_worker.error.connect(self._on_stream_error)\\n        self.stream_thread.started.connect(self.stream_worker.run)\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The implementation is complete. Here's a summary of the changes:\n\n## Summary of Changes\n\n### StreamWorker\n- Renamed `tool_call_received` signal to `tool_call_delta(int, dict)` - emits tool call index and current state as arguments stream in\n\n### AIChatWidget\n- Added `_streaming_tool_calls` list to track tool calls as they stream\n- Connected `tool_call_delta` signal in both `_process_llm_request()` and `_continue_after_tools()`\n- Added `_on_tool_call_delta()` handler that updates the streaming tool call state\n- Added `_update_streaming_tool_calls()` that renders tool calls to the streaming message via JavaScript\n- Reset `_streaming_tool_calls` at the start of each stream and clear when finished\n\n### UI/CSS\n- Added `.streaming-tools` container styling\n- Added `.streaming-tool-call` with `.tool-name` and `.tool-args` styling\n- Added blinking cursor animation (\u258b) to show active streaming\n- Tool arguments shown in a monospace pre block with max-height and overflow scroll\n\n### Behavior\n- As tool call arguments stream in, you'll see:\n  - \ud83d\udd27 followed by the tool name\n  - Arguments appearing character by character with a blinking cursor\n- Respects scroll position (only auto-scrolls if user was already at bottom)\n- Multiple concurrent tool calls are supported (each gets its own section)"
     }
   ]
 }

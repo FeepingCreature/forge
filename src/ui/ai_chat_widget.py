@@ -234,10 +234,16 @@ class AIChatWidget(QWidget):
         # Chat display area (using QWebEngineView for markdown/LaTeX)
         self.chat_view = QWebEngineView()
 
+        # Log JavaScript console messages to stdout for debugging
+        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message
+
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
 
         # Initialize with stable HTML shell - content will be injected via JavaScript
+        # Connect to loadFinished to know when we can safely call updateMessages()
+        self._shell_ready = False
+        self.chat_view.loadFinished.connect(self._on_shell_loaded)
         self._init_chat_shell()
 
         layout.addWidget(self.chat_view)
@@ -1099,6 +1105,22 @@ class AIChatWidget(QWidget):
             }
         """
 
+    def _on_js_console_message(
+        self, level: int, message: str, line: int, source: str
+    ) -> None:
+        """Log JavaScript console messages to stdout for debugging"""
+        level_str = ["DEBUG", "INFO", "WARNING", "ERROR"][min(level, 3)]
+        print(f"[JS {level_str}] {message} (line {line}, {source})")
+
+    def _on_shell_loaded(self, ok: bool) -> None:
+        """Called when the HTML shell has finished loading"""
+        if ok:
+            self._shell_ready = True
+            # Now it's safe to inject content
+            self._update_chat_display()
+        else:
+            print("ERROR: Failed to load chat shell HTML")
+
     def _init_chat_shell(self) -> None:
         """Initialize the stable HTML shell for the chat display.
         
@@ -1177,6 +1199,10 @@ class AIChatWidget(QWidget):
             scroll_to_bottom: If True, scroll to bottom after update.
                             If False, scroll position is preserved automatically.
         """
+        # Don't try to update before the shell is ready
+        if not self._shell_ready:
+            return
+            
         messages_html = self._build_messages_html()
         
         # Escape for JavaScript string

@@ -583,7 +583,9 @@ class MainWindow(QMainWindow):
         if current_index >= 0:
             self._close_branch_tab(current_index)
 
-    def _on_context_stats_updated(self, stats: dict[str, Any], branch_widget: BranchTabWidget) -> None:
+    def _on_context_stats_updated(
+        self, stats: dict[str, Any], branch_widget: BranchTabWidget
+    ) -> None:
         """Handle context stats update from AI chat widget"""
         # Only update if this is the current branch
         if self.branch_tabs.currentWidget() != branch_widget:

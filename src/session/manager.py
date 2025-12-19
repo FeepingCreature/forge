@@ -231,25 +231,7 @@ class SessionManager:
 
     def _estimate_conversation_tokens(self) -> int:
         """Estimate tokens used by conversation history (excluding file content)"""
-        total = 0
-        # for block in self.prompt_manager._blocks:
-        #     block_type = block.get("type")
-        #     # Skip file content blocks - those are counted separately
-        #     if block_type == "file_content":
-        #         continue
-        #     # Count user messages, assistant messages, tool calls, tool results
-        #     if block_type == "user_message":
-        #         total += self._estimate_tokens(block.get("content", ""))
-        #     elif block_type == "assistant_message":
-        #         total += self._estimate_tokens(block.get("content", ""))
-        #     elif block_type == "tool_call":
-        #         # Estimate tool call overhead
-        #         for tc in block.get("tool_calls", []):
-        #             total += self._estimate_tokens(json.dumps(tc))
-        #         total += self._estimate_tokens(block.get("content", ""))
-        #     elif block_type == "tool_result":
-        #         total += self._estimate_tokens(block.get("result", ""))
-        return total
+        return self.prompt_manager.estimate_conversation_tokens()
 
     def commit_ai_turn(
         self, messages: list[dict[str, Any]], commit_message: str | None = None

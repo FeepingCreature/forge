@@ -212,6 +212,34 @@ class PromptManager:
                 files.append(block.metadata["filepath"])
         return files
 
+    def estimate_conversation_tokens(self) -> int:
+        """
+        Estimate tokens used by conversation history (excluding file content).
+
+        File content is counted separately, so this only counts:
+        - User messages
+        - Assistant messages
+        - Tool calls (as JSON)
+        - Tool results
+        """
+        total = 0
+        for block in self.blocks:
+            if block.deleted:
+                continue
+            # Skip file content and summaries - those are counted separately
+            if block.block_type in (BlockType.FILE_CONTENT, BlockType.SUMMARIES, BlockType.SYSTEM):
+                continue
+            # Estimate ~4 chars per token
+            total += len(block.content) // 4
+            # For tool calls, also count the tool call metadata
+            if block.block_type == BlockType.TOOL_CALL:
+                tool_calls = block.metadata.get("tool_calls", [])
+                for tc in tool_calls:
+                    import json
+
+                    total += len(json.dumps(tc)) // 4
+        return total
+
     def to_messages(self) -> list[dict[str, Any]]:
         """
         Convert the block stream to API message format.

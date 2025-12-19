@@ -9,6 +9,7 @@ import markdown
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -236,7 +237,7 @@ class AIChatWidget(QWidget):
         self.chat_view = QWebEngineView()
 
         # Log JavaScript console messages to stdout for debugging
-        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message
+        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message  # type: ignore
 
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
@@ -601,14 +602,14 @@ class AIChatWidget(QWidget):
 
         # Build HTML for streaming tool calls
         tool_html_parts = []
-        for i, tc in enumerate(self._streaming_tool_calls):
+        for tc in self._streaming_tool_calls:
             func = tc.get("function", {})
             name = func.get("name", "")
             args = func.get("arguments", "")
 
             # Show tool name with spinning indicator
             if name:
-                tool_html_parts.append(f'<div class="streaming-tool-call">')
+                tool_html_parts.append('<div class="streaming-tool-call">')
                 tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
 
                 # Try to pretty-print arguments if they're valid JSON so far
@@ -616,9 +617,7 @@ class AIChatWidget(QWidget):
                     # Show arguments as they stream (may be partial JSON)
                     # Escape for display
                     escaped_args = (
-                        args.replace("&", "&amp;")
-                        .replace("<", "&lt;")
-                        .replace(">", "&gt;")
+                        args.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     )
                     tool_html_parts.append(
                         f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
@@ -1118,10 +1117,14 @@ class AIChatWidget(QWidget):
         """
 
     def _on_js_console_message(
-        self, level: int, message: str, line: int, source: str
+        self,
+        level: QWebEnginePage.JavaScriptConsoleMessageLevel,
+        message: str,
+        line: int,
+        source: str,
     ) -> None:
         """Log JavaScript console messages to stdout for debugging"""
-        level_str = ["DEBUG", "INFO", "WARNING", "ERROR"][min(level, 3)]
+        level_str = ["DEBUG", "INFO", "WARNING", "ERROR"][min(level.value, 3)]
         print(f"[JS {level_str}] {message} (line {line}, {source})")
 
     def _on_shell_loaded(self, ok: bool) -> None:
@@ -1135,7 +1138,7 @@ class AIChatWidget(QWidget):
 
     def _init_chat_shell(self) -> None:
         """Initialize the stable HTML shell for the chat display.
-        
+
         This is called once at startup. All subsequent updates inject content
         into the #messages-container div via JavaScript, preserving scroll position.
         """
@@ -1203,10 +1206,10 @@ class AIChatWidget(QWidget):
 
     def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:
         """Update the chat display with all messages.
-        
+
         This injects content into the stable HTML shell via JavaScript,
         which naturally preserves scroll position.
-        
+
         Args:
             scroll_to_bottom: If True, scroll to bottom after update.
                             If False, scroll position is preserved automatically.
@@ -1214,20 +1217,13 @@ class AIChatWidget(QWidget):
         # Don't try to update before the shell is ready
         if not self._shell_ready:
             return
-            
+
         messages_html = self._build_messages_html()
-        
+
         # Escape for JavaScript string
-        escaped_html = (
-            messages_html
-            .replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-        )
-        
+        escaped_html = messages_html.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+
         scroll_js = "true" if scroll_to_bottom else "false"
-        
+
         # Inject content via JavaScript - scroll position preserved automatically
-        self.chat_view.page().runJavaScript(
-            f"updateMessages(`{escaped_html}`, {scroll_js});"
-        )
+        self.chat_view.page().runJavaScript(f"updateMessages(`{escaped_html}`, {scroll_js});")

@@ -338,7 +338,7 @@ On branch tab open:
 
 ## v2: Repository View
 
-A dedicated repository view is central to the git-first vision. Accessed via a prominent button (top-left), it switches the entire window to show:
+A dedicated repository view is central to the git-first vision. This is the **default top-level tab** (before any branches), providing a zoomable whole-repo graph view.
 
 ### Visual Commit/Branch Overview
 - Every commit visible
@@ -357,3 +357,9 @@ Merging is expensive, but *checking if merge is clean* is cheap. The UI can show
 - Visual preview of what merge would look like
 
 This makes git operations discoverable and safe - users can see consequences before acting.
+
+### Branch Operations
+All branch management operations live here:
+- **Rename branch:** Right-click branch label → rename
+- **Merge:** Drag a branch/commit onto target branch head
+- **Delete branch:** Right-click branch label → delete (with confirmation)

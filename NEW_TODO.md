@@ -75,8 +75,8 @@ The branch-first architecture is **largely complete**:
 - [x] Close branch tab (with unsaved changes check)
 - [x] Fork branch (create new branch from current state)
 - [x] Delete branch (with confirmation)
-- [ ] Rename branch
-- [ ] Merge to... (opens merge dialog)
+- ~~Rename branch~~ → Repository View (Phase 7)
+- ~~Merge to...~~ → Repository View (Phase 7)
 
 ### 5.2 Visual indicators
 - [x] 🤖 icon for branches with session data
@@ -127,7 +127,8 @@ The branch-first architecture is **largely complete**:
 ## Phase 7: Repository View (v2 - Future)
 
 ### 7.1 Visual commit/branch overview
-- [ ] Dedicated repository view (button in top-left)
+- [ ] Repository View as default top-level tab (before branch tabs)
+- [ ] Zoomable whole-repo graph
 - [ ] Show all commits as graph
 - [ ] Show all branches
 - [ ] Abandoned commits visible (toggleable)
@@ -137,7 +138,12 @@ The branch-first architecture is **largely complete**:
 - [ ] Drag commit to reorder → rebase
 - [ ] Right-click commit → cherry-pick
 
-### 7.3 Smart merge indicators
+### 7.3 Branch operations (moved from branch tab context menu)
+- [ ] Rename branch (right-click branch label)
+- [ ] Merge branch (drag onto target)
+- [ ] Delete branch (right-click branch label)
+
+### 7.4 Smart merge indicators
 - [ ] Green: can merge cleanly
 - [ ] Yellow: has conflicts
 - [ ] Preview merge result before executing

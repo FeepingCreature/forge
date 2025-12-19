@@ -199,13 +199,13 @@ class SessionManager:
     def get_active_files_with_stats(self) -> dict[str, Any]:
         """Get active files with token counts and context stats"""
         files_info = []
-        total_tokens = 0
+        file_tokens = 0
 
         for filepath in sorted(self.active_files):
             try:
                 content = self.vfs.read_file(filepath)
                 tokens = self._estimate_tokens(content)
-                total_tokens += tokens
+                file_tokens += tokens
                 files_info.append(
                     {"filepath": filepath, "tokens": tokens, "size_bytes": len(content)}
                 )
@@ -217,13 +217,39 @@ class SessionManager:
             self._estimate_tokens(summary) for summary in self.repo_summaries.values()
         )
 
+        # Estimate conversation tokens from prompt manager
+        conversation_tokens = self._estimate_conversation_tokens()
+
         return {
             "active_files": files_info,
-            "total_active_tokens": total_tokens,
+            "file_tokens": file_tokens,
             "summary_tokens": summary_tokens,
-            "total_context_tokens": total_tokens + summary_tokens,
+            "conversation_tokens": conversation_tokens,
+            "total_context_tokens": file_tokens + summary_tokens + conversation_tokens,
             "file_count": len(files_info),
         }
+
+    def _estimate_conversation_tokens(self) -> int:
+        """Estimate tokens used by conversation history (excluding file content)"""
+        total = 0
+        # for block in self.prompt_manager._blocks:
+        #     block_type = block.get("type")
+        #     # Skip file content blocks - those are counted separately
+        #     if block_type == "file_content":
+        #         continue
+        #     # Count user messages, assistant messages, tool calls, tool results
+        #     if block_type == "user_message":
+        #         total += self._estimate_tokens(block.get("content", ""))
+        #     elif block_type == "assistant_message":
+        #         total += self._estimate_tokens(block.get("content", ""))
+        #     elif block_type == "tool_call":
+        #         # Estimate tool call overhead
+        #         for tc in block.get("tool_calls", []):
+        #             total += self._estimate_tokens(json.dumps(tc))
+        #         total += self._estimate_tokens(block.get("content", ""))
+        #     elif block_type == "tool_result":
+        #         total += self._estimate_tokens(block.get("result", ""))
+        return total
 
     def commit_ai_turn(
         self, messages: list[dict[str, Any]], commit_message: str | None = None

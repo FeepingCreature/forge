@@ -596,25 +596,29 @@ class MainWindow(QMainWindow):
             if filepath and "error" not in file_info:
                 branch_widget.update_file_tab_tooltip(filepath, tokens)
 
-        # Update status bar with total context info
+        # Update status bar with breakdown of context usage
+        file_tokens = stats.get("file_tokens", 0)
+        summary_tokens = stats.get("summary_tokens", 0)
+        conversation_tokens = stats.get("conversation_tokens", 0)
         total_tokens = stats.get("total_context_tokens", 0)
         file_count = stats.get("file_count", 0)
-        summary_tokens = stats.get("summary_tokens", 0)
 
         # Get model context limit from settings for warning
         model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         context_limit = self._get_model_context_limit(model)
 
-        # Build status message
+        # Build status message with breakdown
+        breakdown = f"files: ~{file_tokens:,} ({file_count}) | summaries: ~{summary_tokens:,} | conversation: ~{conversation_tokens:,}"
+
         if context_limit:
             percent = (total_tokens / context_limit) * 100
-            status = f"📊 Context: ~{total_tokens:,} tokens ({percent:.0f}% of {context_limit:,}) | {file_count} files | {summary_tokens:,} summary tokens"
+            status = f"📊 ~{total_tokens:,} tokens ({percent:.0f}%) | {breakdown}"
 
             # Warn if context is getting large
             if percent > 80:
                 status = f"⚠️ {status}"
         else:
-            status = f"📊 Context: ~{total_tokens:,} tokens | {file_count} files | {summary_tokens:,} summary tokens"
+            status = f"📊 ~{total_tokens:,} tokens | {breakdown}"
 
         self.status_bar.showMessage(status)
 

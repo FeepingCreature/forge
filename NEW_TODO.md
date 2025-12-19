@@ -81,21 +81,21 @@ The branch-first architecture is **largely complete**:
 ### 5.2 Visual indicators
 - [x] 🤖 icon for branches with session data
 - [x] 🌿 icon for branches without session data
-- [ ] Branch ahead/behind main indicator
-- [ ] Uncommitted changes indicator on branch tab
+- ~~Branch ahead/behind main indicator~~ → Rethink later
+- ~~Uncommitted changes indicator on branch tab~~ → Rethink later
 
 ### 5.3 Keyboard shortcuts
 - [x] Ctrl+S: Save (commit) current file
 - [x] Ctrl+Shift+S: Save all open files
-- [ ] Ctrl+Tab / Ctrl+Shift+Tab: Switch branch tabs
-- [ ] Ctrl+W: Close current file tab
-- [ ] Ctrl+Shift+W: Close current branch tab
-- [ ] Ctrl+N: New branch dialog
+- [x] Ctrl+Tab / Ctrl+Shift+Tab: Switch branch tabs
+- [x] Ctrl+W: Close current file tab
+- [x] Ctrl+Shift+W: Close current branch tab
+- [x] Ctrl+N: New branch dialog
 
 ### 5.4 Context display
-- [ ] Show token count per file in tab tooltip
-- [ ] Show total context tokens in status bar
-- [ ] Warn if context exceeds model limit
+- [x] Show token count per file in tab tooltip
+- [x] Show total context tokens in status bar
+- [x] Warn if context exceeds model limit (⚠️ icon at >80%)
 
 ### 5.5 New branch actions
 - [x] New AI Session (creates branch + initial session commit)
@@ -154,7 +154,7 @@ The branch-first architecture is **largely complete**:
 
 - [ ] Error handling uses too many try/except blocks (violates "no fallbacks" philosophy)
 - [ ] Some type hints use `Any` instead of proper types
-- [ ] Context token counting implemented but not displayed in UI
+- [x] Context token counting implemented and displayed in UI
 
 ---
 

@@ -405,3 +405,14 @@ class BranchTabWidget(QWidget):
         """Handle tab change"""
         # Update workspace's active tab index
         self.workspace.active_tab_index = index
+
+    def update_file_tab_tooltip(self, filepath: str, tokens: int) -> None:
+        """Update a file tab's tooltip to show token count"""
+        if filepath not in self._editors:
+            return
+
+        editor = self._editors[filepath]
+        for i in range(self.file_tabs.count()):
+            if self.file_tabs.widget(i) == editor:
+                self.file_tabs.setTabToolTip(i, f"{filepath}\n~{tokens:,} tokens in context")
+                break

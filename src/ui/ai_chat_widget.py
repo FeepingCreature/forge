@@ -146,6 +146,7 @@ class AIChatWidget(QWidget):
     ai_turn_started = Signal()  # Emitted when AI turn begins
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
     context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
+    context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
 
     def __init__(
         self,
@@ -458,15 +459,26 @@ class AIChatWidget(QWidget):
         """Add a file to the AI context"""
         self.session_manager.add_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())
+        self._emit_context_stats()
 
     def remove_file_from_context(self, filepath: str) -> None:
         """Remove a file from the AI context"""
         self.session_manager.remove_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())
+        self._emit_context_stats()
 
     def get_active_files(self) -> set[str]:
         """Get the set of files currently in AI context"""
         return self.session_manager.active_files.copy()
+
+    def _emit_context_stats(self) -> None:
+        """Emit context stats for status bar updates"""
+        stats = self.session_manager.get_active_files_with_stats()
+        self.context_stats_updated.emit(stats)
+
+    def get_context_stats(self) -> dict[str, Any]:
+        """Get current context statistics"""
+        return self.session_manager.get_active_files_with_stats()
 
     def check_unsaved_changes(self) -> bool:
         """

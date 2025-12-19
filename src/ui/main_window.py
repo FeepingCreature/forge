@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
     QMainWindow,
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
 
         self._setup_ui()
         self._setup_menus()
+        self._setup_shortcuts()
         self._open_default_branch()
 
     def _setup_ui(self) -> None:
@@ -154,6 +156,11 @@ class MainWindow(QMainWindow):
 
         # Connect chat widget context changes back to file explorer for visual update
         chat_widget.context_changed.connect(branch_widget.update_context_display)
+
+        # Connect context stats for status bar updates and file tab tooltips
+        chat_widget.context_stats_updated.connect(
+            lambda stats, bw=branch_widget: self._on_context_stats_updated(stats, bw)
+        )
 
         # Restore active files to AI context (but don't force open tabs)
         # The AI's context is restored, but user's UI state is not forced
@@ -522,4 +529,116 @@ class MainWindow(QMainWindow):
         current_widget = self.branch_tabs.currentWidget()
         if isinstance(current_widget, BranchTabWidget):
             return current_widget.workspace
+        return None
+
+    def _setup_shortcuts(self) -> None:
+        """Setup keyboard shortcuts"""
+        # Ctrl+Tab: Next branch tab
+        next_tab = QShortcut(QKeySequence("Ctrl+Tab"), self)
+        next_tab.activated.connect(self._next_branch_tab)
+
+        # Ctrl+Shift+Tab: Previous branch tab
+        prev_tab = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        prev_tab.activated.connect(self._prev_branch_tab)
+
+        # Ctrl+W: Close current file tab
+        close_file = QShortcut(QKeySequence("Ctrl+W"), self)
+        close_file.activated.connect(self._close_current_file_tab)
+
+        # Ctrl+Shift+W: Close current branch tab
+        close_branch = QShortcut(QKeySequence("Ctrl+Shift+W"), self)
+        close_branch.activated.connect(self._close_current_branch_tab)
+
+        # Ctrl+N: New branch dialog
+        new_branch = QShortcut(QKeySequence("Ctrl+N"), self)
+        new_branch.activated.connect(self._show_new_branch_dialog)
+
+    def _next_branch_tab(self) -> None:
+        """Switch to next branch tab"""
+        count = self.branch_tabs.count()
+        if count > 1:
+            current = self.branch_tabs.currentIndex()
+            self.branch_tabs.setCurrentIndex((current + 1) % count)
+
+    def _prev_branch_tab(self) -> None:
+        """Switch to previous branch tab"""
+        count = self.branch_tabs.count()
+        if count > 1:
+            current = self.branch_tabs.currentIndex()
+            self.branch_tabs.setCurrentIndex((current - 1) % count)
+
+    def _close_current_file_tab(self) -> None:
+        """Close the current file tab in the active branch"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            file_tabs = current_widget.file_tabs
+            current_index = file_tabs.currentIndex()
+            # Don't close AI chat tab (index 0)
+            if current_index > 0:
+                file_tabs.tabCloseRequested.emit(current_index)
+
+    def _close_current_branch_tab(self) -> None:
+        """Close the current branch tab"""
+        current_index = self.branch_tabs.currentIndex()
+        if current_index >= 0:
+            self._close_branch_tab(current_index)
+
+    def _on_context_stats_updated(self, stats: dict[str, Any], branch_widget: BranchTabWidget) -> None:
+        """Handle context stats update from AI chat widget"""
+        # Only update if this is the current branch
+        if self.branch_tabs.currentWidget() != branch_widget:
+            return
+
+        # Update file tab tooltips with token counts
+        for file_info in stats.get("active_files", []):
+            filepath = file_info.get("filepath", "")
+            tokens = file_info.get("tokens", 0)
+            if filepath and "error" not in file_info:
+                branch_widget.update_file_tab_tooltip(filepath, tokens)
+
+        # Update status bar with total context info
+        total_tokens = stats.get("total_context_tokens", 0)
+        file_count = stats.get("file_count", 0)
+        summary_tokens = stats.get("summary_tokens", 0)
+
+        # Get model context limit from settings for warning
+        model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        context_limit = self._get_model_context_limit(model)
+
+        # Build status message
+        if context_limit:
+            percent = (total_tokens / context_limit) * 100
+            status = f"📊 Context: ~{total_tokens:,} tokens ({percent:.0f}% of {context_limit:,}) | {file_count} files | {summary_tokens:,} summary tokens"
+
+            # Warn if context is getting large
+            if percent > 80:
+                status = f"⚠️ {status}"
+        else:
+            status = f"📊 Context: ~{total_tokens:,} tokens | {file_count} files | {summary_tokens:,} summary tokens"
+
+        self.status_bar.showMessage(status)
+
+    def _get_model_context_limit(self, model: str) -> int | None:
+        """Get context limit for a model (returns None if unknown)"""
+        # Known context limits for common models
+        limits = {
+            "anthropic/claude-3.5-sonnet": 200000,
+            "anthropic/claude-3-sonnet": 200000,
+            "anthropic/claude-3-opus": 200000,
+            "anthropic/claude-3-haiku": 200000,
+            "openai/gpt-4-turbo": 128000,
+            "openai/gpt-4": 8192,
+            "openai/gpt-3.5-turbo": 16385,
+            "google/gemini-pro": 32000,
+        }
+
+        # Check exact match first
+        if model in limits:
+            return limits[model]
+
+        # Check prefix match (e.g., "anthropic/claude" matches any claude model)
+        for prefix, limit in limits.items():
+            if model.startswith(prefix.split("-")[0]):
+                return limit
+
         return None

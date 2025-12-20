@@ -27,6 +27,7 @@ class ToolManager:
         "search_replace",
         "update_context",
         "grep_open",
+        "get_lines",
     }
 
     def __init__(

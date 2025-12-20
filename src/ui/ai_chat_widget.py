@@ -6,8 +6,8 @@ import json
 from typing import TYPE_CHECKING, Any
 
 import markdown
-from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal, Slot
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtGui import QDesktopServices, QKeyEvent
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -206,6 +206,28 @@ class ToolExecutionWorker(QObject):
             self.session_manager.vfs.release_thread()
 
 
+class ExternalLinkPage(QWebEnginePage):
+    """Custom page that opens links in external browser instead of navigating in-place"""
+
+    def acceptNavigationRequest(
+        self, url: QUrl | str, nav_type: QWebEnginePage.NavigationType, is_main_frame: bool
+    ) -> bool:
+        # Allow initial page load and JavaScript-driven updates
+        if nav_type == QWebEnginePage.NavigationType.NavigationTypeTyped:
+            return True
+
+        # For link clicks, open externally
+        if nav_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:
+            # Convert to QUrl if string
+            if isinstance(url, str):
+                url = QUrl(url)
+            QDesktopServices.openUrl(url)
+            return False
+
+        # Allow other navigation types (reloads, form submissions, etc.)
+        return True
+
+
 class ChatBridge(QObject):
     """Bridge object for JavaScript-to-Python communication"""
 
@@ -318,6 +340,10 @@ class AIChatWidget(QWidget):
 
         # Chat display area (using QWebEngineView for markdown/LaTeX)
         self.chat_view = QWebEngineView()
+
+        # Use custom page that opens links externally
+        custom_page = ExternalLinkPage(self.chat_view)
+        self.chat_view.setPage(custom_page)
 
         # Log JavaScript console messages to stdout for debugging
         self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message  # type: ignore

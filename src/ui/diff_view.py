@@ -11,31 +11,32 @@ import json
 
 
 def get_diff_styles() -> str:
-    """Return CSS styles for the diff view"""
+    """Return CSS styles for the diff view (light theme to match chat UI)"""
     return """
         .diff-view {
             font-family: "Courier New", Consolas, monospace;
             font-size: 12px;
-            background: #1e1e1e;
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
             border-radius: 6px;
             overflow: hidden;
             margin: 8px 0;
         }
         .diff-header {
-            background: #2d2d2d;
-            color: #9cdcfe;
+            background: #f0f0f0;
+            color: #333;
             padding: 8px 12px;
             font-weight: bold;
-            border-bottom: 1px solid #404040;
+            border-bottom: 1px solid #e0e0e0;
             display: flex;
             align-items: center;
             gap: 8px;
         }
         .diff-header .filepath {
-            color: #dcdcaa;
+            color: #795e26;
         }
         .diff-header .status {
-            color: #808080;
+            color: #888;
             font-weight: normal;
             font-size: 11px;
         }
@@ -54,10 +55,10 @@ def get_diff_styles() -> str:
             min-width: 50px;
             text-align: right;
             padding-right: 8px;
-            color: #606060;
-            background: #1a1a1a;
+            color: #999;
+            background: #f0f0f0;
             user-select: none;
-            border-right: 1px solid #333;
+            border-right: 1px solid #e0e0e0;
         }
         .diff-line-content {
             flex: 1;
@@ -65,41 +66,41 @@ def get_diff_styles() -> str:
             white-space: pre;
         }
         .diff-line.deletion {
-            background: rgba(248, 81, 73, 0.15);
+            background: #ffebe9;
         }
         .diff-line.deletion .diff-line-content {
-            color: #f85149;
+            color: #b31d28;
         }
         .diff-line.deletion .diff-line-number {
-            background: rgba(248, 81, 73, 0.2);
-            color: #f85149;
+            background: #ffd7d5;
+            color: #b31d28;
         }
         .diff-line.addition {
-            background: rgba(63, 185, 80, 0.15);
+            background: #e6ffec;
         }
         .diff-line.addition .diff-line-content {
-            color: #3fb950;
+            color: #22863a;
         }
         .diff-line.addition .diff-line-number {
-            background: rgba(63, 185, 80, 0.2);
-            color: #3fb950;
+            background: #cdffd8;
+            color: #22863a;
         }
         .diff-line.context {
             background: transparent;
         }
         .diff-line.context .diff-line-content {
-            color: #d4d4d4;
+            color: #333;
         }
         .diff-cursor {
             animation: diff-blink 1s step-end infinite;
-            color: #569cd6;
+            color: #0066cc;
         }
         @keyframes diff-blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0; }
         }
         .diff-streaming-indicator {
-            color: #808080;
+            color: #888;
             font-style: italic;
             padding: 4px 12px 8px;
             font-size: 11px;

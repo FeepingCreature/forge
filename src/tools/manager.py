@@ -233,28 +233,54 @@ class ToolManager:
         tools: list[dict[str, Any]] = []
         self._schema_cache = {}
         self._tool_modules = {}
+        seen_tools: set[str] = set()
 
         # Load built-in tools first (always approved)
         for tool_file in self.builtin_tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
                 tool_name = tool_file.stem
-                tool_module = self._load_tool_module(tool_file, is_builtin=True)
+                seen_tools.add(tool_name)
+                tool_module = self._load_tool_module(tool_name, is_builtin=True)
                 if tool_module and hasattr(tool_module, "get_schema"):
                     schema = tool_module.get_schema()
                     tools.append(schema)
                     self._schema_cache[tool_name] = schema
                     self._tool_modules[tool_name] = tool_module
 
-        # Load user tools (only if approved)
-        for tool_file in self.tools_dir.iterdir():
-            if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
-                tool_name = tool_file.stem
+        # Load user tools from filesystem (only if approved)
+        if self.tools_dir.exists():
+            for tool_file in self.tools_dir.iterdir():
+                if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
+                    tool_name = tool_file.stem
+                    seen_tools.add(tool_name)
+
+                    # Only include approved tools
+                    if not self.is_tool_approved(tool_name):
+                        continue
+
+                    tool_module = self._load_tool_module(tool_name, is_builtin=False)
+                    if tool_module and hasattr(tool_module, "get_schema"):
+                        schema = tool_module.get_schema()
+                        tools.append(schema)
+                        self._schema_cache[tool_name] = schema
+                        self._tool_modules[tool_name] = tool_module
+
+        # Also load user tools from VFS (for tools created in current session)
+        tools_prefix = str(self.tools_dir).lstrip("./") + "/"
+        for filepath in self.vfs.get_pending_changes():
+            if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
+                tool_name = filepath[len(tools_prefix):-3]  # Remove prefix and .py
+
+                if tool_name in seen_tools or tool_name == "__init__":
+                    continue
+
+                seen_tools.add(tool_name)
 
                 # Only include approved tools
                 if not self.is_tool_approved(tool_name):
                     continue
 
-                tool_module = self._load_tool_module(tool_file, is_builtin=False)
+                tool_module = self._load_tool_module(tool_name, is_builtin=False)
                 if tool_module and hasattr(tool_module, "get_schema"):
                     schema = tool_module.get_schema()
                     tools.append(schema)
@@ -263,8 +289,8 @@ class ToolManager:
 
         return tools
 
-    def _load_tool_module(self, tool_path: Path, is_builtin: bool = False) -> Any:
-        """Load a tool as a Python module"""
+    def _load_tool_module_from_path(self, tool_path: Path, is_builtin: bool = False) -> Any:
+        """Load a tool as a Python module from disk"""
         if is_builtin:
             module_name = f"src.tools.builtin.{tool_path.stem}"
         else:
@@ -279,6 +305,41 @@ class ToolManager:
 
         return module
 
+    def _load_tool_module_from_source(self, tool_name: str, source: str) -> Any:
+        """Load a tool as a Python module from source code string (for VFS-only tools)"""
+        module_name = f"tools.{tool_name}"
+
+        # Create a new module
+        import types
+        module = types.ModuleType(module_name)
+        module.__file__ = f"<vfs>/tools/{tool_name}.py"
+
+        # Execute the source in the module's namespace
+        exec(compile(source, module.__file__, "exec"), module.__dict__)
+
+        # Register in sys.modules
+        sys.modules[module_name] = module
+
+        return module
+
+    def _load_tool_module(self, tool_name: str, is_builtin: bool = False) -> Any:
+        """Load a tool module - from disk for built-ins, from VFS for user tools"""
+        if is_builtin:
+            tool_path = self.builtin_tools_dir / f"{tool_name}.py"
+            return self._load_tool_module_from_path(tool_path, is_builtin=True)
+
+        # For user tools, try VFS first (includes pending changes), then disk
+        content = self._get_tool_content(tool_name)
+        if content is not None:
+            return self._load_tool_module_from_source(tool_name, content)
+
+        # Fallback to disk (shouldn't normally happen if _get_tool_content works)
+        tool_path = self.tools_dir / f"{tool_name}.py"
+        if tool_path.exists():
+            return self._load_tool_module_from_path(tool_path, is_builtin=False)
+
+        return None
+
     def execute_tool(
         self, tool_name: str, args: dict[str, Any], session_manager: Any = None
     ) -> dict[str, Any]:
@@ -288,19 +349,14 @@ class ToolManager:
             return {"error": f"Tool {tool_name} is not approved. Cannot execute."}
 
         if tool_name not in self._tool_modules:
-            # Try to load it - check built-in first, then user tools
-            builtin_path = self.builtin_tools_dir / f"{tool_name}.py"
-            user_path = self.tools_dir / f"{tool_name}.py"
+            # Determine if it's a built-in tool
+            is_builtin = tool_name in self.BUILTIN_TOOLS
 
-            if builtin_path.exists():
-                tool_module = self._load_tool_module(builtin_path, is_builtin=True)
-            elif user_path.exists():
-                tool_module = self._load_tool_module(user_path, is_builtin=False)
-            else:
-                return {"error": f"Tool {tool_name} not found"}
+            # Load the tool module (handles VFS and disk)
+            tool_module = self._load_tool_module(tool_name, is_builtin=is_builtin)
 
             if not tool_module:
-                return {"error": f"Failed to load tool {tool_name}"}
+                return {"error": f"Tool {tool_name} not found"}
 
             self._tool_modules[tool_name] = tool_module
 

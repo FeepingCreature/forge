@@ -124,9 +124,10 @@ class ForgeRepository:
         """
         tree_builder = self.repo.TreeBuilder(base_tree) if base_tree else self.repo.TreeBuilder()
 
-        # Find deletions at this level
+        # Find deletions at this level and subdirectories that need recursion for deletions
+        subdirs_with_deletions: dict[str, set[str]] = {}
         for del_path in list(deletions):
-            # Check if this deletion is at the current level
+            # Check if this deletion is at or below the current level
             if current_path:
                 if not del_path.startswith(current_path + "/"):
                     continue
@@ -139,6 +140,34 @@ class ForgeRepository:
                 # Direct deletion at this level
                 with contextlib.suppress(KeyError):
                     tree_builder.remove(parts[0])
+            else:
+                # Deletion in a subdirectory - we need to recurse into it
+                subdir_name = parts[0]
+                if subdir_name not in subdirs_with_deletions:
+                    subdirs_with_deletions[subdir_name] = set()
+                subdirs_with_deletions[subdir_name].add(del_path)
+
+        # Process subdirectories that have deletions but no changes
+        for subdir_name in subdirs_with_deletions:
+            if subdir_name in changes:
+                # Will be handled below in the changes loop
+                continue
+
+            # Need to recurse into this subdir just for deletions
+            subtree = None
+            if base_tree:
+                try:
+                    entry = base_tree[subdir_name]
+                    obj = self.repo[entry.id]
+                    if isinstance(obj, pygit2.Tree):
+                        subtree = obj
+                except KeyError:
+                    pass
+
+            if subtree:
+                subpath = f"{current_path}/{subdir_name}" if current_path else subdir_name
+                subtree_oid = self._build_tree_recursive(subtree, {}, deletions, subpath)
+                tree_builder.insert(subdir_name, subtree_oid, pygit2.GIT_FILEMODE_TREE)
 
         # Process all changes at this level
         for name, value in changes.items():

@@ -91,6 +91,16 @@ def get_diff_styles() -> str:
         .diff-line.context .diff-line-content {
             color: #333;
         }
+        .diff-separator {
+            background: #f0f0f0;
+            border-top: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 4px 12px;
+            color: #888;
+            font-size: 11px;
+            text-align: center;
+            user-select: none;
+        }
         .diff-cursor {
             animation: diff-blink 1s step-end infinite;
             color: #0066cc;
@@ -233,18 +243,19 @@ def render_diff_html(
         search_lines = search.split("\n")
         replace_lines = replace.split("\n")
 
-        # Use difflib to get a proper unified diff
+        # Use difflib to get a proper unified diff with 2 lines of context
         diff = list(
             difflib.unified_diff(
                 search_lines,
                 replace_lines,
                 lineterm="",
-                n=0,  # No context lines - show all changes
+                n=2,  # 2 context lines before/after changes
             )
         )
 
-        # Skip the header lines (---, +++, @@)
-        diff_lines = [d for d in diff if not d.startswith(("---", "+++", "@@"))]
+        # Process diff output, handling @@ hunk headers as separators
+        # Skip the --- and +++ header lines
+        diff_lines = [d for d in diff if not d.startswith(("---", "+++"))]
 
         if not diff_lines:
             # No actual differences (shouldn't happen, but handle it)
@@ -258,28 +269,43 @@ def render_diff_html(
             # When streaming, find the last contiguous block of deletions
             # (deletions not followed by any additions). These should show
             # as context/normal since we haven't seen their replacements yet.
+            # Only consider actual diff lines, not @@ headers
+            actual_diff_lines = [d for d in diff_lines if not d.startswith("@@")]
             trailing_deletion_start = -1
             if is_streaming and streaming_phase == "replace":
                 # Walk backwards to find where trailing deletions start
                 last_addition_idx = -1
-                for i in range(len(diff_lines) - 1, -1, -1):
-                    if diff_lines[i] and diff_lines[i][0] == "+":
+                for i in range(len(actual_diff_lines) - 1, -1, -1):
+                    if actual_diff_lines[i] and actual_diff_lines[i][0] == "+":
                         last_addition_idx = i
                         break
                 # All deletions after the last addition are "trailing"
-                if last_addition_idx < len(diff_lines) - 1:
+                if last_addition_idx < len(actual_diff_lines) - 1:
                     trailing_deletion_start = last_addition_idx + 1
 
+            # Track whether we've seen any content yet (to skip separator before first hunk)
+            first_hunk = True
+            # Track position in actual_diff_lines for trailing deletion detection
+            actual_line_idx = 0
+
             # Render diff lines
-            for i, diff_line in enumerate(diff_lines):
+            for diff_line in diff_lines:
                 if not diff_line:
+                    continue
+
+                # Handle @@ hunk headers - render as separators between hunks
+                if diff_line.startswith("@@"):
+                    if not first_hunk:
+                        # Add a visual separator between hunks
+                        lines.append('<div class="diff-separator">⋯</div>')
+                    first_hunk = False
                     continue
 
                 prefix = diff_line[0] if diff_line else " "
                 content = diff_line[1:] if len(diff_line) > 1 else ""
                 escaped_content = html.escape(content)
 
-                is_last = i == len(diff_lines) - 1
+                is_last = actual_line_idx == len(actual_diff_lines) - 1
                 cursor = (
                     '<span class="diff-cursor">▋</span>'
                     if is_streaming and streaming_phase == "replace" and is_last
@@ -288,7 +314,9 @@ def render_diff_html(
 
                 # Check if this deletion is in the trailing block (show as context)
                 is_trailing_deletion = (
-                    prefix == "-" and trailing_deletion_start != -1 and i >= trailing_deletion_start
+                    prefix == "-"
+                    and trailing_deletion_start != -1
+                    and actual_line_idx >= trailing_deletion_start
                 )
 
                 if prefix == "-" and not is_trailing_deletion:
@@ -311,6 +339,8 @@ def render_diff_html(
                         f'<span class="diff-line-content">{escaped_content}{cursor}</span>'
                     )
                     lines.append("</div>")
+
+                actual_line_idx += 1
 
     lines.append("</div>")  # diff-content
     lines.append("</div>")  # diff-view

@@ -75,9 +75,30 @@ class ToolManager:
             self._approved_tools = {}
 
     def _get_file_hash(self, filepath: Path) -> str:
-        """Get SHA256 hash of a file"""
+        """Get SHA256 hash of a file on disk"""
         with open(filepath, "rb") as f:
             return hashlib.sha256(f.read()).hexdigest()
+
+    def _get_content_hash(self, content: str) -> str:
+        """Get SHA256 hash of content string"""
+        return hashlib.sha256(content.encode()).hexdigest()
+
+    def _get_tool_content(self, tool_name: str) -> str | None:
+        """Get tool content from VFS or filesystem"""
+        # Normalize path (remove ./ prefix if present)
+        tools_dir_str = str(self.tools_dir).lstrip("./")
+        vfs_path = f"{tools_dir_str}/{tool_name}.py"
+
+        # Check VFS first (includes pending changes)
+        if self.vfs.file_exists(vfs_path):
+            return self.vfs.read_file(vfs_path)
+
+        # Fall back to filesystem
+        tool_path = self.tools_dir / f"{tool_name}.py"
+        if tool_path.exists():
+            return tool_path.read_text()
+
+        return None
 
     def is_tool_approved(self, tool_name: str) -> bool:
         """Check if a tool is approved and hasn't been modified"""
@@ -85,22 +106,22 @@ class ToolManager:
         if tool_name in self.BUILTIN_TOOLS:
             return True
 
-        tool_path = self.tools_dir / f"{tool_name}.py"
-        if not tool_path.exists():
+        content = self._get_tool_content(tool_name)
+        if content is None:
             return False
 
-        current_hash = self._get_file_hash(tool_path)
+        current_hash = self._get_content_hash(content)
 
         # Check if tool is in approved list with matching hash
         return self._approved_tools.get(tool_name) == current_hash
 
     def approve_tool(self, tool_name: str) -> None:
         """Approve a tool (records its current hash in pending approvals)"""
-        tool_path = self.tools_dir / f"{tool_name}.py"
-        if not tool_path.exists():
+        content = self._get_tool_content(tool_name)
+        if content is None:
             raise FileNotFoundError(f"Tool not found: {tool_name}")
 
-        current_hash = self._get_file_hash(tool_path)
+        current_hash = self._get_content_hash(content)
         self._approved_tools[tool_name] = current_hash
 
         # Track in pending approvals (will be amended onto last commit)
@@ -151,29 +172,56 @@ class ToolManager:
         """
         Get list of unapproved tools (excludes built-in tools).
 
+        Checks both the filesystem AND the VFS for tools, so tools created
+        by the AI in the current session are discovered immediately.
+
         Returns:
             List of (tool_name, current_code, is_new, old_code) tuples
         """
         unapproved: list[tuple[str, str, bool, str | None]] = []
+        seen_tools: set[str] = set()
 
-        for tool_file in self.tools_dir.iterdir():
-            if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
-                tool_name = tool_file.stem
+        # Check filesystem first (committed tools)
+        if self.tools_dir.exists():
+            for tool_file in self.tools_dir.iterdir():
+                if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
+                    tool_name = tool_file.stem
+                    seen_tools.add(tool_name)
 
-                # Skip built-in tools
-                if tool_name in self.BUILTIN_TOOLS:
+                    # Skip built-in tools
+                    if tool_name in self.BUILTIN_TOOLS:
+                        continue
+
+                    current_code = tool_file.read_text()
+
+                    if not self.is_tool_approved(tool_name):
+                        # Check if it's new or modified
+                        is_new = tool_name not in self._approved_tools
+                        old_code = None
+
+                        # For modified tools, we don't have the old code easily accessible
+                        # Could read from git history, but for now just mark as modified
+                        unapproved.append((tool_name, current_code, is_new, old_code))
+
+        # Also check VFS for tools created in current session (not yet committed)
+        # Normalize the tools_dir path (remove ./ prefix if present)
+        tools_prefix = str(self.tools_dir).lstrip("./") + "/"
+        for filepath in self.vfs.get_pending_changes():
+            if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
+                tool_name = filepath[len(tools_prefix):-3]  # Remove prefix and .py
+
+                # Skip if already seen or built-in
+                if tool_name in seen_tools or tool_name in self.BUILTIN_TOOLS:
+                    continue
+                if tool_name == "__init__":
                     continue
 
-                current_code = tool_file.read_text()
+                seen_tools.add(tool_name)
+                current_code = self.vfs.read_file(filepath)
 
                 if not self.is_tool_approved(tool_name):
-                    # Check if it's new or modified
                     is_new = tool_name not in self._approved_tools
-                    old_code = None
-
-                    # For modified tools, we don't have the old code easily accessible
-                    # Could read from git history, but for now just mark as modified
-                    unapproved.append((tool_name, current_code, is_new, old_code))
+                    unapproved.append((tool_name, current_code, is_new, None))
 
         return unapproved
 

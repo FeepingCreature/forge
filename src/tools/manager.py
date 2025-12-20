@@ -28,6 +28,7 @@ class ToolManager:
         "update_context",
         "grep_open",
         "get_lines",
+        "rename_file",
     }
 
     def __init__(

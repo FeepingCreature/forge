@@ -311,8 +311,15 @@ class SessionManager:
         interesting_files = [path for path in changes if path != self.SESSION_FILE]
         file_list = "\n".join(f"- {path}" for path in interesting_files)
 
-        prompt = f"""Generate a concise git commit message for these changes:
+        # Get the last user message for context about what was requested
+        last_user_message = self.prompt_manager.get_last_user_message()
+        user_context = ""
+        if last_user_message:
+            user_context = f"\nUser's request:\n{last_user_message}\n"
 
+        prompt = f"""Generate a concise git commit message for these changes.
+{user_context}
+Files changed:
 {file_list}
 
 Respond with ONLY the commit message, no explanation. Use conventional commit format (e.g., "feat:", "fix:", "refactor:").

@@ -216,6 +216,13 @@ class PromptManager:
                 files.append(block.metadata["filepath"])
         return files
 
+    def get_last_user_message(self) -> str | None:
+        """Get the last user message from the conversation (for commit message context)"""
+        for block in reversed(self.blocks):
+            if block.block_type == BlockType.USER_MESSAGE and not block.deleted:
+                return block.content
+        return None
+
     def estimate_conversation_tokens(self) -> int:
         """
         Estimate tokens used by conversation history (excluding file content).

@@ -1,0 +1,304 @@
+{
+  "active_files": [
+    "TODO.md",
+    "CLAUDE.md"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 51 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! What's next on our todo? Wanna poke at the big git view widget, or is it too scary?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check what's on the TODO list!",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"TODO.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_01FswE6ioAzzhbBCEWoaLv3D",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01FswE6ioAzzhbBCEWoaLv3D",
+      "content": "{\"action\": \"update_context\", \"add\": [\"TODO.md\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The big git view widget (Phase 3: Repository View) is definitely the most ambitious item! It's a whole visual git graph with drag-and-drop operations.\n\nLooking at what's more immediately tractable:\n\n**Phase 1 leftovers (small):**\n- Ctrl+O: Open file dialog\n- Ctrl+G: Go to line\n\n**Phase 2 items (medium):**\n- Main branch protection (confirmation dialog before AI on main/master)\n- File tab persistence (save/restore open tabs in session)\n- Merge conflict handling (archive sessions on merge)\n\n**Phase 3 (big scary):**\n- The whole repository view with zoomable graph, drag-drop merge/rebase, etc.\n\nMy honest take: The repository view is *cool* but it's a big undertaking - custom graph rendering, hit testing for drag-drop, computing merge-ability... That's probably a multi-session project.\n\nThe Phase 2 items are more immediately useful:\n- **Main branch protection** is quick and valuable - just a dialog check before AI turns\n- **File tab persistence** would make the UX much nicer - reopen a branch and your files are there\n\nWant to knock out the easy wins first (Ctrl+O, Ctrl+G, main branch protection) or dive into something meatier like file tab persistence? Or if you're feeling brave, we could start sketching the repository view - even just getting a basic commit graph rendered would be a good first step."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 51 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah let's do branch protection. First of, make a note that file tab persistence is user state, not session state, and should be in xdg user dir.  Then, main branch protection:\n- check the currently checked out branch on turn start (not app start)\n- make sure it's clean (no diff) - this is only necessary if you're starting a turn on the checked out branch\n- as the git state is updated, also update the checked out files.\nI thiiink that's right?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good call on the user state vs session state distinction! Let me update the TODO first, then think through the main branch protection logic with you.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"### File Tab Persistence\\n- [ ] Track open files in session data\\n- [ ] Restore open file tabs when reopening a branch\\n- [ ] File tab changes are FOLLOW_UP commits (auto-amend)\", \"replace\": \"### File Tab Persistence\\n- [ ] Track open files in XDG user config dir (NOT session data - this is user state)\\n- [ ] Restore open file tabs when reopening a branch\\n- [ ] Keyed by repo path + branch name\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01YWnyiuRoHZmi33y59XcsR1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YWnyiuRoHZmi33y59XcsR1",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me think through the main branch protection logic with you...\n\nYou're right that the key insight is: we're operating on branches via VFS, but the *checked out* branch is special because it affects the working directory.\n\nLet me trace through what happens:\n\n1. **User opens a branch tab for `main`** (which happens to be checked out)\n2. **User types a message and hits send**\n3. **AI makes changes via VFS** \u2192 commits to the branch\n4. **The branch head moves forward** \u2192 but working directory is now out of sync!\n\nSo the protection we need:\n1. **On turn start**: Check if the target branch is the currently checked out branch\n2. **If so**: Ensure working directory is clean (no uncommitted changes that would be lost)\n3. **After commit**: Update the working directory to match the new branch head\n\nThis is less about \"protecting main\" specifically and more about \"if you're working on the checked out branch, we need to keep the working directory in sync.\"\n\nThe \"are you sure you want to work on main?\" dialog is a separate UX concern - a soft warning that you might want a feature branch.\n\nLet me look at where AI turns start and where commits happen:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\",\"forge/vfs/work_in_progress.py\",\"forge/git_backend/repository.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Epy5sxkJH4URhKyvsY2p5j",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Epy5sxkJH4URhKyvsY2p5j",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/vfs/work_in_progress.py\", \"forge/git_backend/repository.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Alright, let me trace through this more carefully. Looking at the code:\n\n1. **`_send_message`** in `ai_chat_widget.py` - this is where AI turns start\n2. **`WorkInProgressVFS.commit()`** - this commits changes to the branch\n3. **`ForgeRepository.commit_tree()`** - creates the actual git commit\n\nThe key insight you're pointing at: when we commit to a branch that's currently checked out, the working directory gets out of sync. We need to:\n\n1. **Before AI turn**: Check if target branch == checked out branch, and if so, ensure working dir is clean\n2. **After commit**: If we committed to the checked out branch, update the working directory\n\nLet me check what pygit2 offers for this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"repo\\\\.head|checkout|workdir|index\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_01G5HgnD2px6PqDZAfyKDukJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01G5HgnD2px6PqDZAfyKDukJ",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/git_backend/repository.py\", \"forge/prompts/manager.py\", \"forge/tools/builtin/get_lines.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/branch_tab_widget.py\", \"forge/ui/branch_workspace.py\", \"forge/ui/main_window.py\", \"forge/ui/model_picker_dialog.py\", \"forge/ui/welcome_widget.py\"], \"matches\": [{\"filepath\": \"forge/git_backend/repository.py\", \"first_match\": \"repo.head\", \"match_count\": 4}, {\"filepath\": \"forge/prompts/manager.py\", \"first_match\": \"index\", \"match_count\": 1}, {\"filepath\": \"forge/tools/builtin/get_lines.py\", \"first_match\": \"index\", \"match_count\": 2}, {\"filepath\": \"forge/ui/ai_chat_widget.py\", \"first_match\": \"index\", \"match_count\": 21}, {\"filepath\": \"forge/ui/branch_tab_widget.py\", \"first_match\": \"index\", \"match_count\": 14}, {\"filepath\": \"forge/ui/branch_workspace.py\", \"first_match\": \"index\", \"match_count\": 5}, {\"filepath\": \"forge/ui/main_window.py\", \"first_match\": \"workdir\", \"match_count\": 30}, {\"filepath\": \"forge/ui/model_picker_dialog.py\", \"first_match\": \"index\", \"match_count\": 4}, {\"filepath\": \"forge/ui/welcome_widget.py\", \"first_match\": \"repo.head\", \"match_count\": 1}], \"message\": \"Found 9 files matching 'repo\\\\.head|checkout|workdir|index'\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the structure clearly now. Let me trace the key points:\n\n1. **`ForgeRepository`** has `self.repo.head` which gives us the currently checked-out branch\n2. **`WorkInProgressVFS.commit()`** calls `self.repo.commit_tree()` which updates the branch ref\n3. The problem: if we commit to the checked-out branch, the working directory is now out of sync\n\nFor \"main branch protection\" there are really two separate concerns:\n\n1. **UX warning**: \"Hey, you're about to do AI work on main/master - want to create a branch instead?\"\n2. **Working directory sync**: If you DO work on the checked-out branch, keep workdir in sync\n\nLet me add methods to `ForgeRepository` for checking/syncing the checked-out branch:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/git_backend/repository.py\", \"search\": \"class ForgeRepository:\\n    \\\"\\\"\\\"Manages git repository operations for Forge\\\"\\\"\\\"\\n\\n    def __init__(self, repo_path: str | None = None) -> None:\\n        \\\"\\\"\\\"Initialize repository\\\"\\\"\\\"\\n        if repo_path is None:\\n            repo_path = self._find_repo()\\n\\n        self.repo = pygit2.Repository(repo_path)\", \"replace\": \"class ForgeRepository:\\n    \\\"\\\"\\\"Manages git repository operations for Forge\\\"\\\"\\\"\\n\\n    def __init__(self, repo_path: str | None = None) -> None:\\n        \\\"\\\"\\\"Initialize repository\\\"\\\"\\\"\\n        if repo_path is None:\\n            repo_path = self._find_repo()\\n\\n        self.repo = pygit2.Repository(repo_path)\\n\\n    def get_checked_out_branch(self) -> str | None:\\n        \\\"\\\"\\\"Get the name of the currently checked-out branch, or None if detached HEAD.\\\"\\\"\\\"\\n        if self.repo.head_is_detached:\\n            return None\\n        return self.repo.head.shorthand\\n\\n    def is_workdir_clean(self) -> bool:\\n        \\\"\\\"\\\"Check if the working directory has no uncommitted changes.\\\"\\\"\\\"\\n        # GIT_STATUS_CURRENT means the file is unchanged\\n        # Any other status means there are changes\\n        status = self.repo.status()\\n        return len(status) == 0\\n\\n    def get_workdir_changes(self) -> dict[str, int]:\\n        \\\"\\\"\\\"Get a dict of filepath -> status flags for all changed files.\\\"\\\"\\\"\\n        return dict(self.repo.status())\\n\\n    def checkout_branch_head(self, branch_name: str) -> None:\\n        \\\"\\\"\\\"\\n        Update the working directory to match a branch's HEAD.\\n\\n        Use this after committing to the currently checked-out branch\\n        to keep the working directory in sync.\\n\\n        Args:\\n            branch_name: The branch whose HEAD to check out\\n        \\\"\\\"\\\"\\n        branch = self.repo.branches[branch_name]\\n        commit = branch.peel(pygit2.Commit)\\n        # Reset working directory to match the commit\\n        self.repo.checkout_tree(commit, strategy=pygit2.GIT_CHECKOUT_FORCE)\\n        # Update HEAD to point to this commit (already does via branch ref)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MWRhyaq5VtXYjTtUdXz7fs",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MWRhyaq5VtXYjTtUdXz7fs",
+      "content": "{\"message\": \"Replaced in forge/git_backend/repository.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, now I need to integrate this into the AI turn flow. The key places are:\n\n1. **Before AI turn starts** (`_send_message` in `ai_chat_widget.py`): Check if working on checked-out branch and if workdir is clean\n2. **After AI turn commits** (`WorkInProgressVFS.commit`): Sync workdir if we committed to the checked-out branch\n\nLet me update `WorkInProgressVFS.commit()` to handle the workdir sync:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/work_in_progress.py\", \"search\": \"    def commit(\\n        self,\\n        message: str,\\n        author_name: str = \\\"Forge AI\\\",\\n        author_email: str = \\\"ai@forge.dev\\\",\\n        commit_type: CommitType = CommitType.MAJOR,\\n    ) -> str:\\n        \\\"\\\"\\\"\\n        Create a git commit with all pending changes.\\n\\n        Args:\\n            message: Commit message (without type prefix)\\n            author_name: Author name\\n            author_email: Author email\\n            commit_type: Type of commit for smart amending\\n\\n        Returns:\\n            Commit OID as string\\n        \\\"\\\"\\\"\\n        self._assert_owner()\\n        if not self.pending_changes and not self.deleted_files:\\n            raise ValueError(\\\"No changes to commit\\\")\\n\\n        # Build changes dict for create_tree_from_changes\\n        changes = self.pending_changes.copy()\\n\\n        # Create tree with changes and deletions\\n        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)\\n\\n        # Create commit with type\\n        commit_oid = self.repo.commit_tree(\\n            tree_oid, message, self.branch_name, author_name, author_email, commit_type\\n        )\\n\\n        # Clear pending changes\\n        self.clear_pending_changes()\\n\\n        return str(commit_oid)\", \"replace\": \"    def commit(\\n        self,\\n        message: str,\\n        author_name: str = \\\"Forge AI\\\",\\n        author_email: str = \\\"ai@forge.dev\\\",\\n        commit_type: CommitType = CommitType.MAJOR,\\n    ) -> str:\\n        \\\"\\\"\\\"\\n        Create a git commit with all pending changes.\\n\\n        If committing to the currently checked-out branch, also updates\\n        the working directory to match.\\n\\n        Args:\\n            message: Commit message (without type prefix)\\n            author_name: Author name\\n            author_email: Author email\\n            commit_type: Type of commit for smart amending\\n\\n        Returns:\\n            Commit OID as string\\n        \\\"\\\"\\\"\\n        self._assert_owner()\\n        if not self.pending_changes and not self.deleted_files:\\n            raise ValueError(\\\"No changes to commit\\\")\\n\\n        # Check if we're committing to the checked-out branch BEFORE making changes\\n        checked_out = self.repo.get_checked_out_branch()\\n        is_checked_out_branch = checked_out == self.branch_name\\n\\n        # Build changes dict for create_tree_from_changes\\n        changes = self.pending_changes.copy()\\n\\n        # Create tree with changes and deletions\\n        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)\\n\\n        # Create commit with type\\n        commit_oid = self.repo.commit_tree(\\n            tree_oid, message, self.branch_name, author_name, author_email, commit_type\\n        )\\n\\n        # If we committed to the checked-out branch, sync the working directory\\n        if is_checked_out_branch:\\n            self.repo.checkout_branch_head(self.branch_name)\\n\\n        # Clear pending changes\\n        self.clear_pending_changes()\\n\\n        return str(commit_oid)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Wz3yQG1XxduVdgFJorndgV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Wz3yQG1XxduVdgFJorndgV",
+      "content": "{\"message\": \"Replaced in forge/vfs/work_in_progress.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the pre-turn check for workdir cleanliness. This should happen in `_send_message` in `ai_chat_widget.py`. Let me add a method to check this and show a dialog if needed:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _send_message(self) -> None:\\n        \\\"\\\"\\\"Send user message to AI\\\"\\\"\\\"\\n        text = self.input_field.toPlainText().strip()\\n        if not text or self.is_processing:\\n            return\\n\\n        # Check for unsaved changes if callback is set\\n        if self.unsaved_changes_check is not None and not self.unsaved_changes_check():\\n            return  # User cancelled or needs to save first\\n\\n        # Normal message flow - add to both UI messages and prompt manager\\n        self.add_message(\\\"user\\\", text)\", \"replace\": \"    def _send_message(self) -> None:\\n        \\\"\\\"\\\"Send user message to AI\\\"\\\"\\\"\\n        text = self.input_field.toPlainText().strip()\\n        if not text or self.is_processing:\\n            return\\n\\n        # Check for unsaved changes if callback is set\\n        if self.unsaved_changes_check is not None and not self.unsaved_changes_check():\\n            return  # User cancelled or needs to save first\\n\\n        # Check working directory state if on checked-out branch\\n        if not self._check_workdir_state():\\n            return  # User cancelled or workdir has uncommitted changes\\n\\n        # Normal message flow - add to both UI messages and prompt manager\\n        self.add_message(\\\"user\\\", text)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01LWTCx3AZ6rLkEdGb5KPHZc",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LWTCx3AZ6rLkEdGb5KPHZc",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_check_workdir_state` method. Let me find a good place to add it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    # Callback for parent to set - returns True if OK to proceed\\n    unsaved_changes_check: Any = None\\n\\n    def _send_message(self) -> None:\", \"replace\": \"    # Callback for parent to set - returns True if OK to proceed\\n    unsaved_changes_check: Any = None\\n\\n    def _check_workdir_state(self) -> bool:\\n        \\\"\\\"\\\"\\n        Check if working directory is clean when working on the checked-out branch.\\n\\n        If the target branch is currently checked out and has uncommitted changes\\n        in the working directory, we need to warn the user - those changes would\\n        be overwritten when we sync the workdir after committing.\\n\\n        Returns True if OK to proceed, False to abort.\\n        \\\"\\\"\\\"\\n        from PySide6.QtWidgets import QMessageBox\\n\\n        # Check if we're working on the checked-out branch\\n        checked_out = self.repo.get_checked_out_branch()\\n        if checked_out != self.branch_name:\\n            # Not working on the checked-out branch, no workdir concerns\\n            return True\\n\\n        # Check if workdir is clean\\n        if self.repo.is_workdir_clean():\\n            return True\\n\\n        # Workdir has uncommitted changes - warn user\\n        changes = self.repo.get_workdir_changes()\\n        change_count = len(changes)\\n\\n        reply = QMessageBox.warning(\\n            self,\\n            \\\"Uncommitted Working Directory Changes\\\",\\n            f\\\"The working directory has {change_count} uncommitted change(s).\\\\n\\\\n\\\"\\n            f\\\"You're working on '{self.branch_name}' which is currently checked out. \\\"\\n            f\\\"AI changes will update the working directory, which will OVERWRITE these uncommitted changes.\\\\n\\\\n\\\"\\n            f\\\"Options:\\\\n\\\"\\n            f\\\"\u2022 Cancel and commit/stash your changes first\\\\n\\\"\\n            f\\\"\u2022 Discard changes and proceed\\\",\\n            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Discard,\\n            QMessageBox.StandardButton.Cancel,\\n        )\\n\\n        return reply == QMessageBox.StandardButton.Discard\\n\\n    def _send_message(self) -> None:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XFCLCvSHLnKxkAy4jVZF3N",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XFCLCvSHLnKxkAy4jVZF3N",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me update the TODO to reflect this work:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"### Main Branch Protection\\n- [ ] Detect when AI turn is starting on main/master branch\\n- [ ] Show confirmation dialog: \\\"Start AI session on main branch?\\\"\\n- [ ] Suggest creating a new branch instead\\n- [ ] Allow user to proceed if they really want to\", \"replace\": \"### Main Branch Protection\\n- [x] Check if target branch is the currently checked-out branch on AI turn start\\n- [x] If checked out, ensure working directory is clean (no uncommitted changes)\\n- [x] Warn user if workdir has changes - they'd be overwritten by AI commits\\n- [x] After commit to checked-out branch, sync working directory to new HEAD\\n- [ ] Optional: soft warning when starting AI work on main/master (suggest creating branch)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_016mPCVxUwYAwbc13ZGb3pk3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016mPCVxUwYAwbc13ZGb3pk3",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything compiles:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01H8ZUxke2jvAtEkpT3yQDTy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01H8ZUxke2jvAtEkpT3yQDTy",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": false, \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/ai_chat_widget.py:624: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"get_checked_out_branch\\\"  [union-attr]\\nforge/ui/ai_chat_widget.py:630: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"is_workdir_clean\\\"  [union-attr]\\nforge/ui/ai_chat_widget.py:634: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"get_workdir_changes\\\"  [union-attr]\\nFound 3 errors in 1 file (checked 41 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/ai_chat_widget.py:624: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"get_checked_out_branch\\\"  [union-attr]\\nforge/ui/ai_chat_widget.py:630: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"is_workdir_clean\\\"  [union-attr]\\nforge/ui/ai_chat_widget.py:634: error: Item \\\"None\\\" of \\\"ForgeRepository | None\\\" has no attribute \\\"get_workdir_changes\\\"  [union-attr]\\nFound 3 errors in 1 file (checked 41 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to handle the case where `self.repo` could be None. But looking at the code, we have an assertion that `repo is not None` in `__init__`, so we just need to add an assertion in the method:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _check_workdir_state(self) -> bool:\\n        \\\"\\\"\\\"\\n        Check if working directory is clean when working on the checked-out branch.\\n\\n        If the target branch is currently checked out and has uncommitted changes\\n        in the working directory, we need to warn the user - those changes would\\n        be overwritten when we sync the workdir after committing.\\n\\n        Returns True if OK to proceed, False to abort.\\n        \\\"\\\"\\\"\\n        from PySide6.QtWidgets import QMessageBox\\n\\n        # Check if we're working on the checked-out branch\\n        checked_out = self.repo.get_checked_out_branch()\", \"replace\": \"    def _check_workdir_state(self) -> bool:\\n        \\\"\\\"\\\"\\n        Check if working directory is clean when working on the checked-out branch.\\n\\n        If the target branch is currently checked out and has uncommitted changes\\n        in the working directory, we need to warn the user - those changes would\\n        be overwritten when we sync the workdir after committing.\\n\\n        Returns True if OK to proceed, False to abort.\\n        \\\"\\\"\\\"\\n        from PySide6.QtWidgets import QMessageBox\\n\\n        # repo is guaranteed non-None by __init__ assertion\\n        assert self.repo is not None\\n\\n        # Check if we're working on the checked-out branch\\n        checked_out = self.repo.get_checked_out_branch()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MJRMWRd41uupH992Y3KS3G",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MJRMWRd41uupH992Y3KS3G",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_018ksPhmfc9ia1T26QC6gCzN",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018ksPhmfc9ia1T26QC6gCzN",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 41 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 41 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up the context and give you a summary:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\",\"forge/vfs/work_in_progress.py\",\"forge/git_backend/repository.py\",\"forge/prompts/manager.py\",\"forge/tools/builtin/get_lines.py\",\"forge/ui/branch_tab_widget.py\",\"forge/ui/branch_workspace.py\",\"forge/ui/main_window.py\",\"forge/ui/model_picker_dialog.py\",\"forge/ui/welcome_widget.py\",\"DESIGN.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01RYqv2PDRquanRarU7Toyxj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RYqv2PDRquanRarU7Toyxj",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 11 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/vfs/work_in_progress.py\", \"forge/git_backend/repository.py\", \"forge/prompts/manager.py\", \"forge/tools/builtin/get_lines.py\", \"forge/ui/branch_tab_widget.py\", \"forge/ui/branch_workspace.py\", \"forge/ui/main_window.py\", \"forge/ui/model_picker_dialog.py\", \"forge/ui/welcome_widget.py\", \"DESIGN.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what we added:\n\n## Branch/Working Directory Protection\n\n**In `ForgeRepository`:**\n- `get_checked_out_branch()` - returns the currently checked-out branch name (or None if detached HEAD)\n- `is_workdir_clean()` - checks if working directory has uncommitted changes\n- `get_workdir_changes()` - returns dict of changed files and their status\n- `checkout_branch_head(branch_name)` - syncs working directory to a branch's HEAD\n\n**In `WorkInProgressVFS.commit()`:**\n- After committing, if we committed to the checked-out branch, automatically syncs the working directory\n\n**In `AIChatWidget._send_message()`:**\n- New `_check_workdir_state()` check before AI turn starts\n- If working on the checked-out branch with uncommitted workdir changes, shows a warning dialog\n- User can Cancel (abort) or Discard (proceed and overwrite their changes)\n\nThe key insight: we're not really \"protecting main\" specifically - we're handling the case where the *currently checked-out* branch gets modified by AI. The working directory must stay in sync, and uncommitted changes would be lost.\n\nThe soft \"are you sure you want to work on main?\" warning is left as a future nice-to-have - that's a separate UX concern."
+    }
+  ]
+}

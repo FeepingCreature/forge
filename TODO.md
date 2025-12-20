@@ -53,15 +53,16 @@ The branch-first architecture is **largely complete**:
 - [ ] No conflict resolution needed - merge means work is done
 
 ### Main Branch Protection
-- [ ] Detect when AI turn is starting on main/master branch
-- [ ] Show confirmation dialog: "Start AI session on main branch?"
-- [ ] Suggest creating a new branch instead
-- [ ] Allow user to proceed if they really want to
+- [x] Check if target branch is the currently checked-out branch on AI turn start
+- [x] If checked out, ensure working directory is clean (no uncommitted changes)
+- [x] Warn user if workdir has changes - they'd be overwritten by AI commits
+- [x] After commit to checked-out branch, sync working directory to new HEAD
+- [ ] Optional: soft warning when starting AI work on main/master (suggest creating branch)
 
 ### File Tab Persistence
-- [ ] Track open files in session data
+- [ ] Track open files in XDG user config dir (NOT session data - this is user state)
 - [ ] Restore open file tabs when reopening a branch
-- [ ] File tab changes are FOLLOW_UP commits (auto-amend)
+- [ ] Keyed by repo path + branch name
 
 ---
 

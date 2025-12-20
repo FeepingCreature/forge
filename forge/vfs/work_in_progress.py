@@ -122,6 +122,9 @@ class WorkInProgressVFS(VFS):
         """
         Create a git commit with all pending changes.
 
+        If committing to the currently checked-out branch, also updates
+        the working directory to match.
+
         Args:
             message: Commit message (without type prefix)
             author_name: Author name
@@ -135,6 +138,10 @@ class WorkInProgressVFS(VFS):
         if not self.pending_changes and not self.deleted_files:
             raise ValueError("No changes to commit")
 
+        # Check if we're committing to the checked-out branch BEFORE making changes
+        checked_out = self.repo.get_checked_out_branch()
+        is_checked_out_branch = checked_out == self.branch_name
+
         # Build changes dict for create_tree_from_changes
         changes = self.pending_changes.copy()
 
@@ -145,6 +152,10 @@ class WorkInProgressVFS(VFS):
         commit_oid = self.repo.commit_tree(
             tree_oid, message, self.branch_name, author_name, author_email, commit_type
         )
+
+        # If we committed to the checked-out branch, sync the working directory
+        if is_checked_out_branch:
+            self.repo.checkout_branch_head(self.branch_name)
 
         # Clear pending changes
         self.clear_pending_changes()

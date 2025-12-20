@@ -94,6 +94,12 @@ class LLMClient:
 
             result: dict[str, Any] = response.json()
             print("✅ LLM Response received")
+
+            # Fetch cost info from response
+            generation_id = result.get("id")
+            if generation_id:
+                self._fetch_and_record_cost(generation_id)
+
             return result
 
         # If we exhausted all retries, raise the last error

@@ -120,6 +120,79 @@
     {
       "role": "assistant",
       "content": "Done! The fix ensures that when a commit is made:\n\n1. We check if the commit is being made to the currently checked-out branch\n2. **New**: We also check if the working directory is clean *before* making the commit\n3. Only if both conditions are true do we update the working directory to the new commit\n\nThis prevents accidentally discarding any uncommitted changes in the working directory while still keeping it in sync when it's safe to do so."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 89d080c1",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Well I mean it's a bit iffy, right? If the working dir is clean, and we create a new commit on the current branch, the working dir is now no longer clean because its content hasn't changed but the branch's content has. Can you add print logging to this flow?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, that's a good point. After the commit, the working directory is technically \"dirty\" relative to the new HEAD because it still has the old content. Let me add print logging to understand this flow better.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/vfs/work_in_progress.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_015ikU3cr2ZBQBbnKruUTtKi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015ikU3cr2ZBQBbnKruUTtKi",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/vfs/work_in_progress.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/work_in_progress.py\", \"search\": \"        self._assert_owner()\\n        if not self.pending_changes and not self.deleted_files:\\n            raise ValueError(\\\"No changes to commit\\\")\\n\\n        # Check if we're committing to the checked-out branch BEFORE making changes\\n        # and whether the working directory is clean (so we can safely update it)\\n        checked_out = self.repo.get_checked_out_branch()\\n        is_checked_out_branch = checked_out == self.branch_name\\n        workdir_is_clean = self.repo.is_workdir_clean() if is_checked_out_branch else False\\n\\n        # Build changes dict for create_tree_from_changes\\n        changes = self.pending_changes.copy()\\n\\n        # Create tree with changes and deletions\\n        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)\\n\\n        # Create commit with type\\n        commit_oid = self.repo.commit_tree(\\n            tree_oid, message, self.branch_name, author_name, author_email, commit_type\\n        )\\n\\n        # If we committed to the checked-out branch and workdir was clean, sync it\\n        if is_checked_out_branch and workdir_is_clean:\\n            self.repo.checkout_branch_head(self.branch_name)\", \"replace\": \"        self._assert_owner()\\n        if not self.pending_changes and not self.deleted_files:\\n            raise ValueError(\\\"No changes to commit\\\")\\n\\n        # Check if we're committing to the checked-out branch BEFORE making changes\\n        # and whether the working directory is clean (so we can safely update it)\\n        checked_out = self.repo.get_checked_out_branch()\\n        is_checked_out_branch = checked_out == self.branch_name\\n        workdir_is_clean = self.repo.is_workdir_clean() if is_checked_out_branch else False\\n\\n        print(f\\\"[WIP commit] branch={self.branch_name}, checked_out={checked_out}\\\")\\n        print(f\\\"[WIP commit] is_checked_out_branch={is_checked_out_branch}, workdir_is_clean={workdir_is_clean}\\\")\\n        print(f\\\"[WIP commit] pending_changes={list(self.pending_changes.keys())}, deleted={list(self.deleted_files)}\\\")\\n\\n        # Build changes dict for create_tree_from_changes\\n        changes = self.pending_changes.copy()\\n\\n        # Create tree with changes and deletions\\n        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)\\n        print(f\\\"[WIP commit] created tree: {tree_oid}\\\")\\n\\n        # Create commit with type\\n        commit_oid = self.repo.commit_tree(\\n            tree_oid, message, self.branch_name, author_name, author_email, commit_type\\n        )\\n        print(f\\\"[WIP commit] created commit: {commit_oid}\\\")\\n\\n        # If we committed to the checked-out branch and workdir was clean, sync it\\n        if is_checked_out_branch and workdir_is_clean:\\n            print(f\\\"[WIP commit] syncing workdir to new commit\\\")\\n            self.repo.checkout_branch_head(self.branch_name)\\n        else:\\n            print(f\\\"[WIP commit] NOT syncing workdir (checked_out_branch={is_checked_out_branch}, clean={workdir_is_clean})\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WMZVC5GfnwVv8t7rLrpk8L",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WMZVC5GfnwVv8t7rLrpk8L",
+      "content": "{\"message\": \"Replaced in forge/vfs/work_in_progress.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the logging is in place. Now you can run Forge and make a commit to see what's actually happening. The prints will show:\n\n1. Which branch we're committing to vs which is checked out\n2. Whether the workdir was clean before we started\n3. What files are being changed\n4. The tree and commit OIDs created\n5. Whether we sync the workdir or not (and why)\n\nThis should help clarify the behavior. Let me know what you see when you test it!",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/vfs/work_in_progress.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01LNn9kTVwen4chP6hktErHE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LNn9kTVwen4chP6hktErHE",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/vfs/work_in_progress.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": ""
     }
   ]
 }

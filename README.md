@@ -1,59 +1,125 @@
-# Forge
+# Forge - AI Agent IDE
 
-A GUI AI coding assistant where git is the source of truth.
+**WARNING**: Forge is alpha code at best!
 
-## What is this?
-
-Forge is a desktop IDE that lets you collaborate with AI on code. Every AI change is a git commit on a branch, so you can review, diff, revert, or merge just like any other code. No magic, no hidden state - just git.
+Forge is a Qt-based coding assistant backed by git. AI sessions are independent branches. Each turn of AI activity
+is one commit. Checking out a commit includes the conversation that led to it. Agents can work on multiple
+branches simultaneously.
 
 ## Features
 
-- **Git-native**: AI works on branches, every change is a commit
-- **Multi-session**: Work on multiple branches simultaneously in tabs  
-- **Tool-based**: AI uses explicit tools (search/replace, write file, etc.) - no diff application failures
-- **Working directory protection**: Warns before overwriting uncommitted local changes
-- **Cost tracking**: See what you're spending on API calls
-- **Model picker**: Choose from any OpenRouter model
+- **Git-native**: AI works through a virtual filesystem that reads/writes git objects directly
+- **Atomic commits**: Each AI turn = one commit. Clean history, easy rollback
+- **Branch tabs**: Work on multiple branches simultaneously without checkout conflicts
+- **Tool-based editing**: No command-line calls, only tools. File editing tools are predefined.
+- **Custom tools**: Add Python scripts to `./tools/` for project-specific automation
+- **Session persistence**: Conversations are stored in `.forge/session.json` within each branch
 
 ## Installation
 
+Requires Python 3.10+ and libgit2.
+
 ```bash
+# Install libgit2 (required for pygit2)
+# macOS
+brew install libgit2
+
+# Ubuntu/Debian
+sudo apt-get install libgit2-dev
+
+# Then install Forge
 pip install -e .
 ```
 
-You'll need an [OpenRouter](https://openrouter.ai/) API key. Set it in Settings (gear icon) or via `OPENROUTER_API_KEY` environment variable.
+Set your [OpenRouter](https://openrouter.ai/) API key via Settings (gear icon) or environment:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+```
 
 ## Usage
 
 ```bash
+# Run from any git repository
+cd your-project
 forge
 ```
 
-Or run directly:
+## How It Works
 
-```bash
-python main.py
+1. **Open a branch** — Each branch tab is an isolated workspace with its own VFS and AI session
+2. **Chat with the AI** — Describe what you want to build or change
+3. **AI uses tools** — `write_file`, `search_replace`, `grep_open`, etc. operate on the VFS
+4. **Changes commit atomically** — When the AI turn ends, all changes become one git commit
+5. **Review and merge** — Use normal git workflow to review diffs, merge branches
+
+### What the AI Sees
+
+- **File summaries**: ~50 token summary of every file (generated at session start)
+- **Active files**: Full content of files explicitly loaded into context
+- **Conversation history**: The full chat for this branch's session
+
+### Built-in Tools
+
+| Tool | Purpose |
+|------|---------|
+| `write_file` | Create or overwrite a file |
+| `search_replace` | Make targeted edits to existing files |
+| `delete_file` | Remove a file |
+| `rename_file` | Move or rename a file |
+| `update_context` | Add/remove files from AI's active context |
+| `grep_open` | Search files by regex, add matches to context |
+| `get_lines` | View lines around a specific line number |
+| `set_license` | Add a LICENSE file |
+| `check` | Run `make check` (format + typecheck + lint) |
+
+### Custom Tools
+
+Add Python scripts to `./tools/` in your repository:
+
+```python
+# tools/my_tool.py
+def get_schema() -> dict:
+    """JSON schema for the LLM"""
+    return {
+        "name": "my_tool",
+        "description": "Does something useful",
+        "parameters": {...}
+    }
+
+def execute(vfs, args: dict) -> dict:
+    """Run the tool using the VFS"""
+    content = vfs.read_file(args["path"])
+    # ... do something ...
+    vfs.write_file(args["path"], new_content)
+    return {"success": True}
 ```
 
-## How it works
+As the AI can also add tools, custom tools require one-time approval before use (security measure).
 
-1. Open a branch (or create a new one)
-2. Chat with the AI about what you want to build
-3. AI makes changes via tool calls, each becoming a git commit
-4. Review changes in the diff view, merge when ready
+### Why pygit2?
 
-The AI sees:
-- Repository file summaries (generated at session start)
-- Files you explicitly open (full content)
-- Conversation history
+Forge uses pygit2 (libgit2 bindings) to manipulate git objects directly:
+- Create commits without touching the working directory
+- Read files from any branch/commit without checkout
+- Multiple branches open simultaneously
+- Build trees in memory before committing
 
-## Architecture
+## Development
 
-- **VFS (Virtual File System)**: AI reads/writes through a git-backed abstraction
-- **Session per branch**: Each branch tab is an independent AI session
-- **Tool approval**: Custom tools in `./tools/` require explicit approval before use
-- **Prompt caching**: File order is optimized so unchanged files stay cached
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Run checks (format + typecheck + lint)
+make check
+
+# Individual checks
+make format     # Auto-format with ruff
+make typecheck  # Type check with mypy
+make lint       # Lint with ruff
+```
 
 ## License
 
-GPL-3.0 - see LICENSE file.
+GPL-3.0 — see [LICENSE](LICENSE).

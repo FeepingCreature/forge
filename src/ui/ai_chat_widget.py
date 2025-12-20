@@ -129,7 +129,10 @@ class StreamWorker(QObject):
 
 
 class ToolExecutionWorker(QObject):
-    """Worker for executing tool calls in a background thread"""
+    """Worker for executing tool calls in a background thread.
+
+    Claims VFS thread ownership while running, releases when done.
+    """
 
     tool_started = Signal(str, dict)  # Emitted when a tool starts (name, args)
     tool_finished = Signal(str, dict, dict)  # Emitted when a tool finishes (name, args, result)
@@ -150,6 +153,8 @@ class ToolExecutionWorker(QObject):
 
     def run(self) -> None:
         """Execute all tool calls"""
+        # Claim VFS for this thread
+        self.session_manager.vfs.claim_thread()
         try:
             for tool_call in self.tool_calls:
                 tool_name = tool_call["function"]["name"]
@@ -191,6 +196,9 @@ class ToolExecutionWorker(QObject):
 
         except Exception as e:
             self.error.emit(str(e))
+        finally:
+            # Always release VFS ownership
+            self.session_manager.vfs.release_thread()
 
 
 class ChatBridge(QObject):

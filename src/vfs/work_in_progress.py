@@ -20,9 +20,13 @@ class WorkInProgressVFS(VFS):
 
     Accumulates changes in memory during an AI turn, then commits atomically.
     Each tool sees: base commit + all previous tool changes in this turn.
+
+    Thread safety: This VFS uses thread ownership assertions. Call claim_thread()
+    before accessing from a background thread, and release_thread() when done.
     """
 
     def __init__(self, repo: "ForgeRepository", branch_name: str) -> None:
+        super().__init__()  # Initialize thread ownership
         self.repo = repo
         self.branch_name = branch_name
 
@@ -38,6 +42,7 @@ class WorkInProgressVFS(VFS):
 
     def read_file(self, path: str) -> str:
         """Read file - checks pending changes first, then base commit"""
+        self._assert_owner()
         if path in self.deleted_files:
             raise FileNotFoundError(f"File deleted: {path}")
 
@@ -48,6 +53,7 @@ class WorkInProgressVFS(VFS):
 
     def write_file(self, path: str, content: str) -> None:
         """Write file - accumulates in pending changes"""
+        self._assert_owner()
         # Remove from deleted set if it was deleted
         self.deleted_files.discard(path)
 
@@ -56,6 +62,7 @@ class WorkInProgressVFS(VFS):
 
     def list_files(self) -> list[str]:
         """List all files - base files + new files - deleted files"""
+        self._assert_owner()
         files = set(self.base_vfs.list_files())
 
         # Add new files from pending changes
@@ -68,6 +75,7 @@ class WorkInProgressVFS(VFS):
 
     def file_exists(self, path: str) -> bool:
         """Check if file exists - considers pending changes and deletions"""
+        self._assert_owner()
         if path in self.deleted_files:
             return False
 
@@ -78,6 +86,7 @@ class WorkInProgressVFS(VFS):
 
     def delete_file(self, path: str) -> None:
         """Delete a file - marks for deletion"""
+        self._assert_owner()
         if not self.file_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 
@@ -89,14 +98,17 @@ class WorkInProgressVFS(VFS):
 
     def get_pending_changes(self) -> dict[str, str]:
         """Get all pending changes"""
+        self._assert_owner()
         return self.pending_changes.copy()
 
     def get_deleted_files(self) -> set[str]:
         """Get all deleted files"""
+        self._assert_owner()
         return self.deleted_files.copy()
 
     def clear_pending_changes(self) -> None:
         """Clear all pending changes (after commit)"""
+        self._assert_owner()
         self.pending_changes.clear()
         self.deleted_files.clear()
 
@@ -119,6 +131,7 @@ class WorkInProgressVFS(VFS):
         Returns:
             Commit OID as string
         """
+        self._assert_owner()
         if not self.pending_changes and not self.deleted_files:
             raise ValueError("No changes to commit")
 
@@ -147,6 +160,7 @@ class WorkInProgressVFS(VFS):
         Returns:
             Path to temporary directory
         """
+        self._assert_owner()
         tmpdir = Path(tempfile.mkdtemp(prefix="forge_vfs_"))
 
         # Write all files

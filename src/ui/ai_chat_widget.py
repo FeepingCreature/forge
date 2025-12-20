@@ -135,7 +135,9 @@ class ToolExecutionWorker(QObject):
     """
 
     tool_started = Signal(str, dict)  # Emitted when a tool starts (name, args)
-    tool_finished = Signal(str, dict, dict)  # Emitted when a tool finishes (name, args, result)
+    tool_finished = Signal(
+        str, str, dict, dict
+    )  # Emitted when a tool finishes (tool_call_id, name, args, result)
     all_finished = Signal(list)  # Emitted when all tools complete (list of results)
     error = Signal(str)  # Emitted on error
 
@@ -181,8 +183,11 @@ class ToolExecutionWorker(QObject):
                 # Execute tool
                 result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
 
-                # Emit result
-                self.tool_finished.emit(tool_name, tool_args, result)
+                # Get tool_call_id before emitting - it's right here in tool_call
+                tool_call_id = tool_call.get("id", "")
+
+                # Emit result with tool_call_id
+                self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)
 
                 self.results.append(
                     {
@@ -845,18 +850,11 @@ class AIChatWidget(QWidget):
         pass
 
     def _on_tool_finished(
-        self, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
     ) -> None:
         """Handle individual tool execution completion (called from main thread via signal)"""
         # This is called on the main thread, so UI updates are safe
-
-        # Find the tool_call_id from our pending worker
-        tool_call_id = ""
-        if self.tool_worker:
-            for r in self.tool_worker.results:
-                if r.get("args") == tool_args and r["tool_call"]["function"]["name"] == tool_name:
-                    tool_call_id = r["tool_call"]["id"]
-                    break
+        # tool_call_id is passed directly from the worker, no need to search
 
         # Add tool result to messages
         result_json = json.dumps(result)

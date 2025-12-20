@@ -310,6 +310,157 @@
     {
       "role": "assistant",
       "content": "Done! I updated the context management guidance to:\n\n1. **Lead with the key insight** - \"Load aggressively, clean up at the end\" with the explanation that caching makes unchanged files free\n2. **Encourage generous file loading** - Load callers, callees, and similar patterns to avoid coding blind\n3. **Clean up after tasks** - Remove files when done to keep context focused for the next task\n4. **Concrete examples** - When to use `grep_open`, loading examples for new code, loading callers when modifying functions"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 48 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Now it gets a bit complicated. We can add built-in tools, and local tools per-repo (not built-in tools)... as it's specific to this repo, we need to create a *local* tool (not a built-in tool) to instantiate the vfs and call make with the lint flags so you can check for errors. It's a bit squiggly because the tool has to take the filesystem state after make format has run and incorporate those changes into the current patch set, so you have to call it *just* before you finish your session, because the files will look different than you expect otherwise- or better, you can make the tool return the diff of the changes it's made. Thoughts?"
+    },
+    {
+      "role": "assistant",
+      "content": "Interesting challenge! Let me think through this:\n\n## The Problem\n\n1. We want a local tool (not built-in) that runs `make check` (which does `make format` + `make typecheck` + `make lint`)\n2. `make format` actually modifies files on disk\n3. But we're working in a VFS that accumulates changes in memory\n4. So there's a mismatch: the tool runs on disk, but we're editing in memory\n\n## Options\n\n**Option A: Materialize VFS \u2192 run make \u2192 read back changes**\n- Use `vfs.materialize_to_tempdir()` to create a temp directory with current state\n- Run `make check` in that tempdir\n- Diff the before/after to see what `ruff format` changed\n- Return errors + the diff of formatting changes\n\n**Option B: Run at end, return diff**\n- Your suggestion - run just before finishing\n- Return the diff so I can see what changed\n- Problem: I can't easily incorporate those changes back into VFS\n\n**Option C: Run on disk, update VFS with formatted files**\n- Materialize to tempdir\n- Run make check\n- For any file that changed (formatting), read it back and `vfs.write_file()` \n- Return errors + list of files that were auto-formatted\n\nI think **Option C** is the cleanest because:\n1. It actually incorporates the formatting changes into the VFS\n2. I get the errors to fix\n3. The committed code will be properly formatted\n4. I can call it anytime, not just at the end\n\nThe tool would:\n1. Materialize VFS to tempdir\n2. Run `make check` in tempdir\n3. For each file that differs from what we materialized, update VFS with the formatted version\n4. Return: lint/type errors + list of files that were reformatted\n\nWant me to implement this? I should look at how local tools work first, and also check out `materialize_to_tempdir()`."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f693001e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah option C seems good, but look at the files first. Oh yeah, while we're here, are the summaries good enough for your use? Note that we can adjust the summary prompt."
+    },
+    {
+      "role": "assistant",
+      "content": "The summaries are pretty good! They give me a decent map of what's where. A few thoughts:\n\n**What works well:**\n- Function/method signatures with parameters are helpful\n- Class names and their purpose\n- Constants and their meaning\n\n**What could be better:**\n- Some summaries are a bit generic (e.g., `src/tools/__init__.py` just says \"Tool: Provides tool management functionality for Forge\" - not very informative)\n- For `__init__.py` files that just re-export, it might be more useful to say \"Re-exports: X, Y, Z from submodules\" rather than trying to describe functionality\n- The relationship between files isn't clear (e.g., that `manager.py` uses `builtin/*.py`)\n\nBut honestly, they're good enough - I can figure out what to load, and then I see the real content. Let's focus on the tool for now.\n\nLet me look at how local tools work and the materialize function:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/vfs/work_in_progress.py\",\"src/tools/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_01KzT4mKCxov8mrNEVFk5Ssq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01KzT4mKCxov8mrNEVFk5Ssq",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/vfs/work_in_progress.py\", \"src/tools/manager.py\"], \"remove\": [], \"message\": \"Added 2 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/vfs/work_in_progress.py\",\n    \"src/tools/manager.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/vfs/work_in_progress.py\",\n    \"src/tools/manager.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 2 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see how this works. Now let me look at an example local tool to understand the expected format, and also check if there's a `tools/` directory:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def get_schema|def execute\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_01VaX486JmnVhMqViwRhAtBC",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VaX486JmnVhMqViwRhAtBC",
+      "content": "{\"success\": true, \"message\": \"Found 7 files matching 'def get_schema|def execute'\", \"matches\": [{\"filepath\": \"src/tools/builtin/delete_file.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/builtin/get_lines.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/builtin/grep_open.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/builtin/search_replace.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/builtin/update_context.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/builtin/write_file.py\", \"match_count\": 2, \"first_match\": \"def get_schema\"}, {\"filepath\": \"src/tools/manager.py\", \"match_count\": 1, \"first_match\": \"def execute\"}], \"action\": \"update_context\", \"add\": [\"src/tools/builtin/delete_file.py\", \"src/tools/builtin/get_lines.py\", \"src/tools/builtin/grep_open.py\", \"src/tools/builtin/search_replace.py\", \"src/tools/builtin/update_context.py\", \"src/tools/builtin/write_file.py\", \"src/tools/manager.py\"], \"remove\": []}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_open`\n```json\n{\n  \"pattern\": \"def get_schema|def execute\",\n  \"include_extensions\": [\n    \".py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Found 7 files matching 'def get_schema|def execute'\",\n  \"matches\": [\n    {\n      \"filepath\": \"src/tools/builtin/delete_file.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/builtin/get_lines.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/builtin/grep_open.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/builtin/search_replace.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/builtin/update_context.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/builtin/write_file.py\",\n      \"match_count\": 2,\n      \"first_match\": \"def get_schema\"\n    },\n    {\n      \"filepath\": \"src/tools/manager.py\",\n      \"match_count\": 1,\n      \"first_match\": \"def execute\"\n    }\n  ],\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/tools/builtin/delete_file.py\",\n    \"src/tools/builtin/get_lines.py\",\n    \"src/tools/builtin/grep_open.py\",\n    \"src/tools/builtin/search_replace.py\",\n    \"src/tools/builtin/update_context.py\",\n    \"src/tools/builtin/write_file.py\",\n    \"src/tools/manager.py\"\n  ],\n  \"remove\": []\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I have a good picture. Let me look at the Makefile to understand what commands we're running:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"Makefile\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01LyitjaQiuqZL4chPDcRVbZ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LyitjaQiuqZL4chPDcRVbZ",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"Makefile\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"Makefile\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"Makefile\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I understand the full picture. Let me create the local tool. Key observations:\n\n1. Local tools go in `./tools/` directory (not `src/tools/builtin/`)\n2. They need to be approved before use (unlike built-in tools)\n3. The tool needs to materialize VFS to a tempdir, run make, read back changes, and update VFS\n\nLet me create the tool:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"tools/check.py\", \"content\": \"\\\"\\\"\\\"\\nRun make check (format + typecheck + lint) on the current VFS state.\\n\\nThis tool:\\n1. Materializes the VFS to a temp directory\\n2. Runs `make format` then `make typecheck` then `make lint-check`\\n3. Reads back any files modified by formatting and updates the VFS\\n4. Returns errors and a list of files that were auto-formatted\\n\\\"\\\"\\\"\\n\\nimport subprocess\\nfrom pathlib import Path\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from src.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"check\\\",\\n            \\\"description\\\": \\\"\\\"\\\"Run make check (format + typecheck + lint) on the current VFS state.\\n\\nThis materializes your changes to a temp directory, runs the checks, and:\\n- Auto-applies any formatting changes back to the VFS\\n- Returns type errors and lint errors for you to fix\\n\\nCall this before finishing to ensure your code passes all checks.\\\"\\\"\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {},\\n            },\\n        },\\n    }\\n\\n\\ndef execute(vfs: \\\"WorkInProgressVFS\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Run make check and incorporate formatting changes\\\"\\\"\\\"\\n    \\n    # Materialize VFS to temp directory\\n    tmpdir = vfs.materialize_to_tempdir()\\n    \\n    results: dict[str, Any] = {\\n        \\\"success\\\": True,\\n        \\\"formatted_files\\\": [],\\n        \\\"format_diffs\\\": {},\\n        \\\"typecheck_output\\\": \\\"\\\",\\n        \\\"typecheck_passed\\\": False,\\n        \\\"lint_output\\\": \\\"\\\",\\n        \\\"lint_passed\\\": False,\\n    }\\n    \\n    try:\\n        # Capture file contents before formatting\\n        py_files = list(tmpdir.rglob(\\\"*.py\\\"))\\n        before_format: dict[str, str] = {}\\n        for py_file in py_files:\\n            rel_path = str(py_file.relative_to(tmpdir))\\n            before_format[rel_path] = py_file.read_text()\\n        \\n        # Run make format\\n        format_result = subprocess.run(\\n            [\\\"make\\\", \\\"format\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        \\n        # Check which files changed and update VFS\\n        formatted_files = []\\n        format_diffs = {}\\n        for py_file in py_files:\\n            rel_path = str(py_file.relative_to(tmpdir))\\n            if not py_file.exists():\\n                continue\\n            after_content = py_file.read_text()\\n            before_content = before_format.get(rel_path, \\\"\\\")\\n            \\n            if after_content != before_content:\\n                formatted_files.append(rel_path)\\n                # Update VFS with formatted content\\n                vfs.write_file(rel_path, after_content)\\n                # Generate a simple diff summary\\n                format_diffs[rel_path] = _simple_diff(before_content, after_content)\\n        \\n        results[\\\"formatted_files\\\"] = formatted_files\\n        results[\\\"format_diffs\\\"] = format_diffs\\n        \\n        # Run make typecheck\\n        typecheck_result = subprocess.run(\\n            [\\\"make\\\", \\\"typecheck\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        results[\\\"typecheck_output\\\"] = typecheck_result.stdout + typecheck_result.stderr\\n        results[\\\"typecheck_passed\\\"] = typecheck_result.returncode == 0\\n        \\n        # Run make lint-check (not lint, since we already formatted)\\n        lint_result = subprocess.run(\\n            [\\\"make\\\", \\\"lint-check\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        results[\\\"lint_output\\\"] = lint_result.stdout + lint_result.stderr\\n        results[\\\"lint_passed\\\"] = lint_result.returncode == 0\\n        \\n        # Overall success\\n        results[\\\"success\\\"] = results[\\\"typecheck_passed\\\"] and results[\\\"lint_passed\\\"]\\n        \\n        # Build summary message\\n        summary_parts = []\\n        if formatted_files:\\n            summary_parts.append(f\\\"Formatted {len(formatted_files)} files: {', '.join(formatted_files)}\\\")\\n        if results[\\\"typecheck_passed\\\"]:\\n            summary_parts.append(\\\"\u2713 Type check passed\\\")\\n        else:\\n            summary_parts.append(\\\"\u2717 Type check failed\\\")\\n        if results[\\\"lint_passed\\\"]:\\n            summary_parts.append(\\\"\u2713 Lint passed\\\")\\n        else:\\n            summary_parts.append(\\\"\u2717 Lint failed\\\")\\n        \\n        results[\\\"summary\\\"] = \\\"\\\\n\\\".join(summary_parts)\\n        \\n    finally:\\n        # Clean up temp directory\\n        import shutil\\n        shutil.rmtree(tmpdir, ignore_errors=True)\\n    \\n    return results\\n\\n\\ndef _simple_diff(before: str, after: str) -> str:\\n    \\\"\\\"\\\"Generate a simple unified diff between two strings\\\"\\\"\\\"\\n    import difflib\\n    \\n    before_lines = before.splitlines(keepends=True)\\n    after_lines = after.splitlines(keepends=True)\\n    \\n    diff = difflib.unified_diff(\\n        before_lines,\\n        after_lines,\\n        fromfile=\\\"before\\\",\\n        tofile=\\\"after\\\",\\n        lineterm=\\\"\\\",\\n    )\\n    \\n    return \\\"\\\".join(diff)\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_011vkmJVCm2DayteVP6Ai2pP",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011vkmJVCm2DayteVP6Ai2pP",
+      "content": "{\"success\": true, \"message\": \"Wrote 4969 bytes to tools/check.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `write_file`\n```json\n{\n  \"filepath\": \"tools/check.py\",\n  \"content\": \"\\\"\\\"\\\"\\nRun make check (format + typecheck + lint) on the current VFS state.\\n\\nThis tool:\\n1. Materializes the VFS to a temp directory\\n2. Runs `make format` then `make typecheck` then `make lint-check`\\n3. Reads back any files modified by formatting and updates the VFS\\n4. Returns errors and a list of files that were auto-formatted\\n\\\"\\\"\\\"\\n\\nimport subprocess\\nfrom pathlib import Path\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from src.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"check\\\",\\n            \\\"description\\\": \\\"\\\"\\\"Run make check (format + typecheck + lint) on the current VFS state.\\n\\nThis materializes your changes to a temp directory, runs the checks, and:\\n- Auto-applies any formatting changes back to the VFS\\n- Returns type errors and lint errors for you to fix\\n\\nCall this before finishing to ensure your code passes all checks.\\\"\\\"\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {},\\n            },\\n        },\\n    }\\n\\n\\ndef execute(vfs: \\\"WorkInProgressVFS\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Run make check and incorporate formatting changes\\\"\\\"\\\"\\n    \\n    # Materialize VFS to temp directory\\n    tmpdir = vfs.materialize_to_tempdir()\\n    \\n    results: dict[str, Any] = {\\n        \\\"success\\\": True,\\n        \\\"formatted_files\\\": [],\\n        \\\"format_diffs\\\": {},\\n        \\\"typecheck_output\\\": \\\"\\\",\\n        \\\"typecheck_passed\\\": False,\\n        \\\"lint_output\\\": \\\"\\\",\\n        \\\"lint_passed\\\": False,\\n    }\\n    \\n    try:\\n        # Capture file contents before formatting\\n        py_files = list(tmpdir.rglob(\\\"*.py\\\"))\\n        before_format: dict[str, str] = {}\\n        for py_file in py_files:\\n            rel_path = str(py_file.relative_to(tmpdir))\\n            before_format[rel_path] = py_file.read_text()\\n        \\n        # Run make format\\n        format_result = subprocess.run(\\n            [\\\"make\\\", \\\"format\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        \\n        # Check which files changed and update VFS\\n        formatted_files = []\\n        format_diffs = {}\\n        for py_file in py_files:\\n            rel_path = str(py_file.relative_to(tmpdir))\\n            if not py_file.exists():\\n                continue\\n            after_content = py_file.read_text()\\n            before_content = before_format.get(rel_path, \\\"\\\")\\n            \\n            if after_content != before_content:\\n                formatted_files.append(rel_path)\\n                # Update VFS with formatted content\\n                vfs.write_file(rel_path, after_content)\\n                # Generate a simple diff summary\\n                format_diffs[rel_path] = _simple_diff(before_content, after_content)\\n        \\n        results[\\\"formatted_files\\\"] = formatted_files\\n        results[\\\"format_diffs\\\"] = format_diffs\\n        \\n        # Run make typecheck\\n        typecheck_result = subprocess.run(\\n            [\\\"make\\\", \\\"typecheck\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        results[\\\"typecheck_output\\\"] = typecheck_result.stdout + typecheck_result.stderr\\n        results[\\\"typecheck_passed\\\"] = typecheck_result.returncode == 0\\n        \\n        # Run make lint-check (not lint, since we already formatted)\\n        lint_result = subprocess.run(\\n            [\\\"make\\\", \\\"lint-check\\\"],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        results[\\\"lint_output\\\"] = lint_result.stdout + lint_result.stderr\\n        results[\\\"lint_passed\\\"] = lint_result.returncode == 0\\n        \\n        # Overall success\\n        results[\\\"success\\\"] = results[\\\"typecheck_passed\\\"] and results[\\\"lint_passed\\\"]\\n        \\n        # Build summary message\\n        summary_parts = []\\n        if formatted_files:\\n            summary_parts.append(f\\\"Formatted {len(formatted_files)} files: {', '.join(formatted_files)}\\\")\\n        if results[\\\"typecheck_passed\\\"]:\\n            summary_parts.append(\\\"\\u2713 Type check passed\\\")\\n        else:\\n            summary_parts.append(\\\"\\u2717 Type check failed\\\")\\n        if results[\\\"lint_passed\\\"]:\\n            summary_parts.append(\\\"\\u2713 Lint passed\\\")\\n        else:\\n            summary_parts.append(\\\"\\u2717 Lint failed\\\")\\n        \\n        results[\\\"summary\\\"] = \\\"\\\\n\\\".join(summary_parts)\\n        \\n    finally:\\n        # Clean up temp directory\\n        import shutil\\n        shutil.rmtree(tmpdir, ignore_errors=True)\\n    \\n    return results\\n\\n\\ndef _simple_diff(before: str, after: str) -> str:\\n    \\\"\\\"\\\"Generate a simple unified diff between two strings\\\"\\\"\\\"\\n    import difflib\\n    \\n    before_lines = before.splitlines(keepends=True)\\n    after_lines = after.splitlines(keepends=True)\\n    \\n    diff = difflib.unified_diff(\\n        before_lines,\\n        after_lines,\\n        fromfile=\\\"before\\\",\\n        tofile=\\\"after\\\",\\n        lineterm=\\\"\\\",\\n    )\\n    \\n    return \\\"\\\".join(diff)\\n\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Wrote 4969 bytes to tools/check.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me clean up the context since we're done with this task:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"src/vfs/work_in_progress.py\",\"src/tools/manager.py\",\"src/tools/builtin/delete_file.py\",\"src/tools/builtin/get_lines.py\",\"src/tools/builtin/grep_open.py\",\"src/tools/builtin/search_replace.py\",\"src/tools/builtin/update_context.py\",\"src/tools/builtin/write_file.py\",\"Makefile\",\"tools/check.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_011Cv3nDmZVKFtZzH5YPyjG9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011Cv3nDmZVKFtZzH5YPyjG9",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"src/vfs/work_in_progress.py\", \"src/tools/manager.py\", \"src/tools/builtin/delete_file.py\", \"src/tools/builtin/get_lines.py\", \"src/tools/builtin/grep_open.py\", \"src/tools/builtin/search_replace.py\", \"src/tools/builtin/update_context.py\", \"src/tools/builtin/write_file.py\", \"Makefile\", \"tools/check.py\"], \"message\": \"Added 0 files, removed 10 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"src/vfs/work_in_progress.py\",\n    \"src/tools/manager.py\",\n    \"src/tools/builtin/delete_file.py\",\n    \"src/tools/builtin/get_lines.py\",\n    \"src/tools/builtin/grep_open.py\",\n    \"src/tools/builtin/search_replace.py\",\n    \"src/tools/builtin/update_context.py\",\n    \"src/tools/builtin/write_file.py\",\n    \"Makefile\",\n    \"tools/check.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"src/vfs/work_in_progress.py\",\n    \"src/tools/manager.py\",\n    \"src/tools/builtin/delete_file.py\",\n    \"src/tools/builtin/get_lines.py\",\n    \"src/tools/builtin/grep_open.py\",\n    \"src/tools/builtin/search_replace.py\",\n    \"src/tools/builtin/update_context.py\",\n    \"src/tools/builtin/write_file.py\",\n    \"Makefile\",\n    \"tools/check.py\"\n  ],\n  \"message\": \"Added 0 files, removed 10 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I created `tools/check.py` - a local tool that:\n\n1. **Materializes VFS to tempdir** - Gets current state including all pending changes\n2. **Runs `make format`** - Captures which files changed\n3. **Updates VFS with formatted files** - Incorporates formatting changes back into the patch set\n4. **Runs `make typecheck`** - Captures any type errors\n5. **Runs `make lint-check`** - Captures lint errors (uses `lint-check` not `lint` since we already formatted)\n6. **Returns comprehensive results**:\n   - `formatted_files`: List of files that were auto-formatted\n   - `format_diffs`: Diffs showing what formatting changed\n   - `typecheck_output` / `typecheck_passed`: Type checking results\n   - `lint_output` / `lint_passed`: Lint results\n   - `summary`: Human-readable summary\n\nSince it's a local tool (in `tools/` not `src/tools/builtin/`), it will need to be approved before I can use it. Want to approve it so I can try it out?"
     }
   ]
 }

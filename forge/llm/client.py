@@ -195,11 +195,9 @@ class LLMClient:
         for line in response.iter_lines():
             if line:
                 line = line.decode("utf-8")
-                print(f"📦 SSE: {line}")
                 if line.startswith("data: "):
                     data = line[6:]  # Remove 'data: ' prefix
                     if data == "[DONE]":
-                        print("📦 SSE: [DONE]")
                         break
                     try:
                         chunk = json.loads(data)
@@ -219,8 +217,7 @@ class LLMClient:
                             )
 
                         yield chunk
-                    except json.JSONDecodeError as e:
-                        print(f"📦 SSE JSON decode error: {e}")
+                    except json.JSONDecodeError:
                         continue
 
         # Fetch cost info after streaming completes

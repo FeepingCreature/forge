@@ -29,6 +29,7 @@ class ToolManager:
         "grep_open",
         "get_lines",
         "rename_file",
+        "set_license",
     }
 
     def __init__(

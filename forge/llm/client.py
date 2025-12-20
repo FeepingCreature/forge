@@ -26,6 +26,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost",
             "X-Title": "Forge",
         }
 
@@ -48,6 +49,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost",
             "X-Title": "Forge",
         }
 
@@ -125,6 +127,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost",
             "X-Title": "Forge",
         }
 

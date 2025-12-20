@@ -30,6 +30,10 @@ class ContextState(Enum):
 ICON_NONE = "◯"  # Empty circle - not in context
 ICON_PARTIAL = "◐"  # Half-filled circle - partial context
 ICON_FULL = "●"  # Filled circle - full context
+ICON_WARNING = "⚠️"  # Warning icon for large files
+
+# Threshold for "large file" warning (in characters)
+LARGE_FILE_THRESHOLD = 10000
 
 # Column indices
 COL_NAME = 0
@@ -46,6 +50,7 @@ class FileExplorerWidget(QWidget):
     - ◯ (empty) for files/folders not in context
     - ◐ (half) for folders with some files in context
     - ● (full) for files in context or folders fully in context
+    - ⚠️ (warning) shown next to large files (10k+ chars) in context
     """
 
     # Emitted when user wants to open a file
@@ -59,6 +64,8 @@ class FileExplorerWidget(QWidget):
         self.workspace = workspace
         self._context_files: set[str] = set()  # Files currently in AI context
         self._all_files: list[str] = []  # All files in the VFS (cached for context calculations)
+        self._large_files: set[str] = set()  # Files that are large (10k+ chars)
+        self._root_item: QTreeWidgetItem | None = None  # The <root> item
         self._setup_ui()
         self.refresh()
 
@@ -82,7 +89,7 @@ class FileExplorerWidget(QWidget):
 
         # Add tooltip explaining the context icons
         self.tree.setToolTip(
-            "Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context"
+            "Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context\n⚠️ = large file (10k+ chars)"
         )
 
         layout.addWidget(self.tree)
@@ -90,12 +97,32 @@ class FileExplorerWidget(QWidget):
     def refresh(self) -> None:
         """Refresh the file tree from VFS"""
         self.tree.clear()
+        self._large_files.clear()
 
         # Get all files from VFS and cache them
         files = self.workspace.vfs.list_files()
         self._all_files = [f for f in files if not f.startswith(".forge/")]
 
-        # Build tree structure
+        # Check file sizes and track large files
+        for filepath in self._all_files:
+            try:
+                content = self.workspace.vfs.read_file(filepath)
+                if len(content) >= LARGE_FILE_THRESHOLD:
+                    self._large_files.add(filepath)
+            except Exception:
+                pass  # Skip files we can't read
+
+        # Create the root item that contains everything
+        self._root_item = QTreeWidgetItem()
+        self._root_item.setText(COL_NAME, "📦 <root>")
+        self._root_item.setText(COL_CONTEXT, ICON_NONE)
+        self._root_item.setData(COL_NAME, Qt.ItemDataRole.UserRole, "")  # Empty path = root
+        self._root_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "root")  # Mark as root
+        self._root_item.setToolTip(COL_NAME, "All files in repository")
+        self._root_item.setToolTip(COL_CONTEXT, "Click to toggle all files in/out of context")
+        self.tree.addTopLevelItem(self._root_item)
+
+        # Build tree structure under root
         root_items: dict[str, QTreeWidgetItem] = {}
 
         for filepath in sorted(self._all_files):
@@ -103,7 +130,7 @@ class FileExplorerWidget(QWidget):
             parts = path.parts
 
             # Create/get parent items
-            current_parent: QTreeWidgetItem | QTreeWidget = self.tree
+            current_parent: QTreeWidgetItem = self._root_item
             current_path = ""
 
             for part in parts[:-1]:  # All but the filename
@@ -116,11 +143,7 @@ class FileExplorerWidget(QWidget):
                     item.setData(COL_NAME, Qt.ItemDataRole.UserRole, current_path)  # Store path
                     item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "dir")  # Mark as directory
 
-                    if isinstance(current_parent, QTreeWidget):
-                        current_parent.addTopLevelItem(item)
-                    else:
-                        current_parent.addChild(item)
-
+                    current_parent.addChild(item)
                     root_items[current_path] = item
 
                 current_parent = root_items[current_path]
@@ -135,16 +158,14 @@ class FileExplorerWidget(QWidget):
             file_item.setToolTip(COL_NAME, filepath)
             file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
 
-            if isinstance(current_parent, QTreeWidget):
-                current_parent.addTopLevelItem(file_item)
-            else:
-                current_parent.addChild(file_item)
+            current_parent.addChild(file_item)
 
-        # Expand top-level directories by default
-        for i in range(self.tree.topLevelItemCount()):
-            top_item = self.tree.topLevelItem(i)
-            if top_item is not None and top_item.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
-                top_item.setExpanded(True)
+        # Expand root and top-level directories by default
+        self._root_item.setExpanded(True)
+        for i in range(self._root_item.childCount()):
+            child = self._root_item.child(i)
+            if child is not None and child.data(0, Qt.ItemDataRole.UserRole + 1) == "dir":
+                child.setExpanded(True)
 
         # Update all context icons
         self._update_all_context_icons()
@@ -164,7 +185,7 @@ class FileExplorerWidget(QWidget):
         Recursively update context icons, returning the aggregate state.
 
         For files: FULL if in context, NONE otherwise
-        For folders: FULL if all children FULL, PARTIAL if some, NONE if none
+        For folders/root: FULL if all children FULL, PARTIAL if some, NONE if none
         """
         if parent is None:
             # Process top level items
@@ -180,11 +201,11 @@ class FileExplorerWidget(QWidget):
             # File: simple in-context check
             filepath = parent.data(0, Qt.ItemDataRole.UserRole)
             state = ContextState.FULL if filepath in self._context_files else ContextState.NONE
-            self._set_item_icon(parent, state)
+            self._set_item_icon(parent, state, is_large=(filepath in self._large_files))
             return state
 
-        elif item_type == "dir":
-            # Folder: aggregate children states
+        elif item_type in ("dir", "root"):
+            # Folder/root: aggregate children states
             child_states: list[ContextState] = []
 
             for i in range(parent.childCount()):
@@ -208,13 +229,18 @@ class FileExplorerWidget(QWidget):
 
         return ContextState.NONE
 
-    def _set_item_icon(self, item: QTreeWidgetItem, state: ContextState) -> None:
+    def _set_item_icon(
+        self, item: QTreeWidgetItem, state: ContextState, is_large: bool = False
+    ) -> None:
         """Set the context icon for an item based on state"""
         icon = {
             ContextState.NONE: ICON_NONE,
             ContextState.PARTIAL: ICON_PARTIAL,
             ContextState.FULL: ICON_FULL,
         }[state]
+        # Add warning icon for large files that are in context
+        if is_large and state == ContextState.FULL:
+            icon = f"{icon}{ICON_WARNING}"
         item.setText(COL_CONTEXT, icon)
 
     def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
@@ -243,6 +269,17 @@ class FileExplorerWidget(QWidget):
             all_in_context = all(f in self._context_files for f in folder_files)
 
             for filepath in folder_files:
+                self.context_toggle_requested.emit(filepath, not all_in_context)
+
+        elif item_type == "root":
+            # Toggle context for ALL files
+            if not self._all_files:
+                return
+
+            # If any file is NOT in context, add all; otherwise remove all
+            all_in_context = all(f in self._context_files for f in self._all_files)
+
+            for filepath in self._all_files:
                 self.context_toggle_requested.emit(filepath, not all_in_context)
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:

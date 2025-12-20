@@ -139,8 +139,10 @@ class WorkInProgressVFS(VFS):
             raise ValueError("No changes to commit")
 
         # Check if we're committing to the checked-out branch BEFORE making changes
+        # and whether the working directory is clean (so we can safely update it)
         checked_out = self.repo.get_checked_out_branch()
         is_checked_out_branch = checked_out == self.branch_name
+        workdir_is_clean = self.repo.is_workdir_clean() if is_checked_out_branch else False
 
         # Build changes dict for create_tree_from_changes
         changes = self.pending_changes.copy()
@@ -153,8 +155,8 @@ class WorkInProgressVFS(VFS):
             tree_oid, message, self.branch_name, author_name, author_email, commit_type
         )
 
-        # If we committed to the checked-out branch, sync the working directory
-        if is_checked_out_branch:
+        # If we committed to the checked-out branch and workdir was clean, sync it
+        if is_checked_out_branch and workdir_is_clean:
             self.repo.checkout_branch_head(self.branch_name)
 
         # Clear pending changes

@@ -32,7 +32,7 @@ def get_schema() -> dict[str, Any]:
         "function": {
             "name": "set_license",
             "description": "Set the project's license by writing a LICENSE file. Used to bypass API content filters on"
-                + f" \"viral\" licenses. Do not add without user consent, may contain placeholders. Available licenses: {license_list}",
+            + f' "viral" licenses. Do not add without user consent, may contain placeholders. Available licenses: {license_list}',
             "parameters": {
                 "type": "object",
                 "properties": {

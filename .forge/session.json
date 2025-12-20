@@ -1,39 +1,39 @@
 {
   "active_files": [
-    "main.py",
-    "src/session/__init__.py",
-    "src/git_backend/commit_types.py",
-    "src/llm/client.py",
-    "src/vfs/git_commit.py",
-    "src/tools/builtin/__init__.py",
-    "src/tools/builtin/delete_file.py",
-    "src/prompts.py",
-    "src/git_backend/__init__.py",
-    "src/tools/builtin/update_context.py",
-    "src/llm/__init__.py",
-    "src/tools/builtin/search_replace.py",
-    "NEW_DESIGN.md",
-    "requirements.txt",
-    "src/vfs/base.py",
-    "src/ui/editor_widget.py",
-    "src/tools/builtin/get_lines.py",
-    "pyproject.toml",
-    "src/tools/builtin/grep_open.py",
-    "src/config/settings.py",
-    "src/vfs/__init__.py",
-    "src/ui/__init__.py",
-    "Makefile",
-    "CLAUDE.md",
-    "src/prompts/system.py",
-    "src/vfs/work_in_progress.py",
     "NEW_TODO.md",
-    "README.md",
-    "src/tools/builtin/write_file.py",
-    "src/prompts/__init__.py",
+    "src/vfs/base.py",
+    "src/tools/builtin/grep_open.py",
+    "src/vfs/__init__.py",
+    "src/prompts/system.py",
+    "main.py",
+    "src/vfs/git_commit.py",
     "src/config/__init__.py",
-    "src/ui/branch_workspace.py",
+    "src/tools/builtin/__init__.py",
+    "src/git_backend/__init__.py",
+    "src/ui/__init__.py",
+    "pyproject.toml",
+    "src/config/settings.py",
+    "requirements.txt",
+    "src/tools/builtin/search_replace.py",
+    "src/tools/builtin/delete_file.py",
+    "NEW_DESIGN.md",
+    "README.md",
+    "src/git_backend/commit_types.py",
+    "CLAUDE.md",
+    "src/ui/editor_widget.py",
+    "Makefile",
+    "src/llm/client.py",
+    "src/vfs/work_in_progress.py",
     ".gitignore",
-    "src/tools/__init__.py"
+    "src/ui/branch_workspace.py",
+    "src/prompts/__init__.py",
+    "src/tools/builtin/write_file.py",
+    "src/session/__init__.py",
+    "src/tools/__init__.py",
+    "src/tools/builtin/get_lines.py",
+    "src/tools/builtin/update_context.py",
+    "src/prompts.py",
+    "src/llm/__init__.py"
   ],
   "messages": [
     {
@@ -749,6 +749,119 @@
     {
       "role": "assistant",
       "content": "Done! Here's what I fixed:\n\n## Summary\n\nThe problem was that when reloading the session from disk, the tool calls in assistant messages were not being rendered as diff views. The special diff rendering only happened:\n1. During streaming (via `_update_streaming_tool_calls`)\n2. For the immediate tool result (via the UI-only system message)\n\nBut UI-only messages (`_ui_only=True`) are intentionally not saved to disk, so when reloading we only had the raw assistant messages with their `tool_calls` array.\n\n### Fix\n\nAdded `_render_tool_calls_html()` method that:\n1. Iterates through tool calls in a message\n2. For `search_replace` calls, renders them using `render_completed_diff_html()`\n3. For other tools, renders them with the default JSON display\n\nModified `_build_messages_html()` to:\n1. Check if an assistant message has `tool_calls`\n2. Call `_render_tool_calls_html()` to get the rendered HTML\n3. Include it in the message div after the regular content\n\nNow when you reload a session, all historical `search_replace` tool calls display as nice diff views instead of raw JSON."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 50 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Close! We now see *both* the System message with the tool call and the assistant message embedded diff. We should probably pick one or the other."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah right, we're showing the diff twice - once in the assistant message (via `_render_tool_calls_html`) and once in the system message that gets added after tool execution. Let me check how this works and pick the right one to keep.\n\nThe assistant message with `tool_calls` is what gets persisted and reloaded from disk, so that's the right place to show it. The system message added during `_execute_tool_calls` is UI-only and redundant now.\n\nLet me remove the system message for successful `search_replace` calls since we're already showing the diff in the assistant message:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01DnqTbrGnkgAN9hnrrjCXqn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DnqTbrGnkgAN9hnrrjCXqn",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. When a `search_replace` succeeds, we're showing the diff in two places:\n1. In the assistant message via `_render_tool_calls_html` (embedded in the message with `tool_calls`)\n2. In a separate system message via `_add_system_message` in `_execute_tool_calls`\n\nFor successful `search_replace`, we should skip adding the system message since the diff is already shown inline in the assistant message. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"            # Build unified tool call display message\\n            # For search_replace, show a nice diff view instead of raw JSON\\n            if tool_name == \\\"search_replace\\\" and result.get(\\\"success\\\"):\\n                filepath = tool_args.get(\\\"filepath\\\", \\\"\\\")\\n                search = tool_args.get(\\\"search\\\", \\\"\\\")\\n                replace = tool_args.get(\\\"replace\\\", \\\"\\\")\\n                diff_html = render_completed_diff_html(filepath, search, replace)\\n                tool_display_parts = [diff_html]\\n            else:\\n                tool_display_parts = [\\n                    f\\\"\ud83d\udd27 **Tool call:** `{tool_name}`\\\",\\n                    f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                    \\\"**Result:**\\\",\\n                    f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n                ]\\n\\n            # If search_replace failed and file isn't in context, add note about adding it\\n            if not result.get(\\\"success\\\") and tool_name == \\\"search_replace\\\":\\n                filepath = tool_args.get(\\\"filepath\\\")\\n                if filepath and filepath not in self.session_manager.active_files:\\n                    self.session_manager.add_active_file(filepath)\\n                    tool_display_parts.append(\\n                        f\\\"\\\\n\ud83d\udcc2 Added `{filepath}` to context so you can see its actual content\\\"\\n                    )\\n\\n            # Display as single unified block (UI feedback)\\n            self._add_system_message(\\\"\\\\n\\\".join(tool_display_parts))\", \"replace\": \"            # Build unified tool call display message\\n            # For successful search_replace, we skip the system message because\\n            # the diff is already shown inline in the assistant message via _render_tool_calls_html\\n            if tool_name == \\\"search_replace\\\" and result.get(\\\"success\\\"):\\n                # Diff is shown inline in assistant message, no need for system message\\n                pass\\n            elif tool_name == \\\"search_replace\\\" and not result.get(\\\"success\\\"):\\n                # Failed search_replace - show error details\\n                tool_display_parts = [\\n                    f\\\"\ud83d\udd27 **Tool call:** `{tool_name}`\\\",\\n                    f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                    \\\"**Result:**\\\",\\n                    f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n                ]\\n                # If file isn't in context, add it so AI can see actual content\\n                filepath = tool_args.get(\\\"filepath\\\")\\n                if filepath and filepath not in self.session_manager.active_files:\\n                    self.session_manager.add_active_file(filepath)\\n                    tool_display_parts.append(\\n                        f\\\"\\\\n\ud83d\udcc2 Added `{filepath}` to context so you can see its actual content\\\"\\n                    )\\n                self._add_system_message(\\\"\\\\n\\\".join(tool_display_parts))\\n            else:\\n                # All other tools - show full details\\n                tool_display_parts = [\\n                    f\\\"\ud83d\udd27 **Tool call:** `{tool_name}`\\\",\\n                    f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                    \\\"**Result:**\\\",\\n                    f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n                ]\\n                self._add_system_message(\\\"\\\\n\\\".join(tool_display_parts))\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012xPPVRVy5B1NWmUMH1gDuG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012xPPVRVy5B1NWmUMH1gDuG",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "<div class=\"diff-view\">\n<div class=\"diff-header\">\n<span>\ud83d\udcdd</span>\n<span class=\"filepath\">src/ui/ai_chat_widget.py</span>\n</div>\n<div class=\"diff-content\">\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            # For search_replace, show a nice diff view instead of raw JSON</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            # For successful search_replace, we skip the system message because</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            # the diff is already shown inline in the assistant message via _render_tool_calls_html</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">                filepath = tool_args.get(&quot;filepath&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">                search = tool_args.get(&quot;search&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">                replace = tool_args.get(&quot;replace&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">                diff_html = render_completed_diff_html(filepath, search, replace)</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">                tool_display_parts = [diff_html]</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            else:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                # Diff is shown inline in assistant message, no need for system message</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                pass</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            elif tool_name == &quot;search_replace&quot; and not result.get(&quot;success&quot;):</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                # Failed search_replace - show error details</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            # If search_replace failed and file isn&#x27;t in context, add note about adding it</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            if not result.get(&quot;success&quot;) and tool_name == &quot;search_replace&quot;:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                # If file isn&#x27;t in context, add it so AI can see actual content</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            # Display as single unified block (UI feedback)</span>\n</div>\n<div class=\"diff-line deletion\">\n<span class=\"diff-line-number\">-</span>\n<span class=\"diff-line-content\">            self._add_system_message(&quot;\\n&quot;.join(tool_display_parts))</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                self._add_system_message(&quot;\\n&quot;.join(tool_display_parts))</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            else:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                # All other tools - show full details</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                tool_display_parts = [</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    f&quot;\ud83d\udd27 **Tool call:** `{tool_name}`&quot;,</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    f&quot;```json\\n{json.dumps(tool_args, indent=2)}\\n```&quot;,</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    &quot;**Result:**&quot;,</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    f&quot;```json\\n{json.dumps(result, indent=2)}\\n```&quot;,</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                ]</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                self._add_system_message(&quot;\\n&quot;.join(tool_display_parts))</span>\n</div>\n</div>\n</div>",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run checks to make sure everything is working:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01SuYnqrPWoPqJh3GuNsC3cB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SuYnqrPWoPqJh3GuNsC3cB",
+      "content": "{\"success\": true, \"formatted_files\": [], \"format_diffs\": {}, \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\", \"typecheck_passed\": true, \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"formatted_files\": [],\n  \"format_diffs\": {},\n  \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\",\n  \"typecheck_passed\": true,\n  \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up my context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01AeTFGQTnjst2vLrYP9VJ7h",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01AeTFGQTnjst2vLrYP9VJ7h",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"src/ui/ai_chat_widget.py\"], \"message\": \"Added 0 files, removed 1 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"message\": \"Added 0 files, removed 1 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Now there's only one diff view per `search_replace` call:\n\n- **Successful `search_replace`**: Diff shown inline in the assistant message (via `_render_tool_calls_html`), no separate system message\n- **Failed `search_replace`**: Shows the full error details in a system message (with the \"added to context\" note if needed)\n- **Other tools**: Show full tool call details in a system message as before\n\nThis also works correctly on reload since the assistant message with `tool_calls` is persisted and `_render_tool_calls_html` handles the rendering."
     }
   ]
 }

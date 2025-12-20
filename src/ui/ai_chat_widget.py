@@ -789,32 +789,36 @@ class AIChatWidget(QWidget):
                 self.context_changed.emit(self.session_manager.active_files.copy())
 
             # Build unified tool call display message
-            # For search_replace, show a nice diff view instead of raw JSON
+            # For successful search_replace, we skip the system message because
+            # the diff is already shown inline in the assistant message via _render_tool_calls_html
             if tool_name == "search_replace" and result.get("success"):
-                filepath = tool_args.get("filepath", "")
-                search = tool_args.get("search", "")
-                replace = tool_args.get("replace", "")
-                diff_html = render_completed_diff_html(filepath, search, replace)
-                tool_display_parts = [diff_html]
-            else:
+                # Diff is shown inline in assistant message, no need for system message
+                pass
+            elif tool_name == "search_replace" and not result.get("success"):
+                # Failed search_replace - show error details
                 tool_display_parts = [
                     f"🔧 **Tool call:** `{tool_name}`",
                     f"```json\n{json.dumps(tool_args, indent=2)}\n```",
                     "**Result:**",
                     f"```json\n{json.dumps(result, indent=2)}\n```",
                 ]
-
-            # If search_replace failed and file isn't in context, add note about adding it
-            if not result.get("success") and tool_name == "search_replace":
+                # If file isn't in context, add it so AI can see actual content
                 filepath = tool_args.get("filepath")
                 if filepath and filepath not in self.session_manager.active_files:
                     self.session_manager.add_active_file(filepath)
                     tool_display_parts.append(
                         f"\n📂 Added `{filepath}` to context so you can see its actual content"
                     )
-
-            # Display as single unified block (UI feedback)
-            self._add_system_message("\n".join(tool_display_parts))
+                self._add_system_message("\n".join(tool_display_parts))
+            else:
+                # All other tools - show full details
+                tool_display_parts = [
+                    f"🔧 **Tool call:** `{tool_name}`",
+                    f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                    "**Result:**",
+                    f"```json\n{json.dumps(result, indent=2)}\n```",
+                ]
+                self._add_system_message("\n".join(tool_display_parts))
 
         # Continue conversation with tool results in background thread
         self._continue_after_tools(tools)

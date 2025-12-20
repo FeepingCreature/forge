@@ -191,6 +191,10 @@ class PromptManager:
 
     def append_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add a tool result to the stream"""
+        # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$
+        if not tool_call_id:
+            print(f"❌ ERROR: Empty tool_call_id! Result: {result[:100]}...")
+            raise ValueError(f"tool_call_id cannot be empty (result: {result[:100]}...)")
         print(f"📋 PromptManager: Appending tool result for {tool_call_id} ({len(result)} chars)")
         self.blocks.append(
             ContentBlock(
@@ -349,8 +353,12 @@ class PromptManager:
 
     def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
         """Create tool result message, with cache_control if it's the last content block"""
+        tool_call_id = block.metadata.get("tool_call_id", "")
+        if not tool_call_id:
+            # This should never happen - append_tool_result validates
+            raise ValueError("tool_call_id missing from tool result block metadata")
         return {
             "role": "tool",
-            "tool_call_id": block.metadata.get("tool_call_id", ""),
+            "tool_call_id": tool_call_id,
             "content": [self._make_content_block(block.content, is_last)],
         }

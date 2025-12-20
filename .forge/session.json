@@ -1,9 +1,9 @@
 {
   "active_files": [
     "CLAUDE.md",
-    "README.md",
+    "forge/llm/client.py",
     "forge/ui/ai_chat_widget.py",
-    "forge/llm/client.py"
+    "README.md"
   ],
   "messages": [
     {
@@ -594,6 +594,84 @@
     {
       "role": "assistant",
       "content": "All good. Now when a streaming chunk contains an error (like that content filtering nonsense), it'll raise a `RuntimeError` with the full details instead of silently failing or giving a confusing JSON parse error.\n\nThe error will propagate through `StreamWorker.run()` \u2192 caught by the `except Exception` \u2192 emitted via `self.error.emit(str(e))` \u2192 handled by `_on_stream_error()` \u2192 displayed to you.\n\nSo next time Google decides the GPL is dangerous content, you'll see something like:\n\n> Error: LLM streaming error (provider=Google, code=502): Output blocked by content filtering policy\n\nWant to try switching to a non-Google-routed model and then I'll write the LICENSE and README?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 51 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, right now the error gets presented as an agent message, but it should bounce back and invoke the agent loop again so you can react to what has gone wrong."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah good point! Right now `_on_stream_error` just displays the error and resets, but it should feed the error back into the conversation so I can see it and react. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _on_stream_error(self, error_msg: str) -> None:\\n        \\\"\\\"\\\"Handle streaming error\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.stream_thread:\\n            self.stream_thread.quit()\\n            self.stream_thread.wait()\\n            self.stream_thread = None\\n            self.stream_worker = None\\n\\n        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        self.add_message(\\\"assistant\\\", f\\\"Error: {error_msg}\\\")\\n\\n        # Emit signal that AI turn is finished (with empty string indicating no commit)\\n        self.ai_turn_finished.emit(\\\"\\\")\\n\\n        self._reset_input()\\n        return\", \"replace\": \"    def _on_stream_error(self, error_msg: str) -> None:\\n        \\\"\\\"\\\"Handle streaming error by feeding it back into the conversation\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.stream_thread:\\n            self.stream_thread.quit()\\n            self.stream_thread.wait()\\n            self.stream_thread = None\\n            self.stream_worker = None\\n\\n        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        # Remove the empty streaming message placeholder if present\\n        if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\" and not self.messages[-1].get(\\\"content\\\"):\\n            self.messages.pop()\\n\\n        # Add error as a system message that the AI will see\\n        error_content = f\\\"**Error from LLM provider:**\\\\n\\\\n```\\\\n{error_msg}\\\\n```\\\\n\\\\nPlease acknowledge this error and adjust your approach if needed.\\\"\\n        self._add_system_message(f\\\"\u274c {error_msg}\\\")\\n\\n        # Feed the error back into the conversation so AI can react\\n        self.session_manager.append_user_message(error_content)\\n\\n        # Continue the conversation - AI will see the error and can respond\\n        self._process_llm_request()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0177MG2moP86gJQyN1jPSmWp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0177MG2moP86gJQyN1jPSmWp",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue - `_add_system_message` doesn't actually add anything to the prompt manager, so the AI won't see the error. Let me look at the change I made more carefully:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _on_stream_error(self, error_msg: str) -> None:\\n        \\\"\\\"\\\"Handle streaming error by feeding it back into the conversation\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.stream_thread:\\n            self.stream_thread.quit()\\n            self.stream_thread.wait()\\n            self.stream_thread = None\\n            self.stream_worker = None\\n\\n        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        # Remove the empty streaming message placeholder if present\\n        if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\" and not self.messages[-1].get(\\\"content\\\"):\\n            self.messages.pop()\\n\\n        # Add error as a system message that the AI will see\\n        error_content = f\\\"**Error from LLM provider:**\\\\n\\\\n```\\\\n{error_msg}\\\\n```\\\\n\\\\nPlease acknowledge this error and adjust your approach if needed.\\\"\\n        self._add_system_message(f\\\"\u274c {error_msg}\\\")\\n\\n        # Feed the error back into the conversation so AI can react\\n        self.session_manager.append_user_message(error_content)\\n\\n        # Continue the conversation - AI will see the error and can respond\\n        self._process_llm_request()\", \"replace\": \"    def _on_stream_error(self, error_msg: str) -> None:\\n        \\\"\\\"\\\"Handle streaming error by feeding it back into the conversation\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.stream_thread:\\n            self.stream_thread.quit()\\n            self.stream_thread.wait()\\n            self.stream_thread = None\\n            self.stream_worker = None\\n\\n        # Mark streaming as finished\\n        self._is_streaming = False\\n\\n        # Remove the empty streaming message placeholder if present\\n        if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\" and not self.messages[-1].get(\\\"content\\\"):\\n            self.messages.pop()\\n\\n        # Build error message for both display and LLM\\n        error_content = f\\\"**Error from LLM provider:**\\\\n\\\\n```\\\\n{error_msg}\\\\n```\\\\n\\\\nPlease acknowledge this error and adjust your approach if needed.\\\"\\n\\n        # Add to UI display\\n        self._add_system_message(f\\\"\u274c {error_msg}\\\")\\n\\n        # Add to conversation so AI sees it and can react\\n        # Using \\\"user\\\" role since that's what the AI will respond to\\n        self.add_message(\\\"user\\\", error_content)\\n        self.session_manager.append_user_message(error_content)\\n\\n        # Continue the conversation - AI will see the error and can respond\\n        self._process_llm_request()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01EMkqhc6WVNJdPC4PtHfQEJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EMkqhc6WVNJdPC4PtHfQEJ",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the change is in place. Now let me run checks:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01GYjqcgChH9XF4cx6z93VwE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GYjqcgChH9XF4cx6z93VwE",
+      "content": "{\"format_diffs\": {\"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -895,7 +895,11 @@         self._is_streaming = False\\n \\n         # Remove the empty streaming message placeholder if present\\n-        if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\" and not self.messages[-1].get(\\\"content\\\"):\\n+        if (\\n+            self.messages\\n+            and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\"\\n+            and not self.messages[-1].get(\\\"content\\\")\\n+        ):\\n             self.messages.pop()\\n \\n         # Build error message for both display and LLM\\n\"}, \"formatted_files\": [\"forge/ui/ai_chat_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 41 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -895,7 +895,11 @@         self._is_streaming = False\\n \\n         # Remove the empty streaming message placeholder if present\\n-        if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\" and not self.messages[-1].get(\\\"content\\\"):\\n+        if (\\n+            self.messages\\n+            and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\"\\n+            and not self.messages[-1].get(\\\"content\\\")\\n+        ):\\n             self.messages.pop()\\n \\n         # Build error message for both display and LLM\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 41 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All good. Now the error handling flow is:\n\n1. SSE stream receives a chunk with `\"error\"` field\n2. `chat_stream()` raises `RuntimeError` with the full error details\n3. `StreamWorker.run()` catches the exception and emits `error.emit(str(e))`\n4. `_on_stream_error()` receives the error message\n5. Error is displayed in the UI as a system message\n6. Error is added to the conversation as a user message so the AI sees it\n7. `_process_llm_request()` is called again to continue the conversation\n\nSo next time Google blocks something, I'll see the error and can react to it. Want to try the LICENSE file again with a different provider/model, or shall we continue with just the README update for now?"
     }
   ]
 }

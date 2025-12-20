@@ -883,7 +883,7 @@ class AIChatWidget(QWidget):
         self._reset_input()
 
     def _on_stream_error(self, error_msg: str) -> None:
-        """Handle streaming error"""
+        """Handle streaming error by feeding it back into the conversation"""
         # Clean up thread
         if self.stream_thread:
             self.stream_thread.quit()
@@ -894,13 +894,27 @@ class AIChatWidget(QWidget):
         # Mark streaming as finished
         self._is_streaming = False
 
-        self.add_message("assistant", f"Error: {error_msg}")
+        # Remove the empty streaming message placeholder if present
+        if (
+            self.messages
+            and self.messages[-1].get("role") == "assistant"
+            and not self.messages[-1].get("content")
+        ):
+            self.messages.pop()
 
-        # Emit signal that AI turn is finished (with empty string indicating no commit)
-        self.ai_turn_finished.emit("")
+        # Build error message for both display and LLM
+        error_content = f"**Error from LLM provider:**\n\n```\n{error_msg}\n```\n\nPlease acknowledge this error and adjust your approach if needed."
 
-        self._reset_input()
-        return
+        # Add to UI display
+        self._add_system_message(f"❌ {error_msg}")
+
+        # Add to conversation so AI sees it and can react
+        # Using "user" role since that's what the AI will respond to
+        self.add_message("user", error_content)
+        self.session_manager.append_user_message(error_content)
+
+        # Continue the conversation - AI will see the error and can respond
+        self._process_llm_request()
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread and continue conversation"""

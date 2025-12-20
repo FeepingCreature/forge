@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from src.vfs.work_in_progress import WorkInProgressVFS
+    from forge.vfs.work_in_progress import WorkInProgressVFS
 
 
 def get_schema() -> dict[str, Any]:

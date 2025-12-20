@@ -2,19 +2,19 @@
 
 # Type checking with mypy
 typecheck:
-	mypy --explicit-package-bases src/ main.py
+	mypy --explicit-package-bases forge/ main.py
 
 # Linting with ruff (auto-fix)
 lint:
-	ruff check --fix src/ main.py
+	ruff check --fix forge/ main.py
 
 # Linting without auto-fix (for CI)
 lint-check:
-	ruff check src/ main.py
+	ruff check forge/ main.py
 
 # Format code with ruff
 format:
-	ruff format src/ main.py
+	ruff format forge/ main.py
 
 # Run all checks (with auto-fix)
 check: typecheck lint

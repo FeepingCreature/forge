@@ -140,6 +140,176 @@
     {
       "role": "assistant",
       "content": "Done! I've created a new built-in tool `get_lines` that:\n\n1. **Takes parameters:**\n   - `filepath` (required): Path to the file\n   - `line` (required): Line number to center on (1-indexed)\n   - `context` (optional, default 10): Number of lines to show before and after\n\n2. **Returns:**\n   - The lines surrounding the target line, with line numbers\n   - The target line is marked with `>>>` for easy identification\n   - Metadata including the range shown and total lines in file\n\n3. **Example output:**\n   ```\n       45 | def some_function():\n       46 |     x = 1\n   >>> 47 |     problematic_line_here\n       48 |     y = 2\n       49 |     return x + y\n   ```\n\nThis will be useful for investigating error messages that reference specific line numbers without having to load the entire file into context."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 48 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Wanna try it out?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sure! Let me try out the new `get_lines` tool on a file in the codebase:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/tools/manager.py\", \"line\": 25, \"context\": 5}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01RFQVGfEd3gDhRVmtEuj33a",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RFQVGfEd3gDhRVmtEuj33a",
+      "content": "{\"success\": true, \"filepath\": \"src/tools/manager.py\", \"target_line\": 25, \"range\": \"20-30\", \"total_lines\": 297, \"content\": \"      20 | class ToolManager:\\n      21 |     \\\"\\\"\\\"Manages tools available to the LLM\\\"\\\"\\\"\\n      22 | \\n      23 |     # Built-in tools that are always approved\\n      24 |     BUILTIN_TOOLS = {\\n>>>   25 |         \\\"write_file\\\",\\n      26 |         \\\"delete_file\\\",\\n      27 |         \\\"search_replace\\\",\\n      28 |         \\\"update_context\\\",\\n      29 |         \\\"grep_open\\\",\\n      30 |         \\\"get_lines\\\",\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `get_lines`\n```json\n{\n  \"filepath\": \"src/tools/manager.py\",\n  \"line\": 25,\n  \"context\": 5\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"filepath\": \"src/tools/manager.py\",\n  \"target_line\": 25,\n  \"range\": \"20-30\",\n  \"total_lines\": 297,\n  \"content\": \"      20 | class ToolManager:\\n      21 |     \\\"\\\"\\\"Manages tools available to the LLM\\\"\\\"\\\"\\n      22 | \\n      23 |     # Built-in tools that are always approved\\n      24 |     BUILTIN_TOOLS = {\\n>>>   25 |         \\\"write_file\\\",\\n      26 |         \\\"delete_file\\\",\\n      27 |         \\\"search_replace\\\",\\n      28 |         \\\"update_context\\\",\\n      29 |         \\\"grep_open\\\",\\n      30 |         \\\"get_lines\\\",\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "It works! The tool shows:\n- Lines 20-30 of `src/tools/manager.py`\n- Line 25 is marked with `>>>` as the target line\n- Line numbers are clearly displayed\n- And I can see our new `get_lines` tool was successfully added to `BUILTIN_TOOLS` on line 30\n\nLet me also test a couple edge cases to make sure it handles them properly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/tools/manager.py\", \"line\": 1, \"context\": 3}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01JoELkmVEyDoe6Eej9bxE42",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"nonexistent_file.py\", \"line\": 10}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01SXtjmeXRifc2r8DKVKctYs",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JoELkmVEyDoe6Eej9bxE42",
+      "content": "{\"success\": true, \"filepath\": \"src/tools/manager.py\", \"target_line\": 1, \"range\": \"1-4\", \"total_lines\": 297, \"content\": \">>>    1 | \\\"\\\"\\\"\\n       2 | Tool manager for discovering and executing tools\\n       3 | \\\"\\\"\\\"\\n       4 | \"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `get_lines`\n```json\n{\n  \"filepath\": \"src/tools/manager.py\",\n  \"line\": 1,\n  \"context\": 3\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"filepath\": \"src/tools/manager.py\",\n  \"target_line\": 1,\n  \"range\": \"1-4\",\n  \"total_lines\": 297,\n  \"content\": \">>>    1 | \\\"\\\"\\\"\\n       2 | Tool manager for discovering and executing tools\\n       3 | \\\"\\\"\\\"\\n       4 | \"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SXtjmeXRifc2r8DKVKctYs",
+      "content": "{\"success\": false, \"error\": \"File not found: nonexistent_file.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `get_lines`\n```json\n{\n  \"filepath\": \"nonexistent_file.py\",\n  \"line\": 10\n}\n```\n**Result:**\n```json\n{\n  \"success\": false,\n  \"error\": \"File not found: nonexistent_file.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Both edge cases work correctly:\n\n1. **Line 1 with context** - It correctly clamps to the start of file (shows lines 1-4, doesn't try to show negative line numbers)\n2. **Nonexistent file** - Returns a clear error message\n\nThe tool is ready to use! \ud83c\udf89"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 1bcd6281",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Since we have prompt caching now, btw, can you adjust the prompt guidance to clarify that it's preferred to clean up the context at the end of a workstep (you did it right) because we don't pay for files that don't change. Also add guidance to add possibly-related files to the context aggressively to avoid creating code that doesn't match its callsite or target site."
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at the current system prompt to find the context management guidance:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GLa4yfD7wgZe5E8fNzyLcS",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GLa4yfD7wgZe5E8fNzyLcS",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/prompts/system.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/prompts/system.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/prompts/system.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/prompts/system.py\", \"search\": \"### Context Management\\n\\n- Files you add to context stay there until explicitly removed\\n- Use `grep_open` to efficiently discover and add relevant files\\n- Use `update_context` with `remove` to clean up files you no longer need\\n- Keep context focused - remove files once you're done with them\", \"replace\": \"### Context Management\\n\\n**Load aggressively, clean up at the end.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n\\n1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\\n\\nGuidelines:\\n- Use `grep_open` liberally to find all usages before changing interfaces\\n- When creating new code, load examples of similar code to match patterns\\n- When modifying a function, load its callers to understand usage\\n- After completing a task, remove files you won't need again\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01QveLHD5Zv9RqMz3NiRTT6f",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QveLHD5Zv9RqMz3NiRTT6f",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/prompts/system.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/prompts/system.py\",\n  \"search\": \"### Context Management\\n\\n- Files you add to context stay there until explicitly removed\\n- Use `grep_open` to efficiently discover and add relevant files\\n- Use `update_context` with `remove` to clean up files you no longer need\\n- Keep context focused - remove files once you're done with them\",\n  \"replace\": \"### Context Management\\n\\n**Load aggressively, clean up at the end.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n\\n1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\\n\\nGuidelines:\\n- Use `grep_open` liberally to find all usages before changing interfaces\\n- When creating new code, load examples of similar code to match patterns\\n- When modifying a function, load its callers to understand usage\\n- After completing a task, remove files you won't need again\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/prompts/system.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! Let me clean up the context now:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"src/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01RSdpJE4szovcFf26yXvB5j",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RSdpJE4szovcFf26yXvB5j",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"src/prompts/system.py\"], \"message\": \"Added 0 files, removed 1 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"src/prompts/system.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"src/prompts/system.py\"\n  ],\n  \"message\": \"Added 0 files, removed 1 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I updated the context management guidance to:\n\n1. **Lead with the key insight** - \"Load aggressively, clean up at the end\" with the explanation that caching makes unchanged files free\n2. **Encourage generous file loading** - Load callers, callees, and similar patterns to avoid coding blind\n3. **Clean up after tasks** - Remove files when done to keep context focused for the next task\n4. **Concrete examples** - When to use `grep_open`, loading examples for new code, loading callers when modifying functions"
     }
   ]
 }

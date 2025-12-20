@@ -57,10 +57,16 @@ Examples of batching:
 
 ### Context Management
 
-- Files you add to context stay there until explicitly removed
-- Use `grep_open` to efficiently discover and add relevant files
-- Use `update_context` with `remove` to clean up files you no longer need
-- Keep context focused - remove files once you're done with them
+**Load aggressively, clean up at the end.** Prompt caching means you don't pay for files that stay the same between turns, so:
+
+1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.
+2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.
+
+Guidelines:
+- Use `grep_open` liberally to find all usages before changing interfaces
+- When creating new code, load examples of similar code to match patterns
+- When modifying a function, load its callers to understand usage
+- After completing a task, remove files you won't need again
 
 # Work In Progress
 

@@ -392,12 +392,3 @@ class ToolManager:
     def clear_pending_changes(self) -> None:
         """Clear pending changes in VFS"""
         self.vfs.clear_pending_changes()
-
-    def commit_changes(
-        self,
-        message: str,
-        author_name: str = "Forge AI",
-        author_email: str = "ai@forge.dev",
-    ) -> str:
-        """Commit all pending changes via VFS"""
-        return self.vfs.commit(message, author_name, author_email)

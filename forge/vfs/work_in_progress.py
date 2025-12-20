@@ -145,8 +145,12 @@ class WorkInProgressVFS(VFS):
         workdir_is_clean = self.repo.is_workdir_clean() if is_checked_out_branch else False
 
         print(f"[WIP commit] branch={self.branch_name}, checked_out={checked_out}")
-        print(f"[WIP commit] is_checked_out_branch={is_checked_out_branch}, workdir_is_clean={workdir_is_clean}")
-        print(f"[WIP commit] pending_changes={list(self.pending_changes.keys())}, deleted={list(self.deleted_files)}")
+        print(
+            f"[WIP commit] is_checked_out_branch={is_checked_out_branch}, workdir_is_clean={workdir_is_clean}"
+        )
+        print(
+            f"[WIP commit] pending_changes={list(self.pending_changes.keys())}, deleted={list(self.deleted_files)}"
+        )
 
         # Build changes dict for create_tree_from_changes
         changes = self.pending_changes.copy()
@@ -163,10 +167,12 @@ class WorkInProgressVFS(VFS):
 
         # If we committed to the checked-out branch and workdir was clean, sync it
         if is_checked_out_branch and workdir_is_clean:
-            print(f"[WIP commit] syncing workdir to new commit")
+            print("[WIP commit] syncing workdir to new commit")
             self.repo.checkout_branch_head(self.branch_name)
         else:
-            print(f"[WIP commit] NOT syncing workdir (checked_out_branch={is_checked_out_branch}, clean={workdir_is_clean})")
+            print(
+                f"[WIP commit] NOT syncing workdir (checked_out_branch={is_checked_out_branch}, clean={workdir_is_clean})"
+            )
 
         # Clear pending changes
         self.clear_pending_changes()

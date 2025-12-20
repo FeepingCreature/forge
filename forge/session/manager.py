@@ -276,21 +276,13 @@ class SessionManager:
             else:
                 commit_message = self.generate_commit_message(all_changes)
 
-        # Build tree from VFS changes (including deletions)
-        tree_oid = self._repo.create_tree_from_changes(self.branch_name, all_changes, deleted_files)
-
-        # Create commit - will automatically absorb any PREPARE commits if MAJOR
-        commit_oid = self._repo.commit_tree(
-            tree_oid, commit_message, self.branch_name, commit_type=commit_type
-        )
-
-        # Clear VFS pending changes and refresh to new HEAD
-        self.tool_manager.clear_pending_changes()
+        # Commit via VFS - handles workdir sync automatically
+        commit_oid = self.tool_manager.vfs.commit(commit_message, commit_type=commit_type)
 
         # Refresh VFS to point to new commit (so next turn sees committed state)
         self.tool_manager.vfs = self._create_fresh_vfs()
 
-        return str(commit_oid)
+        return commit_oid
 
     def _create_fresh_vfs(self) -> "WorkInProgressVFS":
         """Create a fresh VFS pointing to current branch HEAD"""
@@ -357,7 +349,7 @@ Keep it under 72 characters."""
         # Filter out forge metadata files upfront
         files = [f for f in files if not f.startswith(".forge/")]
         total_files = len(files)
-        print(f"📝 Generating summaries for {total_files} files (cached summaries will be reused)")
+        print(f"� Generating summaries for {total_files} files (cached summaries will be reused)")
 
         for i, filepath in enumerate(files):
             # Report progress
@@ -384,7 +376,7 @@ Keep it under 72 characters."""
                     continue
 
             # Generate summary with cheap LLM
-            print(f"   🔄 {filepath} (generating...)")
+            print(f"   � {filepath} (generating...)")
             content = self.vfs.read_file(filepath)
 
             # Truncate very large files for summary generation

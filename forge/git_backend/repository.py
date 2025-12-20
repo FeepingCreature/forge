@@ -20,6 +20,39 @@ class ForgeRepository:
 
         self.repo = pygit2.Repository(repo_path)
 
+    def get_checked_out_branch(self) -> str | None:
+        """Get the name of the currently checked-out branch, or None if detached HEAD."""
+        if self.repo.head_is_detached:
+            return None
+        return self.repo.head.shorthand
+
+    def is_workdir_clean(self) -> bool:
+        """Check if the working directory has no uncommitted changes."""
+        # GIT_STATUS_CURRENT means the file is unchanged
+        # Any other status means there are changes
+        status = self.repo.status()
+        return len(status) == 0
+
+    def get_workdir_changes(self) -> dict[str, int]:
+        """Get a dict of filepath -> status flags for all changed files."""
+        return dict(self.repo.status())
+
+    def checkout_branch_head(self, branch_name: str) -> None:
+        """
+        Update the working directory to match a branch's HEAD.
+
+        Use this after committing to the currently checked-out branch
+        to keep the working directory in sync.
+
+        Args:
+            branch_name: The branch whose HEAD to check out
+        """
+        branch = self.repo.branches[branch_name]
+        commit = branch.peel(pygit2.Commit)
+        # Reset working directory to match the commit
+        self.repo.checkout_tree(commit, strategy=pygit2.GIT_CHECKOUT_FORCE)
+        # Update HEAD to point to this commit (already does via branch ref)
+
     def _find_repo(self) -> str:
         """Find git repository in current directory or parents"""
         current = Path.cwd()

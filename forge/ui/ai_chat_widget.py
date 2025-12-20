@@ -608,6 +608,50 @@ class AIChatWidget(QWidget):
     # Callback for parent to set - returns True if OK to proceed
     unsaved_changes_check: Any = None
 
+    def _check_workdir_state(self) -> bool:
+        """
+        Check if working directory is clean when working on the checked-out branch.
+
+        If the target branch is currently checked out and has uncommitted changes
+        in the working directory, we need to warn the user - those changes would
+        be overwritten when we sync the workdir after committing.
+
+        Returns True if OK to proceed, False to abort.
+        """
+        from PySide6.QtWidgets import QMessageBox
+
+        # repo is guaranteed non-None by __init__ assertion
+        assert self.repo is not None
+
+        # Check if we're working on the checked-out branch
+        checked_out = self.repo.get_checked_out_branch()
+        if checked_out != self.branch_name:
+            # Not working on the checked-out branch, no workdir concerns
+            return True
+
+        # Check if workdir is clean
+        if self.repo.is_workdir_clean():
+            return True
+
+        # Workdir has uncommitted changes - warn user
+        changes = self.repo.get_workdir_changes()
+        change_count = len(changes)
+
+        reply = QMessageBox.warning(
+            self,
+            "Uncommitted Working Directory Changes",
+            f"The working directory has {change_count} uncommitted change(s).\n\n"
+            f"You're working on '{self.branch_name}' which is currently checked out. "
+            f"AI changes will update the working directory, which will OVERWRITE these uncommitted changes.\n\n"
+            f"Options:\n"
+            f"• Cancel and commit/stash your changes first\n"
+            f"• Discard changes and proceed",
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Discard,
+            QMessageBox.StandardButton.Cancel,
+        )
+
+        return reply == QMessageBox.StandardButton.Discard
+
     def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
@@ -617,6 +661,10 @@ class AIChatWidget(QWidget):
         # Check for unsaved changes if callback is set
         if self.unsaved_changes_check is not None and not self.unsaved_changes_check():
             return  # User cancelled or needs to save first
+
+        # Check working directory state if on checked-out branch
+        if not self._check_workdir_state():
+            return  # User cancelled or workdir has uncommitted changes
 
         # Normal message flow - add to both UI messages and prompt manager
         self.add_message("user", text)

@@ -216,14 +216,15 @@ def render_diff_html(
         # Nothing to show yet
         lines.append('<div class="diff-streaming-indicator">Waiting for content...</div>')
     elif not replace:
-        # Only have search text - show as deletions (preview what will be replaced)
+        # Only have search text - show as normal/context (not red yet)
+        # Red only appears once we have replacement text to contrast with
         search_lines = search.split("\n")
         for i, line in enumerate(search_lines):
             escaped_line = html.escape(line)
             is_last = i == len(search_lines) - 1
             cursor = '<span class="diff-cursor">▋</span>' if is_streaming and is_last else ""
-            lines.append('<div class="diff-line deletion">')
-            lines.append('<span class="diff-line-number">-</span>')
+            lines.append('<div class="diff-line context">')
+            lines.append('<span class="diff-line-number"></span>')
             lines.append(f'<span class="diff-line-content">{escaped_line}{cursor}</span>')
             lines.append("</div>")
     else:
@@ -253,6 +254,21 @@ def render_diff_html(
                 lines.append(f'<span class="diff-line-content">{escaped_line}</span>')
                 lines.append("</div>")
         else:
+            # When streaming, find the last contiguous block of deletions
+            # (deletions not followed by any additions). These should show
+            # as context/normal since we haven't seen their replacements yet.
+            trailing_deletion_start = -1
+            if is_streaming and streaming_phase == "replace":
+                # Walk backwards to find where trailing deletions start
+                last_addition_idx = -1
+                for i in range(len(diff_lines) - 1, -1, -1):
+                    if diff_lines[i] and diff_lines[i][0] == "+":
+                        last_addition_idx = i
+                        break
+                # All deletions after the last addition are "trailing"
+                if last_addition_idx < len(diff_lines) - 1:
+                    trailing_deletion_start = last_addition_idx + 1
+
             # Render diff lines
             for i, diff_line in enumerate(diff_lines):
                 if not diff_line:
@@ -269,7 +285,12 @@ def render_diff_html(
                     else ""
                 )
 
-                if prefix == "-":
+                # Check if this deletion is in the trailing block (show as context)
+                is_trailing_deletion = (
+                    prefix == "-" and trailing_deletion_start != -1 and i >= trailing_deletion_start
+                )
+
+                if prefix == "-" and not is_trailing_deletion:
                     lines.append('<div class="diff-line deletion">')
                     lines.append('<span class="diff-line-number">-</span>')
                     lines.append(f'<span class="diff-line-content">{escaped_content}</span>')
@@ -282,9 +303,12 @@ def render_diff_html(
                     )
                     lines.append("</div>")
                 else:
+                    # Context lines, or trailing deletions shown as context
                     lines.append('<div class="diff-line context">')
                     lines.append('<span class="diff-line-number"></span>')
-                    lines.append(f'<span class="diff-line-content">{escaped_content}</span>')
+                    lines.append(
+                        f'<span class="diff-line-content">{escaped_content}{cursor}</span>'
+                    )
                     lines.append("</div>")
 
     lines.append("</div>")  # diff-content
@@ -337,4 +361,25 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         replace=replace,
         is_streaming=True,
         streaming_phase=streaming_phase,
+    )
+
+
+def render_completed_diff_html(filepath: str, search: str, replace: str) -> str:
+    """
+    Render a completed diff view (no cursor, all deletions shown as red).
+
+    Args:
+        filepath: Path to the file being edited
+        search: The search text (content being replaced)
+        replace: The replace text (new content)
+
+    Returns:
+        HTML string for the completed diff view
+    """
+    return render_diff_html(
+        filepath=filepath,
+        search=search,
+        replace=replace,
+        is_streaming=False,
+        streaming_phase="replace",
     )

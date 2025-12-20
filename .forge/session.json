@@ -1,40 +1,39 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "src/tools/builtin/write_file.py",
-    "src/git_backend/commit_types.py",
-    "src/vfs/__init__.py",
-    "src/ui/diff_view.py",
-    "src/vfs/work_in_progress.py",
-    "src/session/__init__.py",
-    "src/tools/builtin/get_lines.py",
-    "src/ui/editor_widget.py",
-    "src/ui/__init__.py",
-    "src/llm/client.py",
-    "src/git_backend/__init__.py",
-    "src/tools/builtin/update_context.py",
-    "src/prompts.py",
     "src/tools/builtin/search_replace.py",
-    "NEW_TODO.md",
-    "src/prompts/system.py",
-    "NEW_DESIGN.md",
-    "requirements.txt",
-    "src/config/settings.py",
-    "src/vfs/git_commit.py",
-    "Makefile",
-    "src/prompts/__init__.py",
-    "README.md",
-    "main.py",
+    "src/tools/builtin/write_file.py",
+    "src/tools/builtin/get_lines.py",
     "src/llm/__init__.py",
-    "pyproject.toml",
-    "src/tools/builtin/__init__.py",
     "src/config/__init__.py",
-    ".gitignore",
-    "src/tools/__init__.py",
-    "src/tools/builtin/grep_open.py",
-    "src/vfs/base.py",
+    "src/tools/builtin/__init__.py",
+    "src/git_backend/commit_types.py",
+    "src/vfs/work_in_progress.py",
+    "main.py",
+    "src/ui/__init__.py",
+    "src/vfs/git_commit.py",
+    "src/session/__init__.py",
+    "src/ui/editor_widget.py",
+    "requirements.txt",
+    "src/git_backend/__init__.py",
     "src/ui/branch_workspace.py",
-    "src/tools/builtin/delete_file.py"
+    ".gitignore",
+    "NEW_TODO.md",
+    "NEW_DESIGN.md",
+    "src/prompts/__init__.py",
+    "src/tools/builtin/delete_file.py",
+    "src/llm/client.py",
+    "CLAUDE.md",
+    "src/prompts.py",
+    "src/tools/builtin/update_context.py",
+    "src/config/settings.py",
+    "README.md",
+    "src/tools/__init__.py",
+    "Makefile",
+    "src/vfs/__init__.py",
+    "src/prompts/system.py",
+    "pyproject.toml",
+    "src/vfs/base.py",
+    "src/tools/builtin/grep_open.py"
   ],
   "messages": [
     {
@@ -374,6 +373,244 @@
     {
       "role": "assistant",
       "content": "Here's what I built:\n\n## Summary\n\nCreated a **live diff view** for `search_replace` tool calls that shows the edit being constructed as it streams:\n\n### New file: `src/ui/diff_view.py`\n\n1. **`get_diff_styles()`** - CSS for the diff view with:\n   - Dark theme with red/green diff colors\n   - Blinking cursor animation\n   - Header showing filepath and streaming status\n\n2. **`parse_partial_json()`** - Parses incomplete JSON from streaming, extracting `filepath`, `search`, and `replace` as they become available\n\n3. **`render_diff_html()`** - Renders the diff view:\n   - During \"search\" phase: shows all lines as red deletions with blinking cursor\n   - During \"replace\" phase: computes actual diff using `difflib.unified_diff`, showing red deletions and green additions with cursor on the last addition line\n   - Final state: complete diff without cursor\n\n4. **`render_streaming_tool_html()`** - Hook for the AI chat widget to detect `search_replace` and return the special HTML\n\n### Integration in `src/ui/ai_chat_widget.py`\n\n- Added import for the new module\n- Modified `_update_streaming_tool_calls()` to check for special rendering via `render_streaming_tool_html()`\n- Added diff styles to the chat CSS via `get_diff_styles()`\n\n### UX Flow\n\n1. User asks for an edit\n2. AI starts streaming `search_replace` tool call\n3. As `filepath` streams in \u2192 header shows filename\n4. As `search` streams in \u2192 red deletion lines appear with blinking cursor\n5. As `replace` streams in \u2192 view transforms to actual diff (red vs green) with cursor on additions\n6. When done \u2192 final diff displayed (no cursor)"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 50 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Can you make sure the blink cursor goes away after the tool call is done? Also, the \"search\" lines should stream in as normal-colored; red should only show up once you have \"replace\" showing some lines. The easy coherent way to fix this is to show the *last* red block as normal-colored. That way, the \"search\" red block will naturally show up normal, and we'll only see red once there's at least one green line."
+    },
+    {
+      "role": "assistant",
+      "content": "Makes sense! The cursor should disappear when streaming is done, and we should only show red (deletions) once we have some green (additions) to contrast with. Let me fix the diff view:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/ui/diff_view.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01BnnKpZyc37r9t3czmASckY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BnnKpZyc37r9t3czmASckY",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/ui/diff_view.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/ui/diff_view.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/diff_view.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the full file. Let me make the changes:\n\n1. Show search lines as normal-colored (context) when there's no replace yet\n2. When we have both, only show deletions as red if there are additions after them (i.e., show the last contiguous block of deletions as normal if no additions follow)\n3. No cursor when not streaming",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/diff_view.py\", \"search\": \"    if not search and not replace:\\n        # Nothing to show yet\\n        lines.append('<div class=\\\"diff-streaming-indicator\\\">Waiting for content...</div>')\\n    elif not replace:\\n        # Only have search text - show as deletions (preview what will be replaced)\\n        search_lines = search.split(\\\"\\\\n\\\")\\n        for i, line in enumerate(search_lines):\\n            escaped_line = html.escape(line)\\n            is_last = i == len(search_lines) - 1\\n            cursor = '<span class=\\\"diff-cursor\\\">\u258b</span>' if is_streaming and is_last else \\\"\\\"\\n            lines.append('<div class=\\\"diff-line deletion\\\">')\\n            lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n            lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}{cursor}</span>')\\n            lines.append(\\\"</div>\\\")\", \"replace\": \"    if not search and not replace:\\n        # Nothing to show yet\\n        lines.append('<div class=\\\"diff-streaming-indicator\\\">Waiting for content...</div>')\\n    elif not replace:\\n        # Only have search text - show as normal/context (not red yet)\\n        # Red only appears once we have replacement text to contrast with\\n        search_lines = search.split(\\\"\\\\n\\\")\\n        for i, line in enumerate(search_lines):\\n            escaped_line = html.escape(line)\\n            is_last = i == len(search_lines) - 1\\n            cursor = '<span class=\\\"diff-cursor\\\">\u258b</span>' if is_streaming and is_last else \\\"\\\"\\n            lines.append('<div class=\\\"diff-line context\\\">')\\n            lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n            lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}{cursor}</span>')\\n            lines.append(\\\"</div>\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01EpUi5KoJDuJWZTNQsc6mxr",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EpUi5KoJDuJWZTNQsc6mxr",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/diff_view.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/diff_view.py\",\n  \"search\": \"    if not search and not replace:\\n        # Nothing to show yet\\n        lines.append('<div class=\\\"diff-streaming-indicator\\\">Waiting for content...</div>')\\n    elif not replace:\\n        # Only have search text - show as deletions (preview what will be replaced)\\n        search_lines = search.split(\\\"\\\\n\\\")\\n        for i, line in enumerate(search_lines):\\n            escaped_line = html.escape(line)\\n            is_last = i == len(search_lines) - 1\\n            cursor = '<span class=\\\"diff-cursor\\\">\\u258b</span>' if is_streaming and is_last else \\\"\\\"\\n            lines.append('<div class=\\\"diff-line deletion\\\">')\\n            lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n            lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}{cursor}</span>')\\n            lines.append(\\\"</div>\\\")\",\n  \"replace\": \"    if not search and not replace:\\n        # Nothing to show yet\\n        lines.append('<div class=\\\"diff-streaming-indicator\\\">Waiting for content...</div>')\\n    elif not replace:\\n        # Only have search text - show as normal/context (not red yet)\\n        # Red only appears once we have replacement text to contrast with\\n        search_lines = search.split(\\\"\\\\n\\\")\\n        for i, line in enumerate(search_lines):\\n            escaped_line = html.escape(line)\\n            is_last = i == len(search_lines) - 1\\n            cursor = '<span class=\\\"diff-cursor\\\">\\u258b</span>' if is_streaming and is_last else \\\"\\\"\\n            lines.append('<div class=\\\"diff-line context\\\">')\\n            lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n            lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}{cursor}</span>')\\n            lines.append(\\\"</div>\\\")\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/diff_view.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, now I need to handle the case where we have both search and replace but the replace is still streaming. The issue is that during streaming, the last block of deletions (before any additions have been received) should show as normal-colored. Let me think about this more carefully:\n\nWhen streaming replace, `difflib` will show deletions for lines that exist in search but not (yet) in replace. The last contiguous block of deletions should be shown as context (normal) since we haven't seen their replacements yet.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/diff_view.py\", \"search\": \"        if not diff_lines:\\n            # No actual differences (shouldn't happen, but handle it)\\n            for i, line in enumerate(replace_lines):\\n                escaped_line = html.escape(line)\\n                lines.append('<div class=\\\"diff-line context\\\">')\\n                lines.append(f'<span class=\\\"diff-line-number\\\">{i + 1}</span>')\\n                lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}</span>')\\n                lines.append(\\\"</div>\\\")\\n        else:\\n            # Render diff lines\\n            for i, diff_line in enumerate(diff_lines):\\n                if not diff_line:\\n                    continue\\n\\n                prefix = diff_line[0] if diff_line else \\\" \\\"\\n                content = diff_line[1:] if len(diff_line) > 1 else \\\"\\\"\\n                escaped_content = html.escape(content)\\n\\n                is_last = i == len(diff_lines) - 1\\n                cursor = (\\n                    '<span class=\\\"diff-cursor\\\">\u258b</span>'\\n                    if is_streaming and streaming_phase == \\\"replace\\\" and is_last\\n                    else \\\"\\\"\\n                )\\n\\n                if prefix == \\\"-\\\":\\n                    lines.append('<div class=\\\"diff-line deletion\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\\n                elif prefix == \\\"+\\\":\\n                    lines.append('<div class=\\\"diff-line addition\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">+</span>')\\n                    lines.append(\\n                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n                    )\\n                    lines.append(\\\"</div>\\\")\\n                else:\\n                    lines.append('<div class=\\\"diff-line context\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\", \"replace\": \"        if not diff_lines:\\n            # No actual differences (shouldn't happen, but handle it)\\n            for i, line in enumerate(replace_lines):\\n                escaped_line = html.escape(line)\\n                lines.append('<div class=\\\"diff-line context\\\">')\\n                lines.append(f'<span class=\\\"diff-line-number\\\">{i + 1}</span>')\\n                lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}</span>')\\n                lines.append(\\\"</div>\\\")\\n        else:\\n            # When streaming, find the last contiguous block of deletions\\n            # (deletions not followed by any additions). These should show\\n            # as context/normal since we haven't seen their replacements yet.\\n            trailing_deletion_start = -1\\n            if is_streaming and streaming_phase == \\\"replace\\\":\\n                # Walk backwards to find where trailing deletions start\\n                last_addition_idx = -1\\n                for i in range(len(diff_lines) - 1, -1, -1):\\n                    if diff_lines[i] and diff_lines[i][0] == \\\"+\\\":\\n                        last_addition_idx = i\\n                        break\\n                # All deletions after the last addition are \\\"trailing\\\"\\n                if last_addition_idx < len(diff_lines) - 1:\\n                    trailing_deletion_start = last_addition_idx + 1\\n\\n            # Render diff lines\\n            for i, diff_line in enumerate(diff_lines):\\n                if not diff_line:\\n                    continue\\n\\n                prefix = diff_line[0] if diff_line else \\\" \\\"\\n                content = diff_line[1:] if len(diff_line) > 1 else \\\"\\\"\\n                escaped_content = html.escape(content)\\n\\n                is_last = i == len(diff_lines) - 1\\n                cursor = (\\n                    '<span class=\\\"diff-cursor\\\">\u258b</span>'\\n                    if is_streaming and streaming_phase == \\\"replace\\\" and is_last\\n                    else \\\"\\\"\\n                )\\n\\n                # Check if this deletion is in the trailing block (show as context)\\n                is_trailing_deletion = (\\n                    prefix == \\\"-\\\"\\n                    and trailing_deletion_start != -1\\n                    and i >= trailing_deletion_start\\n                )\\n\\n                if prefix == \\\"-\\\" and not is_trailing_deletion:\\n                    lines.append('<div class=\\\"diff-line deletion\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\\n                elif prefix == \\\"+\\\":\\n                    lines.append('<div class=\\\"diff-line addition\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">+</span>')\\n                    lines.append(\\n                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n                    )\\n                    lines.append(\\\"</div>\\\")\\n                else:\\n                    # Context lines, or trailing deletions shown as context\\n                    lines.append('<div class=\\\"diff-line context\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>')\\n                    lines.append(\\\"</div>\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01UA9KtZasJZMFRfEMabWiPL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UA9KtZasJZMFRfEMabWiPL",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/diff_view.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/diff_view.py\",\n  \"search\": \"        if not diff_lines:\\n            # No actual differences (shouldn't happen, but handle it)\\n            for i, line in enumerate(replace_lines):\\n                escaped_line = html.escape(line)\\n                lines.append('<div class=\\\"diff-line context\\\">')\\n                lines.append(f'<span class=\\\"diff-line-number\\\">{i + 1}</span>')\\n                lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}</span>')\\n                lines.append(\\\"</div>\\\")\\n        else:\\n            # Render diff lines\\n            for i, diff_line in enumerate(diff_lines):\\n                if not diff_line:\\n                    continue\\n\\n                prefix = diff_line[0] if diff_line else \\\" \\\"\\n                content = diff_line[1:] if len(diff_line) > 1 else \\\"\\\"\\n                escaped_content = html.escape(content)\\n\\n                is_last = i == len(diff_lines) - 1\\n                cursor = (\\n                    '<span class=\\\"diff-cursor\\\">\\u258b</span>'\\n                    if is_streaming and streaming_phase == \\\"replace\\\" and is_last\\n                    else \\\"\\\"\\n                )\\n\\n                if prefix == \\\"-\\\":\\n                    lines.append('<div class=\\\"diff-line deletion\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\\n                elif prefix == \\\"+\\\":\\n                    lines.append('<div class=\\\"diff-line addition\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">+</span>')\\n                    lines.append(\\n                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n                    )\\n                    lines.append(\\\"</div>\\\")\\n                else:\\n                    lines.append('<div class=\\\"diff-line context\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\",\n  \"replace\": \"        if not diff_lines:\\n            # No actual differences (shouldn't happen, but handle it)\\n            for i, line in enumerate(replace_lines):\\n                escaped_line = html.escape(line)\\n                lines.append('<div class=\\\"diff-line context\\\">')\\n                lines.append(f'<span class=\\\"diff-line-number\\\">{i + 1}</span>')\\n                lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_line}</span>')\\n                lines.append(\\\"</div>\\\")\\n        else:\\n            # When streaming, find the last contiguous block of deletions\\n            # (deletions not followed by any additions). These should show\\n            # as context/normal since we haven't seen their replacements yet.\\n            trailing_deletion_start = -1\\n            if is_streaming and streaming_phase == \\\"replace\\\":\\n                # Walk backwards to find where trailing deletions start\\n                last_addition_idx = -1\\n                for i in range(len(diff_lines) - 1, -1, -1):\\n                    if diff_lines[i] and diff_lines[i][0] == \\\"+\\\":\\n                        last_addition_idx = i\\n                        break\\n                # All deletions after the last addition are \\\"trailing\\\"\\n                if last_addition_idx < len(diff_lines) - 1:\\n                    trailing_deletion_start = last_addition_idx + 1\\n\\n            # Render diff lines\\n            for i, diff_line in enumerate(diff_lines):\\n                if not diff_line:\\n                    continue\\n\\n                prefix = diff_line[0] if diff_line else \\\" \\\"\\n                content = diff_line[1:] if len(diff_line) > 1 else \\\"\\\"\\n                escaped_content = html.escape(content)\\n\\n                is_last = i == len(diff_lines) - 1\\n                cursor = (\\n                    '<span class=\\\"diff-cursor\\\">\\u258b</span>'\\n                    if is_streaming and streaming_phase == \\\"replace\\\" and is_last\\n                    else \\\"\\\"\\n                )\\n\\n                # Check if this deletion is in the trailing block (show as context)\\n                is_trailing_deletion = (\\n                    prefix == \\\"-\\\"\\n                    and trailing_deletion_start != -1\\n                    and i >= trailing_deletion_start\\n                )\\n\\n                if prefix == \\\"-\\\" and not is_trailing_deletion:\\n                    lines.append('<div class=\\\"diff-line deletion\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">-</span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}</span>')\\n                    lines.append(\\\"</div>\\\")\\n                elif prefix == \\\"+\\\":\\n                    lines.append('<div class=\\\"diff-line addition\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\">+</span>')\\n                    lines.append(\\n                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n                    )\\n                    lines.append(\\\"</div>\\\")\\n                else:\\n                    # Context lines, or trailing deletions shown as context\\n                    lines.append('<div class=\\\"diff-line context\\\">')\\n                    lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>')\\n                    lines.append(\\\"</div>\\\")\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/diff_view.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to also handle the completed tool call case. Looking at the code, I notice that `render_streaming_tool_html` always passes `is_streaming=True`. But for completed tool calls, we need a way to render them with `is_streaming=False` so the cursor goes away.\n\nLet me check how the AI chat widget renders completed tool calls vs streaming ones:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GHKtMnTXEzXAaHEz8LJYHs",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GHKtMnTXEzXAaHEz8LJYHs",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The streaming tool calls are rendered via `render_streaming_tool_html` which always passes `is_streaming=True`. When the stream finishes, `_on_stream_finished` is called which:\n1. Sets `self._is_streaming = False`\n2. Clears `self._streaming_tool_calls = []`\n3. Calls `_finalize_streaming_content()`\n\nBut the tool call display isn't explicitly updated to remove the cursor. The tool calls are shown in a `.streaming-tools` div that gets cleared when we call `_update_chat_display()` after streaming ends.\n\nLooking more carefully, when streaming finishes with tool calls, we don't re-render the completed diff view - we just clear the streaming tool calls and proceed to execute them. The streaming div disappears when `_update_chat_display` is called (since `_streaming_tool_calls` is empty).\n\nThe issue is that after streaming completes, we should show the *final* diff view (without cursor) as part of the tool execution display. Let me add a function to render a completed tool call and use it in `_execute_tool_calls`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/diff_view.py\", \"search\": \"def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:\\n    \\\"\\\"\\\"\\n    Render a streaming tool call as HTML.\\n\\n    For search_replace, returns a diff view.\\n    For other tools, returns None (use default rendering).\\n\\n    Args:\\n        tool_call: The tool call dict with function.name and function.arguments\\n\\n    Returns:\\n        HTML string for special rendering, or None for default\\n    \\\"\\\"\\\"\\n    func = tool_call.get(\\\"function\\\", {})\\n    if not isinstance(func, dict):\\n        return None\\n\\n    name = func.get(\\\"name\\\", \\\"\\\")\\n    args_str = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n    if name != \\\"search_replace\\\" or not isinstance(args_str, str):\\n        return None\\n\\n    # Parse the streaming arguments\\n    parsed = parse_partial_json(args_str)\\n\\n    filepath = parsed.get(\\\"filepath\\\", \\\"\\\")\\n    search = parsed.get(\\\"search\\\", \\\"\\\")\\n    replace = parsed.get(\\\"replace\\\", \\\"\\\")\\n\\n    # Determine streaming phase\\n    if \\\"replace\\\" in parsed:\\n        streaming_phase = \\\"replace\\\"\\n    elif \\\"search\\\" in parsed:\\n        streaming_phase = \\\"search\\\"\\n    else:\\n        streaming_phase = \\\"search\\\"\\n\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=True,\\n        streaming_phase=streaming_phase,\\n    )\", \"replace\": \"def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:\\n    \\\"\\\"\\\"\\n    Render a streaming tool call as HTML.\\n\\n    For search_replace, returns a diff view.\\n    For other tools, returns None (use default rendering).\\n\\n    Args:\\n        tool_call: The tool call dict with function.name and function.arguments\\n\\n    Returns:\\n        HTML string for special rendering, or None for default\\n    \\\"\\\"\\\"\\n    func = tool_call.get(\\\"function\\\", {})\\n    if not isinstance(func, dict):\\n        return None\\n\\n    name = func.get(\\\"name\\\", \\\"\\\")\\n    args_str = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n    if name != \\\"search_replace\\\" or not isinstance(args_str, str):\\n        return None\\n\\n    # Parse the streaming arguments\\n    parsed = parse_partial_json(args_str)\\n\\n    filepath = parsed.get(\\\"filepath\\\", \\\"\\\")\\n    search = parsed.get(\\\"search\\\", \\\"\\\")\\n    replace = parsed.get(\\\"replace\\\", \\\"\\\")\\n\\n    # Determine streaming phase\\n    if \\\"replace\\\" in parsed:\\n        streaming_phase = \\\"replace\\\"\\n    elif \\\"search\\\" in parsed:\\n        streaming_phase = \\\"search\\\"\\n    else:\\n        streaming_phase = \\\"search\\\"\\n\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=True,\\n        streaming_phase=streaming_phase,\\n    )\\n\\n\\ndef render_completed_diff_html(filepath: str, search: str, replace: str) -> str:\\n    \\\"\\\"\\\"\\n    Render a completed diff view (no cursor, all deletions shown as red).\\n\\n    Args:\\n        filepath: Path to the file being edited\\n        search: The search text (content being replaced)\\n        replace: The replace text (new content)\\n\\n    Returns:\\n        HTML string for the completed diff view\\n    \\\"\\\"\\\"\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=False,\\n        streaming_phase=\\\"replace\\\",\\n    )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01HdBHRQT4a3jRMoqG9Yvviu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HdBHRQT4a3jRMoqG9Yvviu",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/diff_view.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/diff_view.py\",\n  \"search\": \"def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:\\n    \\\"\\\"\\\"\\n    Render a streaming tool call as HTML.\\n\\n    For search_replace, returns a diff view.\\n    For other tools, returns None (use default rendering).\\n\\n    Args:\\n        tool_call: The tool call dict with function.name and function.arguments\\n\\n    Returns:\\n        HTML string for special rendering, or None for default\\n    \\\"\\\"\\\"\\n    func = tool_call.get(\\\"function\\\", {})\\n    if not isinstance(func, dict):\\n        return None\\n\\n    name = func.get(\\\"name\\\", \\\"\\\")\\n    args_str = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n    if name != \\\"search_replace\\\" or not isinstance(args_str, str):\\n        return None\\n\\n    # Parse the streaming arguments\\n    parsed = parse_partial_json(args_str)\\n\\n    filepath = parsed.get(\\\"filepath\\\", \\\"\\\")\\n    search = parsed.get(\\\"search\\\", \\\"\\\")\\n    replace = parsed.get(\\\"replace\\\", \\\"\\\")\\n\\n    # Determine streaming phase\\n    if \\\"replace\\\" in parsed:\\n        streaming_phase = \\\"replace\\\"\\n    elif \\\"search\\\" in parsed:\\n        streaming_phase = \\\"search\\\"\\n    else:\\n        streaming_phase = \\\"search\\\"\\n\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=True,\\n        streaming_phase=streaming_phase,\\n    )\",\n  \"replace\": \"def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:\\n    \\\"\\\"\\\"\\n    Render a streaming tool call as HTML.\\n\\n    For search_replace, returns a diff view.\\n    For other tools, returns None (use default rendering).\\n\\n    Args:\\n        tool_call: The tool call dict with function.name and function.arguments\\n\\n    Returns:\\n        HTML string for special rendering, or None for default\\n    \\\"\\\"\\\"\\n    func = tool_call.get(\\\"function\\\", {})\\n    if not isinstance(func, dict):\\n        return None\\n\\n    name = func.get(\\\"name\\\", \\\"\\\")\\n    args_str = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n    if name != \\\"search_replace\\\" or not isinstance(args_str, str):\\n        return None\\n\\n    # Parse the streaming arguments\\n    parsed = parse_partial_json(args_str)\\n\\n    filepath = parsed.get(\\\"filepath\\\", \\\"\\\")\\n    search = parsed.get(\\\"search\\\", \\\"\\\")\\n    replace = parsed.get(\\\"replace\\\", \\\"\\\")\\n\\n    # Determine streaming phase\\n    if \\\"replace\\\" in parsed:\\n        streaming_phase = \\\"replace\\\"\\n    elif \\\"search\\\" in parsed:\\n        streaming_phase = \\\"search\\\"\\n    else:\\n        streaming_phase = \\\"search\\\"\\n\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=True,\\n        streaming_phase=streaming_phase,\\n    )\\n\\n\\ndef render_completed_diff_html(filepath: str, search: str, replace: str) -> str:\\n    \\\"\\\"\\\"\\n    Render a completed diff view (no cursor, all deletions shown as red).\\n\\n    Args:\\n        filepath: Path to the file being edited\\n        search: The search text (content being replaced)\\n        replace: The replace text (new content)\\n\\n    Returns:\\n        HTML string for the completed diff view\\n    \\\"\\\"\\\"\\n    return render_diff_html(\\n        filepath=filepath,\\n        search=search,\\n        replace=replace,\\n        is_streaming=False,\\n        streaming_phase=\\\"replace\\\",\\n    )\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/diff_view.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update the AI chat widget to use this completed diff view when displaying the tool call result. Let me find where the tool call display is built:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"from .diff_view import get_diff_styles, render_streaming_tool_html\", \"replace\": \"from .diff_view import get_diff_styles, render_completed_diff_html, render_streaming_tool_html\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01BjpM9JT1ZNLrHFykcGFC4S",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BjpM9JT1ZNLrHFykcGFC4S",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"from .diff_view import get_diff_styles, render_streaming_tool_html\",\n  \"replace\": \"from .diff_view import get_diff_styles, render_completed_diff_html, render_streaming_tool_html\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to find where the tool calls are displayed after execution. Looking at `_execute_tool_calls`, I can see that after executing a tool, it adds a system message with the tool call details. For `search_replace`, I should use the completed diff view instead of the raw JSON.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"            # Build unified tool call display message\\n            tool_display_parts = [\\n                f\\\"\ud83d\udd27 **Tool call:** `{tool_name}`\\\",\\n                f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                \\\"**Result:**\\\",\\n                f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n            ]\", \"replace\": \"            # Build unified tool call display message\\n            # For search_replace, show a nice diff view instead of raw JSON\\n            if tool_name == \\\"search_replace\\\" and result.get(\\\"success\\\"):\\n                filepath = tool_args.get(\\\"filepath\\\", \\\"\\\")\\n                search = tool_args.get(\\\"search\\\", \\\"\\\")\\n                replace = tool_args.get(\\\"replace\\\", \\\"\\\")\\n                diff_html = render_completed_diff_html(filepath, search, replace)\\n                tool_display_parts = [diff_html]\\n            else:\\n                tool_display_parts = [\\n                    f\\\"\ud83d\udd27 **Tool call:** `{tool_name}`\\\",\\n                    f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                    \\\"**Result:**\\\",\\n                    f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n                ]\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01DJNDj5m5dUXBKxJqMgjoem",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DJNDj5m5dUXBKxJqMgjoem",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"src/ui/ai_chat_widget.py\",\n  \"search\": \"            # Build unified tool call display message\\n            tool_display_parts = [\\n                f\\\"\\ud83d\\udd27 **Tool call:** `{tool_name}`\\\",\\n                f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                \\\"**Result:**\\\",\\n                f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n            ]\",\n  \"replace\": \"            # Build unified tool call display message\\n            # For search_replace, show a nice diff view instead of raw JSON\\n            if tool_name == \\\"search_replace\\\" and result.get(\\\"success\\\"):\\n                filepath = tool_args.get(\\\"filepath\\\", \\\"\\\")\\n                search = tool_args.get(\\\"search\\\", \\\"\\\")\\n                replace = tool_args.get(\\\"replace\\\", \\\"\\\")\\n                diff_html = render_completed_diff_html(filepath, search, replace)\\n                tool_display_parts = [diff_html]\\n            else:\\n                tool_display_parts = [\\n                    f\\\"\\ud83d\\udd27 **Tool call:** `{tool_name}`\\\",\\n                    f\\\"```json\\\\n{json.dumps(tool_args, indent=2)}\\\\n```\\\",\\n                    \\\"**Result:**\\\",\\n                    f\\\"```json\\\\n{json.dumps(result, indent=2)}\\\\n```\\\",\\n                ]\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"message\": \"Replaced in src/ui/ai_chat_widget.py\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything is working:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_018tBTNLaS8pwk4WM86pbpxm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018tBTNLaS8pwk4WM86pbpxm",
+      "content": "{\"success\": true, \"formatted_files\": [\"src/ui/diff_view.py\"], \"format_diffs\": {\"src/ui/diff_view.py\": \"--- before+++ after@@ -287,9 +287,7 @@ \\n                 # Check if this deletion is in the trailing block (show as context)\\n                 is_trailing_deletion = (\\n-                    prefix == \\\"-\\\"\\n-                    and trailing_deletion_start != -1\\n-                    and i >= trailing_deletion_start\\n+                    prefix == \\\"-\\\" and trailing_deletion_start != -1 and i >= trailing_deletion_start\\n                 )\\n \\n                 if prefix == \\\"-\\\" and not is_trailing_deletion:\\n@@ -308,7 +306,9 @@                     # Context lines, or trailing deletions shown as context\\n                     lines.append('<div class=\\\"diff-line context\\\">')\\n                     lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n-                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>')\\n+                    lines.append(\\n+                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n+                    )\\n                     lines.append(\\\"</div>\\\")\\n \\n     lines.append(\\\"</div>\\\")  # diff-content\\n\"}, \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\", \"typecheck_passed\": true, \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"summary\": \"Formatted 1 files: src/ui/diff_view.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"formatted_files\": [\n    \"src/ui/diff_view.py\"\n  ],\n  \"format_diffs\": {\n    \"src/ui/diff_view.py\": \"--- before+++ after@@ -287,9 +287,7 @@ \\n                 # Check if this deletion is in the trailing block (show as context)\\n                 is_trailing_deletion = (\\n-                    prefix == \\\"-\\\"\\n-                    and trailing_deletion_start != -1\\n-                    and i >= trailing_deletion_start\\n+                    prefix == \\\"-\\\" and trailing_deletion_start != -1 and i >= trailing_deletion_start\\n                 )\\n \\n                 if prefix == \\\"-\\\" and not is_trailing_deletion:\\n@@ -308,7 +306,9 @@                     # Context lines, or trailing deletions shown as context\\n                     lines.append('<div class=\\\"diff-line context\\\">')\\n                     lines.append('<span class=\\\"diff-line-number\\\"></span>')\\n-                    lines.append(f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>')\\n+                    lines.append(\\n+                        f'<span class=\\\"diff-line-content\\\">{escaped_content}{cursor}</span>'\\n+                    )\\n                     lines.append(\\\"</div>\\\")\\n \\n     lines.append(\\\"</div>\\\")  # diff-content\\n\"\n  },\n  \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\",\n  \"typecheck_passed\": true,\n  \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"summary\": \"Formatted 1 files: src/ui/diff_view.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up my context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"src/ui/diff_view.py\",\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01UnscW3V1siUSgopk4BYumk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UnscW3V1siUSgopk4BYumk",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"src/ui/diff_view.py\", \"src/ui/ai_chat_widget.py\"], \"message\": \"Added 0 files, removed 2 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"src/ui/diff_view.py\",\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"src/ui/diff_view.py\",\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"message\": \"Added 0 files, removed 2 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what I changed:\n\n## Summary of changes\n\n### 1. Cursor only shows during streaming\n- The blinking cursor `\u258b` now only appears when `is_streaming=True`\n- When streaming completes, we use `render_completed_diff_html()` which sets `is_streaming=False`\n\n### 2. Search lines show as normal color until replace starts\n- When we only have `search` text (no `replace` yet), lines display as **context** (normal gray/white) instead of red deletions\n- Red deletions only appear once we have at least one green addition to contrast with\n\n### 3. Trailing deletions shown as context during streaming\n- During replace streaming, we track \"trailing deletions\" - deletions that come after the last addition\n- These trailing deletions are displayed as normal context lines (not red) since their replacement text hasn't arrived yet\n- Once more additions stream in after them, they'll flip to red\n\n### 4. Completed diff view for executed tool calls\n- Added `render_completed_diff_html()` function for displaying finished edits\n- When `search_replace` succeeds, the tool result now shows the nice diff view instead of raw JSON\n- No cursor, all deletions shown as red (since streaming is complete)"
     }
   ]
 }

@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
-from .diff_view import get_diff_styles, render_streaming_tool_html
+from .diff_view import get_diff_styles, render_completed_diff_html, render_streaming_tool_html
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -789,12 +789,20 @@ class AIChatWidget(QWidget):
                 self.context_changed.emit(self.session_manager.active_files.copy())
 
             # Build unified tool call display message
-            tool_display_parts = [
-                f"🔧 **Tool call:** `{tool_name}`",
-                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                "**Result:**",
-                f"```json\n{json.dumps(result, indent=2)}\n```",
-            ]
+            # For search_replace, show a nice diff view instead of raw JSON
+            if tool_name == "search_replace" and result.get("success"):
+                filepath = tool_args.get("filepath", "")
+                search = tool_args.get("search", "")
+                replace = tool_args.get("replace", "")
+                diff_html = render_completed_diff_html(filepath, search, replace)
+                tool_display_parts = [diff_html]
+            else:
+                tool_display_parts = [
+                    f"🔧 **Tool call:** `{tool_name}`",
+                    f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                    "**Result:**",
+                    f"```json\n{json.dumps(result, indent=2)}\n```",
+                ]
 
             # If search_replace failed and file isn't in context, add note about adding it
             if not result.get("success") and tool_name == "search_replace":

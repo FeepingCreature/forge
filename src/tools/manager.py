@@ -208,7 +208,7 @@ class ToolManager:
         tools_prefix = str(self.tools_dir).lstrip("./") + "/"
         for filepath in self.vfs.get_pending_changes():
             if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
-                tool_name = filepath[len(tools_prefix):-3]  # Remove prefix and .py
+                tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
 
                 # Skip if already seen or built-in
                 if tool_name in seen_tools or tool_name in self.BUILTIN_TOOLS:
@@ -269,7 +269,7 @@ class ToolManager:
         tools_prefix = str(self.tools_dir).lstrip("./") + "/"
         for filepath in self.vfs.get_pending_changes():
             if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
-                tool_name = filepath[len(tools_prefix):-3]  # Remove prefix and .py
+                tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
 
                 if tool_name in seen_tools or tool_name == "__init__":
                     continue
@@ -311,6 +311,7 @@ class ToolManager:
 
         # Create a new module
         import types
+
         module = types.ModuleType(module_name)
         module.__file__ = f"<vfs>/tools/{tool_name}.py"
 

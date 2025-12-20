@@ -299,6 +299,39 @@
     {
       "role": "assistant",
       "content": "Done! Here's what we added:\n\n## Branch/Working Directory Protection\n\n**In `ForgeRepository`:**\n- `get_checked_out_branch()` - returns the currently checked-out branch name (or None if detached HEAD)\n- `is_workdir_clean()` - checks if working directory has uncommitted changes\n- `get_workdir_changes()` - returns dict of changed files and their status\n- `checkout_branch_head(branch_name)` - syncs working directory to a branch's HEAD\n\n**In `WorkInProgressVFS.commit()`:**\n- After committing, if we committed to the checked-out branch, automatically syncs the working directory\n\n**In `AIChatWidget._send_message()`:**\n- New `_check_workdir_state()` check before AI turn starts\n- If working on the checked-out branch with uncommitted workdir changes, shows a warning dialog\n- User can Cancel (abort) or Discard (proceed and overwrite their changes)\n\nThe key insight: we're not really \"protecting main\" specifically - we're handling the case where the *currently checked-out* branch gets modified by AI. The working directory must stay in sync, and uncommitted changes would be lost.\n\nThe soft \"are you sure you want to work on main?\" warning is left as a future nice-to-have - that's a separate UX concern."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 507a3957",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah the warning isn't necessary, the purpose of that was to avoid fouling the working dir but we should check that via is_workdir_clean."
+    },
+    {
+      "role": "assistant",
+      "content": "Exactly right - the working directory cleanliness check *is* the protection. If you're on main and it's clean, go ahead! If you're on main and it's dirty, you get warned. The branch name itself doesn't matter.\n\nLet me update the TODO to reflect that the \"soft warning\" isn't needed:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"### Main Branch Protection\\n- [x] Check if target branch is the currently checked-out branch on AI turn start\\n- [x] If checked out, ensure working directory is clean (no uncommitted changes)\\n- [x] Warn user if workdir has changes - they'd be overwritten by AI commits\\n- [x] After commit to checked-out branch, sync working directory to new HEAD\\n- [ ] Optional: soft warning when starting AI work on main/master (suggest creating branch)\", \"replace\": \"### Working Directory Protection\\n- [x] Check if target branch is the currently checked-out branch on AI turn start\\n- [x] If checked out, ensure working directory is clean (no uncommitted changes)\\n- [x] Warn user if workdir has changes - they'd be overwritten by AI commits\\n- [x] After commit to checked-out branch, sync working directory to new HEAD\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01UTj56ZUnKzds9d3myCGMvK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UTj56ZUnKzds9d3myCGMvK",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Nice, that section is done! What's next - Ctrl+O/Ctrl+G, file tab persistence, or merge conflict handling?"
     }
   ]
 }

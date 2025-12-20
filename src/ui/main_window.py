@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
@@ -92,10 +92,8 @@ class MainWindow(QMainWindow):
         self.cost_label.setToolTip("Session API cost (OpenRouter)")
         self.status_bar.addPermanentWidget(self.cost_label)
 
-        # Timer to update cost display periodically
-        self.cost_timer = QTimer(self)
-        self.cost_timer.timeout.connect(self._update_cost_display)
-        self.cost_timer.start(1000)  # Update every second
+        # Update cost display when cost changes
+        COST_TRACKER.cost_updated.connect(self._update_cost_display)
 
     def _create_new_branch_button(self) -> QWidget:
         """Create the '+' button for new branches"""
@@ -661,7 +659,6 @@ class MainWindow(QMainWindow):
 
         return None
 
-    def _update_cost_display(self) -> None:
+    def _update_cost_display(self, cost: float) -> None:
         """Update the cost display label with current accumulated cost."""
-        cost = COST_TRACKER.total_cost
         self.cost_label.setText(f"<b>${cost:.4f}</b>")

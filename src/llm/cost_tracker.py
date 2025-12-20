@@ -4,18 +4,30 @@ Global cost tracker for OpenRouter API usage.
 Accumulates costs across branches and the entire program session.
 """
 
+from PySide6.QtCore import QObject, Signal
 
-class CostTracker:
+
+class CostTracker(QObject):
     """Singleton tracker for accumulated OpenRouter costs."""
+
+    # Emitted when cost changes, with new total
+    cost_updated = Signal(float)
 
     _instance: "CostTracker | None" = None
 
     def __new__(cls) -> "CostTracker":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._total_cost = 0.0
-            cls._instance._request_count = 0
         return cls._instance
+
+    def __init__(self) -> None:
+        # Only initialize once
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__()
+        self._initialized = True
+        self._total_cost = 0.0
+        self._request_count = 0
 
     @property
     def total_cost(self) -> float:
@@ -31,11 +43,13 @@ class CostTracker:
         """Add a cost from an API request."""
         self._total_cost += cost
         self._request_count += 1
+        self.cost_updated.emit(self._total_cost)
 
     def reset(self) -> None:
         """Reset the tracker (mainly for testing)."""
         self._total_cost = 0.0
         self._request_count = 0
+        self.cost_updated.emit(0.0)
 
 
 # Global instance

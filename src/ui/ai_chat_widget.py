@@ -128,6 +128,71 @@ class StreamWorker(QObject):
             self.error.emit(str(e))
 
 
+class ToolExecutionWorker(QObject):
+    """Worker for executing tool calls in a background thread"""
+
+    tool_started = Signal(str, dict)  # Emitted when a tool starts (name, args)
+    tool_finished = Signal(str, dict, dict)  # Emitted when a tool finishes (name, args, result)
+    all_finished = Signal(list)  # Emitted when all tools complete (list of results)
+    error = Signal(str)  # Emitted on error
+
+    def __init__(
+        self,
+        tool_calls: list[dict[str, Any]],
+        tool_manager: Any,
+        session_manager: Any,
+    ) -> None:
+        super().__init__()
+        self.tool_calls = tool_calls
+        self.tool_manager = tool_manager
+        self.session_manager = session_manager
+        self.results: list[dict[str, Any]] = []
+
+    def run(self) -> None:
+        """Execute all tool calls"""
+        try:
+            for tool_call in self.tool_calls:
+                tool_name = tool_call["function"]["name"]
+                arguments_str = tool_call["function"]["arguments"]
+
+                # Parse arguments
+                try:
+                    tool_args = json.loads(arguments_str) if arguments_str else {}
+                except json.JSONDecodeError as e:
+                    result = {"error": f"Invalid JSON arguments: {e}"}
+                    self.results.append(
+                        {
+                            "tool_call": tool_call,
+                            "args": {},
+                            "result": result,
+                            "parse_error": True,
+                        }
+                    )
+                    continue
+
+                # Emit that we're starting this tool
+                self.tool_started.emit(tool_name, tool_args)
+
+                # Execute tool
+                result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
+
+                # Emit result
+                self.tool_finished.emit(tool_name, tool_args, result)
+
+                self.results.append(
+                    {
+                        "tool_call": tool_call,
+                        "args": tool_args,
+                        "result": result,
+                    }
+                )
+
+            self.all_finished.emit(self.results)
+
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class ChatBridge(QObject):
     """Bridge object for JavaScript-to-Python communication"""
 
@@ -176,6 +241,10 @@ class AIChatWidget(QWidget):
         self.stream_worker: StreamWorker | None = None
         self._is_streaming = False
         self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls
+
+        # Tool execution worker
+        self.tool_thread: QThread | None = None
+        self.tool_worker: ToolExecutionWorker | None = None
 
         # Summary worker
         self.summary_thread: QThread | None = None
@@ -739,89 +808,122 @@ class AIChatWidget(QWidget):
         return
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Execute tool calls and continue conversation"""
-        tools = self.session_manager.tool_manager.discover_tools()
-        tool_manager = self.session_manager.tool_manager
+        """Execute tool calls in background thread and continue conversation"""
+        # Store tools for later use in _on_tools_all_finished
+        self._pending_tools = self.session_manager.tool_manager.discover_tools()
 
-        for tool_call in tool_calls:
-            tool_name = tool_call["function"]["name"]
-            arguments_str = tool_call["function"]["arguments"]
+        # Create and start tool execution worker
+        self.tool_thread = QThread()
+        self.tool_worker = ToolExecutionWorker(
+            tool_calls,
+            self.session_manager.tool_manager,
+            self.session_manager,
+        )
+        self.tool_worker.moveToThread(self.tool_thread)
 
-            # Handle empty arguments (LLM may send empty string for no-arg tools)
-            try:
-                tool_args = json.loads(arguments_str) if arguments_str else {}
-            except json.JSONDecodeError as e:
-                # LLM sent invalid JSON - show error and skip this tool
-                self._add_system_message(
-                    f"❌ Error parsing tool arguments for `{tool_name}`: {e}\n"
-                    f"Arguments string: `{arguments_str}`"
+        # Connect signals
+        self.tool_worker.tool_started.connect(self._on_tool_started)
+        self.tool_worker.tool_finished.connect(self._on_tool_finished)
+        self.tool_worker.all_finished.connect(self._on_tools_all_finished)
+        self.tool_worker.error.connect(self._on_tool_error)
+        self.tool_thread.started.connect(self.tool_worker.run)
+
+        # Start the thread
+        self.tool_thread.start()
+
+    def _on_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Handle tool execution starting"""
+        # Could show a "running..." indicator here if desired
+        pass
+
+    def _on_tool_finished(
+        self, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """Handle individual tool execution completion (called from main thread via signal)"""
+        # This is called on the main thread, so UI updates are safe
+
+        # Find the tool_call_id from our pending worker
+        tool_call_id = ""
+        if self.tool_worker:
+            for r in self.tool_worker.results:
+                if r.get("args") == tool_args and r["tool_call"]["function"]["name"] == tool_name:
+                    tool_call_id = r["tool_call"]["id"]
+                    break
+
+        # Add tool result to messages
+        result_json = json.dumps(result)
+        tool_message = {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": result_json,
+            "_skip_display": True,
+        }
+        self.messages.append(tool_message)
+        self.session_manager.append_tool_result(tool_call_id, result_json)
+
+        # If tool modified a file, notify prompt manager to reorder
+        if result.get("success") and tool_name in ("write_file", "search_replace", "delete_file"):
+            filepath = tool_args.get("filepath")
+            if filepath:
+                self.session_manager.file_was_modified(filepath, tool_call_id)
+
+        # If tool modified context, emit signal to update UI
+        if result.get("action") == "update_context":
+            self.context_changed.emit(self.session_manager.active_files.copy())
+
+        # Display tool result (same logic as before)
+        if tool_name == "search_replace" and result.get("success"):
+            pass  # Diff shown inline
+        elif tool_name == "search_replace" and not result.get("success"):
+            tool_display_parts = [
+                f"🔧 **Tool call:** `{tool_name}`",
+                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                "**Result:**",
+                f"```json\n{json.dumps(result, indent=2)}\n```",
+            ]
+            filepath = tool_args.get("filepath")
+            if filepath and filepath not in self.session_manager.active_files:
+                self.session_manager.add_active_file(filepath)
+                tool_display_parts.append(
+                    f"\n📂 Added `{filepath}` to context so you can see its actual content"
                 )
-                continue
+            self._add_system_message("\n".join(tool_display_parts))
+        else:
+            tool_display_parts = [
+                f"🔧 **Tool call:** `{tool_name}`",
+                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                "**Result:**",
+                f"```json\n{json.dumps(result, indent=2)}\n```",
+            ]
+            self._add_system_message("\n".join(tool_display_parts))
 
-            # Execute tool (pass session_manager for context management)
-            result = tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
+    def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
+        """Handle all tools completed - continue conversation"""
+        # Clean up thread
+        if self.tool_thread:
+            self.tool_thread.quit()
+            self.tool_thread.wait()
+            self.tool_thread = None
+            self.tool_worker = None
 
-            # Add tool result to messages (this IS part of conversation history)
-            # Mark as _ui_only=False but _skip_display=True - it's sent to LLM but not rendered
-            # (we render a pretty-printed version separately below)
-            result_json = json.dumps(result)
-            tool_message = {
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "content": result_json,
-                "_skip_display": True,  # Don't render raw JSON, we show pretty version
-            }
-            self.messages.append(tool_message)
-            self.session_manager.append_tool_result(tool_call["id"], result_json)
-
-            # If tool modified a file, notify prompt manager to reorder
-            if result.get("success") and tool_name in (
-                "write_file",
-                "search_replace",
-                "delete_file",
-            ):
-                filepath = tool_args.get("filepath")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, tool_call["id"])
-
-            # If tool modified context (update_context, grep_open), emit signal to update UI
-            if result.get("action") == "update_context":
-                self.context_changed.emit(self.session_manager.active_files.copy())
-
-            # Build unified tool call display message
-            # For successful search_replace, we skip the system message because
-            # the diff is already shown inline in the assistant message via _render_tool_calls_html
-            if tool_name == "search_replace" and result.get("success"):
-                # Diff is shown inline in assistant message, no need for system message
-                pass
-            elif tool_name == "search_replace" and not result.get("success"):
-                # Failed search_replace - show error details
-                tool_display_parts = [
-                    f"🔧 **Tool call:** `{tool_name}`",
-                    f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                    "**Result:**",
-                    f"```json\n{json.dumps(result, indent=2)}\n```",
-                ]
-                # If file isn't in context, add it so AI can see actual content
-                filepath = tool_args.get("filepath")
-                if filepath and filepath not in self.session_manager.active_files:
-                    self.session_manager.add_active_file(filepath)
-                    tool_display_parts.append(
-                        f"\n📂 Added `{filepath}` to context so you can see its actual content"
-                    )
-                self._add_system_message("\n".join(tool_display_parts))
-            else:
-                # All other tools - show full details
-                tool_display_parts = [
-                    f"🔧 **Tool call:** `{tool_name}`",
-                    f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                    "**Result:**",
-                    f"```json\n{json.dumps(result, indent=2)}\n```",
-                ]
-                self._add_system_message("\n".join(tool_display_parts))
-
-        # Continue conversation with tool results in background thread
+        # Continue conversation with tool results
+        tools = getattr(self, "_pending_tools", [])
         self._continue_after_tools(tools)
+
+    def _on_tool_error(self, error_msg: str) -> None:
+        """Handle tool execution error"""
+        # Clean up thread
+        if self.tool_thread:
+            self.tool_thread.quit()
+            self.tool_thread.wait()
+            self.tool_thread = None
+            self.tool_worker = None
+
+        self._add_system_message(f"❌ Tool execution error: {error_msg}")
+
+        # Emit signal that AI turn is finished (with empty string indicating no commit)
+        self.ai_turn_finished.emit("")
+        self._reset_input()
 
     def _continue_after_tools(self, tools: list[dict[str, Any]]) -> None:
         """Continue LLM conversation after tool execution (in background thread) with streaming"""

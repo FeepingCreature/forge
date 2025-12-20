@@ -24,6 +24,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "X-Title": "Forge",
         }
 
         response = requests.get(f"{self.base_url}/models", headers=headers)
@@ -45,6 +46,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "X-Title": "Forge",
         }
 
         payload = {
@@ -115,6 +117,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "X-Title": "Forge",
         }
 
         payload = {

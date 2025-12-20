@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
-from .diff_view import get_diff_styles, render_completed_diff_html, render_streaming_tool_html
+from .diff_view import get_diff_styles, render_completed_tool_html, render_streaming_tool_html
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -1305,14 +1305,12 @@ class AIChatWidget(QWidget):
             except json.JSONDecodeError:
                 args = {}
 
-            # For search_replace, render as diff view
-            if name == "search_replace":
-                filepath = args.get("filepath", "")
-                search = args.get("search", "")
-                replace = args.get("replace", "")
-                html_parts.append(render_completed_diff_html(filepath, search, replace))
+            # Try native rendering for built-in tools
+            native_html = render_completed_tool_html(name, args)
+            if native_html:
+                html_parts.append(native_html)
             else:
-                # Default rendering for other tools
+                # Default rendering for unknown tools
                 escaped_args = (
                     args_str.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 )

@@ -1,8 +1,15 @@
 """
-Diff view utilities for streaming search/replace visualization.
+Tool visualization utilities for the AI chat widget.
 
-Provides HTML/CSS/JS for rendering a live diff that updates as
-the LLM streams the search and replace parameters.
+Provides HTML/CSS rendering for built-in tools:
+- search_replace: Live diff view as LLM streams search/replace params
+- write_file: File creation/overwrite indicator
+- delete_file: File deletion indicator
+- update_context: Context modification summary
+- grep_open: Search results with match counts
+- get_lines: Line excerpt display
+
+Local/user tools use default JSON rendering.
 """
 
 import difflib
@@ -115,10 +122,96 @@ def get_diff_styles() -> str:
             padding: 4px 12px 8px;
             font-size: 11px;
         }
+
+        /* Tool call card styles (shared by all tools) */
+        .tool-card {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 13px;
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .tool-card-header {
+            background: #f0f0f0;
+            color: #333;
+            padding: 8px 12px;
+            font-weight: 600;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tool-card-header .tool-icon {
+            font-size: 16px;
+        }
+        .tool-card-header .tool-name {
+            color: #1976d2;
+        }
+        .tool-card-body {
+            padding: 10px 12px;
+        }
+        .tool-card-body code {
+            background: #e8e8e8;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", Consolas, monospace;
+            font-size: 12px;
+        }
+        .tool-card-body .filepath {
+            color: #795e26;
+            font-weight: 500;
+        }
+        .tool-card-body .file-list {
+            margin: 6px 0;
+            padding-left: 20px;
+        }
+        .tool-card-body .file-list li {
+            margin: 3px 0;
+            color: #555;
+        }
+        .tool-card-body .match-count {
+            color: #888;
+            font-size: 12px;
+        }
+        .tool-card-body .line-excerpt {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            margin-top: 8px;
+            font-family: "Courier New", Consolas, monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .tool-card-body .line-target {
+            background: #fff3cd;
+            display: block;
+        }
+        .tool-card-body .stats {
+            color: #666;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+        .tool-card-body .error-msg {
+            color: #d32f2f;
+            font-weight: 500;
+        }
+        .tool-card-body .success-msg {
+            color: #388e3c;
+            font-weight: 500;
+        }
+        .tool-card.streaming .tool-card-header::after {
+            content: " ▋";
+            animation: diff-blink 1s step-end infinite;
+            color: #1976d2;
+        }
     """
 
 
-def parse_partial_json(json_str: str) -> dict[str, str]:
+def parse_partial_json(json_str: str) -> dict[str, object]:
     """
     Parse a potentially incomplete JSON object.
 
@@ -127,7 +220,7 @@ def parse_partial_json(json_str: str) -> dict[str, str]:
     - {"filepath": "foo.py", "search": "hello
     - {"filepath": "foo.py", "search": "hello", "replace": "wor
     """
-    result: dict[str, str] = {}
+    result: dict[str, object] = {}
 
     # First try complete JSON parse
     try:
@@ -348,53 +441,6 @@ def render_diff_html(
     return "\n".join(lines)
 
 
-def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
-    """
-    Render a streaming tool call as HTML.
-
-    For search_replace, returns a diff view.
-    For other tools, returns None (use default rendering).
-
-    Args:
-        tool_call: The tool call dict with function.name and function.arguments
-
-    Returns:
-        HTML string for special rendering, or None for default
-    """
-    func = tool_call.get("function", {})
-    if not isinstance(func, dict):
-        return None
-
-    name = func.get("name", "")
-    args_str = func.get("arguments", "")
-
-    if name != "search_replace" or not isinstance(args_str, str):
-        return None
-
-    # Parse the streaming arguments
-    parsed = parse_partial_json(args_str)
-
-    filepath = parsed.get("filepath", "")
-    search = parsed.get("search", "")
-    replace = parsed.get("replace", "")
-
-    # Determine streaming phase
-    if "replace" in parsed:
-        streaming_phase = "replace"
-    elif "search" in parsed:
-        streaming_phase = "search"
-    else:
-        streaming_phase = "search"
-
-    return render_diff_html(
-        filepath=filepath,
-        search=search,
-        replace=replace,
-        is_streaming=True,
-        streaming_phase=streaming_phase,
-    )
-
-
 def render_completed_diff_html(filepath: str, search: str, replace: str) -> str:
     """
     Render a completed diff view (no cursor, all deletions shown as red).
@@ -414,3 +460,257 @@ def render_completed_diff_html(filepath: str, search: str, replace: str) -> str:
         is_streaming=False,
         streaming_phase="replace",
     )
+
+
+# =============================================================================
+# Native rendering for all built-in tools
+# =============================================================================
+
+
+def render_write_file_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render write_file tool call as HTML."""
+    filepath = args.get("filepath", "")
+    content = args.get("content", "")
+
+    escaped_filepath = html.escape(str(filepath)) if filepath else "..."
+    streaming_class = " streaming" if is_streaming else ""
+
+    # Show line count and size
+    if content and isinstance(content, str):
+        line_count = content.count("\n") + 1
+        byte_count = len(content)
+        stats = f"{line_count} lines, {byte_count} bytes"
+    else:
+        stats = "..."
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">📝</span>
+            <span class="tool-name">write_file</span>
+        </div>
+        <div class="tool-card-body">
+            <code class="filepath">{escaped_filepath}</code>
+            <div class="stats">{stats}</div>
+        </div>
+    </div>
+    """
+
+
+def render_delete_file_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render delete_file tool call as HTML."""
+    filepath = args.get("filepath", "")
+
+    escaped_filepath = html.escape(str(filepath)) if filepath else "..."
+    streaming_class = " streaming" if is_streaming else ""
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">🗑️</span>
+            <span class="tool-name">delete_file</span>
+        </div>
+        <div class="tool-card-body">
+            <code class="filepath">{escaped_filepath}</code>
+        </div>
+    </div>
+    """
+
+
+def render_update_context_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render update_context tool call as HTML."""
+    add_files = args.get("add", [])
+    remove_files = args.get("remove", [])
+
+    streaming_class = " streaming" if is_streaming else ""
+
+    body_parts = []
+
+    if add_files and isinstance(add_files, list):
+        body_parts.append("<div><strong>Adding:</strong></div>")
+        body_parts.append('<ul class="file-list">')
+        for f in add_files:
+            escaped = html.escape(str(f))
+            body_parts.append(f"<li><code>{escaped}</code></li>")
+        body_parts.append("</ul>")
+
+    if remove_files and isinstance(remove_files, list):
+        body_parts.append("<div><strong>Removing:</strong></div>")
+        body_parts.append('<ul class="file-list">')
+        for f in remove_files:
+            escaped = html.escape(str(f))
+            body_parts.append(f"<li><code>{escaped}</code></li>")
+        body_parts.append("</ul>")
+
+    if not body_parts:
+        body_parts.append("<div>No changes specified...</div>")
+
+    body_html = "".join(body_parts)
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">📂</span>
+            <span class="tool-name">update_context</span>
+        </div>
+        <div class="tool-card-body">
+            {body_html}
+        </div>
+    </div>
+    """
+
+
+def render_grep_open_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render grep_open tool call as HTML."""
+    pattern = args.get("pattern", "")
+    include_extensions = args.get("include_extensions", [])
+
+    escaped_pattern = html.escape(str(pattern)) if pattern else "..."
+    streaming_class = " streaming" if is_streaming else ""
+
+    filter_info = ""
+    if include_extensions and isinstance(include_extensions, list):
+        exts = ", ".join(str(e) for e in include_extensions)
+        filter_info = f'<div class="stats">Filtering: {html.escape(exts)}</div>'
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">🔍</span>
+            <span class="tool-name">grep_open</span>
+        </div>
+        <div class="tool-card-body">
+            <div>Pattern: <code>{escaped_pattern}</code></div>
+            {filter_info}
+        </div>
+    </div>
+    """
+
+
+def render_get_lines_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render get_lines tool call as HTML."""
+    filepath = args.get("filepath", "")
+    line = args.get("line", "")
+    context = args.get("context", 10)
+
+    escaped_filepath = html.escape(str(filepath)) if filepath else "..."
+    streaming_class = " streaming" if is_streaming else ""
+
+    line_info = f"Line {line}" if line else "..."
+    if context and context != 10:
+        line_info += f" (±{context} context)"
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">📋</span>
+            <span class="tool-name">get_lines</span>
+        </div>
+        <div class="tool-card-body">
+            <code class="filepath">{escaped_filepath}</code>
+            <div class="stats">{line_info}</div>
+        </div>
+    </div>
+    """
+
+
+def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
+    """
+    Render a streaming tool call as HTML.
+
+    Returns native HTML for all built-in tools.
+    Returns None for unknown tools (use default rendering).
+
+    Args:
+        tool_call: The tool call dict with function.name and function.arguments
+
+    Returns:
+        HTML string for special rendering, or None for default
+    """
+    func = tool_call.get("function", {})
+    if not isinstance(func, dict):
+        return None
+
+    name = func.get("name", "")
+    args_str = func.get("arguments", "")
+
+    if not isinstance(args_str, str):
+        return None
+
+    # Parse arguments (may be partial JSON during streaming)
+    parsed = parse_partial_json(args_str)
+
+    # Try full JSON parse for complete arguments
+    try:
+        full_args = json.loads(args_str) if args_str else {}
+        if isinstance(full_args, dict):
+            parsed = full_args
+    except json.JSONDecodeError:
+        pass  # Use partial parse result
+
+    # Route to appropriate renderer
+    if name == "search_replace":
+        filepath = parsed.get("filepath", "")
+        search = parsed.get("search", "")
+        replace = parsed.get("replace", "")
+
+        # Determine streaming phase
+        if "replace" in parsed:
+            streaming_phase = "replace"
+        elif "search" in parsed:
+            streaming_phase = "search"
+        else:
+            streaming_phase = "search"
+
+        return render_diff_html(
+            filepath=str(filepath),
+            search=str(search),
+            replace=str(replace),
+            is_streaming=True,
+            streaming_phase=streaming_phase,
+        )
+    elif name == "write_file":
+        return render_write_file_html(parsed, is_streaming=True)
+    elif name == "delete_file":
+        return render_delete_file_html(parsed, is_streaming=True)
+    elif name == "update_context":
+        return render_update_context_html(parsed, is_streaming=True)
+    elif name == "grep_open":
+        return render_grep_open_html(parsed, is_streaming=True)
+    elif name == "get_lines":
+        return render_get_lines_html(parsed, is_streaming=True)
+    else:
+        return None  # Unknown tool - use default rendering
+
+
+def render_completed_tool_html(name: str, args: dict[str, object]) -> str | None:
+    """
+    Render a completed tool call as HTML.
+
+    Returns native HTML for all built-in tools.
+    Returns None for unknown tools (use default rendering).
+
+    Args:
+        name: Tool name
+        args: Parsed tool arguments
+
+    Returns:
+        HTML string for special rendering, or None for default
+    """
+    if name == "search_replace":
+        filepath = args.get("filepath", "")
+        search = args.get("search", "")
+        replace = args.get("replace", "")
+        return render_completed_diff_html(str(filepath), str(search), str(replace))
+    elif name == "write_file":
+        return render_write_file_html(args, is_streaming=False)
+    elif name == "delete_file":
+        return render_delete_file_html(args, is_streaming=False)
+    elif name == "update_context":
+        return render_update_context_html(args, is_streaming=False)
+    elif name == "grep_open":
+        return render_grep_open_html(args, is_streaming=False)
+    elif name == "get_lines":
+        return render_get_lines_html(args, is_streaming=False)
+    else:
+        return None  # Unknown tool - use default rendering

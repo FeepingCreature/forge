@@ -7,10 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
+    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 from ..config.settings import Settings
 from ..git_backend.commit_types import CommitType
 from ..git_backend.repository import ForgeRepository
+from ..llm.cost_tracker import COST_TRACKER
 from .ai_chat_widget import AIChatWidget
 from .branch_tab_widget import BranchTabWidget
 from .branch_workspace import BranchWorkspace
@@ -84,6 +86,16 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
+
+        # Cost display (right side of status bar, bold)
+        self.cost_label = QLabel("<b>$0.0000</b>")
+        self.cost_label.setToolTip("Session API cost (OpenRouter)")
+        self.status_bar.addPermanentWidget(self.cost_label)
+
+        # Timer to update cost display periodically
+        self.cost_timer = QTimer(self)
+        self.cost_timer.timeout.connect(self._update_cost_display)
+        self.cost_timer.start(1000)  # Update every second
 
     def _create_new_branch_button(self) -> QWidget:
         """Create the '+' button for new branches"""
@@ -648,3 +660,8 @@ class MainWindow(QMainWindow):
                 return limit
 
         return None
+
+    def _update_cost_display(self) -> None:
+        """Update the cost display label with current accumulated cost."""
+        cost = COST_TRACKER.total_cost
+        self.cost_label.setText(f"<b>${cost:.4f}</b>")

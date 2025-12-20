@@ -10,6 +10,8 @@ from typing import Any
 
 import requests
 
+from .cost_tracker import COST_TRACKER
+
 
 class LLMClient:
     """Client for OpenRouter API"""
@@ -178,6 +180,8 @@ class LLMClient:
 
         print("📡 Streaming response started")
 
+        generation_id: str | None = None
+
         # Parse SSE stream
         for line in response.iter_lines():
             if line:
@@ -187,6 +191,46 @@ class LLMClient:
                     if data == "[DONE]":
                         break
                     try:
-                        yield json.loads(data)
+                        chunk = json.loads(data)
+                        # Capture generation ID for cost lookup
+                        if "id" in chunk and generation_id is None:
+                            generation_id = chunk["id"]
+                        yield chunk
                     except json.JSONDecodeError:
                         continue
+
+        # Fetch cost info after streaming completes
+        if generation_id:
+            self._fetch_and_record_cost(generation_id)
+
+    def _fetch_and_record_cost(self, generation_id: str) -> None:
+        """Fetch generation cost from OpenRouter and record it."""
+        # OpenRouter provides cost info via the generation endpoint
+        # We need to poll briefly as the cost may not be immediately available
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        # Try a few times with short delays
+        for _attempt in range(3):
+            try:
+                response = requests.get(
+                    f"{self.base_url}/generation?id={generation_id}",
+                    headers=headers,
+                    timeout=5,
+                )
+                if response.ok:
+                    data = response.json().get("data", {})
+                    total_cost = data.get("total_cost")
+                    if total_cost is not None:
+                        COST_TRACKER.add_cost(float(total_cost))
+                        print(
+                            f"💰 Request cost: ${total_cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})"
+                        )
+                        return
+                # Cost not ready yet, wait and retry
+                time.sleep(0.5)
+            except Exception as e:
+                print(f"⚠️ Failed to fetch cost: {e}")
+                break

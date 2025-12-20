@@ -1176,6 +1176,43 @@ class AIChatWidget(QWidget):
         """
         self.chat_view.setHtml(html)
 
+    def _render_tool_calls_html(self, tool_calls: list[dict[str, Any]]) -> str:
+        """Render tool calls from a historical message as HTML"""
+        html_parts = []
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            name = func.get("name", "")
+            args_str = func.get("arguments", "")
+
+            if not name:
+                continue
+
+            # Parse arguments
+            try:
+                args = json.loads(args_str) if args_str else {}
+            except json.JSONDecodeError:
+                args = {}
+
+            # For search_replace, render as diff view
+            if name == "search_replace":
+                filepath = args.get("filepath", "")
+                search = args.get("search", "")
+                replace = args.get("replace", "")
+                html_parts.append(render_completed_diff_html(filepath, search, replace))
+            else:
+                # Default rendering for other tools
+                escaped_args = (
+                    args_str.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                )
+                html_parts.append(f"""
+                <div class="tool-call-display">
+                    <div class="tool-name">🔧 {name}</div>
+                    <pre class="tool-args">{escaped_args}</pre>
+                </div>
+                """)
+
+        return "".join(html_parts)
+
     def _build_messages_html(self) -> str:
         """Build HTML for all messages (to inject into the container)"""
         html_parts = []
@@ -1212,11 +1249,17 @@ class AIChatWidget(QWidget):
                         f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
                     )
 
+            # For assistant messages with tool_calls, render them specially
+            tool_calls_html = ""
+            if role == "assistant" and "tool_calls" in msg:
+                tool_calls_html = self._render_tool_calls_html(msg["tool_calls"])
+
             content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
             html_parts.append(f"""
             <div class="message {role}" {msg_id}>
                 <div class="role">{role.capitalize()}</div>
                 <div class="content">{content}</div>
+                {tool_calls_html}
             </div>
             """)
 

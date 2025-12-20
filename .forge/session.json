@@ -1,39 +1,39 @@
 {
   "active_files": [
-    "src/tools/builtin/search_replace.py",
-    "src/tools/builtin/write_file.py",
-    "src/tools/builtin/get_lines.py",
-    "src/llm/__init__.py",
-    "src/config/__init__.py",
-    "src/tools/builtin/__init__.py",
-    "src/git_backend/commit_types.py",
-    "src/vfs/work_in_progress.py",
     "main.py",
-    "src/ui/__init__.py",
-    "src/vfs/git_commit.py",
     "src/session/__init__.py",
-    "src/ui/editor_widget.py",
-    "requirements.txt",
+    "src/git_backend/commit_types.py",
+    "src/llm/client.py",
+    "src/vfs/git_commit.py",
+    "src/tools/builtin/__init__.py",
+    "src/tools/builtin/delete_file.py",
+    "src/prompts.py",
     "src/git_backend/__init__.py",
+    "src/tools/builtin/update_context.py",
+    "src/llm/__init__.py",
+    "src/tools/builtin/search_replace.py",
+    "NEW_DESIGN.md",
+    "requirements.txt",
+    "src/vfs/base.py",
+    "src/ui/editor_widget.py",
+    "src/tools/builtin/get_lines.py",
+    "pyproject.toml",
+    "src/tools/builtin/grep_open.py",
+    "src/config/settings.py",
+    "src/vfs/__init__.py",
+    "src/ui/__init__.py",
+    "Makefile",
+    "CLAUDE.md",
+    "src/prompts/system.py",
+    "src/vfs/work_in_progress.py",
+    "NEW_TODO.md",
+    "README.md",
+    "src/tools/builtin/write_file.py",
+    "src/prompts/__init__.py",
+    "src/config/__init__.py",
     "src/ui/branch_workspace.py",
     ".gitignore",
-    "NEW_TODO.md",
-    "NEW_DESIGN.md",
-    "src/prompts/__init__.py",
-    "src/tools/builtin/delete_file.py",
-    "src/llm/client.py",
-    "CLAUDE.md",
-    "src/prompts.py",
-    "src/tools/builtin/update_context.py",
-    "src/config/settings.py",
-    "README.md",
-    "src/tools/__init__.py",
-    "Makefile",
-    "src/vfs/__init__.py",
-    "src/prompts/system.py",
-    "pyproject.toml",
-    "src/vfs/base.py",
-    "src/tools/builtin/grep_open.py"
+    "src/tools/__init__.py"
   ],
   "messages": [
     {
@@ -611,6 +611,144 @@
     {
       "role": "assistant",
       "content": "Done! Here's what I changed:\n\n## Summary of changes\n\n### 1. Cursor only shows during streaming\n- The blinking cursor `\u258b` now only appears when `is_streaming=True`\n- When streaming completes, we use `render_completed_diff_html()` which sets `is_streaming=False`\n\n### 2. Search lines show as normal color until replace starts\n- When we only have `search` text (no `replace` yet), lines display as **context** (normal gray/white) instead of red deletions\n- Red deletions only appear once we have at least one green addition to contrast with\n\n### 3. Trailing deletions shown as context during streaming\n- During replace streaming, we track \"trailing deletions\" - deletions that come after the last addition\n- These trailing deletions are displayed as normal context lines (not red) since their replacement text hasn't arrived yet\n- Once more additions stream in after them, they'll flip to red\n\n### 4. Completed diff view for executed tool calls\n- Added `render_completed_diff_html()` function for displaying finished edits\n- When `search_replace` succeeds, the tool result now shows the nice diff view instead of raw JSON\n- No cursor, all deletions shown as red (since streaming is complete)"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 50 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! When I reload the state from disk, the search_replace calls show up as regular tool calls, not diff view."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, I see the issue! When we load the session from disk and display the conversation history, we're not using the diff view for `search_replace` tool calls. The special rendering only happens during streaming and for the immediate tool result, but not when we reload the conversation.\n\nLet me look at how the chat display renders historical messages:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01NkabjkmVke5t2bVgjrVd7R",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NkabjkmVke5t2bVgjrVd7R",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"src/ui/ai_chat_widget.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"remove\": [],\n  \"message\": \"Added 1 files, removed 0 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. When we build the messages HTML in `_build_messages_html`, we render tool call messages as regular markdown. But for historical `search_replace` tool calls, we should render them as diff views.\n\nLooking at the code, I see that when a tool is executed, we add a system message with either the diff HTML (for successful `search_replace`) or regular JSON display. But the issue is that when we reload from disk, these system messages contain raw HTML that gets passed through `markdown.markdown()` which might mangle it.\n\nLet me trace through the flow more carefully:\n\n1. During execution, `_execute_tool_calls` builds `tool_display_parts` with either `render_completed_diff_html()` or JSON\n2. This gets added via `_add_system_message()` which stores it as a `system` message with `_ui_only=True`\n3. When loading from disk, we only restore messages that are NOT `_ui_only` (line 170-171 checks for `_ui_only`)\n\nSo the tool display messages are intentionally not saved to disk (they're UI-only). When we reload, we see the raw tool call messages from the LLM but not our pretty-printed versions.\n\nThe fix is to render the diff view in `_build_messages_html` when we encounter assistant messages with `search_replace` tool calls. Let me implement this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _build_messages_html(self) -> str:\\n        \\\"\\\"\\\"Build HTML for all messages (to inject into the container)\\\"\\\"\\\"\\n        html_parts = []\\n\\n        for i, msg in enumerate(self.messages):\\n            # Skip messages marked for no display (e.g., raw tool results)\\n            if msg.get(\\\"_skip_display\\\"):\\n                continue\\n\\n            role = msg[\\\"role\\\"]\\n            content_md = msg[\\\"content\\\"] or \\\"\\\"\\n\\n            # Check if this is the currently streaming message (last assistant message while streaming)\\n            is_streaming_msg = (\\n                self._is_streaming and i == len(self.messages) - 1 and role == \\\"assistant\\\"\\n            )\\n            msg_id = 'id=\\\"streaming-message\\\"' if is_streaming_msg else \\\"\\\"\\n\\n            # Check if this message contains approval buttons that should be disabled\\n            # Look for tool names in the content\\n            for tool_name in self.handled_approvals:\\n                if (\\n                    f\\\"onclick=\\\\\\\"approveTool('{tool_name}'\\\" in content_md\\n                    or f\\\"onclick=\\\\\\\"rejectTool('{tool_name}'\\\" in content_md\\n                ):\\n                    # This message has buttons for a handled tool - mark them disabled\\n                    # Replace button tags to add disabled attribute\\n                    content_md = content_md.replace(\\n                        f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\">\\\",\\n                        f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\" disabled>\\\",\\n                    )\\n                    content_md = content_md.replace(\\n                        f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\">\\\",\\n                        f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\" disabled>\\\",\\n                    )\\n\\n            content = markdown.markdown(content_md, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\"])\\n            html_parts.append(f\\\"\\\"\\\"\\n            <div class=\\\"message {role}\\\" {msg_id}>\\n                <div class=\\\"role\\\">{role.capitalize()}</div>\\n                <div class=\\\"content\\\">{content}</div>\\n            </div>\\n            \\\"\\\"\\\")\", \"replace\": \"    def _build_messages_html(self) -> str:\\n        \\\"\\\"\\\"Build HTML for all messages (to inject into the container)\\\"\\\"\\\"\\n        html_parts = []\\n\\n        for i, msg in enumerate(self.messages):\\n            # Skip messages marked for no display (e.g., raw tool results)\\n            if msg.get(\\\"_skip_display\\\"):\\n                continue\\n\\n            role = msg[\\\"role\\\"]\\n            content_md = msg[\\\"content\\\"] or \\\"\\\"\\n\\n            # Check if this is the currently streaming message (last assistant message while streaming)\\n            is_streaming_msg = (\\n                self._is_streaming and i == len(self.messages) - 1 and role == \\\"assistant\\\"\\n            )\\n            msg_id = 'id=\\\"streaming-message\\\"' if is_streaming_msg else \\\"\\\"\\n\\n            # Check if this message contains approval buttons that should be disabled\\n            # Look for tool names in the content\\n            for tool_name in self.handled_approvals:\\n                if (\\n                    f\\\"onclick=\\\\\\\"approveTool('{tool_name}'\\\" in content_md\\n                    or f\\\"onclick=\\\\\\\"rejectTool('{tool_name}'\\\" in content_md\\n                ):\\n                    # This message has buttons for a handled tool - mark them disabled\\n                    # Replace button tags to add disabled attribute\\n                    content_md = content_md.replace(\\n                        f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\">\\\",\\n                        f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\" disabled>\\\",\\n                    )\\n                    content_md = content_md.replace(\\n                        f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\">\\\",\\n                        f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\" disabled>\\\",\\n                    )\\n\\n            # For assistant messages with tool_calls, render them specially\\n            tool_calls_html = \\\"\\\"\\n            if role == \\\"assistant\\\" and \\\"tool_calls\\\" in msg:\\n                tool_calls_html = self._render_tool_calls_html(msg[\\\"tool_calls\\\"])\\n\\n            content = markdown.markdown(content_md, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\"])\\n            html_parts.append(f\\\"\\\"\\\"\\n            <div class=\\\"message {role}\\\" {msg_id}>\\n                <div class=\\\"role\\\">{role.capitalize()}</div>\\n                <div class=\\\"content\\\">{content}</div>\\n                {tool_calls_html}\\n            </div>\\n            \\\"\\\"\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01FnjBjLqSa1ghz6huKRotG1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FnjBjLqSa1ghz6huKRotG1",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "<div class=\"diff-view\">\n<div class=\"diff-header\">\n<span>\ud83d\udcdd</span>\n<span class=\"filepath\">src/ui/ai_chat_widget.py</span>\n</div>\n<div class=\"diff-content\">\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            # For assistant messages with tool_calls, render them specially</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            tool_calls_html = &quot;&quot;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            if role == &quot;assistant&quot; and &quot;tool_calls&quot; in msg:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                tool_calls_html = self._render_tool_calls_html(msg[&quot;tool_calls&quot;])</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                {tool_calls_html}</span>\n</div>\n</div>\n</div>",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_render_tool_calls_html` method that renders tool calls from historical messages. Let me add it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"src/ui/ai_chat_widget.py\", \"search\": \"    def _build_messages_html(self) -> str:\", \"replace\": \"    def _render_tool_calls_html(self, tool_calls: list[dict[str, Any]]) -> str:\\n        \\\"\\\"\\\"Render tool calls from a historical message as HTML\\\"\\\"\\\"\\n        html_parts = []\\n        for tc in tool_calls:\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args_str = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            if not name:\\n                continue\\n\\n            # Parse arguments\\n            try:\\n                args = json.loads(args_str) if args_str else {}\\n            except json.JSONDecodeError:\\n                args = {}\\n\\n            # For search_replace, render as diff view\\n            if name == \\\"search_replace\\\":\\n                filepath = args.get(\\\"filepath\\\", \\\"\\\")\\n                search = args.get(\\\"search\\\", \\\"\\\")\\n                replace = args.get(\\\"replace\\\", \\\"\\\")\\n                html_parts.append(render_completed_diff_html(filepath, search, replace))\\n            else:\\n                # Default rendering for other tools\\n                escaped_args = (\\n                    args_str.replace(\\\"&\\\", \\\"&amp;\\\").replace(\\\"<\\\", \\\"&lt;\\\").replace(\\\">\\\", \\\"&gt;\\\")\\n                )\\n                html_parts.append(f\\\"\\\"\\\"\\n                <div class=\\\"tool-call-display\\\">\\n                    <div class=\\\"tool-name\\\">\ud83d\udd27 {name}</div>\\n                    <pre class=\\\"tool-args\\\">{escaped_args}</pre>\\n                </div>\\n                \\\"\\\"\\\")\\n\\n        return \\\"\\\".join(html_parts)\\n\\n    def _build_messages_html(self) -> str:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01JJD4P9mdSpuM9siMnSCR3x",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JJD4P9mdSpuM9siMnSCR3x",
+      "content": "{\"success\": true, \"message\": \"Replaced in src/ui/ai_chat_widget.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "<div class=\"diff-view\">\n<div class=\"diff-header\">\n<span>\ud83d\udcdd</span>\n<span class=\"filepath\">src/ui/ai_chat_widget.py</span>\n</div>\n<div class=\"diff-content\">\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">    def _render_tool_calls_html(self, tool_calls: list[dict[str, Any]]) -&gt; str:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">        &quot;&quot;&quot;Render tool calls from a historical message as HTML&quot;&quot;&quot;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">        html_parts = []</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">        for tc in tool_calls:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            func = tc.get(&quot;function&quot;, {})</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            name = func.get(&quot;name&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            args_str = func.get(&quot;arguments&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            if not name:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                continue</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            # Parse arguments</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            try:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                args = json.loads(args_str) if args_str else {}</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            except json.JSONDecodeError:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                args = {}</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            # For search_replace, render as diff view</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            if name == &quot;search_replace&quot;:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                filepath = args.get(&quot;filepath&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                search = args.get(&quot;search&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                replace = args.get(&quot;replace&quot;, &quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                html_parts.append(render_completed_diff_html(filepath, search, replace))</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">            else:</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                # Default rendering for other tools</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                escaped_args = (</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    args_str.replace(&quot;&amp;&quot;, &quot;&amp;amp;&quot;).replace(&quot;&lt;&quot;, &quot;&amp;lt;&quot;).replace(&quot;&gt;&quot;, &quot;&amp;gt;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                )</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                html_parts.append(f&quot;&quot;&quot;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                &lt;div class=&quot;tool-call-display&quot;&gt;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    &lt;div class=&quot;tool-name&quot;&gt;\ud83d\udd27 {name}&lt;/div&gt;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                    &lt;pre class=&quot;tool-args&quot;&gt;{escaped_args}&lt;/pre&gt;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                &lt;/div&gt;</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">                &quot;&quot;&quot;)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\">        return &quot;&quot;.join(html_parts)</span>\n</div>\n<div class=\"diff-line addition\">\n<span class=\"diff-line-number\">+</span>\n<span class=\"diff-line-content\"></span>\n</div>\n</div>\n</div>",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the code is now in place. Let me run the checks to make sure everything is working:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01LdUTgUb1ABmVMwKACU3hvv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LdUTgUb1ABmVMwKACU3hvv",
+      "content": "{\"success\": true, \"formatted_files\": [], \"format_diffs\": {}, \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\", \"typecheck_passed\": true, \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"formatted_files\": [],\n  \"format_diffs\": {},\n  \"typecheck_output\": \"mypy --explicit-package-bases src/ main.py\\nSuccess: no issues found in 37 source files\\n\",\n  \"typecheck_passed\": true,\n  \"lint_output\": \"ruff check src/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up my context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"src/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Q3SjewjfwhhSBNNcsBor1d",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Q3SjewjfwhhSBNNcsBor1d",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"src/ui/ai_chat_widget.py\"], \"message\": \"Added 0 files, removed 1 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `update_context`\n```json\n{\n  \"remove\": [\n    \"src/ui/ai_chat_widget.py\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"success\": true,\n  \"action\": \"update_context\",\n  \"add\": [],\n  \"remove\": [\n    \"src/ui/ai_chat_widget.py\"\n  ],\n  \"message\": \"Added 0 files, removed 1 files from context\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what I fixed:\n\n## Summary\n\nThe problem was that when reloading the session from disk, the tool calls in assistant messages were not being rendered as diff views. The special diff rendering only happened:\n1. During streaming (via `_update_streaming_tool_calls`)\n2. For the immediate tool result (via the UI-only system message)\n\nBut UI-only messages (`_ui_only=True`) are intentionally not saved to disk, so when reloading we only had the raw assistant messages with their `tool_calls` array.\n\n### Fix\n\nAdded `_render_tool_calls_html()` method that:\n1. Iterates through tool calls in a message\n2. For `search_replace` calls, renders them using `render_completed_diff_html()`\n3. For other tools, renders them with the default JSON display\n\nModified `_build_messages_html()` to:\n1. Check if an assistant message has `tool_calls`\n2. Call `_render_tool_calls_html()` to get the rendered HTML\n3. Include it in the message div after the regular content\n\nNow when you reload a session, all historical `search_replace` tool calls display as nice diff views instead of raw JSON."
     }
   ]
 }

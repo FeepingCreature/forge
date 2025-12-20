@@ -560,7 +560,11 @@ def render_update_context_html(args: dict[str, object], is_streaming: bool = Fal
     """
 
 
-def render_grep_open_html(args: dict[str, object], is_streaming: bool = False) -> str:
+def render_grep_open_html(
+    args: dict[str, object],
+    is_streaming: bool = False,
+    result: dict[str, object] | None = None,
+) -> str:
     """Render grep_open tool call as HTML."""
     pattern = args.get("pattern", "")
     include_extensions = args.get("include_extensions", [])
@@ -573,6 +577,24 @@ def render_grep_open_html(args: dict[str, object], is_streaming: bool = False) -
         exts = ", ".join(str(e) for e in include_extensions)
         filter_info = f'<div class="stats">Filtering: {html.escape(exts)}</div>'
 
+    # Show results if we have them (completed tool call)
+    results_html = ""
+    if result and not is_streaming:
+        matches = result.get("matches", [])
+        if matches and isinstance(matches, list):
+            results_html = "<div><strong>Files added to context:</strong></div>"
+            results_html += '<ul class="file-list">'
+            for match in matches:
+                if isinstance(match, dict):
+                    filepath = match.get("filepath", "")
+                    match_count = match.get("match_count", 0)
+                    escaped_fp = html.escape(str(filepath))
+                    results_html += f'<li><code>{escaped_fp}</code> <span class="match-count">({match_count} matches)</span></li>'
+            results_html += "</ul>"
+        elif result.get("message"):
+            msg = html.escape(str(result.get("message", "")))
+            results_html = f'<div class="stats">{msg}</div>'
+
     return f"""
     <div class="tool-card{streaming_class}">
         <div class="tool-card-header">
@@ -582,6 +604,7 @@ def render_grep_open_html(args: dict[str, object], is_streaming: bool = False) -
         <div class="tool-card-body">
             <div>Pattern: <code>{escaped_pattern}</code></div>
             {filter_info}
+            {results_html}
         </div>
     </div>
     """
@@ -683,7 +706,9 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         return None  # Unknown tool - use default rendering
 
 
-def render_completed_tool_html(name: str, args: dict[str, object]) -> str | None:
+def render_completed_tool_html(
+    name: str, args: dict[str, object], result: dict[str, object] | None = None
+) -> str | None:
     """
     Render a completed tool call as HTML.
 
@@ -693,6 +718,7 @@ def render_completed_tool_html(name: str, args: dict[str, object]) -> str | None
     Args:
         name: Tool name
         args: Parsed tool arguments
+        result: Tool execution result (optional, for tools like grep_open that show results)
 
     Returns:
         HTML string for special rendering, or None for default
@@ -709,7 +735,7 @@ def render_completed_tool_html(name: str, args: dict[str, object]) -> str | None
     elif name == "update_context":
         return render_update_context_html(args, is_streaming=False)
     elif name == "grep_open":
-        return render_grep_open_html(args, is_streaming=False)
+        return render_grep_open_html(args, is_streaming=False, result=result)
     elif name == "get_lines":
         return render_get_lines_html(args, is_streaming=False)
     else:

@@ -903,10 +903,23 @@ class AIChatWidget(QWidget):
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())
 
-        # Display tool result (same logic as before)
-        if tool_name == "search_replace" and result.get("success"):
-            pass  # Diff shown inline
+        # Display tool result
+        # Built-in tools with native rendering don't need system messages on success -
+        # they're rendered inline in the assistant message via _render_tool_calls_html
+        builtin_tools_with_native_rendering = {
+            "search_replace",
+            "write_file",
+            "delete_file",
+            "update_context",
+            "grep_open",
+            "get_lines",
+        }
+
+        if tool_name in builtin_tools_with_native_rendering and result.get("success"):
+            # Success case - tool call is already rendered inline, no system message needed
+            pass
         elif tool_name == "search_replace" and not result.get("success"):
+            # search_replace failure - show error and add file to context
             tool_display_parts = [
                 f"🔧 **Tool call:** `{tool_name}`",
                 f"```json\n{json.dumps(tool_args, indent=2)}\n```",
@@ -920,7 +933,12 @@ class AIChatWidget(QWidget):
                     f"\n📂 Added `{filepath}` to context so you can see its actual content"
                 )
             self._add_system_message("\n".join(tool_display_parts))
+        elif tool_name in builtin_tools_with_native_rendering and not result.get("success"):
+            # Other built-in tool failure - show error
+            error_msg = result.get("error", "Unknown error")
+            self._add_system_message(f"❌ **{tool_name}** failed: {error_msg}")
         else:
+            # Unknown tool - show full JSON
             tool_display_parts = [
                 f"🔧 **Tool call:** `{tool_name}`",
                 f"```json\n{json.dumps(tool_args, indent=2)}\n```",
@@ -1314,13 +1332,21 @@ class AIChatWidget(QWidget):
         """
         self.chat_view.setHtml(html)
 
-    def _render_tool_calls_html(self, tool_calls: list[dict[str, Any]]) -> str:
-        """Render tool calls from a historical message as HTML"""
+    def _render_tool_calls_html(
+        self, tool_calls: list[dict[str, Any]], tool_results: dict[str, dict[str, Any]]
+    ) -> str:
+        """Render tool calls from a historical message as HTML.
+
+        Args:
+            tool_calls: List of tool call objects from assistant message
+            tool_results: Map of tool_call_id -> parsed result dict
+        """
         html_parts = []
         for tc in tool_calls:
             func = tc.get("function", {})
             name = func.get("name", "")
             args_str = func.get("arguments", "")
+            tool_call_id = tc.get("id", "")
 
             if not name:
                 continue
@@ -1331,8 +1357,11 @@ class AIChatWidget(QWidget):
             except json.JSONDecodeError:
                 args = {}
 
+            # Get the result for this tool call (if available)
+            result = tool_results.get(tool_call_id)
+
             # Try native rendering for built-in tools
-            native_html = render_completed_tool_html(name, args)
+            native_html = render_completed_tool_html(name, args, result)
             if native_html:
                 html_parts.append(native_html)
             else:
@@ -1352,6 +1381,17 @@ class AIChatWidget(QWidget):
     def _build_messages_html(self) -> str:
         """Build HTML for all messages (to inject into the container)"""
         html_parts = []
+
+        # Build a lookup of tool_call_id -> parsed result for rendering tool calls with results
+        tool_results: dict[str, dict[str, Any]] = {}
+        for msg in self.messages:
+            if msg.get("role") == "tool" and "tool_call_id" in msg:
+                tool_call_id = msg["tool_call_id"]
+                content = msg.get("content", "")
+                try:
+                    tool_results[tool_call_id] = json.loads(content) if content else {}
+                except json.JSONDecodeError:
+                    tool_results[tool_call_id] = {}
 
         for i, msg in enumerate(self.messages):
             # Skip messages marked for no display (e.g., raw tool results)
@@ -1388,7 +1428,7 @@ class AIChatWidget(QWidget):
             # For assistant messages with tool_calls, render them specially
             tool_calls_html = ""
             if role == "assistant" and "tool_calls" in msg:
-                tool_calls_html = self._render_tool_calls_html(msg["tool_calls"])
+                tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
 
             content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
             html_parts.append(f"""

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from ..git_backend.repository import ForgeRepository
 from ..llm.client import LLMClient
 from ..session.manager import SessionManager
+from .diff_view import get_diff_styles, render_streaming_tool_html
 
 if TYPE_CHECKING:
     from ..config.settings import Settings
@@ -609,21 +610,27 @@ class AIChatWidget(QWidget):
 
             # Show tool name with spinning indicator
             if name:
-                tool_html_parts.append('<div class="streaming-tool-call">')
-                tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
+                # Check for special rendering (search_replace gets a diff view)
+                special_html = render_streaming_tool_html(tc)
+                if special_html:
+                    tool_html_parts.append(special_html)
+                else:
+                    # Default rendering for other tools
+                    tool_html_parts.append('<div class="streaming-tool-call">')
+                    tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
 
-                # Try to pretty-print arguments if they're valid JSON so far
-                if args:
-                    # Show arguments as they stream (may be partial JSON)
-                    # Escape for display
-                    escaped_args = (
-                        args.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    )
-                    tool_html_parts.append(
-                        f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
-                    )
+                    # Try to pretty-print arguments if they're valid JSON so far
+                    if args:
+                        # Show arguments as they stream (may be partial JSON)
+                        # Escape for display
+                        escaped_args = (
+                            args.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        )
+                        tool_html_parts.append(
+                            f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
+                        )
 
-                tool_html_parts.append("</div>")
+                    tool_html_parts.append("</div>")
 
         tool_html = "".join(tool_html_parts)
 
@@ -936,7 +943,9 @@ class AIChatWidget(QWidget):
 
     def _get_chat_styles(self) -> str:
         """Return CSS styles for the chat display"""
-        return """
+        return (
+            get_diff_styles()
+            + """
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 padding: 20px;
@@ -1053,6 +1062,7 @@ class AIChatWidget(QWidget):
                 cursor: not-allowed;
             }
         """
+        )
 
     def _get_chat_scripts(self) -> str:
         """Return JavaScript for the chat display"""

@@ -171,6 +171,10 @@ class ToolExecutionWorker(QObject):
                     tool_args = json.loads(arguments_str) if arguments_str else {}
                 except json.JSONDecodeError as e:
                     result = {"error": f"Invalid JSON arguments: {e}"}
+                    tool_call_id = tool_call.get("id", "")
+                    # Still emit tool_finished so tool_result gets recorded
+                    # (Anthropic requires every tool_use to have a tool_result)
+                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)
                     self.results.append(
                         {
                             "tool_call": tool_call,
@@ -945,11 +949,16 @@ class AIChatWidget(QWidget):
         self.messages.append(tool_message)
         self.session_manager.append_tool_result(tool_call_id, result_json)
 
-        # If tool modified a file, notify prompt manager to reorder
+        # Track modified files - we'll update the prompt manager AFTER all tool results
+        # are recorded. This avoids inserting FILE_CONTENT blocks between TOOL_RESULT
+        # blocks, which would violate Anthropic's API requirement that tool_use must be
+        # immediately followed by tool_result.
         if result.get("success") and tool_name in ("write_file", "search_replace", "delete_file"):
             filepath = tool_args.get("filepath")
             if filepath:
-                self.session_manager.file_was_modified(filepath, tool_call_id)
+                if not hasattr(self, "_pending_file_updates"):
+                    self._pending_file_updates = []
+                self._pending_file_updates.append((filepath, tool_call_id))
 
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
@@ -1007,6 +1016,14 @@ class AIChatWidget(QWidget):
             self.tool_thread.wait()
             self.tool_thread = None
             self.tool_worker = None
+
+        # NOW it's safe to update file contents in the prompt manager.
+        # All tool_result blocks have been recorded, so adding FILE_CONTENT
+        # blocks won't break the tool_use -> tool_result adjacency requirement.
+        if hasattr(self, "_pending_file_updates"):
+            for filepath, tool_call_id in self._pending_file_updates:
+                self.session_manager.file_was_modified(filepath, tool_call_id)
+            self._pending_file_updates = []
 
         # Continue conversation with tool results
         tools = getattr(self, "_pending_tools", [])

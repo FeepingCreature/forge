@@ -57,6 +57,7 @@ The branch-first architecture is **largely complete**:
 - [x] If checked out, ensure working directory is clean (no uncommitted changes)
 - [x] Warn user if workdir has changes - they'd be overwritten by AI commits
 - [x] After commit to checked-out branch, sync working directory to new HEAD
+- [ ] Optional: soft warning when starting AI work on main/master (suggest creating branch)
 
 ### File Tab Persistence
 - [ ] Track open files in XDG user config dir (NOT session data - this is user state)

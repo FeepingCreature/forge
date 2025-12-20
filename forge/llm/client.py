@@ -206,6 +206,18 @@ class LLMClient:
                         # Capture generation ID for cost lookup
                         if "id" in chunk and generation_id is None:
                             generation_id = chunk["id"]
+
+                        # Check for error in the chunk (content filtering, etc.)
+                        if "error" in chunk:
+                            error_info = chunk["error"]
+                            error_msg = error_info.get("message", "Unknown streaming error")
+                            error_code = error_info.get("code", "")
+                            metadata = error_info.get("metadata", {})
+                            provider = metadata.get("provider_name", "unknown")
+                            raise RuntimeError(
+                                f"LLM streaming error (provider={provider}, code={error_code}): {error_msg}"
+                            )
+
                         yield chunk
                     except json.JSONDecodeError as e:
                         print(f"📦 SSE JSON decode error: {e}")

@@ -172,8 +172,6 @@ class GitGraphWidget(QWidget):
 
         # Track which lane each commit is in
         commit_lane: dict[str, int] = {}
-        # Track which lanes are in use at the current row
-        used_lanes: set[int] = set()
         next_lane = 0
 
         # Process rows from bottom (oldest) to top (newest)
@@ -195,17 +193,14 @@ class GitGraphWidget(QWidget):
                 if child_lane is not None:
                     # Continue in child's lane
                     node.column = child_lane
+                    print(f"Row {row}: {node.short_id} continues child's lane {child_lane}")
                 else:
-                    # Allocate new lane (find first unused)
-                    lane = 0
-                    while lane in used_lanes:
-                        lane += 1
-                    node.column = lane
-                    if lane >= next_lane:
-                        next_lane = lane + 1
+                    # Allocate new lane
+                    node.column = next_lane
+                    print(f"Row {row}: {node.short_id} gets new lane {next_lane}")
+                    next_lane += 1
 
                 commit_lane[node.oid] = node.column
-                used_lanes.add(node.column)
 
         self.num_columns = next_lane if next_lane > 0 else 1
 

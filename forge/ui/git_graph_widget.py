@@ -170,6 +170,12 @@ class GitGraphWidget(QWidget):
                     children_of[parent_oid] = []
                 children_of[parent_oid].append(node)
 
+        print(f"children_of has {len(children_of)} entries")
+        print(f"nodes has {len(self.nodes)} commits")
+        # Print first few entries
+        for i, (parent_oid, children) in enumerate(list(children_of.items())[:3]):
+            print(f"  {parent_oid[:7]} has children: {[c.short_id for c in children]}")
+
         # Track which lane each commit is in
         commit_lane: dict[str, int] = {}
         next_lane = 0
@@ -184,11 +190,15 @@ class GitGraphWidget(QWidget):
             for node in row_nodes:
                 # Try to continue in a child's lane
                 child_lane = None
-                if node.oid in children_of:
-                    for child in children_of[node.oid]:
+                has_children = node.oid in children_of
+                if has_children:
+                    children = children_of[node.oid]
+                    for child in children:
                         if child.oid in commit_lane:
                             child_lane = commit_lane[child.oid]
                             break
+                    if child_lane is None:
+                        print(f"Row {row}: {node.short_id} has {len(children)} children but none in commit_lane yet")
 
                 if child_lane is not None:
                     # Continue in child's lane
@@ -197,7 +207,10 @@ class GitGraphWidget(QWidget):
                 else:
                     # Allocate new lane
                     node.column = next_lane
-                    print(f"Row {row}: {node.short_id} gets new lane {next_lane}")
+                    if not has_children:
+                        print(f"Row {row}: {node.short_id} gets new lane {next_lane} (no children)")
+                    else:
+                        print(f"Row {row}: {node.short_id} gets new lane {next_lane} (children not in commit_lane)")
                     next_lane += 1
 
                 commit_lane[node.oid] = node.column

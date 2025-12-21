@@ -1,9 +1,9 @@
 {
   "active_files": [
     "CLAUDE.md",
-    "forge/ui/git_graph_widget.py",
     "GRAPH_COMMIT_ORDERING.md",
-    "forge/main.py"
+    "forge/main.py",
+    "forge/ui/git_graph_widget.py"
   ],
   "messages": [
     {
@@ -762,6 +762,39 @@
     {
       "role": "assistant",
       "content": "Try running it now - the key change is that instead of skipping already-claimed parents, we now always claim the first parent, \"stealing\" it from any previous claimer. This should keep the main line (lane 0) continuous even through merges."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Very close! However, with an *unmerged* branch, what now happens is\n```\nRow 129: 2aaab62 claimed by 993bd97, lane 0 \n -> claims parent dbea833 \nRow 130: dbea833 claimed by 2aaab62, lane 0 \n -> claims parent 7e1d62d \nRow 131: 7e1d62d claimed by dbea833, lane 0 \n -> claims parent 0ba529b \nRow 131: 312cf86 unclaimed, new lane 2 \n -> claims parent cb64b23 \nRow 132: cb64b23 claimed by 312cf86, lane 2 \n -> steals parent 0ba529b from 7e1d62d \nRow 133: 0ba529b claimed by cb64b23, lane 2 \n -> claims parent 238ceb6 \nRow 134: 238ceb6 claimed by 0ba529b, lane 2 \n -> claims parent c886877 \nRow 135: c886877 claimed by 238ceb6, lane 2\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "I see it now! The issue is:\n\n1. `7e1d62d` (lane 0) claims parent `0ba529b`\n2. Then `cb64b23` (lane 2, the unmerged branch) **steals** parent `0ba529b` from `7e1d62d`\n3. So `0ba529b` ends up in lane 2, and the main line drifts to lane 2\n\nThe problem is that we're allowing the branch to steal from the main line. But we should only steal if it makes sense - specifically, lane 0 (or lower lanes) should have priority over higher lanes.\n\nThe fix: only steal if your lane is lower (more \"primary\") than the current claimer's lane:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                # Claim a parent (so we continue in this lane)\\n                # First parent always continues in this lane - steal the claim if needed\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent in claimed_by:\\n                        old_claimer = claimed_by[first_parent]\\n                        print(f\\\"  -> steals parent {first_parent[:7]} from {old_claimer[:7]}\\\")\\n                    else:\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\\n                    claimed_by[first_parent] = node.oid\", \"replace\": \"                # Claim a parent (so we continue in this lane)\\n                # Only claim/steal if we're in a lower (more primary) lane\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent in claimed_by:\\n                        old_claimer = claimed_by[first_parent]\\n                        old_lane = commit_lane[old_claimer]\\n                        if node.column < old_lane:\\n                            # We're in a more primary lane, steal the claim\\n                            claimed_by[first_parent] = node.oid\\n                            print(f\\\"  -> steals parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane})\\\")\\n                        else:\\n                            print(f\\\"  -> can't steal parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane} <= {node.column})\\\")\\n                    else:\\n                        claimed_by[first_parent] = node.oid\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Caw2LBBg6HS2AX2qv355b4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Caw2LBBg6HS2AX2qv355b4",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Try running it now. The logic is now: only steal a parent claim if your lane number is lower (more \"primary\"). So lane 0 can steal from lane 2, but lane 2 can't steal from lane 0."
     }
   ]
 }

@@ -703,6 +703,862 @@ The correct formalization is **depth-based**:
 
 The "temporal contiguity" idea was a good intuition but led to a different (and I think worse) algorithm that allows edges to skip rows.
 
+## More Examples of Temporal Contiguity Approach
+
+Let me work through more examples to understand this better.
+
+### Algorithm Recap
+
+1. Sort commits by time (newest first)
+2. Greedily assign to rows, grouping consecutive commits if they're not ancestors
+3. Constraints:
+   - No two commits in same row can be ancestors
+   - Commits in a row must be temporally contiguous (no commits outside the row fall between them in time)
+
+### Example 1: Simple Fork
+
+```
+Commits: A(T4), B(T3), C(T2), D(T1)
+Ancestry: A→C→D, B→D (fork at D, no merge)
+```
+
+Processing (newest first): A, B, C, D
+
+- Row 0: A. Can we add B? A and B not ancestors ✓. {A, B}
+- Can we add C? C is ancestor of A ✗. Stop row 0.
+- Row 1: C. Can we add D? D is ancestor of C ✗. Stop row 1.
+- Row 2: D.
+
+```
+row0: A  B
+row1: C
+row2:   D
+```
+
+Edges: A→C (0→1), B→D (0→2), C→D (1→2)
+
+Note: B→D skips row 1! Is this okay?
+
+Visually, B is at T3, C is at T2. B is newer than C but they're on different branches. The edge B→D passes by C's row but doesn't intersect C (different column).
+
+### Example 2: Long Branch vs Short Branch
+
+```
+Commits: A(T5), B(T4), C(T3), D(T2), E(T1)
+Ancestry: A→B→C→D→E (one long branch)
+         No other branches - this is linear!
+```
+
+Processing: A, B, C, D, E
+
+- Row 0: A. Can we add B? B is ancestor of A ✗. Stop.
+- Row 1: B. Can we add C? C is ancestor of B ✗. Stop.
+- Row 2: C. Can we add D? D is ancestor of C ✗. Stop.
+- Row 3: D. Can we add E? E is ancestor of D ✗. Stop.
+- Row 4: E.
+
+```
+row0: A
+row1: B
+row2: C
+row3: D
+row4: E
+```
+
+Linear history = no compression possible. Makes sense!
+
+### Example 3: Two Independent Branches
+
+```
+Commits: A(T6), B(T5), C(T4), D(T3), E(T2), F(T1)
+Ancestry: A→C→E (branch 1), B→D→F (branch 2)
+         No common ancestor! (orphan branches)
+```
+
+Processing: A, B, C, D, E, F
+
+- Row 0: A. Add B? Not ancestors ✓. {A, B}
+- Add C? C is ancestor of A ✗. Stop.
+- Row 1: C. Add D? Not ancestors ✓. {C, D}
+- Add E? E is ancestor of C ✗. Stop.
+- Row 2: E. Add F? Not ancestors ✓. {E, F}
+
+```
+row0: A  B
+row1: C  D
+row2: E  F
+```
+
+Perfect compression! Two parallel timelines, 3 rows instead of 6.
+
+Edges: A→C (0→1), B→D (0→1), C→E (1→2), D→F (1→2)
+
+All edges span exactly 1 row. 
+
+### Example 4: The Problematic Case (Uneven Branches)
+
+```
+Commits: A(T6), B(T5), C(T4), D(T3), E(T2), F(T1)
+Ancestry: A→C→E→F, B→D→F
+         (branch 1 has 3 commits before merge, branch 2 has 2)
+```
+
+Processing: A, B, C, D, E, F
+
+- Row 0: A. Add B? Not ancestors ✓. {A, B}
+- Add C? C is ancestor of A ✗. Stop.
+- Row 1: C. Add D? Not ancestors ✓. {C, D}
+- Add E? E is ancestor of C ✗. Stop.
+- Row 2: E. Add F? F is ancestor of E ✗. Stop.
+- Row 3: F.
+
+```
+row0: A  B
+row1: C  D
+row2: E
+row3:   F
+```
+
+Edges: A→C (0→1), B→D (0→1), C→E (1→2), D→F (1→3), E→F (2→3)
+
+The edge D→F skips row 2. D is at row 1, F is at row 3.
+
+**Is this actually bad?** Let me think about what this looks like:
+
+```
+     col0  col1
+row0:  A    B
+       |    |
+row1:  C    D
+       |     \
+row2:  E      |
+       |      |
+row3:  F <----+
+```
+
+The line from D to F runs alongside column 0's E→F edge. It's a bit odd but... maybe it's fine? It accurately represents that D was committed at T3 and F at T1, with E(T2) in between.
+
+### Example 5: What Depth-Based Would Give for Example 4
+
+```
+Commits: A(T6), B(T5), C(T4), D(T3), E(T2), F(T1)
+Ancestry: A→C→E→F, B→D→F
+```
+
+Depth-based (oldest first): F, E, D, C, B, A
+
+- F: row 0
+- E: parent F(0), row 1
+- D: parent F(0), row 1
+- C: parent E(1), row 2
+- B: parent D(1), row 2
+- A: parent C(2), row 3
+
+```
+row3: A
+row2: C  B
+row1: E  D
+row0:   F
+```
+
+Edges: All exactly 1 row apart.
+
+**But look at the times!**
+- Row 3: A(T6)
+- Row 2: C(T4), B(T5)
+- Row 1: E(T2), D(T3)
+- Row 0: F(T1)
+
+B(T5) is below A(T6) even though B is older. That's expected.
+But B(T5) is at the same row as C(T4). B is newer!
+
+And D(T3) is at the same row as E(T2). D is newer!
+
+So in the depth-based version, reading across a row doesn't give you contemporaneous commits.
+
+### Example 6: Why Temporal Might Be Better
+
+Consider you're looking at the graph and asking "what was happening around T4?"
+
+**Temporal approach (row 1 = {C, D} where C=T4, D=T3):**
+Looking at row 1, you see C and D, times T4 and T3. Close together!
+
+**Depth approach (row 2 = {C, B} where C=T4, B=T5):**
+Looking at row 2, you see C and B, times T4 and T5. Also close, but B is newer.
+
+Hmm, both seem reasonable actually.
+
+### Example 7: More Extreme Uneven Branches
+
+```
+Commits: A(T10), B(T9), C(T8), D(T7), E(T6), F(T5), G(T4), H(T3), I(T2), J(T1)
+Ancestry: A→B→C→D→E→F→G→H→I→J (10-commit branch 1)
+         Plus: X(T5.5) → J (1-commit branch 2, between F and G in time)
+         
+Actually let me simplify:
+Commits: A(T5), B(T4), C(T3), D(T2), E(T1), X(T4.5)
+Ancestry: A→B→C→D→E (main branch), X→E (short branch)
+```
+
+Wait, T4.5 means X is between A(T5) and B(T4). Let me use integers:
+
+```
+Commits: A(T6), X(T5), B(T4), C(T3), D(T2), E(T1)
+Ancestry: A→B→C→D→E, X→E
+```
+
+**Temporal approach:**
+Processing: A, X, B, C, D, E
+
+- Row 0: A. Add X? Not ancestors ✓. {A, X}
+- Add B? B is ancestor of A ✗. Stop.
+- Row 1: B. Add C? C is ancestor of B ✗. Stop.
+- Row 2: C. Add D? D is ancestor of C ✗. Stop.
+- Row 3: D. Add E? E is ancestor of D ✗. Stop.
+- Row 4: E.
+
+```
+row0: A  X
+row1: B
+row2: C
+row3: D
+row4:   E
+```
+
+Edge X→E goes from row 0 to row 4! That's 4 rows of skipping.
+
+**Depth approach:**
+Processing: E, D, C, B, X, A
+
+- E: row 0
+- D: parent E(0), row 1
+- C: parent D(1), row 2
+- B: parent C(2), row 3
+- X: parent E(0), row 1
+- A: parent B(3), row 4
+
+```
+row4: A
+row3: B
+row2: C
+row1: D  X
+row0:   E
+```
+
+Edge X→E is just 1 row.
+
+### The Tradeoff is Clear Now
+
+**Temporal contiguity:**
+- Rows represent time slices
+- Reading a row = "what was happening around this time"
+- But edges can skip many rows if branches have different lengths
+
+**Depth-based:**
+- Rows represent topological depth
+- All edges span exactly 1 row (clean visual)
+- But commits in a row may be from very different times
+
+### Which is Better?
+
+I dismissed temporal too quickly. Let me reconsider.
+
+The skipping edges in temporal are actually *informative*. When X→E skips 4 rows, it's telling you "X was committed way after E, even though X's parent is E." That's useful information!
+
+In the depth-based version, X and D are on the same row, even though X(T5) is much newer than D(T2). That hides the temporal relationship.
+
+**Maybe temporal IS what you want?**
+
+The question is: what's the primary purpose of the graph?
+
+1. **Understanding branch structure**: Depth-based is cleaner
+2. **Understanding when things happened**: Temporal is more accurate
+
+For a git history viewer, I could see arguments both ways...
+
+## More Temporal Examples
+
+### Example 8: The "Stale Branch" Case
+
+This is a really common real-world scenario: someone creates a feature branch, works on it, then it sits for a while, then main advances a lot, then they come back.
+
+```
+Timeline:
+T1: ROOT created
+T2: feature branch created from ROOT (commit F1)
+T3: main advances (commit M1)
+T4: main advances (commit M2)
+T5: main advances (commit M3)
+T6: feature branch resumes (commit F2, parent F1)
+
+Commits: F2(T6), M3(T5), M2(T4), M1(T3), F1(T2), ROOT(T1)
+Ancestry: F2→F1→ROOT, M3→M2→M1→ROOT
+```
+
+**Temporal approach:**
+Processing: F2, M3, M2, M1, F1, ROOT
+
+- Row 0: F2. Add M3? Not ancestors ✓. {F2, M3}
+- Add M2? M2 is ancestor of M3 ✗. Stop.
+- Row 1: M2. Add M1? M1 is ancestor of M2 ✗. Stop.
+- Row 2: M1. Add F1? Not ancestors ✓. {M1, F1}
+- Add ROOT? ROOT is ancestor of both ✗. Stop.
+- Row 3: ROOT.
+
+```
+row0: F2  M3
+row1:     M2
+row2: F1  M1
+row3:   ROOT
+```
+
+Edges:
+- F2→F1: 0→2 (skips row 1!)
+- M3→M2: 0→1 ✓
+- M2→M1: 1→2 ✓
+- M1→ROOT: 2→3 ✓
+- F1→ROOT: 2→3 ✓
+
+The F2→F1 edge skipping row 1 visually shows "this branch was stale - main advanced while feature sat idle."
+
+**Depth approach:**
+- ROOT: row 0
+- F1: row 1
+- M1: row 1
+- M2: row 2
+- M3: row 3
+- F2: row 2
+
+```
+row3:     M3
+row2: F2  M2
+row1: F1  M1
+row0:   ROOT
+```
+
+Here F2(T6) is at the same row as M2(T4). But F2 was committed 2 time units after M2! The depth view hides that the feature branch was stale.
+
+### Example 9: Interleaved Work
+
+Two developers working in parallel, commits interleaved in time:
+
+```
+T1: ROOT
+T2: A1 (Alice, parent ROOT)
+T3: B1 (Bob, parent ROOT)
+T4: A2 (Alice, parent A1)
+T5: B2 (Bob, parent B1)
+T6: A3 (Alice, parent A2)
+
+Commits: A3(T6), B2(T5), A2(T4), B1(T3), A1(T2), ROOT(T1)
+Ancestry: A3→A2→A1→ROOT, B2→B1→ROOT
+```
+
+**Temporal approach:**
+Processing: A3, B2, A2, B1, A1, ROOT
+
+- Row 0: A3. Add B2? Not ancestors ✓. {A3, B2}
+- Add A2? A2 is ancestor of A3 ✗. Stop.
+- Row 1: A2. Add B1? Not ancestors ✓. {A2, B1}
+- Add A1? A1 is ancestor of A2 ✗. Stop.
+- Row 2: A1. Add ROOT? ROOT is ancestor ✗. Stop.
+- Row 3: ROOT.
+
+```
+row0: A3  B2
+row1: A2  B1
+row2: A1
+row3:   ROOT
+```
+
+Edges:
+- A3→A2: 0→1 ✓
+- B2→B1: 0→1 ✓
+- A2→A1: 1→2 ✓
+- B1→ROOT: 1→3 (skips row 2!)
+- A1→ROOT: 2→3 ✓
+
+Hmm, B1→ROOT skips a row. That's because A1 was committed between B1 and ROOT.
+
+**Depth approach:**
+- ROOT: row 0
+- A1: row 1
+- B1: row 1
+- A2: row 2
+- B2: row 2
+- A3: row 3
+
+```
+row3: A3
+row2: A2  B2
+row1: A1  B1
+row0:   ROOT
+```
+
+All edges exactly 1 row. But A2(T4) and B2(T5) are in the same row even though they're different times.
+
+### Example 10: What Does "Skipping" Really Mean Visually?
+
+Let me think about what it looks like when an edge skips rows.
+
+```
+Temporal Example 9:
+     col0  col1
+row0: A3    B2
+      |     |
+row1: A2    B1
+      |      \
+row2: A1      \
+      |        \
+row3: ROOT <----+
+```
+
+The B1→ROOT edge runs down from row 1 to row 3, passing by row 2. It doesn't intersect A1 (different column), but it does span multiple rows.
+
+Is this bad? I think it's actually **informative**:
+- It shows that between B1 and ROOT, something else happened (A1)
+- The visual "length" of the edge corresponds to temporal distance
+
+Compare to depth-based:
+```
+Depth Example 9:
+     col0  col1
+row3: A3
+      |
+row2: A2    B2
+      |     |
+row1: A1    B1
+      |    /
+row0: ROOT<+
+```
+
+Here B1→ROOT is only 1 row, same as A1→ROOT. You lose the information that A1 was committed between B1 and ROOT.
+
+### Example 11: Extreme Case - Very Old Branch Revived
+
+```
+T1: ROOT
+T2-T100: 99 commits on main (M1...M99)
+T101: Feature commit F1 with parent ROOT
+
+Ancestry: M99→M98→...→M1→ROOT, F1→ROOT
+```
+
+**Temporal:**
+F1 would be at row 0 (newest), and M99 could join it.
+Then M98 at row 1, etc.
+The edge F1→ROOT would span 100 rows!
+
+Visually, you'd see a very long line from F1 down to ROOT, showing "this commit's parent is ancient."
+
+**Depth:**
+F1 would be at row 1 (depth 1 from ROOT), same row as M1.
+F1(T101) and M1(T2) at the same row! That's a 99-time-unit difference hidden.
+
+### The Case FOR Temporal
+
+1. **Rows = time slices**: Looking at a row tells you "what was happening around this time"
+2. **Long edges are meaningful**: They show "this commit was based on something old"
+3. **Stale branches are visible**: You can see when work was abandoned and resumed
+4. **Interleaved work is visible**: You see the actual chronology
+
+### The Case FOR Depth
+
+1. **Clean edges**: Every edge spans exactly 1 row, easier to follow
+2. **Structural clarity**: Shows the branch/merge structure clearly
+3. **Compact for unbalanced histories**: A 1-commit branch doesn't create 99 rows of empty space
+
+### A Hybrid?
+
+What if we:
+1. Use temporal for row assignment
+2. But allow a maximum edge length (e.g., 5 rows)
+3. If an edge would be longer, insert "..." or collapse the empty space
+
+This would give temporal benefits while avoiding extreme visual stretching.
+
+### Actually, Let's Reconsider the Temporal Algorithm
+
+The greedy algorithm I described might not be optimal. Let me think about what we're actually optimizing.
+
+**Goal**: Minimize rows while respecting:
+1. Topological constraint (no ancestors in same row)
+2. Temporal contiguity (no gaps)
+
+The greedy approach (scan newest-first, add to current row if possible) might not find the optimal solution.
+
+But actually... I think it does? Because:
+- We process in time order
+- We greedily pack
+- Temporal contiguity is automatically satisfied (we never skip a commit)
+- Topological constraint is checked
+
+Let me verify with a tricky case...
+
+```
+Commits: A(T5), B(T4), C(T3), D(T2), E(T1)
+What if: A→E, B→D→E, C→E (three branches from E)
+```
+
+Processing: A, B, C, D, E
+
+- Row 0: A. Add B? Not ancestors ✓. Add C? Not ancestors ✓. {A, B, C}
+- Add D? D is ancestor of B ✗. Stop.
+- Row 1: D. Add E? E is ancestor of D ✗. Stop.
+- Row 2: E.
+
+```
+row0: A  B  C
+row1:    D
+row2:      E
+```
+
+Edges: A→E (0→2), B→D (0→1), C→E (0→2), D→E (1→2)
+
+Two edges skip row 1: A→E and C→E.
+
+Is this the minimum rows? Yes - we can't do better than 3 rows because E must be alone (ancestor of all), and D must be separate from B.
+
+Could we arrange it differently? What if we didn't put A, B, C together?
+
+Row 0: A, B (not C)
+Row 1: C, D (C not ancestor of D, D not ancestor of C)
+Row 2: E
+
+```
+row0: A  B
+row1: C  D
+row2:      E
+```
+
+Edges: A→E (0→2), B→D (0→1), C→E (1→2), D→E (1→2)
+
+Only one edge skips (A→E). This seems better!
+
+So the greedy algorithm isn't optimal! We got {A,B,C} in row 0, but {A,B} in row 0 and {C,D} in row 1 is better (fewer skipping edges).
+
+### Revised Goal
+
+Maybe we want to:
+1. **Primary**: Minimize total rows
+2. **Secondary**: Minimize total edge-skip distance (sum of |row(child) - row(parent) - 1|)
+
+This is more complex than a simple greedy algorithm...
+
+### Is This a Known Problem?
+
+This feels like it might be related to graph drawing algorithms, specifically layered graph drawing (Sugiyama-style). The standard approach there is:
+
+1. Assign layers (rows) to minimize edge length
+2. Order nodes within layers to minimize crossings
+3. Assign x-coordinates
+
+The layer assignment problem with the goal of minimizing edge lengths is actually NP-hard in general, but there are good heuristics.
+
+For our specific constraints (temporal contiguity + topological), I wonder if there's a polynomial solution...
+
+## Focusing on Temporal: More Examples
+
+### Example 12: Merge Commit
+
+```
+T1: ROOT
+T2: A (parent ROOT) - branch A starts  
+T3: B (parent ROOT) - branch B starts
+T4: C (parent A) - branch A continues
+T5: D (parent B) - branch B continues
+T6: M (parents C, D) - merge!
+
+Commits: M(T6), D(T5), C(T4), B(T3), A(T2), ROOT(T1)
+Ancestry: M→C→A→ROOT, M→D→B→ROOT
+```
+
+**Temporal approach:**
+Processing: M, D, C, B, A, ROOT
+
+- Row 0: M. Add D? D is parent of M ✗. Stop.
+- Row 1: D. Add C? Not ancestors ✓. {D, C}
+- Add B? B is ancestor of D ✗. Stop.
+- Row 2: B. Add A? Not ancestors ✓. {B, A}
+- Add ROOT? ROOT is ancestor of both ✗. Stop.
+- Row 3: ROOT.
+
+```
+row0:    M
+row1: C    D
+row2: A    B
+row3:   ROOT
+```
+
+Edges: M→C (0→1), M→D (0→1), C→A (1→2), D→B (1→2), A→ROOT (2→3), B→ROOT (2→3)
+
+All edges span exactly 1 row! The temporal approach naturally handles this merge beautifully.
+
+### Example 13: Merge with Uneven Branches
+
+```
+T1: ROOT
+T2: A (parent ROOT)
+T3: B (parent A)
+T4: C (parent ROOT) - short branch
+T5: M (parents B, C) - merge
+
+Commits: M(T5), C(T4), B(T3), A(T2), ROOT(T1)
+Ancestry: M→B→A→ROOT, M→C→ROOT
+```
+
+**Temporal:**
+Processing: M, C, B, A, ROOT
+
+- Row 0: M. Add C? C is parent of M ✗. Stop.
+- Row 1: C. Add B? Not ancestors ✓. {C, B}
+- Add A? A is ancestor of B ✗. Stop.
+- Row 2: A. Add ROOT? ROOT is ancestor ✗. Stop.
+- Row 3: ROOT.
+
+```
+row0:      M
+row1:   B  C
+row2:   A
+row3: ROOT
+```
+
+Edges: M→B (0→1), M→C (0→1), B→A (1→2), C→ROOT (1→3), A→ROOT (2→3)
+
+C→ROOT skips row 2. This shows that C branched from ROOT but A was committed in between.
+
+### Example 14: Fast-Forward Scenario
+
+```
+T1: ROOT
+T2: A (parent ROOT) - main
+T3: B (parent A) - main
+T4: C (parent A) - feature branch from A
+T5: D (parent B) - main continues
+T6: E (parent C) - feature continues
+
+Commits: E(T6), D(T5), C(T4), B(T3), A(T2), ROOT(T1)
+Ancestry: E→C→A→ROOT, D→B→A→ROOT
+```
+
+**Temporal:**
+Processing: E, D, C, B, A, ROOT
+
+- Row 0: E. Add D? Not ancestors ✓. {E, D}
+- Add C? C is ancestor of E ✗. Stop.
+- Row 1: C. Add B? Not ancestors ✓. {C, B}
+- Add A? A is ancestor of both ✗. Stop.
+- Row 2: A. Add ROOT? ROOT is ancestor ✗. Stop.
+- Row 3: ROOT.
+
+```
+row0: E    D
+row1: C    B
+row2:    A
+row3:  ROOT
+```
+
+Edges: E→C (0→1), D→B (0→1), C→A (1→2), B→A (1→2), A→ROOT (2→3)
+
+All edges span 1 row! Beautiful. Shows the parallel development clearly.
+
+### Example 15: The Rebase-Like Pattern
+
+Someone rebases old work onto new main:
+
+```
+T1: ROOT
+T2: M1 (parent ROOT) - main
+T3: M2 (parent M1) - main  
+T4: M3 (parent M2) - main
+T5: F1 (parent M3) - feature starts from latest main
+T6: F2 (parent F1) - feature continues
+
+Commits: F2(T6), F1(T5), M3(T4), M2(T3), M1(T2), ROOT(T1)
+Ancestry: F2→F1→M3→M2→M1→ROOT (linear!)
+```
+
+**Temporal:**
+Linear history = no compression. Each commit gets its own row.
+
+```
+row0: F2
+row1: F1
+row2: M3
+row3: M2
+row4: M1
+row5: ROOT
+```
+
+All edges span 1 row. Makes sense - linear is linear.
+
+### Example 16: The "Topic Branch Hell" Pattern
+
+Multiple small topic branches:
+
+```
+T1: ROOT
+T2: A (parent ROOT) - topic A
+T3: B (parent ROOT) - topic B  
+T4: C (parent ROOT) - topic C
+T5: D (parent ROOT) - topic D
+
+Commits: D(T5), C(T4), B(T3), A(T2), ROOT(T1)
+Ancestry: A→ROOT, B→ROOT, C→ROOT, D→ROOT (all independent!)
+```
+
+**Temporal:**
+Processing: D, C, B, A, ROOT
+
+- Row 0: D. Add C? Not ancestors ✓. Add B? Not ancestors ✓. Add A? Not ancestors ✓. {D, C, B, A}
+- Add ROOT? ROOT is ancestor of all ✗. Stop.
+- Row 1: ROOT.
+
+```
+row0: D  C  B  A
+row1:    ROOT
+```
+
+All 4 topic branches in one row! Edges: all span 1 row.
+
+This is great - shows "4 parallel things happened, all from ROOT."
+
+### Example 17: Staggered Topic Branches
+
+```
+T1: ROOT
+T2: A1 (parent ROOT) - topic A starts
+T3: B1 (parent ROOT) - topic B starts
+T4: A2 (parent A1) - topic A continues
+T5: B2 (parent B1) - topic B continues
+T6: C1 (parent ROOT) - topic C starts late!
+
+Commits: C1(T6), B2(T5), A2(T4), B1(T3), A1(T2), ROOT(T1)
+Ancestry: A2→A1→ROOT, B2→B1→ROOT, C1→ROOT
+```
+
+**Temporal:**
+Processing: C1, B2, A2, B1, A1, ROOT
+
+- Row 0: C1. Add B2? Not ancestors ✓. {C1, B2}
+- Add A2? Not ancestors ✓. {C1, B2, A2}
+- Add B1? B1 is ancestor of B2 ✗. Stop.
+- Row 1: B1. Add A1? Not ancestors ✓. {B1, A1}
+- Add ROOT? ROOT is ancestor of both ✗. Stop.
+- Row 2: ROOT.
+
+```
+row0: A2  B2  C1
+row1: A1  B1
+row2:    ROOT
+```
+
+Edges:
+- A2→A1 (0→1) ✓
+- B2→B1 (0→1) ✓
+- C1→ROOT (0→2) skips!
+- A1→ROOT (1→2) ✓
+- B1→ROOT (1→2) ✓
+
+The C1→ROOT skip shows "C1 branched from ROOT, but A1 and B1 were committed in between."
+
+This is informative! It shows C1 is "late to the party" - based on old ROOT while others have made progress.
+
+## The Temporal Algorithm: Formal Statement
+
+```python
+def temporal_row_assignment(commits):
+    """
+    Assign rows to commits based on temporal contiguity.
+    
+    Constraints:
+    1. No two commits in same row can have ancestor relationship
+    2. Commits in a row must be temporally contiguous 
+       (no commit outside row falls between them in time)
+    
+    Algorithm:
+    - Process commits newest to oldest
+    - Greedily add each commit to current row if constraints allow
+    - When constraint violated, start new row
+    """
+    # Sort newest first
+    sorted_commits = sorted(commits, key=lambda c: -c.time)
+    
+    rows = []  # List of sets
+    current_row = set()
+    
+    for commit in sorted_commits:
+        # Check if commit can join current row
+        can_join = True
+        for existing in current_row:
+            if is_ancestor(commit, existing) or is_ancestor(existing, commit):
+                can_join = False
+                break
+        
+        if can_join and current_row:
+            current_row.add(commit)
+        else:
+            if current_row:
+                rows.append(current_row)
+            current_row = {commit}
+    
+    if current_row:
+        rows.append(current_row)
+    
+    # Convert to row assignments
+    row_of = {}
+    for i, row in enumerate(rows):
+        for commit in row:
+            row_of[commit] = i
+    
+    return row_of
+```
+
+Wait, I realize this greedy algorithm might group non-contiguous commits. Let me reconsider...
+
+Actually no - because we process in time order, and we only add to the current row, temporal contiguity is guaranteed. If commit X at T5 and commit Y at T3 are in the same row, it means everything between them (T4) was also considered for this row - it either:
+1. Was added to this row, or
+2. Was rejected due to ancestor constraint, so it started a new row
+
+So the constraint "no commit outside the row falls between them" is automatically satisfied by the greedy left-to-right scan.
+
+## What About Optimality?
+
+The greedy algorithm minimizes rows but may not minimize total edge skip distance. 
+
+From Example with A→E, B→D→E, C→E:
+- Greedy gives {A,B,C}, {D}, {E} with skips on A→E and C→E
+- Alternative {A,B}, {C,D}, {E} has skip only on A→E
+
+But... is the alternative even valid under temporal contiguity?
+
+A(T5), B(T4), C(T3), D(T2), E(T1)
+
+For {A,B} at row 0 and {C,D} at row 1:
+- Row 0: A(T5), B(T4) - contiguous ✓
+- Row 1: C(T3), D(T2) - contiguous ✓
+
+Yes, valid! So there are multiple valid row assignments, and greedy doesn't find the one with minimum edge skips.
+
+**But does it matter?** The difference is whether C is in row 0 or row 1. In both cases:
+- The A→E edge skips (A is far from E temporally)
+- The C→E edge skip depends on where C is
+
+Maybe minimizing skips isn't the right goal. The greedy algorithm has a nice property: **it keeps contemporaneous commits together**.
+
+## Summary: The Temporal Algorithm
+
+1. Sort commits by time (newest first)
+2. Greedily assign to rows: add to current row if no ancestor conflict
+3. Temporal contiguity is automatic from the greedy scan
+4. Edges may skip rows - this is **informative**, showing temporal gaps
+
+The result:
+- Rows = time slices
+- Long edges = "based on old commit"
+- Parallel branches are visually parallel when contemporaneous
+- Stale branches are visually obvious
+
 ## Next Steps
 
 Implement this in Python and see how it looks on real repositories.

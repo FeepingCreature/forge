@@ -469,6 +469,240 @@ The algorithm I proposed is correct:
 
 The original intuition about "skipping rows" was probably about a different case, or was an over-specification. The depth-based approach produces sensible, compact graphs.
 
+## Alternative Formalization: Compression from Strict Time Ordering
+
+Let's start from the other direction: begin with strict time ordering, then compress.
+
+### Starting Point: Strict Time Order
+
+Every commit gets its own row, ordered by time. If we have N commits, we have N rows.
+
+```
+row0: A (T5)
+row1: B (T4)
+row2: C (T3)
+row3: D (T2)
+row4: E (T1)
+```
+
+This is "true" (respects time perfectly) but wastes space.
+
+### The Compression Question
+
+When can we merge two rows into one?
+
+**Necessary condition**: Two commits can share a row only if they're in different columns (different branches/lanes).
+
+**But what else?** This is the key question.
+
+### Your Intuition: "No commit outside the row is between two commits inside the row"
+
+Let me formalize this. If commits X and Y are in the same row, then for any commit Z NOT in that row:
+- It's not the case that `time(X) > time(Z) > time(Y)` (Z is not temporally between them)
+
+Equivalently: **commits in a row must be temporally contiguous** - there's no "gap" in time where other commits live.
+
+Let me test this with an example:
+
+```
+Commits by time: A(T5), B(T4), C(T3), D(T2), E(T1)
+Branches: A→C→E (branch 1), B→D→E (branch 2)
+```
+
+Can A and B share a row? 
+- Is there any commit Z where T5 > time(Z) > T4? No.
+- ✓ They can share a row.
+
+Can A and C share a row?
+- Is there any commit Z where T5 > time(Z) > T3? Yes, B at T4.
+- ✗ They cannot share a row.
+
+Can B and C share a row?
+- Is there any commit Z where T4 > time(Z) > T3? No.
+- ✓ They can share a row.
+
+So valid rows under this rule:
+- {A, B} ✓
+- {B, C} ✓
+- {C, D} ✓
+- {D, E} - wait, E is T1, D is T2, nothing between, ✓
+- {A, B, C}? Is there Z where T5 > time(Z) > T3 and Z ∉ {A,B,C}? 
+  - Only candidates are D(T2) and E(T1), both < T3. 
+  - ✓ Valid!
+
+Hmm, so {A, B, C} could all be in one row? That seems too aggressive - A is the child of C, they shouldn't be in the same row!
+
+### Missing Constraint: Topological
+
+Right, we still need the topological constraint. Commits in the same row cannot have an ancestor relationship.
+
+So the full rule is:
+1. **Topological**: No two commits in the same row can have an ancestor-descendant relationship
+2. **Temporal contiguity**: No commit outside the row falls temporally between any two commits in the row
+
+### Let's Re-examine
+
+```
+Commits: A(T5), B(T4), C(T3), D(T2), E(T1)
+Ancestry: A→C→E, B→D→E
+```
+
+Can A and B share a row?
+- Topological: A and B are not ancestors of each other ✓
+- Temporal: Nothing between T5 and T4 ✓
+- **Result: Yes**
+
+Can C and D share a row?
+- Topological: C and D are not ancestors of each other ✓
+- Temporal: Nothing between T3 and T2 ✓
+- **Result: Yes**
+
+Can A and D share a row?
+- Topological: A and D are not ancestors of each other ✓
+- Temporal: B(T4) and C(T3) are between T5 and T2 ✗
+- **Result: No**
+
+That last one is interesting! A(T5) and D(T2) can't share a row even though they're unrelated, because B and C would be "skipped over."
+
+### What Does This Give Us?
+
+With these two constraints, I think the algorithm is:
+
+1. Sort commits by time
+2. Greedily group consecutive (in time) commits into rows, subject to:
+   - No two commits in a row can be ancestors
+   - (Temporal contiguity is automatic if we group consecutively)
+
+Let me try:
+
+```
+Sorted: A(T5), B(T4), C(T3), D(T2), E(T1)
+
+Row 0: Start with A
+  - Can we add B? A and B not ancestors. ✓ Add B.
+  - Can we add C? C is ancestor of A. ✗ Stop.
+Row 0 = {A, B}
+
+Row 1: Start with C
+  - Can we add D? C and D not ancestors. ✓ Add D.
+  - Can we add E? E is ancestor of both C and D. ✗ Stop.
+Row 1 = {C, D}
+
+Row 2: Start with E
+  - Nothing left.
+Row 2 = {E}
+
+Result:
+row0: A  B
+row1: C  D
+row2:   E
+```
+
+This matches my earlier algorithm! But now I understand *why* it works.
+
+### The Connection
+
+The "process oldest first, row = max(parent_rows) + 1" algorithm produces the same result because:
+- It naturally groups commits at the same "depth" together
+- Commits at the same depth from a common ancestor tend to be temporally contiguous
+- The topological constraint is explicitly enforced
+
+But the "temporal contiguity" view gives us a different intuition: **we're compressing a strict time ordering by merging adjacent time-slices, but only when doing so doesn't skip over any commits.**
+
+### A Case Where They Might Differ?
+
+Let me try to construct a case where the two approaches give different answers...
+
+```
+Commits: A(T6), B(T5), C(T4), D(T3), E(T2), F(T1)
+Ancestry: A→C→E→F, B→D→F (two branches merging at F)
+```
+
+**Greedy consecutive grouping:**
+- Row 0: A, then B? A and B not ancestors. ✓ {A, B}
+- Row 1: C, then D? C and D not ancestors. ✓ {C, D}
+- Row 2: E, then F? F is ancestor of E. ✗ {E}
+- Row 3: {F}
+
+```
+row0: A  B
+row1: C  D
+row2: E
+row3:   F
+```
+
+**Depth-based (process oldest first):**
+- F: row 0
+- E: parent F at 0, row 1
+- D: parent F at 0, row 1
+- C: parent E at 1, row 2
+- B: parent D at 1, row 2
+- A: parent C at 2, row 3
+
+```
+row3: A
+row2: C  B
+row1: E  D
+row0:   F
+```
+
+Wait, these are different! The depth-based one puts B at row 2, but the greedy consecutive one puts B at row 0.
+
+Let me check if the greedy result violates anything:
+- Row 0 has A(T6) and B(T5) - temporally adjacent ✓, not ancestors ✓
+- Row 1 has C(T4) and D(T3) - temporally adjacent ✓, not ancestors ✓
+
+But visually:
+```
+row0: A  B
+row1: C  D
+row2: E
+row3:   F
+```
+
+The edge from B to D skips row 1's C! And the edge from A to C is fine. But B→D goes from row 0 to row 1, that's fine actually.
+
+Hmm wait, let me re-examine. In the greedy approach:
+- A is at row 0, its parent C is at row 1. Good.
+- B is at row 0, its parent D is at row 1. Good.
+- C is at row 1, its parent E is at row 2. Good.
+- D is at row 1, its parent F is at row 3. **Skips row 2!**
+
+Is that a problem? The edge D→F would have to pass through row 2, where E lives. 
+
+In the depth-based approach:
+- Every parent is exactly one row below. No skipping.
+
+### The Missing Constraint?
+
+I think the temporal contiguity rule isn't quite right, or isn't sufficient. What we really want is:
+
+**Every edge goes to an adjacent row** (no skipping rows)
+
+This is equivalent to: **row = max(parent_rows) + 1**, the depth-based rule.
+
+The temporal contiguity idea captures something, but it's not the right formalization. The right formalization is depth-based.
+
+### So What Was Your Intuition?
+
+I think your intuition about "skipping rows" was actually about **edges**, not about commits in rows:
+
+> "if the next two commits in A are both older than the next commit in B, then B has to skip at least one row"
+
+Rephrased: If B's parent is much older than B (with other commits in between temporally), B can't be placed high up - it has to be placed just one row above its parent, even if that means B ends up "lower" (higher row number) than temporally-older commits from other branches.
+
+This is exactly what the depth-based algorithm does!
+
+### Revised Conclusion
+
+The correct formalization is **depth-based**:
+- Row = max(parent_rows) + 1
+- This ensures no edges skip rows
+- Commits at the same depth can share a row
+- Time is used for processing order (affects column assignment and tie-breaking)
+
+The "temporal contiguity" idea was a good intuition but led to a different (and I think worse) algorithm that allows edges to skip rows.
+
 ## Next Steps
 
 Implement this in Python and see how it looks on real repositories.

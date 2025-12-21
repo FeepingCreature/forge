@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "GRAPH_COMMIT_ORDERING.md",
     "forge/main.py",
-    "forge/ui/git_graph_widget.py"
+    "forge/ui/git_graph_widget.py",
+    "CLAUDE.md",
+    "GRAPH_COMMIT_ORDERING.md"
   ],
   "messages": [
     {
@@ -696,6 +696,39 @@
     {
       "role": "assistant",
       "content": "Good, the prints are in. Can you run it and show me the output around where the drift happens? Maybe look for a merge commit (one with two parents) and a few commits before/after it."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Sure, here's where it happens:\n```\nRow 21: 78d048a claimed by 5a3682f, lane 0 \n -> claims parent 28964af \nRow 22: 28964af claimed by 78d048a, lane 0 \n -> claims parent cc5295a \nRow 23: 0a0ab8b unclaimed, new lane 1 \n -> claims parent c05b394 \nRow 24: c05b394 claimed by 0a0ab8b, lane 1 \n -> claims parent 0326ba0 \nRow 24: cc5295a claimed by 28964af, lane 0 \n -> claims parent 507a395 \nRow 25: 507a395 claimed by cc5295a, lane 0 \n -> first parent 0326ba0 already claimed by c05b394 \nRow 26: 0326ba0 claimed by c05b394, lane 1 \n -> claims parent 20674a4 \nRow 27: 20674a4 claimed by 0326ba0, lane 1 \n -> claims parent 8d63e87 \nRow 28: 8d63e87 claimed by 20674a4, lane 1 \n -> claims parent 3de9341 \nRow 29: 3de9341 claimed by 8d63e87, lane 1 \n -> claims parent 3aa295c \nRow 30: 3aa295c claimed by 3de9341, lane 1\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "I see it now. The issue is at row 25:\n\n```\nRow 25: 507a395 claimed by cc5295a, lane 0 \n -> first parent 0326ba0 already claimed by c05b394\n```\n\nSo `507a395` is in lane 0 (claimed by `cc5295a` which is on the main line). But `507a395`'s first parent is `0326ba0`, which was already claimed by `c05b394` (the branch). So `507a395` can't claim its parent, and from then on, the main line follows lane 1 instead of lane 0.\n\nThe problem is: `507a395` is a **merge commit**. Its first parent is `0326ba0` (the branch), but it should probably prefer to continue in its *own* lane (lane 0) rather than trying to claim a parent that's already taken.\n\nThe fix: when a commit is claimed (has a lane from a child), it should claim whichever parent is *not* already claimed, preferring to keep the lane continuous. Or more simply: we should propagate the lane downward through the parent that makes sense.\n\nLet me think about this differently. The real issue is that `507a395` (merge commit in lane 0) has parent `0326ba0` which is already claimed by the branch. So the main line \"jumps\" to lane 1 after the merge.\n\nThe fix is: when looking for a parent to claim, skip parents that are already claimed and try the next one:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                # Claim our first parent (so we continue in this lane)\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent not in claimed_by:\\n                        claimed_by[first_parent] = node.oid\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\\n                    else:\\n                        print(f\\\"  -> first parent {first_parent[:7]} already claimed by {claimed_by[first_parent][:7]}\\\")\", \"replace\": \"                # Claim a parent (so we continue in this lane)\\n                # Try each parent in order, claim the first unclaimed one\\n                if node.parent_oids:\\n                    claimed_parent = None\\n                    for parent_oid in node.parent_oids:\\n                        if parent_oid not in claimed_by:\\n                            claimed_by[parent_oid] = node.oid\\n                            claimed_parent = parent_oid\\n                            print(f\\\"  -> claims parent {parent_oid[:7]}\\\")\\n                            break\\n                    if claimed_parent is None:\\n                        print(f\\\"  -> all parents already claimed\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01JXwjB5rjvTV1DH3LogmTw7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JXwjB5rjvTV1DH3LogmTw7",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now run it and let's see what happens around that same merge."
     }
   ]
 }

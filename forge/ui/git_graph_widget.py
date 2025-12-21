@@ -152,8 +152,8 @@ class GitGraphWidget(QWidget):
         """
         Assign columns (lanes) to commits.
 
-        Process from bottom (oldest) to top (newest).
-        Each commit continues its first child's lane if possible.
+        Process from top (newest) to bottom (oldest).
+        Each commit continues the lane of its first child that wants it.
         """
         # Group nodes by row
         rows: dict[int, list[CommitNode]] = {}
@@ -162,58 +162,36 @@ class GitGraphWidget(QWidget):
                 rows[node.row] = []
             rows[node.row].append(node)
 
-        # Build child map (parent_oid -> list of child nodes)
-        children_of: dict[str, list[CommitNode]] = {}
-        for node in self.nodes:
-            for parent_oid in node.parent_oids:
-                if parent_oid not in children_of:
-                    children_of[parent_oid] = []
-                children_of[parent_oid].append(node)
-
-        print(f"children_of has {len(children_of)} entries")
-        print(f"nodes has {len(self.nodes)} commits")
-        # Print first few entries
-        for i, (parent_oid, children) in enumerate(list(children_of.items())[:3]):
-            print(f"  {parent_oid[:7]} has children: {[c.short_id for c in children]}")
-
-        # Track which lane each commit is in
+        # For each commit, track which lane it's in
         commit_lane: dict[str, int] = {}
+        # For each commit, track which child "claimed" it (wants to continue its lane)
+        claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it
         next_lane = 0
 
-        # Process rows from bottom (oldest) to top (newest)
-        for row in range(self.num_rows - 1, -1, -1):
+        # Process rows from top (newest) to bottom (oldest)
+        for row in range(self.num_rows):
             if row not in rows:
                 continue
 
             row_nodes = rows[row]
 
             for node in row_nodes:
-                # Try to continue in a child's lane
-                child_lane = None
-                has_children = node.oid in children_of
-                if has_children:
-                    children = children_of[node.oid]
-                    for child in children:
-                        if child.oid in commit_lane:
-                            child_lane = commit_lane[child.oid]
-                            break
-                    if child_lane is None:
-                        print(f"Row {row}: {node.short_id} has {len(children)} children but none in commit_lane yet")
-
-                if child_lane is not None:
-                    # Continue in child's lane
-                    node.column = child_lane
-                    print(f"Row {row}: {node.short_id} continues child's lane {child_lane}")
+                # Check if a child already claimed us (wants us in their lane)
+                if node.oid in claimed_by:
+                    child_oid = claimed_by[node.oid]
+                    node.column = commit_lane[child_oid]
                 else:
                     # Allocate new lane
                     node.column = next_lane
-                    if not has_children:
-                        print(f"Row {row}: {node.short_id} gets new lane {next_lane} (no children)")
-                    else:
-                        print(f"Row {row}: {node.short_id} gets new lane {next_lane} (children not in commit_lane)")
                     next_lane += 1
 
                 commit_lane[node.oid] = node.column
+
+                # Claim our first parent (so we continue in this lane)
+                if node.parent_oids:
+                    first_parent = node.parent_oids[0]
+                    if first_parent not in claimed_by:
+                        claimed_by[first_parent] = node.oid
 
         self.num_columns = next_lane if next_lane > 0 else 1
 

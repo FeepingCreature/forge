@@ -28,6 +28,7 @@ from forge.llm.cost_tracker import COST_TRACKER
 from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
+from forge.ui.git_graph_widget import GitGraphScrollArea
 from forge.ui.settings_dialog import SettingsDialog
 
 
@@ -71,6 +72,14 @@ class MainWindow(QMainWindow):
         self.branch_tabs.tabCloseRequested.connect(self._close_branch_tab)
         self.branch_tabs.setMovable(True)
         self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)
+
+        # Add git graph as first tab (not closable)
+        self.git_graph = GitGraphScrollArea(self.repo)
+        self.branch_tabs.addTab(self.git_graph, "📊 Graph")
+        # Make git graph tab not closable
+        self.branch_tabs.tabBar().setTabButton(
+            0, self.branch_tabs.tabBar().ButtonPosition.RightSide, None
+        )
 
         # Add "+" button for new branch
         self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)
@@ -498,6 +507,10 @@ class MainWindow(QMainWindow):
 
     def _close_branch_tab(self, index: int) -> None:
         """Close a branch tab"""
+        # Don't close the git graph tab (index 0)
+        if index == 0:
+            return
+
         widget = self.branch_tabs.widget(index)
 
         # Check for unsaved changes

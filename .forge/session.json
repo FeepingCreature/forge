@@ -1,7 +1,8 @@
 {
   "active_files": [
-    "GRAPH_COMMIT_ORDERING.md",
-    "CLAUDE.md"
+    "forge/ui/git_graph_widget.py",
+    "CLAUDE.md",
+    "GRAPH_COMMIT_ORDERING.md"
   ],
   "messages": [
     {
@@ -208,6 +209,237 @@
     {
       "role": "assistant",
       "content": "Thanks! Yeah, the key insight is that processing in strict time order and closing rows on conflict gives you the temporal contiguity property automatically - you don't have to check for it explicitly.\n\nReady to move on to implementation when you are, or if you want to flesh out the column assignment algorithm more first."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d6c39aca",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah no that's great, and once we have the row order, column order is I thiiink straightforward. Let's do it! For now let's just draw straight connecting lines and put down squares with the id and description in the laid-out format."
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at the existing UI structure to understand how to add this.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\",\"forge/ui/branch_tab_widget.py\",\"forge/git_backend/repository.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_018e3fgFmBDKEPYkHsvzEjq1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_018e3fgFmBDKEPYkHsvzEjq1",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\", \"forge/ui/branch_tab_widget.py\", \"forge/git_backend/repository.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me create the git graph widget. I'll put it in a new file and then integrate it into the UI.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"content\": \"\\\"\\\"\\\"\\nGit graph widget - visualizes commit history with temporal ordering.\\n\\nSee GRAPH_COMMIT_ORDERING.md for the algorithm details.\\n\\\"\\\"\\\"\\n\\nfrom dataclasses import dataclass\\n\\nimport pygit2\\nfrom PySide6.QtCore import Qt\\nfrom PySide6.QtGui import QColor, QPainter, QPen\\nfrom PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget\\n\\nfrom forge.git_backend.repository import ForgeRepository\\n\\n\\n@dataclass\\nclass CommitNode:\\n    \\\"\\\"\\\"A commit with its layout position.\\\"\\\"\\\"\\n\\n    oid: str\\n    short_id: str\\n    message: str\\n    timestamp: int\\n    parent_oids: list[str]\\n    row: int = 0\\n    column: int = 0\\n\\n\\nclass GitGraphWidget(QWidget):\\n    \\\"\\\"\\\"Widget that displays git commit graph with temporal ordering.\\\"\\\"\\\"\\n\\n    # Layout constants\\n    ROW_HEIGHT = 60\\n    COLUMN_WIDTH = 200\\n    NODE_RADIUS = 8\\n    PADDING = 20\\n\\n    # Colors for different columns (branches)\\n    LANE_COLORS = [\\n        QColor(\\\"#4CAF50\\\"),  # Green\\n        QColor(\\\"#2196F3\\\"),  # Blue\\n        QColor(\\\"#FF9800\\\"),  # Orange\\n        QColor(\\\"#9C27B0\\\"),  # Purple\\n        QColor(\\\"#F44336\\\"),  # Red\\n        QColor(\\\"#00BCD4\\\"),  # Cyan\\n        QColor(\\\"#FFEB3B\\\"),  # Yellow\\n        QColor(\\\"#795548\\\"),  # Brown\\n    ]\\n\\n    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:\\n        super().__init__(parent)\\n        self.repo = repo\\n        self.nodes: list[CommitNode] = []\\n        self.oid_to_node: dict[str, CommitNode] = {}\\n        self.num_rows = 0\\n        self.num_columns = 0\\n\\n        self._load_commits()\\n        self._assign_rows()\\n        self._assign_columns()\\n        self._update_size()\\n\\n    def _load_commits(self) -> None:\\n        \\\"\\\"\\\"Load all commits from the repository.\\\"\\\"\\\"\\n        self.nodes = []\\n        self.oid_to_node = {}\\n\\n        # Walk all branches to collect commits\\n        seen_oids: set[str] = set()\\n\\n        for branch_name in self.repo.repo.branches:\\n            branch = self.repo.repo.branches[branch_name]\\n            commit = branch.peel(pygit2.Commit)\\n\\n            # Walk the commit history\\n            for c in self.repo.repo.walk(commit.id, pygit2.GIT_SORT_TIME):\\n                oid = str(c.id)\\n                if oid in seen_oids:\\n                    continue\\n                seen_oids.add(oid)\\n\\n                # Get first line of commit message\\n                message = c.message.split(\\\"\\\\n\\\")[0][:50]\\n\\n                node = CommitNode(\\n                    oid=oid,\\n                    short_id=oid[:7],\\n                    message=message,\\n                    timestamp=c.commit_time,\\n                    parent_oids=[str(p.id) for p in c.parents],\\n                )\\n                self.nodes.append(node)\\n                self.oid_to_node[oid] = node\\n\\n    def _is_ancestor(self, maybe_ancestor: CommitNode, maybe_descendant: CommitNode) -> bool:\\n        \\\"\\\"\\\"Check if maybe_ancestor is an ancestor of maybe_descendant.\\\"\\\"\\\"\\n        # Simple check: walk parents of descendant\\n        visited: set[str] = set()\\n        stack = [maybe_descendant.oid]\\n\\n        while stack:\\n            current_oid = stack.pop()\\n            if current_oid in visited:\\n                continue\\n            visited.add(current_oid)\\n\\n            if current_oid == maybe_ancestor.oid:\\n                return True\\n\\n            if current_oid in self.oid_to_node:\\n                node = self.oid_to_node[current_oid]\\n                stack.extend(node.parent_oids)\\n\\n        return False\\n\\n    def _assign_rows(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign rows using temporal contiguity algorithm.\\n\\n        Process commits newest-first, greedily packing into rows.\\n        Start new row when we hit an ancestor conflict.\\n        \\\"\\\"\\\"\\n        # Sort by timestamp, newest first\\n        sorted_nodes = sorted(self.nodes, key=lambda n: -n.timestamp)\\n\\n        current_row = 0\\n        current_row_nodes: list[CommitNode] = []\\n\\n        for node in sorted_nodes:\\n            # Check if node can join current row (no ancestor relationship)\\n            can_join = True\\n            for existing in current_row_nodes:\\n                if self._is_ancestor(node, existing) or self._is_ancestor(existing, node):\\n                    can_join = False\\n                    break\\n\\n            if can_join and current_row_nodes:\\n                # Add to current row\\n                current_row_nodes.append(node)\\n                node.row = current_row\\n            else:\\n                # Start new row\\n                if current_row_nodes:\\n                    current_row += 1\\n                current_row_nodes = [node]\\n                node.row = current_row\\n\\n        self.num_rows = current_row + 1\\n\\n    def _assign_columns(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign columns (lanes) to commits.\\n\\n        Simple approach: track active lanes, continue parent's lane when possible.\\n        \\\"\\\"\\\"\\n        # Group nodes by row\\n        rows: dict[int, list[CommitNode]] = {}\\n        for node in self.nodes:\\n            if node.row not in rows:\\n                rows[node.row] = []\\n            rows[node.row].append(node)\\n\\n        # Track which lane each commit is in\\n        commit_lane: dict[str, int] = {}\\n        # Track which lanes are \\\"active\\\" (have a line continuing through)\\n        active_lanes: set[int] = set()\\n        next_lane = 0\\n\\n        # Process rows from top (newest) to bottom (oldest)\\n        for row in range(self.num_rows):\\n            if row not in rows:\\n                continue\\n\\n            row_nodes = rows[row]\\n\\n            for node in row_nodes:\\n                # Try to find a parent's lane to continue\\n                parent_lane = None\\n                for parent_oid in node.parent_oids:\\n                    if parent_oid in commit_lane:\\n                        parent_lane = commit_lane[parent_oid]\\n                        break\\n\\n                if parent_lane is not None:\\n                    # Continue in parent's lane\\n                    node.column = parent_lane\\n                else:\\n                    # Allocate new lane\\n                    # Find first unused lane\\n                    lane = 0\\n                    while lane in active_lanes:\\n                        lane += 1\\n                    node.column = lane\\n                    if lane >= next_lane:\\n                        next_lane = lane + 1\\n\\n                commit_lane[node.oid] = node.column\\n                active_lanes.add(node.column)\\n\\n            # Deactivate lanes for commits that have no more children below\\n            # (simplified: just keep all lanes active for now)\\n\\n        self.num_columns = next_lane if next_lane > 0 else 1\\n\\n    def _update_size(self) -> None:\\n        \\\"\\\"\\\"Update widget size based on graph dimensions.\\\"\\\"\\\"\\n        width = self.num_columns * self.COLUMN_WIDTH + 2 * self.PADDING\\n        height = self.num_rows * self.ROW_HEIGHT + 2 * self.PADDING\\n        self.setMinimumSize(width, height)\\n        self.setFixedSize(width, height)\\n\\n    def _get_node_pos(self, node: CommitNode) -> tuple[int, int]:\\n        \\\"\\\"\\\"Get the (x, y) position of a node's center.\\\"\\\"\\\"\\n        x = self.PADDING + node.column * self.COLUMN_WIDTH + self.COLUMN_WIDTH // 2\\n        y = self.PADDING + node.row * self.ROW_HEIGHT + self.ROW_HEIGHT // 2\\n        return x, y\\n\\n    def _get_lane_color(self, column: int) -> QColor:\\n        \\\"\\\"\\\"Get color for a lane/column.\\\"\\\"\\\"\\n        return self.LANE_COLORS[column % len(self.LANE_COLORS)]\\n\\n    def paintEvent(self, event: object) -> None:\\n        \\\"\\\"\\\"Paint the git graph.\\\"\\\"\\\"\\n        painter = QPainter(self)\\n        painter.setRenderHint(QPainter.RenderHint.Antialiasing)\\n\\n        # Draw edges first (so they're behind nodes)\\n        for node in self.nodes:\\n            x1, y1 = self._get_node_pos(node)\\n\\n            for parent_oid in node.parent_oids:\\n                if parent_oid not in self.oid_to_node:\\n                    continue\\n\\n                parent = self.oid_to_node[parent_oid]\\n                x2, y2 = self._get_node_pos(parent)\\n\\n                # Draw line from node to parent\\n                color = self._get_lane_color(node.column)\\n                pen = QPen(color, 2)\\n                painter.setPen(pen)\\n                painter.drawLine(x1, y1, x2, y2)\\n\\n        # Draw nodes\\n        for node in self.nodes:\\n            x, y = self._get_node_pos(node)\\n            color = self._get_lane_color(node.column)\\n\\n            # Draw circle\\n            painter.setBrush(color)\\n            painter.setPen(QPen(Qt.GlobalColor.black, 1))\\n            painter.drawEllipse(\\n                x - self.NODE_RADIUS,\\n                y - self.NODE_RADIUS,\\n                self.NODE_RADIUS * 2,\\n                self.NODE_RADIUS * 2,\\n            )\\n\\n            # Draw text (short id and message)\\n            painter.setPen(Qt.GlobalColor.black)\\n            text = f\\\"{node.short_id}: {node.message}\\\"\\n            text_x = x + self.NODE_RADIUS + 5\\n            text_y = y + 5\\n            painter.drawText(text_x, text_y, text)\\n\\n\\nclass GitGraphScrollArea(QScrollArea):\\n    \\\"\\\"\\\"Scrollable container for the git graph.\\\"\\\"\\\"\\n\\n    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:\\n        super().__init__(parent)\\n        self.repo = repo\\n\\n        # Create the graph widget\\n        self.graph_widget = GitGraphWidget(repo)\\n\\n        # Set up scroll area\\n        self.setWidget(self.graph_widget)\\n        self.setWidgetResizable(False)\\n        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n\\n    def refresh(self) -> None:\\n        \\\"\\\"\\\"Refresh the graph (reload commits and redraw).\\\"\\\"\\\"\\n        # Create a new graph widget\\n        self.graph_widget = GitGraphWidget(self.repo)\\n        self.setWidget(self.graph_widget)\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_01V75qDcnM1o5nzWyGPeRZnd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01V75qDcnM1o5nzWyGPeRZnd",
+      "content": "{\"message\": \"Wrote 9626 bytes to forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me integrate it into the main window. I'll add it as a tab to the left of the current branch tabs.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"from forge.ui.ai_chat_widget import AIChatWidget\\nfrom forge.ui.branch_tab_widget import BranchTabWidget\\nfrom forge.ui.branch_workspace import BranchWorkspace\\nfrom forge.ui.settings_dialog import SettingsDialog\", \"replace\": \"from forge.ui.ai_chat_widget import AIChatWidget\\nfrom forge.ui.branch_tab_widget import BranchTabWidget\\nfrom forge.ui.branch_workspace import BranchWorkspace\\nfrom forge.ui.git_graph_widget import GitGraphScrollArea\\nfrom forge.ui.settings_dialog import SettingsDialog\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01S3XYU1T9xP1kvUGZEd4sPB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01S3XYU1T9xP1kvUGZEd4sPB",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the git graph tab to the main window. Looking at the code, I see that branches are opened as tabs. I should add the git graph as a fixed tab on the left. Let me modify the `_setup_ui` method:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"        # Branch tabs (top-level)\\n        self.branch_tabs = QTabWidget()\\n        self.branch_tabs.setTabsClosable(True)\\n        self.branch_tabs.tabCloseRequested.connect(self._close_branch_tab)\\n        self.branch_tabs.setMovable(True)\\n        self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)\\n\\n        # Add \\\"+\\\" button for new branch\\n        self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)\\n\\n        # Enable context menu on tab bar\\n        tab_bar = self.branch_tabs.tabBar()\\n        tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)\\n        tab_bar.customContextMenuRequested.connect(self._show_branch_context_menu)\\n\\n        layout.addWidget(self.branch_tabs)\", \"replace\": \"        # Branch tabs (top-level)\\n        self.branch_tabs = QTabWidget()\\n        self.branch_tabs.setTabsClosable(True)\\n        self.branch_tabs.tabCloseRequested.connect(self._close_branch_tab)\\n        self.branch_tabs.setMovable(True)\\n        self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)\\n\\n        # Add git graph as first tab (not closable)\\n        self.git_graph = GitGraphScrollArea(self.repo)\\n        self.branch_tabs.addTab(self.git_graph, \\\"\ud83d\udcca Graph\\\")\\n        # Make git graph tab not closable\\n        self.branch_tabs.tabBar().setTabButton(\\n            0, self.branch_tabs.tabBar().ButtonPosition.RightSide, None\\n        )\\n\\n        # Add \\\"+\\\" button for new branch\\n        self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)\\n\\n        # Enable context menu on tab bar\\n        tab_bar = self.branch_tabs.tabBar()\\n        tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)\\n        tab_bar.customContextMenuRequested.connect(self._show_branch_context_menu)\\n\\n        layout.addWidget(self.branch_tabs)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Vr4rPaMPUVuo3jaxCUm2Up",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Vr4rPaMPUVuo3jaxCUm2Up",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to handle one edge case - the close tab function shouldn't try to close the git graph tab. Let me update that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"    def _close_branch_tab(self, index: int) -> None:\\n        \\\"\\\"\\\"Close a branch tab\\\"\\\"\\\"\\n        widget = self.branch_tabs.widget(index)\\n\\n        # Check for unsaved changes\\n        if isinstance(widget, BranchTabWidget) and widget.has_unsaved_changes():\", \"replace\": \"    def _close_branch_tab(self, index: int) -> None:\\n        \\\"\\\"\\\"Close a branch tab\\\"\\\"\\\"\\n        # Don't close the git graph tab (index 0)\\n        if index == 0:\\n            return\\n\\n        widget = self.branch_tabs.widget(index)\\n\\n        # Check for unsaved changes\\n        if isinstance(widget, BranchTabWidget) and widget.has_unsaved_changes():\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KtBTV4wQmQZcBZE8h6hmBM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KtBTV4wQmQZcBZE8h6hmBM",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything is working:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_011n84ufRP3EmzGt6pmTFsf3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011n84ufRP3EmzGt6pmTFsf3",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nF401 [*] `PySide6.QtWidgets.QVBoxLayout` imported but unused\\n  --> forge/ui/git_graph_widget.py:12:44\\n   |\\n10 | from PySide6.QtCore import Qt\\n11 | from PySide6.QtGui import QColor, QPainter, QPen\\n12 | from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget\\n   |                                            ^^^^^^^^^^^\\n13 |\\n14 | from forge.git_backend.repository import ForgeRepository\\n   |\\nhelp: Remove unused import: `PySide6.QtWidgets.QVBoxLayout`\\n\\nN802 Function name `paintEvent` should be lowercase\\n   --> forge/ui/git_graph_widget.py:223:9\\n    |\\n221 |         return self.LANE_COLORS[column % len(self.LANE_COLORS)]\\n222 |\\n223 |     def paintEvent(self, event: object) -> None:\\n    |         ^^^^^^^^^^\\n224 |         \\\"\\\"\\\"Paint the git graph.\\\"\\\"\\\"\\n225 |         painter = QPainter(self)\\n    |\\n\\nFound 2 errors.\\n[*] 1 fixable with the `--fix` option.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\", \"lint_passed\": false, \"success\": false, \"summary\": \"\\u2717 Type check failed\\n\\u2717 Lint failed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/git_graph_widget.py:77: error: Argument 2 to \\\"walk\\\" of \\\"Repository\\\" has incompatible type \\\"int\\\"; expected \\\"SortMode\\\"  [arg-type]\\nFound 1 error in 1 file (checked 43 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nF401 [*] `PySide6.QtWidgets.QVBoxLayout` imported but unused\\n  --> forge/ui/git_graph_widget.py:12:44\\n   |\\n10 | from PySide6.QtCore import Qt\\n11 | from PySide6.QtGui import QColor, QPainter, QPen\\n12 | from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget\\n   |                                            ^^^^^^^^^^^\\n13 |\\n14 | from forge.git_backend.repository import ForgeRepository\\n   |\\nhelp: Remove unused import: `PySide6.QtWidgets.QVBoxLayout`\\n\\nN802 Function name `paintEvent` should be lowercase\\n   --> forge/ui/git_graph_widget.py:223:9\\n    |\\n221 |         return self.LANE_COLORS[column % len(self.LANE_COLORS)]\\n222 |\\n223 |     def paintEvent(self, event: object) -> None:\\n    |         ^^^^^^^^^^\\n224 |         \\\"\\\"\\\"Paint the git graph.\\\"\\\"\\\"\\n225 |         painter = QPainter(self)\\n    |\\n\\nFound 2 errors.\\n[*] 1 fixable with the `--fix` option.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\",\n  \"lint_passed\": false,\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2717 Lint failed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/git_graph_widget.py:77: error: Argument 2 to \\\"walk\\\" of \\\"Repository\\\" has incompatible type \\\"int\\\"; expected \\\"SortMode\\\"  [arg-type]\\nFound 1 error in 1 file (checked 43 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me fix those issues:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget\", \"replace\": \"from PySide6.QtWidgets import QScrollArea, QWidget\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MY2J7nGigzWq1rvwdqXbAy",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"            # Walk the commit history\\n            for c in self.repo.repo.walk(commit.id, pygit2.GIT_SORT_TIME):\", \"replace\": \"            # Walk the commit history\\n            for c in self.repo.repo.walk(commit.id, pygit2.enums.SortMode.TIME):\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01SPpV8U6tjr5yhKdhuHwSHB",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def paintEvent(self, event: object) -> None:\", \"replace\": \"    def paintEvent(self, event: object) -> None:  # noqa: N802 - Qt override\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XmamEb83RDYn3cJMv57TJk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MY2J7nGigzWq1rvwdqXbAy",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SPpV8U6tjr5yhKdhuHwSHB",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XmamEb83RDYn3cJMv57TJk",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_018qiTe8e5dm3yhjvhJuLpMp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018qiTe8e5dm3yhjvhJuLpMp",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up the context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/main_window.py\",\"forge/ui/branch_tab_widget.py\",\"forge/git_backend/repository.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_014ob1Rk6XYdJt2sw3JAXDAU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014ob1Rk6XYdJt2sw3JAXDAU",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 3 files from context\", \"remove\": [\"forge/ui/main_window.py\", \"forge/ui/branch_tab_widget.py\", \"forge/git_backend/repository.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I've implemented the git graph widget:\n\n**What I created:**\n\n1. **`forge/ui/git_graph_widget.py`** - The main widget with:\n   - `CommitNode` dataclass to hold commit info + layout position\n   - `GitGraphWidget` that implements the temporal ordering algorithm\n   - `GitGraphScrollArea` as a scrollable container\n\n2. **Integration in `main_window.py`**:\n   - Added the graph as the first tab (\ud83d\udcca Graph)\n   - Made it non-closable\n\n**The algorithm implementation:**\n- `_load_commits()`: Walks all branches, collects commits with timestamps and parent refs\n- `_assign_rows()`: The temporal contiguity algorithm - processes newest-first, packs greedily, starts new row on ancestor conflict\n- `_assign_columns()`: Simple lane tracking - continues parent's lane when possible, allocates new lanes otherwise\n- `paintEvent()`: Draws straight lines between commits and circles with short ID + message\n\n**Visual details:**\n- 60px row height, 200px column width\n- 8 different lane colors that cycle\n- Commits shown as colored circles with `short_id: message` text\n\nYou can run it and see the graph tab. It'll show your actual commit history with the temporal ordering we designed."
     }
   ]
 }

@@ -2,8 +2,8 @@
   "active_files": [
     "CLAUDE.md",
     "GRAPH_COMMIT_ORDERING.md",
-    "forge/ui/git_graph_widget.py",
-    "forge/main.py"
+    "forge/main.py",
+    "forge/ui/git_graph_widget.py"
   ],
   "messages": [
     {
@@ -663,6 +663,39 @@
     {
       "role": "assistant",
       "content": "The logic is now:\n\n1. Process commits top-to-bottom (newest to oldest)\n2. When we process a commit:\n   - Check if any child already \"claimed\" us (meaning a child wants us to continue its lane)\n   - If claimed: use that child's lane\n   - If not claimed: allocate a new lane\n3. After processing a commit, it \"claims\" its first parent (so that parent will continue in this lane)\n\nThis way, a linear chain A\u2192B\u2192C\u2192D (where A is newest) works as:\n- Process A: not claimed, gets lane 0, claims B\n- Process B: claimed by A, gets lane 0, claims C\n- Process C: claimed by B, gets lane 0, claims D\n- Process D: claimed by C, gets lane 0\n\nAll in lane 0! Try it now and let me know if it works."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Looks much much better! There's an issue if a branch forks off, does a few commits and merges back: we start in lane 0, we put the branch in lane 1, but at the point where we fork off, we continue downwards in lane 1, not 0. So we drift to the right every time we merge a branch."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, I see the issue! When we hit a merge commit (multiple parents), we claim the first parent, but that parent might already be claimed by another child. The problem is that after a merge, the \"main\" line continues but we've moved to a new lane.\n\nThe fix is: when a commit has multiple parents (it's a merge), the *first* parent should continue in the merge commit's lane, but we should only claim it if no one else has. Actually wait, re-reading the code... I think the issue is different.\n\nLet me trace through a fork-and-merge:\n\n```\nA (merge, parents: B, C)\nB (on main, parent: D)\nC (on branch, parent: D)  \nD (fork point)\n```\n\nProcessing top-to-bottom:\n- A: not claimed, gets lane 0. Claims first parent B.\n- B: claimed by A, gets lane 0. Claims D.\n- C: not claimed, gets lane 1. Claims D (but D already claimed by B, so no-op).\n- D: claimed by B, gets lane 0. \u2713\n\nThat should work... Let me think about a longer example:\n\n```\nA (merge, parents: B, C)\nB (main, parent: E)\nC (branch, parent: D)\nD (branch, parent: E)\nE (fork point)\n```\n\nProcessing:\n- A: not claimed, lane 0. Claims B.\n- B: claimed by A, lane 0. Claims E.\n- C: not claimed, lane 1. Claims D.\n- D: claimed by C, lane 1. Claims E (already claimed, no-op).\n- E: claimed by B, lane 0. \u2713\n\nStill looks right... Can you give me a bit more detail about what you're seeing? Maybe add some prints to see the actual claim/lane assignments?",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        # Process rows from top (newest) to bottom (oldest)\\n        for row in range(self.num_rows):\\n            if row not in rows:\\n                continue\\n\\n            row_nodes = rows[row]\\n\\n            for node in row_nodes:\\n                # Check if a child already claimed us (wants us in their lane)\\n                if node.oid in claimed_by:\\n                    child_oid = claimed_by[node.oid]\\n                    node.column = commit_lane[child_oid]\\n                else:\\n                    # Allocate new lane\\n                    node.column = next_lane\\n                    next_lane += 1\\n\\n                commit_lane[node.oid] = node.column\\n\\n                # Claim our first parent (so we continue in this lane)\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent not in claimed_by:\\n                        claimed_by[first_parent] = node.oid\\n\\n        self.num_columns = next_lane if next_lane > 0 else 1\", \"replace\": \"        # Process rows from top (newest) to bottom (oldest)\\n        for row in range(self.num_rows):\\n            if row not in rows:\\n                continue\\n\\n            row_nodes = rows[row]\\n\\n            for node in row_nodes:\\n                # Check if a child already claimed us (wants us in their lane)\\n                if node.oid in claimed_by:\\n                    child_oid = claimed_by[node.oid]\\n                    node.column = commit_lane[child_oid]\\n                    print(f\\\"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}\\\")\\n                else:\\n                    # Allocate new lane\\n                    node.column = next_lane\\n                    print(f\\\"Row {row}: {node.short_id} unclaimed, new lane {node.column}\\\")\\n                    next_lane += 1\\n\\n                commit_lane[node.oid] = node.column\\n\\n                # Claim our first parent (so we continue in this lane)\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent not in claimed_by:\\n                        claimed_by[first_parent] = node.oid\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\\n                    else:\\n                        print(f\\\"  -> first parent {first_parent[:7]} already claimed by {claimed_by[first_parent][:7]}\\\")\\n\\n        self.num_columns = next_lane if next_lane > 0 else 1\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011GswzwVsXg8EfQxHpzXrpK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011GswzwVsXg8EfQxHpzXrpK",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the prints are in. Can you run it and show me the output around where the drift happens? Maybe look for a merge commit (one with two parents) and a few commits before/after it."
     }
   ]
 }

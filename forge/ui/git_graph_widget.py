@@ -180,9 +180,11 @@ class GitGraphWidget(QWidget):
                 if node.oid in claimed_by:
                     child_oid = claimed_by[node.oid]
                     node.column = commit_lane[child_oid]
+                    print(f"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}")
                 else:
                     # Allocate new lane
                     node.column = next_lane
+                    print(f"Row {row}: {node.short_id} unclaimed, new lane {node.column}")
                     next_lane += 1
 
                 commit_lane[node.oid] = node.column
@@ -192,6 +194,9 @@ class GitGraphWidget(QWidget):
                     first_parent = node.parent_oids[0]
                     if first_parent not in claimed_by:
                         claimed_by[first_parent] = node.oid
+                        print(f"  -> claims parent {first_parent[:7]}")
+                    else:
+                        print(f"  -> first parent {first_parent[:7]} already claimed by {claimed_by[first_parent][:7]}")
 
         self.num_columns = next_lane if next_lane > 0 else 1
 

@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "forge/main.py",
-    "forge/ui/git_graph_widget.py",
     "CLAUDE.md",
-    "GRAPH_COMMIT_ORDERING.md"
+    "forge/ui/git_graph_widget.py",
+    "GRAPH_COMMIT_ORDERING.md",
+    "forge/main.py"
   ],
   "messages": [
     {
@@ -729,6 +729,39 @@
     {
       "role": "assistant",
       "content": "Now run it and let's see what happens around that same merge."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, it still does\n```\nRow 20: 065dfd8 claimed by 6fad3b2, lane 0 \n -> claims parent 5a3682f \nRow 21: 5a3682f claimed by 065dfd8, lane 0 \n -> claims parent 78d048a \nRow 22: 78d048a claimed by 5a3682f, lane 0 \n -> claims parent 28964af \nRow 23: 28964af claimed by 78d048a, lane 0 \n -> claims parent cc5295a \nRow 24: 0a0ab8b unclaimed, new lane 1 \n -> claims parent c05b394 \nRow 25: c05b394 claimed by 0a0ab8b, lane 1 \n -> claims parent 0326ba0 \nRow 25: cc5295a claimed by 28964af, lane 0 \n -> claims parent 507a395 \nRow 26: 507a395 claimed by cc5295a, lane 0 \n -> all parents already claimed \nRow 27: 0326ba0 claimed by c05b394, lane 1 \n -> claims parent 20674a4 \nRow 28: 20674a4 claimed by 0326ba0, lane 1 \n -> claims parent 8d63e87 \nRow 29: 8d63e87 claimed by 20674a4, lane 1 \n -> claims parent 3de9341\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "Ah I see! The issue is clearer now. `507a395` is in lane 0 (the main line), but it's a merge commit and all its parents are already claimed. So after that, the main line can't continue in lane 0 - it follows whoever claimed the parents, which is lane 1.\n\nThe problem is that `0326ba0` is the common ancestor (fork point), and it was claimed by the branch (`c05b394`) before the main line (`507a395`) got to it.\n\nThe fix: when a commit is in a lane but can't claim any parent, we need to make its first parent continue in *this* lane instead. We should \"steal\" the claim.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                # Claim a parent (so we continue in this lane)\\n                # Try each parent in order, claim the first unclaimed one\\n                if node.parent_oids:\\n                    claimed_parent = None\\n                    for parent_oid in node.parent_oids:\\n                        if parent_oid not in claimed_by:\\n                            claimed_by[parent_oid] = node.oid\\n                            claimed_parent = parent_oid\\n                            print(f\\\"  -> claims parent {parent_oid[:7]}\\\")\\n                            break\\n                    if claimed_parent is None:\\n                        print(f\\\"  -> all parents already claimed\\\")\", \"replace\": \"                # Claim a parent (so we continue in this lane)\\n                # First parent always continues in this lane - steal the claim if needed\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent in claimed_by:\\n                        old_claimer = claimed_by[first_parent]\\n                        print(f\\\"  -> steals parent {first_parent[:7]} from {old_claimer[:7]}\\\")\\n                    else:\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\\n                    claimed_by[first_parent] = node.oid\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GHKMTNgSRtHFgW8yJMni4c",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GHKMTNgSRtHFgW8yJMni4c",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Try running it now - the key change is that instead of skipping already-claimed parents, we now always claim the first parent, \"stealing\" it from any previous claimer. This should keep the main line (lane 0) continuous even through merges."
     }
   ]
 }

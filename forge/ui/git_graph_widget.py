@@ -190,17 +190,15 @@ class GitGraphWidget(QWidget):
                 commit_lane[node.oid] = node.column
 
                 # Claim a parent (so we continue in this lane)
-                # Try each parent in order, claim the first unclaimed one
+                # First parent always continues in this lane - steal the claim if needed
                 if node.parent_oids:
-                    claimed_parent = None
-                    for parent_oid in node.parent_oids:
-                        if parent_oid not in claimed_by:
-                            claimed_by[parent_oid] = node.oid
-                            claimed_parent = parent_oid
-                            print(f"  -> claims parent {parent_oid[:7]}")
-                            break
-                    if claimed_parent is None:
-                        print(f"  -> all parents already claimed")
+                    first_parent = node.parent_oids[0]
+                    if first_parent in claimed_by:
+                        old_claimer = claimed_by[first_parent]
+                        print(f"  -> steals parent {first_parent[:7]} from {old_claimer[:7]}")
+                    else:
+                        print(f"  -> claims parent {first_parent[:7]}")
+                    claimed_by[first_parent] = node.oid
 
         self.num_columns = next_lane if next_lane > 0 else 1
 

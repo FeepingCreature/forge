@@ -152,7 +152,8 @@ class GitGraphWidget(QWidget):
         """
         Assign columns (lanes) to commits.
 
-        Simple approach: track active lanes, continue parent's lane when possible.
+        Process from bottom (oldest) to top (newest).
+        Each commit continues its first child's lane if possible.
         """
         # Group nodes by row
         rows: dict[int, list[CommitNode]] = {}
@@ -161,45 +162,50 @@ class GitGraphWidget(QWidget):
                 rows[node.row] = []
             rows[node.row].append(node)
 
+        # Build child map (parent_oid -> list of child nodes)
+        children_of: dict[str, list[CommitNode]] = {}
+        for node in self.nodes:
+            for parent_oid in node.parent_oids:
+                if parent_oid not in children_of:
+                    children_of[parent_oid] = []
+                children_of[parent_oid].append(node)
+
         # Track which lane each commit is in
         commit_lane: dict[str, int] = {}
-        # Track which lanes are "active" (have a line continuing through)
-        active_lanes: set[int] = set()
+        # Track which lanes are in use at the current row
+        used_lanes: set[int] = set()
         next_lane = 0
 
-        # Process rows from top (newest) to bottom (oldest)
-        for row in range(self.num_rows):
+        # Process rows from bottom (oldest) to top (newest)
+        for row in range(self.num_rows - 1, -1, -1):
             if row not in rows:
                 continue
 
             row_nodes = rows[row]
 
             for node in row_nodes:
-                # Try to find a parent's lane to continue
-                parent_lane = None
-                for parent_oid in node.parent_oids:
-                    if parent_oid in commit_lane:
-                        parent_lane = commit_lane[parent_oid]
-                        break
+                # Try to continue in a child's lane
+                child_lane = None
+                if node.oid in children_of:
+                    for child in children_of[node.oid]:
+                        if child.oid in commit_lane:
+                            child_lane = commit_lane[child.oid]
+                            break
 
-                if parent_lane is not None:
-                    # Continue in parent's lane
-                    node.column = parent_lane
+                if child_lane is not None:
+                    # Continue in child's lane
+                    node.column = child_lane
                 else:
-                    # Allocate new lane
-                    # Find first unused lane
+                    # Allocate new lane (find first unused)
                     lane = 0
-                    while lane in active_lanes:
+                    while lane in used_lanes:
                         lane += 1
                     node.column = lane
                     if lane >= next_lane:
                         next_lane = lane + 1
 
                 commit_lane[node.oid] = node.column
-                active_lanes.add(node.column)
-
-            # Deactivate lanes for commits that have no more children below
-            # (simplified: just keep all lanes active for now)
+                used_lanes.add(node.column)
 
         self.num_columns = next_lane if next_lane > 0 else 1
 

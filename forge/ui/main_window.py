@@ -370,21 +370,46 @@ class MainWindow(QMainWindow):
         """Fork an existing branch"""
         import pygit2
 
-        name, ok = QInputDialog.getText(
-            self,
-            "Fork Branch",
-            f"New branch name (forking from {source_branch}):",
-            text=f"{source_branch}-fork",
-        )
-        if ok and name:
+        from forge.ui.fork_branch_dialog import ForkBranchDialog
+
+        dialog = ForkBranchDialog(source_branch, self)
+        if dialog.exec() == ForkBranchDialog.DialogCode.Accepted:
+            name = dialog.get_branch_name()
+            include_session = dialog.should_include_session()
+
+            if not name:
+                return
+
             try:
                 # Get source branch head and peel to Commit
                 source_obj = self.repo.get_branch_head(source_branch)
                 source_commit = source_obj.peel(pygit2.Commit)
                 self.repo.repo.branches.create(name, source_commit)
+
+                # Copy session if requested
+                if include_session:
+                    self._copy_session(source_branch, name)
+
                 self._open_branch(name)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to fork branch: {e}")
+
+    def _copy_session(self, source_branch: str, target_branch: str) -> None:
+        """Copy session data from one branch to another"""
+        from forge.vfs.work_in_progress import WorkInProgressVFS
+
+        try:
+            # Read session from source branch using the repo helper
+            session_path = ".forge/session.json"
+            session_data = self.repo.get_file_content(session_path, source_branch)
+
+            # Write to target branch
+            target_vfs = WorkInProgressVFS(self.repo, target_branch)
+            target_vfs.write_file(session_path, session_data)
+            target_vfs.commit(f"Copy session from {source_branch}")
+        except Exception:
+            # If session copy fails, just continue without it
+            pass
 
     def _delete_branch(self, branch_name: str, tab_index: int) -> None:
         """Delete a branch (with confirmation)"""

@@ -32,12 +32,12 @@ Instead, each capability is a reviewed tool that runs autonomously once approved
 See DESIGN.md "Tool System: Security Through Capability Design".
 
 ### Test Runner Tool
-- [ ] `run_tests` tool - Run project's test suite (like `check` but for tests)
-- [ ] Discovers test command: `make test`, `pytest`, `npm test`, etc.
-- [ ] Parse output to show pass/fail summary
-- [ ] On failure, show relevant traceback
-- [ ] AI can iterate until tests pass
-- [ ] Built-in, no approval needed (runs in materialized tempdir)
+- [x] `run_tests` tool - Run project's test suite (like `check` but for tests)
+- [x] Discovers test command: `make test`, `pytest`, `npm test`, etc.
+- [x] Parse output to show pass/fail summary
+- [x] On failure, show relevant traceback
+- [x] AI can iterate until tests pass
+- [ ] Built-in (currently user tool, needs approval first run)
 
 ### Build Tool
 - [ ] `build` tool - Run project's build command

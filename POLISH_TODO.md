@@ -53,7 +53,8 @@ These are real issues but not strategic priorities.
 ## Branch & Session Management
 
 - [x] Branch fork dialog: option to fork with or without session history
-- [x] "Reset conversation to here" in chat history (rewind to previous point)
+- [x] Per-turn Revert/Fork buttons in chat (replaced per-message rewind)
+- [x] Mid-turn commits refresh file explorer
 - [ ] Git graph: show dangling/recent commits not on any branch (reflog-based?)
 
 ---

@@ -177,36 +177,11 @@ class CommitPanel(QGraphicsObject):
         text_x = -self.WIDTH / 2 + 12
         text_width = self.WIDTH - 24
 
-        # Draw short hash
-        painter.setPen(QColor("#666666"))
-        font = QFont("monospace", 9)
-        font.setBold(True)
-        painter.setFont(font)
-        hash_y = -self.HEIGHT / 2 + 8
-        painter.drawText(
-            QRectF(text_x, hash_y, text_width, 16), Qt.AlignmentFlag.AlignLeft, self.node.short_id
-        )
-
-        # Draw commit message with word wrap (up to 3 lines)
-        painter.setPen(QColor("#333333"))
-        font = QFont("sans-serif", 9)
-        painter.setFont(font)
-        fm = QFontMetrics(font)
-
-        message_y = hash_y + 18
-        message_height = 48  # Space for ~3 lines
-        message_rect = QRectF(text_x, message_y, text_width, message_height)
-
-        # Word wrap the message
-        painter.drawText(
-            message_rect,
-            Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
-            self.node.message,
-        )
-
-        # Draw branch labels if any (at bottom of panel)
+        # Draw branch labels first if any (at top of panel, above hash)
+        fm = QFontMetrics(QFont("sans-serif", 8))
+        branch_label_height = 0
         if self.node.branch_names:
-            label_y = self.HEIGHT / 2 - 20
+            label_y = -self.HEIGHT / 2 + 6
             label_x = text_x
             for branch_name in self.node.branch_names[:2]:  # Max 2 labels
                 label_text = branch_name if len(branch_name) <= 12 else branch_name[:10] + "…"
@@ -225,6 +200,33 @@ class CommitPanel(QGraphicsObject):
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, label_text)
 
                 label_x += label_width + 4
+            branch_label_height = 20  # Space taken by branch labels
+
+        # Draw short hash (below branch labels if present)
+        painter.setPen(QColor("#666666"))
+        font = QFont("monospace", 9)
+        font.setBold(True)
+        painter.setFont(font)
+        hash_y = -self.HEIGHT / 2 + 8 + branch_label_height
+        painter.drawText(
+            QRectF(text_x, hash_y, text_width, 16), Qt.AlignmentFlag.AlignLeft, self.node.short_id
+        )
+
+        # Draw commit message with word wrap (up to 3 lines)
+        painter.setPen(QColor("#333333"))
+        font = QFont("sans-serif", 9)
+        painter.setFont(font)
+
+        message_y = hash_y + 18
+        message_height = 48  # Space for ~3 lines
+        message_rect = QRectF(text_x, message_y, text_width, message_height)
+
+        # Word wrap the message
+        painter.drawText(
+            message_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
+            self.node.message,
+        )
 
         # Draw hover buttons with fade
         if self._button_opacity_value > 0.01:
@@ -362,55 +364,45 @@ class SplineEdge(QGraphicsPathItem):
         self._setup_style()
 
     def _build_path(self) -> None:
-        """Build an axis-aligned path with rounded corners."""
+        """Build an axis-aligned path with rounded corners.
+
+        For diagonal connections (different columns), the path is an L-shape:
+        - Go horizontal from start to the target column
+        - Round corner
+        - Go vertical to the end point
+
+        This creates a clean single-corner path.
+        """
         path = QPainterPath()
         path.moveTo(self.start)
 
         dx = self.end.x() - self.start.x()
         r = self.CORNER_RADIUS
 
-        # Y coordinate for horizontal segment - directly above the end (parent) commit
-        # end.y is at top of parent panel, so put the turn just above that
-        turn_y = self.end.y() - r * 2
-
         if abs(dx) < 5:
             # Straight vertical line - just draw it
             path.lineTo(self.end)
         elif dx > 0:
-            # Going up-right: start vertical, turn right, go horizontal, turn down, end vertical
-            # Go up from start to the turn level
-            path.lineTo(self.start.x(), turn_y - r)
-            # Round corner turning right (curve bows upward)
+            # Going up-right: horizontal first, then turn up
+            # Go horizontal from start to just before end.x
+            path.lineTo(self.end.x() - r, self.start.y())
+            # Round corner turning up
             path.quadTo(
-                QPointF(self.start.x(), turn_y),
-                QPointF(self.start.x() + r, turn_y),
+                QPointF(self.end.x(), self.start.y()),
+                QPointF(self.end.x(), self.start.y() - r),
             )
-            # Go horizontal to above end
-            path.lineTo(self.end.x() - r, turn_y)
-            # Round corner turning down (curve bows upward)
-            path.quadTo(
-                QPointF(self.end.x(), turn_y),
-                QPointF(self.end.x(), turn_y + r),
-            )
-            # Go down to end
+            # Go up to end
             path.lineTo(self.end)
         else:
-            # Going up-left: start vertical, turn left, go horizontal, turn down, end vertical
-            # Go up from start to the turn level
-            path.lineTo(self.start.x(), turn_y - r)
-            # Round corner turning left (curve bows upward)
+            # Going up-left: horizontal first, then turn up
+            # Go horizontal from start to just past end.x
+            path.lineTo(self.end.x() + r, self.start.y())
+            # Round corner turning up
             path.quadTo(
-                QPointF(self.start.x(), turn_y),
-                QPointF(self.start.x() - r, turn_y),
+                QPointF(self.end.x(), self.start.y()),
+                QPointF(self.end.x(), self.start.y() - r),
             )
-            # Go horizontal to above end
-            path.lineTo(self.end.x() + r, turn_y)
-            # Round corner turning down (curve bows upward)
-            path.quadTo(
-                QPointF(self.end.x(), turn_y),
-                QPointF(self.end.x(), turn_y + r),
-            )
-            # Go down to end
+            # Go up to end
             path.lineTo(self.end)
 
         self.setPath(path)

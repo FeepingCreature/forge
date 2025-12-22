@@ -471,10 +471,10 @@ File: {filepath}
 {content}
 ```
 
-First, decide: is this CODE (has importable classes/functions) or DATA (config, docs, licenses, etc)?
+First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
 
 If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
-If DATA: just output "—" (the filename alone is enough context for navigation).
+If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
 
 Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
 

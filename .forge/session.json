@@ -1,7 +1,7 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "forge/session/manager.py"
+    "forge/session/manager.py",
+    "CLAUDE.md"
   ],
   "messages": [
     {
@@ -442,6 +442,64 @@
     {
       "role": "assistant",
       "content": "Good, the prompt is updated. Clear cache and regenerate to test.\n\nThe key change is making it a two-step process: \"First, decide... Think about what category this file is, then put ONLY the final bullets or '\u2014' inside the tags.\"\n\nThis should give the model space to reason (\"This is a license file, so DATA\") before committing to output. Let me know how it goes!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm, back down to 4k... the 4k wall is insurmountable"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the current summaries... they're actually pretty good now! Most license files are \"\u2014\", code files have reasonable bullets.\n\n**The remaining bloat is:**\n- `README.md` - 6 lines of bullets describing features. Should be \"\u2014\"\n- `GRAPH_COMMIT_ORDERING.md` - 5 lines of function signatures from a doc file. Should be \"\u2014\"\n- `DESIGN.md` - 3 lines, borderline acceptable but could be \"\u2014\"\n\nThe problem is these `.md` files have code-like content (function signatures, bullet lists) so the model thinks they're CODE not DATA.\n\nQuick fix - be more explicit about markdown:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"First, decide: is this CODE (has importable classes/functions) or DATA (config, docs, licenses, etc)?\\n\\nIf CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).\\nIf DATA: just output \\\"\u2014\\\" (the filename alone is enough context for navigation).\", \"replace\": \"First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?\\n\\nIf CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).\\nIf DATA (including .md files): just output \\\"\u2014\\\" (the filename alone is enough context for navigation).\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012g6pSCEpbqyNbHN7112YsX",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012g6pSCEpbqyNbHN7112YsX",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! Let me run the check to make sure everything's still passing:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01L887g8R6fhBSvuCxJqCRPL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01L887g8R6fhBSvuCxJqCRPL",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All good. Looking at the current 4.9k summary tokens:\n\n**What's working:**\n- All license files \u2192 \"\u2014\" \u2713\n- Config files (`.gitignore`, `Makefile`, `pyproject.toml`, `requirements.txt`) \u2192 \"\u2014\" \u2713\n- `LICENSE`, `TODO.md` \u2192 \"\u2014\" \u2713\n- Code files have reasonable terse bullets\n\n**Still verbose (the 4k wall):**\n- `README.md` - Still has 6 bullet lines describing features\n- `GRAPH_COMMIT_ORDERING.md` - Has function signatures (it contains pseudocode so model thinks it's code-ish)\n- `DESIGN.md` - 3 bullets, debatable\n\nHonestly... 4.9k for 60+ files is pretty good. The remaining verbose ones are edge cases where the `.md` files contain code-like content. We could:\n\n1. **Accept it** - 4.9k is reasonable\n2. **Hardcode `.md` \u2192 \"\u2014\"** - but then we lose useful summaries for docs that *do* describe code\n3. **Post-process length cap** - if summary > 150 chars, replace with \"\u2014\"\n\nWhat do you think? Is the current 4.9k acceptable, or do you want to push further?"
     }
   ]
 }

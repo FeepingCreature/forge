@@ -41,9 +41,10 @@ These are real issues but not strategic priorities.
 
 ## Code Completion
 
-- [ ] Small-model completion (Haiku is very cheap)
-- [ ] Send current file + cursor position, ask "what goes here"
-- [ ] OpenRouter doesn't have dedicated completion API, but chat works
+- [x] Small-model completion (Haiku is very cheap)
+- [x] Send current file + cursor position, ask "what goes here"
+- [x] OpenRouter doesn't have dedicated completion API, but chat works
+- [ ] Improve ghost text rendering (currently uses tooltip)
 
 ---
 

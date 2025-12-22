@@ -636,6 +636,10 @@ class MainWindow(QMainWindow):
         global_search = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
         global_search.activated.connect(self._show_global_search)
 
+        # Ctrl+Shift+A: Ask about repo
+        ask_repo = QShortcut(QKeySequence("Ctrl+Shift+A"), self)
+        ask_repo.activated.connect(self._show_ask_repo)
+
     def _show_global_search(self) -> None:
         """Show global search dialog"""
         workspace = self._get_current_workspace()
@@ -645,6 +649,18 @@ class MainWindow(QMainWindow):
 
         dialog = GlobalSearchDialog(workspace, self)
         dialog.file_selected.connect(self._on_search_file_selected)
+        dialog.exec()
+
+    def _show_ask_repo(self) -> None:
+        """Show 'Ask About Repo' dialog"""
+        workspace = self._get_current_workspace()
+        if not workspace:
+            self.status_bar.showMessage("No branch open")
+            return
+
+        from forge.ui.ask_repo_dialog import AskRepoDialog
+
+        dialog = AskRepoDialog(workspace, self)
         dialog.exec()
 
     def _on_search_file_selected(self, filepath: str, line_num: int) -> None:

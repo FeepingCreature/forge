@@ -55,7 +55,11 @@ The branch-first architecture is **largely complete**:
 - [ ] Tasks shown at bottom of prompt context so AI sees pending handoffs
 - [ ] Survives prompt compaction - AI remembers what it's waiting on
 
-**Why:** When AI is blocked waiting for user verification (e.g., "does the zoom work now?"), this gets lost during prompt compaction. User Tasks persist and remind both parties of pending handoffs.
+**Why:** The following can happen:
+- The AI tells the user to do something.
+- The user wanders off and wants to work on something else.
+- The original user instruction that was left fallow now falsely looks like the AI should work on it immediately.
+User tasks clarify that work on a feature was suspended and the user has to take action before it should resume.
 
 ---
 

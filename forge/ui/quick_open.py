@@ -96,40 +96,48 @@ class QuickOpenWidget(QWidget):
 
     def _setup_ui(self) -> None:
         """Setup the UI"""
+        # Get font metrics for sizing
+        line_height = self.fontMetrics().height()
+
+        # Calculate sizes based on font
+        input_padding = max(8, line_height // 2)
+        item_height = int(line_height * 1.8)
+        margin = max(8, line_height // 2)
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setContentsMargins(margin, margin, margin, margin)
         layout.setSpacing(4)
 
-        # Style as a popup
-        self.setStyleSheet("""
-            QuickOpenWidget {
-                background-color: #2d2d2d;
-                border: 1px solid #555;
+        # Style as a popup (light theme to match rest of UI)
+        self.setStyleSheet(f"""
+            QuickOpenWidget {{
+                background-color: #ffffff;
+                border: 1px solid #ccc;
                 border-radius: 4px;
-            }
-            QLineEdit {
-                background-color: #3d3d3d;
-                color: #fff;
-                border: 1px solid #555;
+            }}
+            QLineEdit {{
+                background-color: #f5f5f5;
+                color: #333;
+                border: 1px solid #ccc;
                 border-radius: 3px;
-                padding: 8px;
-                font-size: 14px;
-            }
-            QListWidget {
-                background-color: #2d2d2d;
-                color: #fff;
+                padding: {input_padding}px;
+            }}
+            QListWidget {{
+                background-color: #ffffff;
+                color: #333;
                 border: none;
-                font-size: 13px;
-            }
-            QListWidget::item {
-                padding: 6px 8px;
-            }
-            QListWidget::item:selected {
-                background-color: #094771;
-            }
-            QListWidget::item:hover {
-                background-color: #3d3d3d;
-            }
+            }}
+            QListWidget::item {{
+                padding: {item_height // 4}px {margin}px;
+                min-height: {item_height}px;
+            }}
+            QListWidget::item:selected {{
+                background-color: #0078d4;
+                color: #ffffff;
+            }}
+            QListWidget::item:hover {{
+                background-color: #e8e8e8;
+            }}
         """)
 
         # Search input
@@ -138,9 +146,10 @@ class QuickOpenWidget(QWidget):
         self.search_input.textChanged.connect(self._on_text_changed)
         layout.addWidget(self.search_input)
 
-        # Results list
+        # Results list - height based on showing ~10 items
         self.results_list = QListWidget()
-        self.results_list.setMaximumHeight(300)
+        max_list_height = item_height * 12
+        self.results_list.setMaximumHeight(max_list_height)
         self.results_list.itemActivated.connect(self._on_item_activated)
         layout.addWidget(self.results_list)
 

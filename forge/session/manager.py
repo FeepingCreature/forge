@@ -183,6 +183,19 @@ class SessionManager:
         """Add a tool result to the prompt stream"""
         self.prompt_manager.append_tool_result(tool_call_id, result)
 
+    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
+        """
+        Compact tool results by replacing them with a summary.
+
+        Args:
+            tool_call_ids: List of tool_call_ids to compact
+            summary: Summary text to replace the results with
+
+        Returns:
+            Tuple of (number of blocks compacted, list of missing IDs)
+        """
+        return self.prompt_manager.compact_tool_results(tool_call_ids, summary)
+
     def get_prompt_messages(self) -> list[dict[str, Any]]:
         """Get the current prompt messages for LLM API"""
         return self.prompt_manager.to_messages()

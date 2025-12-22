@@ -318,6 +318,21 @@ class AIChatWidget(QWidget):
                     if "tool_calls" in msg:
                         # Pass both tool_calls and content (content may be the AI's reasoning)
                         self.session_manager.append_tool_call(msg["tool_calls"], content)
+
+                        # Replay compact tool calls - apply compaction immediately
+                        for tc in msg["tool_calls"]:
+                            func = tc.get("function", {})
+                            if func.get("name") == "compact":
+                                try:
+                                    args = json.loads(func.get("arguments", "{}"))
+                                    compact_ids = args.get("tool_call_ids", [])
+                                    summary = args.get("summary", "")
+                                    compacted, _ = self.session_manager.compact_tool_results(
+                                        compact_ids, summary
+                                    )
+                                    print(f"📦 Replayed compaction: {compacted} tool result(s)")
+                                except (json.JSONDecodeError, TypeError):
+                                    pass  # Malformed args, skip
                     elif content:
                         self.session_manager.append_assistant_message(content)
                 elif role == "tool":
@@ -973,6 +988,17 @@ class AIChatWidget(QWidget):
                 if not hasattr(self, "_pending_file_updates"):
                     self._pending_file_updates = []
                 self._pending_file_updates.append((filepath, tool_call_id))
+
+        # Handle compact tool specially - it modifies the prompt manager
+        if result.get("compact") and result.get("success"):
+            compact_ids = result.get("tool_call_ids", [])
+            summary = result.get("summary", "")
+            compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)
+            print(f"📦 Compacted {compacted} tool result(s)")
+            # Update the result to include any missing IDs as an error
+            if missing_ids:
+                result["error"] = f"IDs not found: {missing_ids}"
+                result["success"] = False  # Partial failure
 
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":

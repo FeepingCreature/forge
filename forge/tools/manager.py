@@ -30,6 +30,7 @@ class ToolManager:
         "get_lines",
         "rename_file",
         "set_license",
+        "compact",
     }
 
     def __init__(

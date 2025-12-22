@@ -7,9 +7,12 @@ is appended at the end. This maximizes cache reuse since Anthropic caches
 per-block with prefix matching.
 """
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from forge.llm.cost_tracker import COST_TRACKER
 
 
 class BlockType(Enum):
@@ -45,6 +48,11 @@ class PromptManager:
     def __init__(self, system_prompt: str) -> None:
         self.blocks: list[ContentBlock] = []
         self.system_prompt = system_prompt
+
+        # Rolling counter for user-friendly tool call IDs
+        self._next_tool_id: int = 1
+        # Mapping from user-friendly ID -> actual tool_call_id
+        self._tool_id_map: dict[str, str] = {}
 
         # Add system prompt as first block
         self.blocks.append(
@@ -195,12 +203,20 @@ class PromptManager:
         if not tool_call_id:
             print(f"❌ ERROR: Empty tool_call_id! Result: {result[:100]}...")
             raise ValueError(f"tool_call_id cannot be empty (result: {result[:100]}...)")
-        print(f"📋 PromptManager: Appending tool result for {tool_call_id} ({len(result)} chars)")
+
+        # Assign a user-friendly integer ID
+        user_id = str(self._next_tool_id)
+        self._next_tool_id += 1
+        self._tool_id_map[user_id] = tool_call_id
+
+        print(
+            f"📋 PromptManager: Appending tool result #{user_id} for {tool_call_id} ({len(result)} chars)"
+        )
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_RESULT,
                 content=result,
-                metadata={"tool_call_id": tool_call_id},
+                metadata={"tool_call_id": tool_call_id, "user_id": user_id},
             )
         )
 
@@ -215,6 +231,109 @@ class PromptManager:
             ):
                 files.append(block.metadata["filepath"])
         return files
+
+    def _resolve_tool_ids(self, ids: list[str]) -> set[str]:
+        """
+        Resolve user-friendly IDs (like "1", "2") to actual tool_call_ids.
+
+        Accepts both user IDs and raw tool_call_ids for flexibility.
+        """
+        resolved = set()
+        for id_str in ids:
+            # Check if it's a user-friendly ID we can translate
+            if id_str in self._tool_id_map:
+                resolved.add(self._tool_id_map[id_str])
+            else:
+                # Assume it's already a raw tool_call_id
+                resolved.add(id_str)
+        return resolved
+
+    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
+        """
+        Replace tool result blocks with a compact summary.
+
+        Only compacts the TOOL_RESULT blocks themselves. FILE_CONTENT blocks
+        are NOT removed - they represent the actual file content in context,
+        which is the authoritative view of the file.
+
+        Args:
+            tool_call_ids: List of tool_call_ids to compact (can be user-friendly
+                          IDs like "1", "2" or raw tool_call_ids)
+            summary: Summary text to replace the results with
+                     Should include enough detail to stay oriented on what changed,
+                     e.g., "Added calculate_totals() and format_output() functions to utils.py"
+
+        Returns:
+            Tuple of (number of blocks compacted, list of missing IDs)
+        """
+        compacted = 0
+
+        # Translate user-friendly IDs to actual tool_call_ids
+        ids_set = self._resolve_tool_ids(tool_call_ids)
+
+        # Track which user IDs couldn't be resolved or found
+        existing_ids = {
+            block.metadata.get("tool_call_id")
+            for block in self.blocks
+            if block.block_type == BlockType.TOOL_RESULT and not block.deleted
+        }
+
+        # Find missing user IDs (ones that don't exist or couldn't be resolved)
+        missing_user_ids = []
+        for user_id in tool_call_ids:
+            resolved = self._tool_id_map.get(user_id, user_id)
+            if resolved not in existing_ids:
+                missing_user_ids.append(user_id)
+
+        print(f"📦 Compact requested for {len(tool_call_ids)} IDs: {tool_call_ids[:3]}...")
+        if missing_user_ids:
+            print(f"📦 WARNING: {len(missing_user_ids)} IDs not found: {missing_user_ids[:3]}...")
+
+        for block in self.blocks:
+            if block.deleted:
+                continue
+
+            # Compact tool result blocks
+            if (
+                block.block_type == BlockType.TOOL_RESULT
+                and block.metadata.get("tool_call_id") in ids_set
+            ):
+                # Replace content with summary (first match gets summary, rest get minimal)
+                user_id = block.metadata.get("user_id", "?")
+                if compacted == 0:
+                    block.content = f"[COMPACTED] {summary}"
+                else:
+                    block.content = "[COMPACTED - see above]"
+                compacted += 1
+                print(f"📦 Compacted tool result #{user_id}")
+
+            # Also compact the corresponding tool call blocks
+            # These contain the full arguments (e.g., search/replace strings)
+            elif block.block_type == BlockType.TOOL_CALL:
+                tool_calls = block.metadata.get("tool_calls", [])
+                compacted_calls = []
+                any_compacted = False
+                for tc in tool_calls:
+                    tc_id = tc.get("id", "")
+                    if tc_id in ids_set:
+                        # Replace with minimal stub
+                        compacted_calls.append(
+                            {
+                                "id": tc_id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("function", {}).get("name", "?"),
+                                    "arguments": '{"_compacted": true}',
+                                },
+                            }
+                        )
+                        any_compacted = True
+                    else:
+                        compacted_calls.append(tc)
+                if any_compacted:
+                    block.metadata["tool_calls"] = compacted_calls
+
+        return compacted, missing_user_ids
 
     def get_last_user_message(self) -> str | None:
         """Get the last user message from the conversation (for commit message context)"""
@@ -246,10 +365,104 @@ class PromptManager:
             if block.block_type == BlockType.TOOL_CALL:
                 tool_calls = block.metadata.get("tool_calls", [])
                 for tc in tool_calls:
-                    import json
-
                     total += len(json.dumps(tc)) // 4
         return total
+
+    def get_context_stats(self) -> dict[str, Any]:
+        """
+        Get detailed statistics about context usage.
+
+        Returns dict with:
+        - total_tokens: Estimated total tokens in context
+        - system_tokens: System prompt tokens
+        - summaries_tokens: Repository summaries tokens
+        - files_tokens: Active file content tokens
+        - conversation_tokens: Conversation history tokens
+        - session_cost: Total session cost so far (USD)
+        - file_count: Number of active files
+        """
+        stats: dict[str, Any] = {
+            "system_tokens": 0,
+            "summaries_tokens": 0,
+            "files_tokens": 0,
+            "conversation_tokens": 0,
+            "file_count": 0,
+            "session_cost": COST_TRACKER.total_cost,
+            "daily_cost": COST_TRACKER.daily_cost,
+        }
+
+        for block in self.blocks:
+            if block.deleted:
+                continue
+
+            # Estimate ~4 chars per token
+            tokens = len(block.content) // 4
+
+            if block.block_type == BlockType.SYSTEM:
+                stats["system_tokens"] += tokens
+            elif block.block_type == BlockType.SUMMARIES:
+                stats["summaries_tokens"] += tokens
+            elif block.block_type == BlockType.FILE_CONTENT:
+                stats["files_tokens"] += tokens
+                stats["file_count"] += 1
+            elif block.block_type == BlockType.TOOL_CALL:
+                stats["conversation_tokens"] += tokens
+                # Also count tool call metadata
+                tool_calls = block.metadata.get("tool_calls", [])
+                for tc in tool_calls:
+                    stats["conversation_tokens"] += len(json.dumps(tc)) // 4
+            else:
+                stats["conversation_tokens"] += tokens
+
+        stats["total_tokens"] = (
+            stats["system_tokens"]
+            + stats["summaries_tokens"]
+            + stats["files_tokens"]
+            + stats["conversation_tokens"]
+        )
+
+        return stats
+
+    def format_context_stats_block(self) -> str:
+        """
+        Format context stats as a compact XML block for injection into the prompt.
+
+        This gives the AI awareness of context size and session cost.
+        """
+        stats = self.get_context_stats()
+
+        # Format session cost
+        session_cost = stats["session_cost"]
+        daily_cost = stats["daily_cost"]
+
+        def format_cost(cost: float) -> str:
+            if cost < 0.01:
+                return f"${cost:.4f}"
+            else:
+                return f"${cost:.2f}"
+
+        cost_str = format_cost(session_cost)
+        if daily_cost > session_cost:
+            cost_str += f" ({format_cost(daily_cost)} today)"
+
+        # Format token counts with 1 decimal place
+        def format_k(tokens: int) -> str:
+            return f"{tokens / 1000:.1f}k"
+
+        total_k = format_k(stats["total_tokens"])
+
+        return (
+            f"<context_stats>\n"
+            f"  <total_tokens>{total_k}</total_tokens>\n"
+            f"  <breakdown>"
+            f"system {format_k(stats['system_tokens'])}, "
+            f"summaries {format_k(stats['summaries_tokens'])}, "
+            f"files {format_k(stats['files_tokens'])} ({stats['file_count']} files), "
+            f"conversation {format_k(stats['conversation_tokens'])}"
+            f"</breakdown>\n"
+            f"  <session_cost>{cost_str}</session_cost>\n"
+            f"</context_stats>"
+        )
 
     def to_messages(self) -> list[dict[str, Any]]:
         """
@@ -259,6 +472,9 @@ class PromptManager:
 
         Groups consecutive user-role blocks (SUMMARIES, FILE_CONTENT, USER_MESSAGE)
         into single messages to avoid consecutive user messages which break the API.
+
+        Injects context stats at the end of the final user message group, giving
+        the AI awareness of context size and session cost before responding.
         """
         messages: list[dict[str, Any]] = []
 
@@ -273,6 +489,16 @@ class PromptManager:
         for i, block in enumerate(active_blocks):
             if block.block_type not in (BlockType.TOOL_CALL,):
                 last_content_idx = i
+
+        # Find the last user message group (where we'll inject stats)
+        last_user_group_start = -1
+        user_group_types = (BlockType.SUMMARIES, BlockType.FILE_CONTENT, BlockType.USER_MESSAGE)
+        for i, block in enumerate(active_blocks):
+            # Check if this block starts a new user group
+            is_user_block = block.block_type in user_group_types
+            is_new_group = i == 0 or active_blocks[i - 1].block_type not in user_group_types
+            if is_user_block and is_new_group:
+                last_user_group_start = i
 
         i = 0
         while i < len(active_blocks):
@@ -291,6 +517,7 @@ class PromptManager:
                 # Group ALL consecutive user-role content into a single message
                 # This avoids consecutive user messages which break the Anthropic API
                 # FILE_CONTENT blocks are annotated explicitly to clarify they're context
+                group_start = i
                 content_blocks = []
                 while i < len(active_blocks) and active_blocks[i].block_type in (
                     BlockType.SUMMARIES,
@@ -302,6 +529,14 @@ class PromptManager:
                         self._make_content_block(active_blocks[i].content, is_this_last)
                     )
                     i += 1
+
+                # Inject context stats at the end of the LAST user group
+                # This gives AI current stats right before it responds
+                if group_start == last_user_group_start:
+                    stats_block = self.format_context_stats_block()
+                    # Stats go after cache_control block, so not cached (always fresh)
+                    content_blocks.append({"type": "text", "text": stats_block})
+
                 messages.append({"role": "user", "content": content_blocks})
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
@@ -364,8 +599,13 @@ class PromptManager:
         if not tool_call_id:
             # This should never happen - append_tool_result validates
             raise ValueError("tool_call_id missing from tool result block metadata")
+
+        # Prepend user-friendly ID to content so the LLM can reference it for compacting
+        user_id = block.metadata.get("user_id", "?")
+        content_with_id = f"[tool_call_id: {user_id}]\n{block.content}"
+
         return {
             "role": "tool",
             "tool_call_id": tool_call_id,
-            "content": [self._make_content_block(block.content, is_last)],
+            "content": [self._make_content_block(content_with_id, is_last)],
         }

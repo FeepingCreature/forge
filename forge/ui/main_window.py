@@ -674,4 +674,8 @@ class MainWindow(QMainWindow):
 
     def _update_cost_display(self, cost: float) -> None:
         """Update the cost display label with current accumulated cost."""
-        self.cost_label.setText(f"<b>${cost:.4f}</b>")
+        daily = COST_TRACKER.daily_cost
+        if daily > cost:
+            self.cost_label.setText(f"<b>${cost:.4f}</b> (${daily:.2f} today)")
+        else:
+            self.cost_label.setText(f"<b>${cost:.4f}</b>")

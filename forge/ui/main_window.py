@@ -29,6 +29,7 @@ from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.git_graph_widget import GitGraphScrollArea
+from forge.ui.global_search import GlobalSearchDialog
 from forge.ui.settings_dialog import SettingsDialog
 
 
@@ -605,6 +606,30 @@ class MainWindow(QMainWindow):
         # Ctrl+N: New branch dialog
         new_branch = QShortcut(QKeySequence("Ctrl+N"), self)
         new_branch.activated.connect(self._show_new_branch_dialog)
+
+        # Ctrl+Shift+F: Global search
+        global_search = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
+        global_search.activated.connect(self._show_global_search)
+
+    def _show_global_search(self) -> None:
+        """Show global search dialog"""
+        workspace = self._get_current_workspace()
+        if not workspace:
+            self.status_bar.showMessage("No branch open for search")
+            return
+
+        dialog = GlobalSearchDialog(workspace, self)
+        dialog.file_selected.connect(self._on_search_file_selected)
+        dialog.exec()
+
+    def _on_search_file_selected(self, filepath: str, line_num: int) -> None:
+        """Handle file selection from global search"""
+        # Open the file
+        self._open_file_by_path(filepath)
+
+        # TODO: Scroll to line_num in the editor
+        # For now, just show which line was found
+        self.status_bar.showMessage(f"Opened {filepath}:{line_num}")
 
     def _next_branch_tab(self) -> None:
         """Switch to next branch tab"""

@@ -66,7 +66,7 @@ These are real issues but not strategic priorities.
 
 - [x] Option to get system notification when AI turn completes
 - [x] Branch tab marker when waiting for user input (💬 emoji)
-- [ ] Allow user to type while AI is running (queued for next turn)
+- [x] Allow user to type while AI is running (queued for next turn)
 - [x] Cancel button during AI turn
   - If streaming text (not tool): cancel request, mark as canceled, inject user comment
   - If in tool execution: cancel, discard pending VFS changes

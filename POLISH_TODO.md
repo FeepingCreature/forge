@@ -33,7 +33,9 @@ These are real issues but not strategic priorities.
 ## Editor & UI
 
 - [ ] Make UI panels arrangeable/dockable
-- [ ] Hotkey configuration system
+- [x] Hotkey configuration system (Settings > Keybindings tab)
+- [x] Command palette (Ctrl+Shift+P)
+- [x] ActionRegistry for centralized action management
 - [ ] Configurable syntax highlighting/theming (how deep?)
 - [ ] Performance audit at some point
 

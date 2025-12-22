@@ -2,7 +2,7 @@
   "active_files": [
     "CLAUDE.md",
     "forge/ui/git_graph_widget.py",
-    "TODO.md"
+    "forge/prompts/system.py"
   ],
   "messages": [
     {
@@ -1462,6 +1462,59 @@
     {
       "role": "assistant",
       "content": "Good, that captures the feature idea. \n\nNow, to circle back - you also had that zoom issue to test. Does middle-mouse drag zoom still scroll unexpectedly, or is it working now?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bab5e1a1",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "One sec- first of all, let's stick with the prompt update... this is that app, so you can just add it to the prompt yourself. :) Working on Forge in Forge is a bit meta."
+    },
+    {
+      "role": "assistant",
+      "content": "Ha, of course! Let me update the system prompt directly.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"], \"remove\": [\"TODO.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01HkdkDvEhEXKBj9RHDmh3pm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HkdkDvEhEXKBj9RHDmh3pm",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"TODO.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me add the compaction guidance to the prompt:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/system.py\", \"search\": \"### Context Management\\n\\n**Load aggressively, clean up at the end.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n\\n1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\\n\\nGuidelines:\\n- Use `grep_open` liberally to find all usages before changing interfaces\\n- When creating new code, load examples of similar code to match patterns\\n- When modifying a function, load its callers to understand usage\\n- After completing a task, remove files you won't need again\", \"replace\": \"### Context Management\\n\\n**Load aggressively, clean up proactively.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n\\n1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\\n\\nGuidelines:\\n- Use `grep_open` liberally to find all usages before changing interfaces\\n- When creating new code, load examples of similar code to match patterns\\n- When modifying a function, load its callers to understand usage\\n- After completing a task, remove files you won't need again\\n\\n### Compacting Tool Results\\n\\nUse `compact` to replace old tool results with a summary when they become redundant:\\n\\n- **Diffs to files in context** - Once a file is loaded, you can see its current state; old diffs are redundant\\n- **Debug output once understood** - After you've learned what prints/logs showed, summarize and compact\\n- **Failed approaches** - Once you've moved past a failed attempt, you don't need the details\\n\\n**Don't wait for task completion** - compact proactively when you're confident you won't need the details. The summary preserves your intent and reasoning while reducing token costs.\\n\\nExample: After 15 edits to the same file with debug prints, compact with: \\\"Refactored FooWidget: added X, fixed Y, removed Z. Debug showed the issue was Q.\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KJtEfDoEweQsYfe1NVCnap",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KJtEfDoEweQsYfe1NVCnap",
+      "content": "{\"message\": \"Replaced in forge/prompts/system.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the compaction guidance is now in the system prompt. \n\nNow, back to the zoom - does middle-mouse drag zoom still scroll unexpectedly, or is it working correctly now?"
     }
   ]
 }

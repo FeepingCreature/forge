@@ -57,7 +57,7 @@ Examples of batching:
 
 ### Context Management
 
-**Load aggressively, clean up at the end.** Prompt caching means you don't pay for files that stay the same between turns, so:
+**Load aggressively, clean up proactively.** Prompt caching means you don't pay for files that stay the same between turns, so:
 
 1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.
 2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.
@@ -67,6 +67,18 @@ Guidelines:
 - When creating new code, load examples of similar code to match patterns
 - When modifying a function, load its callers to understand usage
 - After completing a task, remove files you won't need again
+
+### Compacting Tool Results
+
+Use `compact` to replace old tool results with a summary when they become redundant:
+
+- **Diffs to files in context** - Once a file is loaded, you can see its current state; old diffs are redundant
+- **Debug output once understood** - After you've learned what prints/logs showed, summarize and compact
+- **Failed approaches** - Once you've moved past a failed attempt, you don't need the details
+
+**Don't wait for task completion** - compact proactively when you're confident you won't need the details. The summary preserves your intent and reasoning while reducing token costs.
+
+Example: After 15 edits to the same file with debug prints, compact with: "Refactored FooWidget: added X, fixed Y, removed Z. Debug showed the issue was Q."
 
 # Work In Progress
 

@@ -12,8 +12,10 @@ from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QPushButton,
+    QSystemTrayIcon,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -919,6 +921,9 @@ class AIChatWidget(QWidget):
         # Emit signal that AI turn is finished
         self.ai_turn_finished.emit(commit_oid)
 
+        # Show system notification
+        self._notify_turn_complete(commit_oid)
+
         self._reset_input()
 
     def _on_stream_error(self, error_msg: str) -> None:
@@ -1623,6 +1628,38 @@ class AIChatWidget(QWidget):
             """)
 
         return "".join(html_parts)
+
+    def _notify_turn_complete(self, commit_oid: str) -> None:
+        """Show system notification when AI turn completes"""
+        # Check if window is focused - no notification needed if user is watching
+        if self.window() and self.window().isActiveWindow():
+            return
+
+        # Check if system tray is available
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+
+        # Create tray icon if needed (lazy initialization)
+        if not hasattr(self, "_tray_icon"):
+            self._tray_icon = QSystemTrayIcon(self)
+            # Use application icon if available
+            app = QApplication.instance()
+            if app is not None and isinstance(app, QApplication):
+                self._tray_icon.setIcon(app.windowIcon())
+
+        # Show notification
+        title = "Forge - AI Complete"
+        if commit_oid:
+            message = f"AI turn finished → {commit_oid[:8]}"
+        else:
+            message = "AI turn finished (no changes)"
+
+        self._tray_icon.showMessage(
+            title,
+            message,
+            QSystemTrayIcon.MessageIcon.Information,
+            3000,  # 3 seconds
+        )
 
     def _update_chat_display(self, scroll_to_bottom: bool = False) -> None:
         """Update the chat display with all messages.

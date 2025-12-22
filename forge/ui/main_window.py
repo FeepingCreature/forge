@@ -808,7 +808,8 @@ class MainWindow(QMainWindow):
 
         from forge.ui.ask_repo_dialog import AskRepoDialog
 
-        dialog = AskRepoDialog(workspace, self)
+        api_key = self.settings.get_api_key()
+        dialog = AskRepoDialog(workspace, api_key, self)
         dialog.exec()
 
     def _on_search_file_selected(self, filepath: str, line_num: int) -> None:

@@ -4,7 +4,6 @@ Ask Repo Dialog - Query the codebase using the summary model.
 Uses file summaries to answer architecture and code questions quickly and cheaply.
 """
 
-import os
 from typing import TYPE_CHECKING
 
 import httpx
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 if TYPE_CHECKING:
@@ -33,11 +33,13 @@ class AskWorker(QObject):
         super().__init__()
         self._question = ""
         self._summaries = ""
+        self._api_key = ""
 
-    def set_query(self, question: str, summaries: str) -> None:
+    def set_query(self, question: str, summaries: str, api_key: str) -> None:
         """Set the query to execute."""
         self._question = question
         self._summaries = summaries
+        self._api_key = api_key
 
     def run(self) -> None:
         """Execute the query."""
@@ -57,8 +59,7 @@ If you're not sure, say so.
 ## Answer"""
 
         try:
-            api_key = os.environ.get("OPENROUTER_API_KEY", "")
-            if not api_key:
+            if not self._api_key:
                 self.error.emit("No API key configured")
                 return
 
@@ -67,7 +68,7 @@ If you're not sure, say so.
                 "POST",
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {api_key}",
+                    "Authorization": f"Bearer {self._api_key}",
                     "HTTP-Referer": "https://github.com/anthropics/forge",
                 },
                 json={
@@ -112,9 +113,12 @@ If you're not sure, say so.
 class AskRepoDialog(QDialog):
     """Dialog for asking questions about the codebase."""
 
-    def __init__(self, workspace: "BranchWorkspace", parent: object = None) -> None:
+    def __init__(
+        self, workspace: "BranchWorkspace", api_key: str, parent: object = None
+    ) -> None:
         super().__init__(parent)  # type: ignore[arg-type]
         self.workspace = workspace
+        self._api_key = api_key
         self.setWindowTitle("Ask About Repo")
         self.setMinimumSize(600, 400)
         self.resize(700, 500)
@@ -179,7 +183,7 @@ class AskRepoDialog(QDialog):
         summaries = self._get_summaries()
 
         # Setup and start worker
-        self._worker.set_query(question, summaries)
+        self._worker.set_query(question, summaries, self._api_key)
 
         # Need to recreate thread if it was already run
         if self._worker_thread.isFinished():

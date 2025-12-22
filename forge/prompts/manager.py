@@ -46,8 +46,8 @@ class PromptManager:
     """
 
     # Compaction nudge thresholds
-    TOKEN_THRESHOLD = 40000  # Warn when total tokens exceed this
-    TOOL_CALL_THRESHOLD = 20  # Warn when tool calls since last compaction exceed this
+    TOKEN_THRESHOLD = 30000  # Warn when total tokens exceed this
+    TOOL_CALL_THRESHOLD = 15  # Warn when tool calls since last compaction exceed this
     HYSTERESIS_FACTOR = 0.7  # Don't re-warn until below threshold * this factor
 
     def __init__(self, system_prompt: str) -> None:

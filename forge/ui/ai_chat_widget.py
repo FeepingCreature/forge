@@ -329,6 +329,9 @@ class AIChatWidget(QWidget):
         self.tool_thread: QThread | None = None
         self.tool_worker: ToolExecutionWorker | None = None
 
+        # Queued message (user typed while AI was running)
+        self._queued_message: str | None = None
+
         # Summary worker
         self.summary_thread: QThread | None = None
         self.summary_worker: SummaryWorker | None = None
@@ -738,7 +741,17 @@ class AIChatWidget(QWidget):
     def _send_message(self) -> None:
         """Send user message to AI"""
         text = self.input_field.toPlainText().strip()
-        if not text or self.is_processing:
+        if not text:
+            return
+
+        # If processing, queue the message instead of sending
+        if self.is_processing:
+            self._queued_message = text
+            self.input_field.clear()
+            self._add_system_message(
+                f"📝 Message queued (will be sent after current turn): "
+                f'"{text[:50]}{"..." if len(text) > 50 else ""}"'
+            )
             return
 
         # Check for unsaved changes if callback is set
@@ -1261,15 +1274,13 @@ class AIChatWidget(QWidget):
             self.input_field.setEnabled(True)
             self.send_button.setEnabled(True)
 
-            # Check if user typed a message while AI was working
-            queued_text = self.input_field.toPlainText().strip()
-            if queued_text:
-                # Show notification that message was queued
-                self._add_system_message(
-                    f'📝 Queued message ready: "{queued_text[:50]}{"..." if len(queued_text) > 50 else ""}"'
-                )
-                # Focus the send button so user can easily send
-                self.send_button.setFocus()
+            # Check if there's a queued message to send
+            if self._queued_message:
+                queued = self._queued_message
+                self._queued_message = None
+                # Auto-send the queued message
+                self.input_field.setPlainText(queued)
+                self._send_message()
 
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat (becomes part of conversation history)"""

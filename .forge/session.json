@@ -205,6 +205,52 @@
     {
       "role": "assistant",
       "content": "The prompt is updated, but you'll need to clear the cache to regenerate. The TODO.md bug with \"No public interfaces\" repeated 20x is weird though - that suggests something went wrong during generation (maybe rate limiting or streaming issues?).\n\nWant to test this by clearing cache and regenerating? Or should we iterate more on the prompt first?\n\nOne more thought: we could also add a **max length filter** post-generation - if a summary exceeds say 500 chars for a non-code file, just replace it with \"\u2014\". That's a safety net for when the LLM ignores instructions."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright, it's down to 4K! Still useful enough?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yeah, 4k \u2192 5.4k summaries, that's much better! Looking at what's left:\n\n**Still too verbose:**\n- `LICENSE` - \"The provided file is a LICENSE file, which contains the GNU General Public License version 3. It does not contain any public classes...\" \u2192 should just be \"\u2014\"\n- `README.md` - Still listing all features and built-in tools. Should be \"\u2014\"\n- `AGPL-3.0.txt`, `GPL-3.0.txt`, `LGPL-3.0.txt`, `MPL-2.0.txt`, `Unlicense.txt` - All have sentences explaining what they are instead of \"\u2014\"\n- `Apache-2.0.txt` - Has explanation PLUS \"\u2014\" at the end (confused model)\n\n**Working well:**\n- Most code files have good bullet lists\n- `.gitignore`, `Makefile`, `pyproject.toml` \u2192 \"\u2014\" \u2713\n- `BSD-*.txt`, `MIT.txt` \u2192 \"\u2014\" \u2713\n\nThe issue is the model is inconsistent. Some license files get \"\u2014\", others get paragraphs. The prompt says \"config/docs/data\" but maybe license files aren't being categorized that way.\n\n**Options to fix:**\n\n1. **Post-process filter**: If summary > 200 chars and file is in `licenses/` or named `LICENSE*`, replace with \"\u2014\"\n\n2. **More explicit prompt**: Add \"License files, README files, and legal text: Write only '\u2014'\"\n\n3. **Hardcode known patterns**: For `licenses/*`, `LICENSE*`, `README*`, `*.md` in root - just use \"\u2014\" without calling the LLM at all\n\nI'd lean toward option 3 for licenses specifically - we *know* they're never useful for navigation, so why pay for LLM calls at all?\n\nWant me to add a quick hardcoded skip list for files that should always just get \"\u2014\"?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 02c54b86",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Beh. Compromise... add our problem files as examples for what files to summarize as dash?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good call - examples are the most reliable way to steer LLM behavior:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just the filename is enough context. Write \\\"\u2014\\\" (em dash, nothing else).\\n\\nKeep each bullet under 80 chars. No explanations, no introductions.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just the filename is enough context. Write \\\"\u2014\\\" (em dash, nothing else).\\n\\nExamples of files that should be \\\"\u2014\\\": LICENSE, README.md, .gitignore, Makefile, *.txt license files, pyproject.toml, requirements.txt, CHANGELOG.md, CONTRIBUTING.md, *.json, *.yaml, *.toml config files.\\n\\nKeep each bullet under 80 chars. No explanations, no introductions.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_015WjUTWNfEZRu9JMRFBhNBU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_015WjUTWNfEZRu9JMRFBhNBU",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! The prompt now has concrete examples. Clear the cache and regenerate to see if the license files and README finally behave.\n\nOne small thing - we could also add \"DESIGN.md\" to that examples list since it's a docs file that was getting verbose summaries. But let's see how this round goes first."
     }
   ]
 }

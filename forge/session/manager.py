@@ -473,6 +473,8 @@ File: {filepath}
 For CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).
 For config/docs/data: Just the filename is enough context. Write "—" (em dash, nothing else).
 
+Examples of files that should be "—": LICENSE, README.md, .gitignore, Makefile, *.txt license files, pyproject.toml, requirements.txt, CHANGELOG.md, CONTRIBUTING.md, *.json, *.yaml, *.toml config files.
+
 Keep each bullet under 80 chars. No explanations, no introductions."""
 
             messages = [{"role": "user", "content": prompt}]

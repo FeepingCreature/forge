@@ -1,7 +1,8 @@
 {
   "active_files": [
     "CLAUDE.md",
-    "TODO.md"
+    "TODO.md",
+    "POLISH_TODO.md"
   ],
   "messages": [
     {
@@ -149,6 +150,39 @@
     {
       "role": "assistant",
       "content": "So looking at what's actually valuable and feasible:\n\n**High value, clearly safe:**\n1. **`run_tests` tool** - Like `check`, materializes to tempdir, runs `make test` or `pytest`, returns output. I can iterate on code until tests pass. This is the biggest capability gap.\n\n2. **Command palette (Ctrl+Shift+P)** - Standard IDE feature, discoverability for all actions\n\n3. **Session forking UX** - \"Fork here\" in chat history. We have branch forking, but not mid-conversation forking.\n\n**Questions for you:**\n\n1. For `run_tests` - should it auto-discover the test command (look for Makefile with `test` target, pytest.ini, package.json scripts.test, etc.) or should it require explicit config in `.forge/config.toml`? Auto-discover is more magical but less predictable.\n\n2. For project config - you're right that if AI can write to it, it's a jailbreak. Options:\n   - Put it outside the repo (XDG config keyed by repo path)\n   - Put it in repo but blacklist from AI write tools\n   - Put it in repo and just document \"don't let AI write this\" (weak)\n\n3. Is there anything from your dogfooding that feels like friction? Things you keep wanting to do but can't?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 33d6fe1a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Okay, I mean, I have a whole checklist of pendings... we maybe need a POLISH_TODO.md lol\n- forge <filename> should open the file\n- while we're at it, open files should be restored on start from xdg cache/forge/open_files (by repo)\n- the \"warning, big file in context\" icon should appear on directories if any subdir has at least one file with the warning\n- files need a mouseover for size and maybe summary description\n- global search on a hotkey (show it as a result icon in the explorer view?)\n- oh yeah the explorer view can be a generic tool view that has its own tool tabs.\n- make the user interface arrangeable\n- hotkey configuration system!\n- configurable syntax highlighting and coloring (how deep with it?)\n- openrouter doesn't have code completion, but a small-model call that gives it the current file and cursor position and asks \"what goes here\" may be helpful, haiku is **very** cheap\n- need to look into performance at some point\n- webview js files have to be integrated in the app, we can't do http requests on every restart\n- branch forking should have an option to fork with or without session.\n- as you said, the convo interface can have an option to easily reset it to a previous point\n- git view should show dangling (recent?) commits not on any branch (reflog? how?)\n- compaction hints should be a bit more aggressive, I've seen the model happily run along at 60k context\n- long-term, I'd like the ability for the ai to kick off autonomous work on separate branches via toolcall (this goes in the big TODO list)\n- search in webview\n- compact tool needs pretty tool rendering\n- user-defined tools need a way to hook pretty tool rendering\nuh. those are the ones I've run into so far anyway, I'm sure there's more. Maybe a quick way to ask the summary model repo questions like \"how are we doing so-and-so\"... could even be integrated in global search, lol. ctrl-return to ask the model to give you code sites. I think that's it? That's all the ones I can think of offhand."
+    },
+    {
+      "role": "assistant",
+      "content": "Ha! That's a good list. Let me create POLISH_TODO.md to capture all of these - they're real friction points but don't belong in the main strategic TODO:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"POLISH_TODO.md\", \"content\": \"# Forge Polish TODO\\n\\nSmall improvements and friction points from dogfooding.\\nThese are real issues but not strategic priorities.\\n\\n---\\n\\n## CLI & Startup\\n\\n- [ ] `forge <filename>` should open that file on startup\\n- [ ] Restore open files on start from XDG cache (`~/.cache/forge/open_files.json` keyed by repo)\\n- [ ] JS files for webview should be bundled in app (no HTTP requests on startup)\\n\\n---\\n\\n## File Explorer\\n\\n- [ ] Warning icon (\u26a0\ufe0f large file) should bubble up to parent directories\\n- [ ] File mouseover tooltip: show size, maybe summary description\\n- [ ] Global search results shown as icons/markers in explorer view\\n- [ ] Explorer could become generic \\\"tool view\\\" with tabs (files, search results, etc.)\\n\\n---\\n\\n## Search\\n\\n- [ ] Global search hotkey (Ctrl+Shift+F)\\n- [ ] Search in webview (chat history)\\n- [ ] Ctrl+Return in search to ask model \\\"find code that does X\\\" (AI-assisted search)\\n\\n---\\n\\n## Editor & UI\\n\\n- [ ] Make UI panels arrangeable/dockable\\n- [ ] Hotkey configuration system\\n- [ ] Configurable syntax highlighting/theming (how deep?)\\n- [ ] Performance audit at some point\\n\\n---\\n\\n## Code Completion\\n\\n- [ ] Small-model completion (Haiku is very cheap)\\n- [ ] Send current file + cursor position, ask \\\"what goes here\\\"\\n- [ ] OpenRouter doesn't have dedicated completion API, but chat works\\n\\n---\\n\\n## Branch & Session Management\\n\\n- [ ] Branch fork dialog: option to fork with or without session history\\n- [ ] \\\"Reset conversation to here\\\" in chat history (rewind to previous point)\\n- [ ] Git graph: show dangling/recent commits not on any branch (reflog-based?)\\n\\n---\\n\\n## AI Behavior\\n\\n- [ ] More aggressive compaction hints (model happily runs at 60k context)\\n- [ ] Long-term: AI can kick off autonomous work on separate branches via tool call\\n\\n---\\n\\n## Tool Rendering\\n\\n- [ ] `compact` tool needs pretty rendering in chat\\n- [ ] User-defined tools need a hook for custom pretty rendering\\n\\n---\\n\\n## Model Integration\\n\\n- [ ] Quick way to ask summary model repo questions (\\\"how do we do X?\\\")\\n- [ ] Could integrate with global search - AI-assisted code discovery\\n\\n---\\n\\n## Random Ideas\\n\\n- [ ] \\\"Ask about repo\\\" command - uses summary model to answer architecture questions\\n- [ ] Search + AI hybrid: normal search, then \\\"explain these results\\\"\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_bdrk_01BABMGkMyakkk1mhRUiHZaK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01BABMGkMyakkk1mhRUiHZaK",
+      "content": "{\"message\": \"Wrote 2243 bytes to POLISH_TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, that's captured. Now we have a clear split:\n- **TODO.md** - Strategic priorities (test runner, build tool, command palette, session forking)\n- **POLISH_TODO.md** - Dogfooding friction (lots of small but real improvements)\n\nSo what do you want to tackle? Looking at both lists, some candidates:\n\n**Quick wins (< 30 min):**\n- `forge <filename>` CLI arg\n- More aggressive compaction hints\n- Warning icon bubbling to parent dirs\n\n**Medium effort (1-2 hours):**\n- Restore open files on startup\n- Global search hotkey (Ctrl+Shift+F)\n- Branch fork with/without session option\n\n**Bigger features:**\n- `run_tests` tool\n- Command palette\n- Small-model code completion\n\nWhat's bugging you most right now?"
     }
   ]
 }

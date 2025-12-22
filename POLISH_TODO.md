@@ -86,12 +86,12 @@ These are real issues but not strategic priorities.
 
 ## Model Integration
 
-- [ ] Quick way to ask summary model repo questions ("how do we do X?")
+- [x] Quick way to ask summary model repo questions ("how do we do X?") - Ctrl+Shift+A
 - [ ] Could integrate with global search - AI-assisted code discovery
 
 ---
 
 ## Random Ideas
 
-- [ ] "Ask about repo" command - uses summary model to answer architecture questions
+- [x] "Ask about repo" command - uses summary model to answer architecture questions
 - [ ] Search + AI hybrid: normal search, then "explain these results"

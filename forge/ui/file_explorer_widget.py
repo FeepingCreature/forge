@@ -180,12 +180,15 @@ class FileExplorerWidget(QWidget):
         # Update from bottom up so folders can calculate state from children
         self._update_icons_recursive(None)
 
-    def _update_icons_recursive(self, parent: QTreeWidgetItem | None) -> ContextState:
+    def _update_icons_recursive(self, parent: QTreeWidgetItem | None) -> tuple[ContextState, bool]:
         """
-        Recursively update context icons, returning the aggregate state.
+        Recursively update context icons, returning the aggregate state and whether any child has warning.
 
         For files: FULL if in context, NONE otherwise
         For folders/root: FULL if all children FULL, PARTIAL if some, NONE if none
+
+        Returns:
+            Tuple of (context_state, has_large_file_warning)
         """
         if parent is None:
             # Process top level items
@@ -193,7 +196,7 @@ class FileExplorerWidget(QWidget):
                 item = self.tree.topLevelItem(i)
                 if item:
                     self._update_icons_recursive(item)
-            return ContextState.NONE  # Return value not used at top level
+            return ContextState.NONE, False  # Return value not used at top level
 
         item_type = parent.data(0, Qt.ItemDataRole.UserRole + 1)
 
@@ -201,18 +204,23 @@ class FileExplorerWidget(QWidget):
             # File: simple in-context check
             filepath = parent.data(0, Qt.ItemDataRole.UserRole)
             state = ContextState.FULL if filepath in self._context_files else ContextState.NONE
-            self._set_item_icon(parent, state, is_large=(filepath in self._large_files))
-            return state
+            is_large = filepath in self._large_files
+            has_warning = is_large and state == ContextState.FULL
+            self._set_item_icon(parent, state, is_large=is_large)
+            return state, has_warning
 
         elif item_type in ("dir", "root"):
             # Folder/root: aggregate children states
             child_states: list[ContextState] = []
+            any_child_has_warning = False
 
             for i in range(parent.childCount()):
                 child = parent.child(i)
                 if child is not None:
-                    child_state = self._update_icons_recursive(child)
+                    child_state, child_warning = self._update_icons_recursive(child)
                     child_states.append(child_state)
+                    if child_warning:
+                        any_child_has_warning = True
 
             # Calculate folder state
             if not child_states:
@@ -224,10 +232,11 @@ class FileExplorerWidget(QWidget):
             else:
                 state = ContextState.PARTIAL
 
-            self._set_item_icon(parent, state)
-            return state
+            # Show warning on folder if any child has a large file in context
+            self._set_item_icon(parent, state, is_large=any_child_has_warning)
+            return state, any_child_has_warning
 
-        return ContextState.NONE
+        return ContextState.NONE, False
 
     def _set_item_icon(
         self, item: QTreeWidgetItem, state: ContextState, is_large: bool = False

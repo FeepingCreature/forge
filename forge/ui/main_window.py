@@ -183,6 +183,9 @@ class MainWindow(QMainWindow):
         # Note: closing a tab does NOT remove from context - use file explorer to manage
         branch_widget.file_opened.connect(chat_widget.add_file_to_context)
 
+        # Connect user typing signal to clear waiting indicator
+        chat_widget.user_typing.connect(branch_widget.clear_waiting_indicator)
+
         # Connect file explorer context changes to chat widget
         branch_widget.context_file_added.connect(chat_widget.add_file_to_context)
         branch_widget.context_file_removed.connect(chat_widget.remove_file_from_context)

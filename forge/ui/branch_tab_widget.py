@@ -131,19 +131,24 @@ class BranchTabWidget(QWidget):
         self._ai_working = True
         self.set_read_only(True)
 
-        # Update AI chat tab to show working indicator
+        # Update AI chat tab to show working indicator (remove waiting indicator)
         self.file_tabs.setTabText(0, "🤖 AI Chat ⏳")
 
         # Forward signal
         self.ai_turn_started.emit()
+
+    def clear_waiting_indicator(self) -> None:
+        """Clear the waiting-for-input indicator (called when user starts typing)"""
+        if not self._ai_working:
+            self.file_tabs.setTabText(0, "🤖 AI Chat")
 
     def _on_ai_turn_finished(self, commit_oid: str) -> None:
         """Handle AI turn finishing - unlock file editors and refresh"""
         self._ai_working = False
         self.set_read_only(False)
 
-        # Reset AI chat tab text
-        self.file_tabs.setTabText(0, "🤖 AI Chat")
+        # Show "waiting for input" indicator on AI chat tab
+        self.file_tabs.setTabText(0, "🤖 AI Chat 💬")
 
         # Refresh all open files from VFS (AI may have changed them)
         if commit_oid:

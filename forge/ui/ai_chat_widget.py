@@ -570,12 +570,19 @@ class AIChatWidget(QWidget):
             # Clear handled approvals for next batch
             self.handled_approvals.clear()
 
+    # Signal emitted when user starts typing (to clear waiting indicator)
+    user_typing = Signal()
+
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         """Filter events to catch Enter key in input field"""
         if obj == self.input_field and event.type() == QEvent.Type.KeyPress:
             # Cast to QKeyEvent to access key-specific attributes
             assert isinstance(event, QKeyEvent)
             key_event = event
+
+            # Emit typing signal for any key press (to clear waiting indicator)
+            self.user_typing.emit()
+
             # Check if it's Enter without Shift
             is_enter = key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
             is_shift_pressed = bool(key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier)

@@ -1,13 +1,5 @@
 # Forge TODO
 
-## User Tasks
-
-*Tasks the AI has asked the user to verify. Check off when done, or delete if no longer relevant.*
-
-- [ ] Test middle-mouse zoom in Git view - does it still scroll unexpectedly?
-
----
-
 ## Current State
 
 The branch-first architecture is **largely complete**:
@@ -53,7 +45,21 @@ The branch-first architecture is **largely complete**:
 
 ---
 
-## Phase 2: Session Management Improvements
+## Phase 2: User Task Tracking
+
+### User Tasks Panel
+- [ ] Add "User Tasks" panel/section to AI chat UI (or sidebar)
+- [ ] AI can add tasks via tool call (e.g., `add_user_task("Test middle-mouse zoom")`)
+- [ ] Tasks stored in `.forge/session.json` per-branch
+- [ ] User can check off tasks in UI
+- [ ] Tasks shown at bottom of prompt context so AI sees pending handoffs
+- [ ] Survives prompt compaction - AI remembers what it's waiting on
+
+**Why:** When AI is blocked waiting for user verification (e.g., "does the zoom work now?"), this gets lost during prompt compaction. User Tasks persist and remind both parties of pending handoffs.
+
+---
+
+## Phase 3: Session Management Improvements
 
 ### Merge Conflict Handling
 - [ ] On merge, archive source branch session to `.forge/merged/{branch_name}.json`

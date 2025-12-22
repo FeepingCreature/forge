@@ -1415,6 +1415,53 @@
     {
       "role": "assistant",
       "content": "Good, the User Tasks section is now at the top where I'll see it.\n\nNow, to your point about compaction guidance - I think I understand. It's not about task completion, it's about **information redundancy**:\n\n1. **Diffs become redundant** once the file is in my context - I can see the current state\n2. **Debug prints become redundant** once we understand what they showed\n3. **Failed approaches become redundant** once we've moved past them\n4. **But intent/reasoning can be valuable** - understanding *why* we did something helps\n\nSo the heuristic is something like: \"Can I reconstruct what I need to know from the current file contents + a brief summary?\" If yes, compact.\n\nThe User Tasks idea is clever because it solves a different problem: **suspended work that's waiting on the user**. The compaction summary said \"still investigating\" but that was wrong - I'd done my part and was waiting for you to test. If I'd written `- [ ] Test middle-mouse zoom` in User Tasks, then after compaction I'd see:\n1. The task is there, unchecked\n2. So I should wait for your feedback, not keep hacking\n\nDoes that match your thinking? \n\nFor the prompt, maybe something like:\n\n> **Compact proactively**: Compact when information becomes redundant - e.g., diffs to files already in context, debug output once understood, or failed approaches you've moved past. Keep enough summary to remember your intent. Don't wait for task completion; compact when you're confident you won't need the details.\n\nAnd separately:\n\n> **User Tasks**: When you're blocked waiting for user testing/verification, add a checkbox item to the User Tasks section of TODO.md. This survives compaction and reminds you (and the user) of pending handoffs."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 4fbf3aa5",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ah. I'm sorry, we talked past each other. With the TODO file, I meant add a section to the TODO file describing a *Forge app feature* for the *app* to track a user TODO list for the *branch* that the AI session is on."
+    },
+    {
+      "role": "assistant",
+      "content": "Oh! That makes way more sense - a feature in the app, not a convention in the TODO.md file. Let me update the TODO.md with this as a feature request:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"## User Tasks\\n\\n*Tasks the AI has asked the user to verify. Check off when done, or delete if no longer relevant.*\\n\\n- [ ] Test middle-mouse zoom in Git view - does it still scroll unexpectedly?\\n\\n---\\n\\n## Current State\", \"replace\": \"## Current State\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01K52EhVFPwYjUjRqN9kKBDA",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"---\\n\\n## Phase 2: Session Management Improvements\", \"replace\": \"---\\n\\n## Phase 2: User Task Tracking\\n\\n### User Tasks Panel\\n- [ ] Add \\\"User Tasks\\\" panel/section to AI chat UI (or sidebar)\\n- [ ] AI can add tasks via tool call (e.g., `add_user_task(\\\"Test middle-mouse zoom\\\")`)\\n- [ ] Tasks stored in `.forge/session.json` per-branch\\n- [ ] User can check off tasks in UI\\n- [ ] Tasks shown at bottom of prompt context so AI sees pending handoffs\\n- [ ] Survives prompt compaction - AI remembers what it's waiting on\\n\\n**Why:** When AI is blocked waiting for user verification (e.g., \\\"does the zoom work now?\\\"), this gets lost during prompt compaction. User Tasks persist and remind both parties of pending handoffs.\\n\\n---\\n\\n## Phase 3: Session Management Improvements\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01FQ3dpMRfs9nkshVBYojLyt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01K52EhVFPwYjUjRqN9kKBDA",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FQ3dpMRfs9nkshVBYojLyt",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, that captures the feature idea. \n\nNow, to circle back - you also had that zoom issue to test. Does middle-mouse drag zoom still scroll unexpectedly, or is it working now?"
     }
   ]
 }

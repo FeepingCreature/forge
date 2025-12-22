@@ -989,6 +989,64 @@
     {
       "role": "assistant",
       "content": "All checks pass. The fix removes `.forge/session.json` from all three trees (ancestor, ours, theirs) *before* calling `merge_trees`, so the merge won't see conflicts on that file. Give it another try!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: e007ee47",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Slight correction: we should only remove .forge/session.json from the merging branch. If the target branch has a running session, that session persists and just sees the merged-in files. The source branch session is the one that's concluded by the merge."
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch! The target branch's session should persist - we're only merging *into* it. The source branch is what's being \"concluded\" by the merge, so only its session.json should be removed.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/git_backend/actions.py\", \"search\": \"        # Remove .forge/session.json from both trees before merging to avoid conflicts\\n        # This file is session-specific and shouldn't be merged\\n        target_tree = self._remove_session_from_tree_if_present(target_commit.tree)\\n        source_tree = self._remove_session_from_tree_if_present(source_commit.tree)\\n\\n        merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)\\n        if not merge_base_oid:\\n            raise ValueError(\\\"No common ancestor found - cannot merge unrelated histories\\\")\\n\\n        ancestor_commit = self.repo.repo[merge_base_oid]\\n        assert isinstance(ancestor_commit, pygit2.Commit)\\n        ancestor_tree = self._remove_session_from_tree_if_present(ancestor_commit.tree)\", \"replace\": \"        # Remove .forge/session.json from the SOURCE tree only before merging\\n        # The target branch's session persists; the source branch session is concluded by merge\\n        target_tree = target_commit.tree\\n        source_tree = self._remove_session_from_tree_if_present(source_commit.tree)\\n\\n        merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)\\n        if not merge_base_oid:\\n            raise ValueError(\\\"No common ancestor found - cannot merge unrelated histories\\\")\\n\\n        ancestor_commit = self.repo.repo[merge_base_oid]\\n        assert isinstance(ancestor_commit, pygit2.Commit)\\n        ancestor_tree = ancestor_commit.tree\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Gho8gq9jXsHqEDrNZrfSEk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Gho8gq9jXsHqEDrNZrfSEk",
+      "content": "{\"message\": \"Replaced in forge/git_backend/actions.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01QssRANTSVaiECmkUuzhyyi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QssRANTSVaiECmkUuzhyyi",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Now only the source branch's `.forge/session.json` is removed before merging - the target branch's session persists and will see the merged-in files."
     }
   ]
 }

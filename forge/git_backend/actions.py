@@ -59,9 +59,9 @@ class MergeAction(GitAction):
         if not isinstance(source_commit, pygit2.Commit):
             raise ValueError(f"Source {self.source_oid} is not a commit")
 
-        # Remove .forge/session.json from both trees before merging to avoid conflicts
-        # This file is session-specific and shouldn't be merged
-        target_tree = self._remove_session_from_tree_if_present(target_commit.tree)
+        # Remove .forge/session.json from the SOURCE tree only before merging
+        # The target branch's session persists; the source branch session is concluded by merge
+        target_tree = target_commit.tree
         source_tree = self._remove_session_from_tree_if_present(source_commit.tree)
 
         merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)
@@ -70,7 +70,7 @@ class MergeAction(GitAction):
 
         ancestor_commit = self.repo.repo[merge_base_oid]
         assert isinstance(ancestor_commit, pygit2.Commit)
-        ancestor_tree = self._remove_session_from_tree_if_present(ancestor_commit.tree)
+        ancestor_tree = ancestor_commit.tree
 
         # Do a three-way merge of trees with session.json removed
         merge_result = self.repo.repo.merge_trees(

@@ -271,6 +271,9 @@ class MainWindow(QMainWindow):
         """Handle branch tab switch"""
         if index < 0:
             return
+        # Guard against signal firing before status_bar is created
+        if not hasattr(self, "status_bar"):
+            return
         # Update status bar with current branch
         tab_text = self.branch_tabs.tabText(index)
         # Strip emoji prefix

@@ -27,10 +27,12 @@ class ToolManager:
         "search_replace",
         "update_context",
         "grep_open",
+        "grep_context",
         "get_lines",
         "rename_file",
         "set_license",
         "compact",
+        "undo_edit",
     }
 
     def __init__(

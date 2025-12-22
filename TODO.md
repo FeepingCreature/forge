@@ -82,6 +82,11 @@ The branch-first architecture is **largely complete**:
 
 ## Phase 3: Git Graph Improvements
 
+### Search & Navigation
+- [ ] Search box in Git Graph pane (filter commits by message, author, or hash)
+- [ ] Jump to commit by SHA (partial match)
+- [ ] Highlight search matches in commit list
+
 ### Drag-and-Drop Operations
 - [ ] Drag Merge/Rebase buttons onto other commits to execute operation
 - [ ] Drag branch labels onto commits for `git reset` (move branch pointer)
@@ -122,8 +127,8 @@ The branch-first architecture is **largely complete**:
 ## Tool Improvements
 
 ### New Tools
-- [ ] `undo_edit` - Revert a file to its state before the last edit (useful when search_replace goes wrong)
-- [ ] `grep_context` - Show lines around a pattern match without adding to context (like `grep -A -B`)
+- [x] `undo_edit` - Revert a file to its state before the last edit (useful when search_replace goes wrong)
+- [x] `grep_context` - Show lines around a pattern match without adding to context (like `grep -A -B`)
   - `pattern`: regex to find
   - `context_before`/`context_after`: lines to show
   - `file`: optional, limit to one file

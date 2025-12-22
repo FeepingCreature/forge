@@ -910,8 +910,6 @@ class GitGraphScene(QGraphicsScene):
         if not self._merge_drag_active or self._merge_drag_spline is None:
             return
 
-        self._merge_drag_spline.update_end(scene_pos)
-
         # Check if hovering over a valid target
         old_hover = self._merge_drag_hover_target
         self._merge_drag_hover_target = None
@@ -923,6 +921,15 @@ class GitGraphScene(QGraphicsScene):
             if panel.sceneBoundingRect().contains(scene_pos):
                 self._merge_drag_hover_target = oid
                 break
+
+        # Update spline endpoint - snap to target if hovering, else follow cursor
+        if self._merge_drag_hover_target:
+            target_panel = self.oid_to_panel[self._merge_drag_hover_target]
+            # Snap to top center of target panel
+            snap_pos = target_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)
+            self._merge_drag_spline.update_end(snap_pos)
+        else:
+            self._merge_drag_spline.update_end(scene_pos)
 
         # Update merge check icon if hover target changed
         if self._merge_drag_hover_target != old_hover:

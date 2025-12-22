@@ -1,10 +1,10 @@
 {
   "active_files": [
-    "forge/git_backend/__init__.py",
     "forge/ui/git_graph_widget.py",
+    "forge/git_backend/repository.py",
     "CLAUDE.md",
-    "forge/git_backend/actions.py",
-    "forge/git_backend/repository.py"
+    "forge/git_backend/__init__.py",
+    "forge/git_backend/actions.py"
   ],
   "messages": [
     {
@@ -786,6 +786,78 @@
     {
       "role": "assistant",
       "content": "Good, all checks pass. The `is_uptodate` issue is fixed. The scroll wheel should work now - `wheelEvent` is a separate method from `mouseMoveEvent`, so it should handle scrolling independently during merge drag. Can you test it again?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 69 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah scrolling works now! I'm getting some merge conflicts- in the error message, can you list the conflicting files, or at least on the console? Also on reflection snapping the spline to the target commit is probably better."
+    },
+    {
+      "role": "assistant",
+      "content": "Got it! Three things to fix:\n\n1. Show conflicting files in the error message\n2. Print conflicts to console\n3. Snap spline to target commit when hovering",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/git_backend/actions.py\", \"search\": \"        if merge_result.conflicts:\\n            # For now, we don't handle conflicts\\n            raise ValueError(\\\"Merge has conflicts - conflict resolution not yet implemented\\\")\", \"replace\": \"        if merge_result.conflicts:\\n            # Collect conflicting file paths\\n            conflict_paths: list[str] = []\\n            for conflict in merge_result.conflicts:\\n                # conflict is a tuple of (ancestor, ours, theirs) IndexEntry objects\\n                for entry in conflict:\\n                    if entry is not None:\\n                        conflict_paths.append(entry.path)\\n            # Deduplicate\\n            conflict_paths = sorted(set(conflict_paths))\\n\\n            # Print to console\\n            print(f\\\"Merge conflict in {len(conflict_paths)} file(s):\\\")\\n            for path in conflict_paths:\\n                print(f\\\"  - {path}\\\")\\n\\n            # Raise with file list\\n            files_str = \\\", \\\".join(conflict_paths[:5])\\n            if len(conflict_paths) > 5:\\n                files_str += f\\\", ... ({len(conflict_paths) - 5} more)\\\"\\n            raise ValueError(f\\\"Merge has conflicts in: {files_str}\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_014N9pY1kPho6GeK6dMCDHsW",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def update_merge_drag(self, scene_pos: QPointF) -> None:\\n        \\\"\\\"\\\"Update the merge drag spline endpoint and check hover targets.\\\"\\\"\\\"\\n        if not self._merge_drag_active or self._merge_drag_spline is None:\\n            return\\n\\n        self._merge_drag_spline.update_end(scene_pos)\\n\\n        # Check if hovering over a valid target\\n        old_hover = self._merge_drag_hover_target\\n        self._merge_drag_hover_target = None\\n\\n        for oid in self._merge_drag_valid_targets:\\n            if oid not in self.oid_to_panel:\\n                continue\\n            panel = self.oid_to_panel[oid]\\n            if panel.sceneBoundingRect().contains(scene_pos):\\n                self._merge_drag_hover_target = oid\\n                break\", \"replace\": \"    def update_merge_drag(self, scene_pos: QPointF) -> None:\\n        \\\"\\\"\\\"Update the merge drag spline endpoint and check hover targets.\\\"\\\"\\\"\\n        if not self._merge_drag_active or self._merge_drag_spline is None:\\n            return\\n\\n        # Check if hovering over a valid target\\n        old_hover = self._merge_drag_hover_target\\n        self._merge_drag_hover_target = None\\n\\n        for oid in self._merge_drag_valid_targets:\\n            if oid not in self.oid_to_panel:\\n                continue\\n            panel = self.oid_to_panel[oid]\\n            if panel.sceneBoundingRect().contains(scene_pos):\\n                self._merge_drag_hover_target = oid\\n                break\\n\\n        # Update spline endpoint - snap to target if hovering, else follow cursor\\n        if self._merge_drag_hover_target:\\n            target_panel = self.oid_to_panel[self._merge_drag_hover_target]\\n            # Snap to top center of target panel\\n            snap_pos = target_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)\\n            self._merge_drag_spline.update_end(snap_pos)\\n        else:\\n            self._merge_drag_spline.update_end(scene_pos)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0164gs59D1C7vAQJ9iz4N2Wg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014N9pY1kPho6GeK6dMCDHsW",
+      "content": "{\"message\": \"Replaced in forge/git_backend/actions.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0164gs59D1C7vAQJ9iz4N2Wg",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01KSxCxrcUiBAbAACMfDCM5X",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KSxCxrcUiBAbAACMfDCM5X",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. The changes I made:\n\n1. **Conflict file reporting** - Now prints conflicting files to console and includes up to 5 file names in the error message\n2. **Spline snapping** - When hovering over a valid target, the spline now snaps to the top center of that commit panel instead of following the cursor"
     }
   ]
 }

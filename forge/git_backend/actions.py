@@ -68,8 +68,26 @@ class MergeAction(GitAction):
         )
 
         if merge_result.conflicts:
-            # For now, we don't handle conflicts
-            raise ValueError("Merge has conflicts - conflict resolution not yet implemented")
+            # Collect conflicting file paths
+            conflict_paths: list[str] = []
+            for conflict in merge_result.conflicts:
+                # conflict is a tuple of (ancestor, ours, theirs) IndexEntry objects
+                for entry in conflict:
+                    if entry is not None:
+                        conflict_paths.append(entry.path)
+            # Deduplicate
+            conflict_paths = sorted(set(conflict_paths))
+
+            # Print to console
+            print(f"Merge conflict in {len(conflict_paths)} file(s):")
+            for path in conflict_paths:
+                print(f"  - {path}")
+
+            # Raise with file list
+            files_str = ", ".join(conflict_paths[:5])
+            if len(conflict_paths) > 5:
+                files_str += f", ... ({len(conflict_paths) - 5} more)"
+            raise ValueError(f"Merge has conflicts in: {files_str}")
 
         # Build the merged tree, but remove .forge/session.json if present
         tree_oid = self._build_merge_tree_without_session(merge_result)

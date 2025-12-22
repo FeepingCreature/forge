@@ -471,14 +471,12 @@ File: {filepath}
 {content}
 ```
 
-For CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).
-For config/docs/data: Just "—" (the filename is enough context).
+First, decide: is this CODE (has importable classes/functions) or DATA (config, docs, licenses, etc)?
 
-Rules:
-- Don't describe well-known files (licenses, lockfiles, standard configs).
-- Keep each bullet under 80 chars.
+If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
+If DATA: just output "—" (the filename alone is enough context for navigation).
 
-Return your answer inside <summary></summary> tags."""
+Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)

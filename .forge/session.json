@@ -409,6 +409,39 @@
     {
       "role": "assistant",
       "content": "Looks good! Ready for you to clear the cache and regenerate. The prompt now:\n\n1. Lets the model think/reason outside the tags\n2. Extracts only what's inside `<summary></summary>`\n3. Doesn't fight the model's urge to be polite - it can preamble all it wants, we just ignore it"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Despair!- It's back up to 7k... what went wrong?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the summaries... ugh, the `<summary>` tags worked for *extraction* but the model is still being verbose inside them!\n\n**The worst offenders:**\n- `GPL-3.0.txt` - Still listing \"This License\", \"Copyright\", \"The Program\", etc.\n- `BSD-3-Clause.txt` - Full paragraphs explaining the license terms\n- `MIT.txt` - Explaining what the MIT license allows\n- `DESIGN.md` - Massive multi-section summary\n- `pyproject.toml` - Lists all dependencies\n- `GRAPH_COMMIT_ORDERING.md` - Algorithm explanation\n\nThe model is *thinking* inside the tags, not outside. It's treating `<summary>` as \"put your answer here\" rather than \"put ONLY the final terse output here\".\n\nLet me try splitting thinking from output:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just \\\"\u2014\\\" (the filename is enough context).\\n\\nRules:\\n- Don't describe well-known files (licenses, lockfiles, standard configs).\\n- Keep each bullet under 80 chars.\\n\\nReturn your answer inside <summary></summary> tags.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFirst, decide: is this CODE (has importable classes/functions) or DATA (config, docs, licenses, etc)?\\n\\nIf CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).\\nIf DATA: just output \\\"\u2014\\\" (the filename alone is enough context for navigation).\\n\\nThink about what category this file is, then put ONLY the final bullets or \\\"\u2014\\\" inside <summary></summary> tags. Nothing else inside the tags.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Rk26HaqJir2fnfuP11EjR5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Rk26HaqJir2fnfuP11EjR5",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the prompt is updated. Clear cache and regenerate to test.\n\nThe key change is making it a two-step process: \"First, decide... Think about what category this file is, then put ONLY the final bullets or '\u2014' inside the tags.\"\n\nThis should give the model space to reason (\"This is a license file, so DATA\") before committing to output. Let me know how it goes!"
     }
   ]
 }

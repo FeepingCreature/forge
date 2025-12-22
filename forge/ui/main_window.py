@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
 
         # Add git graph as first tab (not closable)
         self.git_graph = GitGraphScrollArea(self.repo)
-        self.branch_tabs.addTab(self.git_graph, "📊 Graph")
+        self.branch_tabs.addTab(self.git_graph, "📊 Git")
         # Make git graph tab not closable
         self.branch_tabs.tabBar().setTabButton(
             0, self.branch_tabs.tabBar().ButtonPosition.RightSide, None

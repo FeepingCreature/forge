@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
+    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
@@ -32,8 +33,11 @@ from PySide6.QtWidgets import (
     QGraphicsPathItem,
     QGraphicsScene,
     QGraphicsView,
+    QListWidget,
+    QListWidgetItem,
     QStyle,
     QStyleOptionGraphicsItem,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -591,20 +595,21 @@ class GitGraphScene(QGraphicsScene):
 
         # Draw edges first (behind panels)
         for node in self.nodes:
-            start_pos = self._get_node_pos(node)
-            # Offset to bottom of panel
-            start_pos.setY(start_pos.y() + CommitPanel.HEIGHT / 2)
+            child_center = self._get_node_pos(node)
+            # Start from bottom center of child panel
+            start_pos = QPointF(child_center.x(), child_center.y() + CommitPanel.HEIGHT / 2)
 
             for parent_oid in node.parent_oids:
                 if parent_oid not in self.oid_to_node:
                     continue
 
                 parent = self.oid_to_node[parent_oid]
-                end_pos = self._get_node_pos(parent)
-                # Offset to top of panel
-                end_pos.setY(end_pos.y() - CommitPanel.HEIGHT / 2)
+                parent_center = self._get_node_pos(parent)
+                # End at top center of parent panel
+                end_pos = QPointF(parent_center.x(), parent_center.y() - CommitPanel.HEIGHT / 2)
 
-                color = get_lane_color(node.column)
+                # Use parent's lane color for the edge (edge leads to parent)
+                color = get_lane_color(parent.column)
                 edge = SplineEdge(start_pos, end_pos, color)
                 self.addItem(edge)
 
@@ -627,6 +632,74 @@ class GitGraphScene(QGraphicsScene):
         self.setSceneRect(0, 0, width, height)
 
 
+class BranchListWidget(QWidget):
+    """Overlay widget listing branches for quick navigation."""
+
+    branch_clicked = Signal(str)  # branch name
+
+    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.repo = repo
+
+        # Semi-transparent background
+        self.setAutoFillBackground(True)
+        palette = self.palette()
+        palette.setColor(self.backgroundRole(), QColor(255, 255, 255, 230))
+        self.setPalette(palette)
+
+        # Layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(0)
+
+        # Branch list
+        self._list = QListWidget()
+        self._list.setStyleSheet("""
+            QListWidget {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: transparent;
+                font-size: 11px;
+            }
+            QListWidget::item {
+                padding: 4px 8px;
+                border-radius: 3px;
+            }
+            QListWidget::item:hover {
+                background: #E3F2FD;
+            }
+            QListWidget::item:selected {
+                background: #2196F3;
+                color: white;
+            }
+        """)
+        self._list.itemClicked.connect(self._on_item_clicked)
+        layout.addWidget(self._list)
+
+        self._load_branches()
+        self.setFixedWidth(160)
+        self.adjustSize()
+
+    def _load_branches(self) -> None:
+        """Load branches into the list."""
+        self._list.clear()
+        for branch_name in sorted(self.repo.repo.branches):
+            item = QListWidgetItem(branch_name)
+            # Color code by lane
+            color = get_lane_color(hash(branch_name) % len(LANE_COLORS))
+            item.setForeground(color.darker(120))
+            self._list.addItem(item)
+
+        # Adjust height based on items (max 10 visible)
+        item_height = 24
+        visible_items = min(self._list.count(), 10)
+        self._list.setFixedHeight(visible_items * item_height + 8)
+
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        """Handle branch click."""
+        self.branch_clicked.emit(item.text())
+
+
 class GitGraphView(QGraphicsView):
     """Pannable and zoomable view of the git graph."""
 
@@ -636,7 +709,7 @@ class GitGraphView(QGraphicsView):
 
     MIN_ZOOM = 0.2
     MAX_ZOOM = 2.0
-    ZOOM_FACTOR = 1.15
+    ZOOM_FACTOR = 1.05
 
     def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -657,7 +730,7 @@ class GitGraphView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
 
-        # Enable panning with drag
+        # Enable panning with left-click drag
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -665,20 +738,76 @@ class GitGraphView(QGraphicsView):
         # Current zoom level
         self._zoom = 1.0
 
+        # Middle mouse zoom state
+        self._middle_dragging = False
+        self._middle_drag_start_y = 0
+        self._middle_drag_start_zoom = 1.0
+
+        # Branch list overlay (top-left corner)
+        self._branch_list = BranchListWidget(repo, self)
+        self._branch_list.branch_clicked.connect(self._jump_to_branch)
+        self._branch_list.move(8, 8)
+
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        """Handle mouse wheel for zooming."""
-        # Zoom in/out
-        factor = self.ZOOM_FACTOR if event.angleDelta().y() > 0 else 1.0 / self.ZOOM_FACTOR
+        """Handle mouse wheel for vertical scrolling."""
+        # Use wheel for vertical scroll (default behavior)
+        super().wheelEvent(event)
 
-        # Clamp zoom level
-        new_zoom = self._zoom * factor
-        if new_zoom < self.MIN_ZOOM:
-            factor = self.MIN_ZOOM / self._zoom
-        elif new_zoom > self.MAX_ZOOM:
-            factor = self.MAX_ZOOM / self._zoom
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        """Handle mouse press - middle button starts zoom drag."""
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._middle_dragging = True
+            self._middle_drag_start_y = event.pos().y()
+            self._middle_drag_start_zoom = self._zoom
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+            event.accept()
+        else:
+            super().mousePressEvent(event)
 
-        self._zoom *= factor
-        self.scale(factor, factor)
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        """Handle mouse move - zoom if middle dragging."""
+        if self._middle_dragging:
+            # Calculate zoom based on vertical movement
+            delta_y = self._middle_drag_start_y - event.pos().y()
+            # 100 pixels of drag = one full zoom factor
+            zoom_delta = delta_y / 100.0
+            new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)
+
+            # Clamp zoom
+            new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
+
+            # Apply zoom
+            if new_zoom != self._zoom:
+                factor = new_zoom / self._zoom
+                self._zoom = new_zoom
+                self.scale(factor, factor)
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        """Handle mouse release - end middle drag zoom."""
+        if event.button() == Qt.MouseButton.MiddleButton and self._middle_dragging:
+            self._middle_dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def _jump_to_branch(self, branch_name: str) -> None:
+        """Jump to center the view on a branch's tip commit."""
+        # Find the branch tip commit
+        if branch_name not in self.repo.repo.branches:
+            return
+
+        branch = self.repo.repo.branches[branch_name]
+        commit = branch.peel(pygit2.Commit)
+        oid = str(commit.id)
+
+        # Find the panel for this commit
+        if oid in self._scene.oid_to_panel:
+            panel = self._scene.oid_to_panel[oid]
+            self.centerOn(panel)
 
     def refresh(self) -> None:
         """Refresh the graph (reload commits and redraw)."""
@@ -686,6 +815,8 @@ class GitGraphView(QGraphicsView):
         self.setScene(self._scene)
         self._scene.merge_requested.connect(self.merge_requested.emit)
         self._scene.rebase_requested.connect(self.rebase_requested.emit)
+        # Refresh branch list too
+        self._branch_list._load_branches()
 
     def fit_in_view(self) -> None:
         """Fit the entire graph in the view."""

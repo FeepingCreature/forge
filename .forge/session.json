@@ -266,6 +266,132 @@
     {
       "role": "assistant",
       "content": "Done! Here's a summary of the changes:\n\n## Changes Made\n\n### 1. Renamed \"Graph\" tab to \"Git\"\n- Updated the tab label in `main_window.py` from \"\ud83d\udcca Graph\" to \"\ud83d\udcca Git\"\n\n### 2. Complete refactor of `git_graph_widget.py`\n\n**New Architecture:**\n- Replaced `QScrollArea` with `QGraphicsView` for proper pan/zoom support\n- Created `GitGraphScene` to manage the graph layout\n- Used `QGraphicsObject` for interactive commit panels\n\n**New Features:**\n\n- **Pannable/Zoomable Surface**: Mouse wheel zooms (0.2x to 2.0x), drag to pan\n- **`CommitPanel` class**: Pretty rounded panels with:\n  - Color-coded left bar based on lane/column\n  - Short commit hash (monospace, bold)\n  - Truncated commit message (elided if too long)\n  - Branch labels with colored backgrounds (up to 2 shown)\n  - Shadow effect for depth\n  \n- **Spline connections**: `SplineEdge` class draws smooth bezier curves between commits using cubic bezier with S-curve control points\n\n- **Hover buttons with fade animation**:\n  - \"Merge\" button fades in at the top of commit panel\n  - \"Rebase\" button fades in at the bottom\n  - Smooth 150ms fade animation using `QPropertyAnimation`\n  - Buttons emit `merge_requested(oid)` and `rebase_requested(oid)` signals when clicked\n\n- **Branch labels**: Commits at branch tips show their branch names as colored badges\n\nThe buttons currently emit signals but don't implement the actual merge/rebase operations yet - you'll need to wire those up to the repository operations."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Excellent. Hm, it's probably better to have mouse wheel for vertical scroll and middle mouse drag for zoom based on y movement. Also, I think the splines aren't connected right? Also, can you list branches in the top left so you can click on a branch and jump to that commit?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll load the git graph widget to make these fixes.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/git_graph_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_013EpDCeyj4cAx9XcbvKf74E",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_013EpDCeyj4cAx9XcbvKf74E",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/git_graph_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the issues. Let me fix:\n\n1. Mouse wheel for vertical scroll, middle mouse drag for zoom\n2. Spline connections - the start point should connect to the bottom of the child commit panel\n3. Add a branch list overlay in the top left corner",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"from PySide6.QtGui import (\\n    QColor,\\n    QFont,\\n    QFontMetrics,\\n    QPainter,\\n    QPainterPath,\\n    QPen,\\n    QWheelEvent,\\n)\\nfrom PySide6.QtWidgets import (\\n    QGraphicsItem,\\n    QGraphicsObject,\\n    QGraphicsPathItem,\\n    QGraphicsScene,\\n    QGraphicsView,\\n    QStyle,\\n    QStyleOptionGraphicsItem,\\n    QWidget,\\n)\", \"replace\": \"from PySide6.QtGui import (\\n    QColor,\\n    QFont,\\n    QFontMetrics,\\n    QMouseEvent,\\n    QPainter,\\n    QPainterPath,\\n    QPen,\\n    QWheelEvent,\\n)\\nfrom PySide6.QtWidgets import (\\n    QGraphicsItem,\\n    QGraphicsObject,\\n    QGraphicsPathItem,\\n    QGraphicsScene,\\n    QGraphicsView,\\n    QListWidget,\\n    QListWidgetItem,\\n    QStyle,\\n    QStyleOptionGraphicsItem,\\n    QVBoxLayout,\\n    QWidget,\\n)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01ECwV6SMHCkKiwn6RkSK7kW",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _build_scene(self) -> None:\\n        \\\"\\\"\\\"Build the graphics scene with panels and edges.\\\"\\\"\\\"\\n        self.clear()\\n        self.oid_to_panel = {}\\n\\n        # Draw edges first (behind panels)\\n        for node in self.nodes:\\n            start_pos = self._get_node_pos(node)\\n            # Offset to bottom of panel\\n            start_pos.setY(start_pos.y() + CommitPanel.HEIGHT / 2)\\n\\n            for parent_oid in node.parent_oids:\\n                if parent_oid not in self.oid_to_node:\\n                    continue\\n\\n                parent = self.oid_to_node[parent_oid]\\n                end_pos = self._get_node_pos(parent)\\n                # Offset to top of panel\\n                end_pos.setY(end_pos.y() - CommitPanel.HEIGHT / 2)\\n\\n                color = get_lane_color(node.column)\\n                edge = SplineEdge(start_pos, end_pos, color)\\n                self.addItem(edge)\", \"replace\": \"    def _build_scene(self) -> None:\\n        \\\"\\\"\\\"Build the graphics scene with panels and edges.\\\"\\\"\\\"\\n        self.clear()\\n        self.oid_to_panel = {}\\n\\n        # Draw edges first (behind panels)\\n        for node in self.nodes:\\n            child_center = self._get_node_pos(node)\\n            # Start from bottom center of child panel\\n            start_pos = QPointF(child_center.x(), child_center.y() + CommitPanel.HEIGHT / 2)\\n\\n            for parent_oid in node.parent_oids:\\n                if parent_oid not in self.oid_to_node:\\n                    continue\\n\\n                parent = self.oid_to_node[parent_oid]\\n                parent_center = self._get_node_pos(parent)\\n                # End at top center of parent panel\\n                end_pos = QPointF(parent_center.x(), parent_center.y() - CommitPanel.HEIGHT / 2)\\n\\n                # Use parent's lane color for the edge (edge leads to parent)\\n                color = get_lane_color(parent.column)\\n                edge = SplineEdge(start_pos, end_pos, color)\\n                self.addItem(edge)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01B4NACyawiDYdxcU3GBMbYB",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"class GitGraphView(QGraphicsView):\\n    \\\"\\\"\\\"Pannable and zoomable view of the git graph.\\\"\\\"\\\"\\n\\n    # Signals for git operations\\n    merge_requested = Signal(str)  # oid\\n    rebase_requested = Signal(str)  # oid\\n\\n    MIN_ZOOM = 0.2\\n    MAX_ZOOM = 2.0\\n    ZOOM_FACTOR = 1.15\\n\\n    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:\\n        super().__init__(parent)\\n        self.repo = repo\\n\\n        # Create scene\\n        self._scene = GitGraphScene(repo)\\n        self.setScene(self._scene)\\n\\n        # Forward signals\\n        self._scene.merge_requested.connect(self.merge_requested.emit)\\n        self._scene.rebase_requested.connect(self.rebase_requested.emit)\\n\\n        # Setup view\\n        self.setRenderHint(QPainter.RenderHint.Antialiasing)\\n        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)\\n        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)\\n        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)\\n        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n\\n        # Enable panning with drag\\n        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)\\n        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n\\n        # Current zoom level\\n        self._zoom = 1.0\\n\\n    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802\\n        \\\"\\\"\\\"Handle mouse wheel for zooming.\\\"\\\"\\\"\\n        # Zoom in/out\\n        factor = self.ZOOM_FACTOR if event.angleDelta().y() > 0 else 1.0 / self.ZOOM_FACTOR\\n\\n        # Clamp zoom level\\n        new_zoom = self._zoom * factor\\n        if new_zoom < self.MIN_ZOOM:\\n            factor = self.MIN_ZOOM / self._zoom\\n        elif new_zoom > self.MAX_ZOOM:\\n            factor = self.MAX_ZOOM / self._zoom\\n\\n        self._zoom *= factor\\n        self.scale(factor, factor)\\n\\n    def refresh(self) -> None:\\n        \\\"\\\"\\\"Refresh the graph (reload commits and redraw).\\\"\\\"\\\"\\n        self._scene = GitGraphScene(self.repo)\\n        self.setScene(self._scene)\\n        self._scene.merge_requested.connect(self.merge_requested.emit)\\n        self._scene.rebase_requested.connect(self.rebase_requested.emit)\\n\\n    def fit_in_view(self) -> None:\\n        \\\"\\\"\\\"Fit the entire graph in the view.\\\"\\\"\\\"\\n        self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)\\n        # Update zoom tracking\\n        self._zoom = self.transform().m11()\", \"replace\": \"class BranchListWidget(QWidget):\\n    \\\"\\\"\\\"Overlay widget listing branches for quick navigation.\\\"\\\"\\\"\\n\\n    branch_clicked = Signal(str)  # branch name\\n\\n    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:\\n        super().__init__(parent)\\n        self.repo = repo\\n\\n        # Semi-transparent background\\n        self.setAutoFillBackground(True)\\n        palette = self.palette()\\n        palette.setColor(self.backgroundRole(), QColor(255, 255, 255, 230))\\n        self.setPalette(palette)\\n\\n        # Layout\\n        layout = QVBoxLayout(self)\\n        layout.setContentsMargins(4, 4, 4, 4)\\n        layout.setSpacing(0)\\n\\n        # Branch list\\n        self._list = QListWidget()\\n        self._list.setStyleSheet(\\\"\\\"\\\"\\n            QListWidget {\\n                border: 1px solid #ddd;\\n                border-radius: 4px;\\n                background: transparent;\\n                font-size: 11px;\\n            }\\n            QListWidget::item {\\n                padding: 4px 8px;\\n                border-radius: 3px;\\n            }\\n            QListWidget::item:hover {\\n                background: #E3F2FD;\\n            }\\n            QListWidget::item:selected {\\n                background: #2196F3;\\n                color: white;\\n            }\\n        \\\"\\\"\\\")\\n        self._list.itemClicked.connect(self._on_item_clicked)\\n        layout.addWidget(self._list)\\n\\n        self._load_branches()\\n        self.setFixedWidth(160)\\n        self.adjustSize()\\n\\n    def _load_branches(self) -> None:\\n        \\\"\\\"\\\"Load branches into the list.\\\"\\\"\\\"\\n        self._list.clear()\\n        for branch_name in sorted(self.repo.repo.branches):\\n            item = QListWidgetItem(branch_name)\\n            # Color code by lane\\n            color = get_lane_color(hash(branch_name) % len(LANE_COLORS))\\n            item.setForeground(color.darker(120))\\n            self._list.addItem(item)\\n\\n        # Adjust height based on items (max 10 visible)\\n        item_height = 24\\n        visible_items = min(self._list.count(), 10)\\n        self._list.setFixedHeight(visible_items * item_height + 8)\\n\\n    def _on_item_clicked(self, item: QListWidgetItem) -> None:\\n        \\\"\\\"\\\"Handle branch click.\\\"\\\"\\\"\\n        self.branch_clicked.emit(item.text())\\n\\n\\nclass GitGraphView(QGraphicsView):\\n    \\\"\\\"\\\"Pannable and zoomable view of the git graph.\\\"\\\"\\\"\\n\\n    # Signals for git operations\\n    merge_requested = Signal(str)  # oid\\n    rebase_requested = Signal(str)  # oid\\n\\n    MIN_ZOOM = 0.2\\n    MAX_ZOOM = 2.0\\n    ZOOM_FACTOR = 1.05\\n\\n    def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:\\n        super().__init__(parent)\\n        self.repo = repo\\n\\n        # Create scene\\n        self._scene = GitGraphScene(repo)\\n        self.setScene(self._scene)\\n\\n        # Forward signals\\n        self._scene.merge_requested.connect(self.merge_requested.emit)\\n        self._scene.rebase_requested.connect(self.rebase_requested.emit)\\n\\n        # Setup view\\n        self.setRenderHint(QPainter.RenderHint.Antialiasing)\\n        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)\\n        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)\\n        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)\\n        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n\\n        # Enable panning with left-click drag\\n        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)\\n        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)\\n\\n        # Current zoom level\\n        self._zoom = 1.0\\n\\n        # Middle mouse zoom state\\n        self._middle_dragging = False\\n        self._middle_drag_start_y = 0\\n        self._middle_drag_start_zoom = 1.0\\n\\n        # Branch list overlay (top-left corner)\\n        self._branch_list = BranchListWidget(repo, self)\\n        self._branch_list.branch_clicked.connect(self._jump_to_branch)\\n        self._branch_list.move(8, 8)\\n\\n    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802\\n        \\\"\\\"\\\"Handle mouse wheel for vertical scrolling.\\\"\\\"\\\"\\n        # Use wheel for vertical scroll (default behavior)\\n        super().wheelEvent(event)\\n\\n    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802\\n        \\\"\\\"\\\"Handle mouse press - middle button starts zoom drag.\\\"\\\"\\\"\\n        if event.button() == Qt.MouseButton.MiddleButton:\\n            self._middle_dragging = True\\n            self._middle_drag_start_y = event.pos().y()\\n            self._middle_drag_start_zoom = self._zoom\\n            self.setCursor(Qt.CursorShape.SizeVerCursor)\\n            event.accept()\\n        else:\\n            super().mousePressEvent(event)\\n\\n    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802\\n        \\\"\\\"\\\"Handle mouse move - zoom if middle dragging.\\\"\\\"\\\"\\n        if self._middle_dragging:\\n            # Calculate zoom based on vertical movement\\n            delta_y = self._middle_drag_start_y - event.pos().y()\\n            # 100 pixels of drag = one full zoom factor\\n            zoom_delta = delta_y / 100.0\\n            new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n\\n            # Clamp zoom\\n            new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n            # Apply zoom\\n            if new_zoom != self._zoom:\\n                factor = new_zoom / self._zoom\\n                self._zoom = new_zoom\\n                self.scale(factor, factor)\\n            event.accept()\\n        else:\\n            super().mouseMoveEvent(event)\\n\\n    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802\\n        \\\"\\\"\\\"Handle mouse release - end middle drag zoom.\\\"\\\"\\\"\\n        if event.button() == Qt.MouseButton.MiddleButton and self._middle_dragging:\\n            self._middle_dragging = False\\n            self.setCursor(Qt.CursorShape.ArrowCursor)\\n            event.accept()\\n        else:\\n            super().mouseReleaseEvent(event)\\n\\n    def _jump_to_branch(self, branch_name: str) -> None:\\n        \\\"\\\"\\\"Jump to center the view on a branch's tip commit.\\\"\\\"\\\"\\n        # Find the branch tip commit\\n        if branch_name not in self.repo.repo.branches:\\n            return\\n\\n        branch = self.repo.repo.branches[branch_name]\\n        commit = branch.peel(pygit2.Commit)\\n        oid = str(commit.id)\\n\\n        # Find the panel for this commit\\n        if oid in self._scene.oid_to_panel:\\n            panel = self._scene.oid_to_panel[oid]\\n            self.centerOn(panel)\\n\\n    def refresh(self) -> None:\\n        \\\"\\\"\\\"Refresh the graph (reload commits and redraw).\\\"\\\"\\\"\\n        self._scene = GitGraphScene(self.repo)\\n        self.setScene(self._scene)\\n        self._scene.merge_requested.connect(self.merge_requested.emit)\\n        self._scene.rebase_requested.connect(self.rebase_requested.emit)\\n        # Refresh branch list too\\n        self._branch_list._load_branches()\\n\\n    def fit_in_view(self) -> None:\\n        \\\"\\\"\\\"Fit the entire graph in the view.\\\"\\\"\\\"\\n        self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)\\n        # Update zoom tracking\\n        self._zoom = self.transform().m11()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MHMnwPhhr2NAaNjxnrj3Kz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01ECwV6SMHCkKiwn6RkSK7kW",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01B4NACyawiDYdxcU3GBMbYB",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MHMnwPhhr2NAaNjxnrj3Kz",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything is correct:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01EFReL6AFnz4Esq3tDW4t91",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EFReL6AFnz4Esq3tDW4t91",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up the context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/git_graph_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01AFwM6sDDXp1PGmMdGK9P6s",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01AFwM6sDDXp1PGmMdGK9P6s",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/ui/git_graph_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what I fixed:\n\n## Changes Made\n\n### 1. Mouse Controls\n- **Mouse wheel**: Now scrolls vertically (normal scroll behavior)\n- **Middle mouse drag**: Zoom based on vertical movement (drag up to zoom in, down to zoom out)\n- Reduced zoom factor to 1.05 for smoother zooming\n\n### 2. Spline Connections Fixed\n- Start point now correctly connects from **bottom center** of the child commit panel\n- End point connects to **top center** of the parent commit panel\n- Changed edge color to use the **parent's lane color** (edge leads to the parent)\n\n### 3. Branch List Overlay (Top Left)\n- Added `BranchListWidget` - a semi-transparent overlay in the top-left corner\n- Lists all branches in the repository\n- Click a branch to jump/center the view on that branch's tip commit\n- Color-coded branch names to match lane colors\n- Styled with hover effects and scrollable if many branches (max 10 visible)\n- Refreshes when the graph is refreshed"
     }
   ]
 }

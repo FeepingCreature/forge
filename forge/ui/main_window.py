@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
@@ -25,6 +24,7 @@ from forge.config.settings import Settings
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
 from forge.llm.cost_tracker import COST_TRACKER
+from forge.ui.actions import ActionRegistry
 from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
@@ -611,34 +611,120 @@ class MainWindow(QMainWindow):
         return None
 
     def _setup_shortcuts(self) -> None:
-        """Setup keyboard shortcuts"""
-        # Ctrl+Tab: Next branch tab
-        next_tab = QShortcut(QKeySequence("Ctrl+Tab"), self)
-        next_tab.activated.connect(self._next_branch_tab)
+        """Setup keyboard shortcuts via ActionRegistry"""
+        # Create action registry
+        self.action_registry = ActionRegistry(self)
 
-        # Ctrl+Shift+Tab: Previous branch tab
-        prev_tab = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
-        prev_tab.activated.connect(self._prev_branch_tab)
+        # Load custom shortcuts from settings
+        custom_shortcuts = self.settings.get("keybindings", {})
+        if isinstance(custom_shortcuts, dict):
+            self.action_registry.load_custom_shortcuts(custom_shortcuts)
 
-        # Ctrl+W: Close current file tab
-        close_file = QShortcut(QKeySequence("Ctrl+W"), self)
-        close_file.activated.connect(self._close_current_file_tab)
+        # Register all actions with their default shortcuts
+        # File actions
+        self.action_registry.register(
+            "file.save", "Save File", self._save_current_file, shortcut="Ctrl+S", category="File"
+        )
+        self.action_registry.register(
+            "file.save_all",
+            "Save All Files",
+            self._save_all_files,
+            shortcut="Ctrl+Shift+S",
+            category="File",
+        )
+        self.action_registry.register(
+            "file.close",
+            "Close File Tab",
+            self._close_current_file_tab,
+            shortcut="Ctrl+W",
+            category="File",
+        )
+        self.action_registry.register(
+            "file.settings", "Open Settings", self._open_settings, category="File"
+        )
 
-        # Ctrl+Shift+W: Close current branch tab
-        close_branch = QShortcut(QKeySequence("Ctrl+Shift+W"), self)
-        close_branch.activated.connect(self._close_current_branch_tab)
+        # Navigation actions
+        self.action_registry.register(
+            "nav.next_tab",
+            "Next Branch Tab",
+            self._next_branch_tab,
+            shortcut="Ctrl+Tab",
+            category="Navigation",
+        )
+        self.action_registry.register(
+            "nav.prev_tab",
+            "Previous Branch Tab",
+            self._prev_branch_tab,
+            shortcut="Ctrl+Shift+Tab",
+            category="Navigation",
+        )
+        self.action_registry.register(
+            "nav.quick_open",
+            "Quick Open File",
+            self._quick_open,
+            shortcut="Ctrl+E",
+            category="Navigation",
+        )
 
-        # Ctrl+N: New branch dialog
-        new_branch = QShortcut(QKeySequence("Ctrl+N"), self)
-        new_branch.activated.connect(self._show_new_branch_dialog)
+        # Branch actions
+        self.action_registry.register(
+            "branch.new",
+            "New Branch...",
+            self._show_new_branch_dialog,
+            shortcut="Ctrl+N",
+            category="Branch",
+        )
+        self.action_registry.register(
+            "branch.close",
+            "Close Branch Tab",
+            self._close_current_branch_tab,
+            shortcut="Ctrl+Shift+W",
+            category="Branch",
+        )
+        self.action_registry.register(
+            "branch.new_session", "New AI Session", self._new_ai_session, category="Branch"
+        )
 
-        # Ctrl+Shift+F: Global search
-        global_search = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
-        global_search.activated.connect(self._show_global_search)
+        # Search actions
+        self.action_registry.register(
+            "search.global",
+            "Search in Files",
+            self._show_global_search,
+            shortcut="Ctrl+Shift+F",
+            category="Search",
+        )
+        self.action_registry.register(
+            "search.ask_repo",
+            "Ask About Repo",
+            self._show_ask_repo,
+            shortcut="Ctrl+Shift+A",
+            category="Search",
+        )
 
-        # Ctrl+Shift+A: Ask about repo
-        ask_repo = QShortcut(QKeySequence("Ctrl+Shift+A"), self)
-        ask_repo.activated.connect(self._show_ask_repo)
+        # View actions
+        self.action_registry.register(
+            "view.command_palette",
+            "Command Palette",
+            self._show_command_palette,
+            shortcut="Ctrl+Shift+P",
+            category="View",
+        )
+
+    def _show_command_palette(self) -> None:
+        """Show the command palette"""
+        from forge.ui.command_palette import CommandPalette
+
+        palette = CommandPalette(self.action_registry, self)
+        palette.action_triggered.connect(self.action_registry.trigger)
+        # Center on window
+        palette.move(self.x() + (self.width() - palette.width()) // 2, self.y() + 100)
+        palette.exec()
+
+    def _quick_open(self) -> None:
+        """Show quick open dialog for current branch"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            current_widget.show_quick_open()
 
     def _show_global_search(self) -> None:
         """Show global search dialog"""

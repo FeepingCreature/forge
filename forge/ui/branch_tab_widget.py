@@ -100,9 +100,10 @@ class BranchTabWidget(QWidget):
         # Quick open widget (hidden by default, positioned at top)
         self._quick_open: QuickOpenWidget | None = None
 
-        # Setup Ctrl+E shortcut for quick open
+        # Note: Ctrl+E is handled by ActionRegistry in main_window
+        # but we keep a local shortcut for when focus is in this widget
         quick_open_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
-        quick_open_shortcut.activated.connect(self._show_quick_open)
+        quick_open_shortcut.activated.connect(self.show_quick_open)
 
     def add_ai_chat_tab(self, chat_widget: QWidget) -> int:
         """
@@ -432,7 +433,7 @@ class BranchTabWidget(QWidget):
                 self.file_tabs.setTabToolTip(i, f"{filepath}\n~{tokens:,} tokens in context")
                 break
 
-    def _show_quick_open(self) -> None:
+    def show_quick_open(self) -> None:
         """Show the quick open popup (Ctrl+E)"""
         # Create quick open widget lazily
         if self._quick_open is None:

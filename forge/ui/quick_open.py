@@ -162,7 +162,9 @@ class QuickOpenWidget(QWidget):
 
     def _load_files(self) -> None:
         """Load all files from the workspace VFS"""
-        self._all_files = sorted(self.workspace.vfs.list_files())
+        # Sort with dot files at the back
+        all_files = self.workspace.vfs.list_files()
+        self._all_files = sorted(all_files, key=lambda f: (f.startswith(".") or "/." in f, f))
         self._update_results("")
 
     def _on_text_changed(self, text: str) -> None:

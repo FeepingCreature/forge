@@ -33,6 +33,7 @@ class ToolManager:
         "set_license",
         "compact",
         "undo_edit",
+        "commit",
     }
 
     def __init__(

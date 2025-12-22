@@ -1,6 +1,7 @@
 {
   "active_files": [
     "CLAUDE.md",
+    "forge/tools/builtin/commit.py",
     "TODO.md",
     "POLISH_TODO.md"
   ],
@@ -216,6 +217,170 @@
     {
       "role": "assistant",
       "content": "The cancel/interrupt flow is actually pretty important for usability - when the AI starts going down a wrong path, you want to stop it early rather than waste tokens and time.\n\nAlright, we've got good lists now. What do you want to work on? \n\nLooking at impact vs effort:\n\n**High impact, probably quick:**\n- Cancel button (most useful when AI is confused)\n- `forge <filename>` CLI\n- More aggressive compaction hints\n\n**High impact, medium effort:**\n- `run_tests` tool (biggest capability gap)\n- System notification on completion (nice for long runs)\n\n**Nice but lower priority:**\n- Branch tab \"waiting for input\" marker\n- Open file restoration\n\nWhat's calling to you?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 59b4fc2a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay... I kinda wanna try something.\nWe have a giant list, I think you're sort of getting the idea. I wanna let you make the biggest turn you can possibly do in one shot. I want to see how much we can cram into one commit, lol. I've got a lot of credits on openrouter and I *think* with compaction you can go pretty far. You are *not* limited to what's in the TODO, I think we've nailed down the design enough to give you a good sense of where the app is going.\n-- Before we go into that, do you want to propose any tools that you think would be useful for it?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ooh, I like this challenge. Let me think about what tools would help me go deep...\n\n**Tools I wish I had:**\n\n1. **`batch_search_replace`** - Do multiple search/replace operations in one file in one call. Right now if I need to make 5 changes to one file, that's 5 tool calls. A batch version would be:\n   ```python\n   {\"filepath\": \"foo.py\", \"edits\": [{\"search\": \"...\", \"replace\": \"...\"}, ...]}\n   ```\n   This would massively reduce tool call overhead for refactoring.\n\n2. **`create_files`** (batch write_file) - Same idea. If I'm creating 3 new files, one call instead of three.\n\n3. Actually... maybe what I really want is just **being smarter about batching**. I can already call multiple tools in parallel in one response. The limitation is more about seeing results before making dependent changes.\n\n**What would actually help most:**\n\nHonestly, the tools are fine. What would help is:\n- Starting with more files in context so I can see patterns before coding\n- A clear prioritized hit list\n\n**My proposal for the mega-turn:**\n\nLet me load up key files (UI, tools, main patterns), then attack a prioritized list:\n\n1. **Cancel button** - High impact, touches ai_chat_widget\n2. **`forge <filename>` CLI** - Quick, touches main.py\n3. **More aggressive compaction** - Quick, touches session/manager.py\n4. **System notification on completion** - Medium, touches ai_chat_widget\n5. **Branch tab \"waiting\" marker** - Medium, touches branch_tab_widget\n6. **Warning icon bubbling to parent dirs** - Medium, touches file_explorer_widget\n\nThat's 6 features across maybe 5-6 files. Want me to load them up and go for it?\n\nOr do you want to adjust the hit list first?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 40429909",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hang on-- one idea, does it make sense to add a commit tool so you can make targeted commits in the middle?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oh that's clever! Right now everything accumulates into one big commit at the end of the turn. A `commit` tool would let me:\n\n1. Make a coherent change (e.g., \"Add cancel button\")\n2. Commit it with a clear message\n3. Move on to the next feature\n4. Each feature gets its own atomic commit\n\nBenefits:\n- **Better git history** - Each feature is one commit, not one mega-commit\n- **Safer** - If something goes wrong later, earlier commits are already saved\n- **Clearer** - You can review commit-by-commit\n- **Matches how humans work** - Finish a thing, commit, move on\n\nThe implementation would be straightforward - just call `vfs.commit(message)` which already exists. The VFS would then have a fresh base for subsequent changes.\n\nOne question: should it be a full commit (shows up in history immediately) or more like a \"checkpoint\" that gets squashed at the end? I think full commit is right - that's the whole point.\n\nWant me to build that first, then use it for the mega-turn?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 03b601e9",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah full commit, go ahead."
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at how the existing tools work and how VFS commit works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/write_file.py\",\"forge/vfs/work_in_progress.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_01TLZUS7KMBFnA3Fd2yUfhsU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01TLZUS7KMBFnA3Fd2yUfhsU",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/write_file.py\", \"forge/vfs/work_in_progress.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the pattern. The VFS already has a `commit()` method that does exactly what we need - commits pending changes and clears them. I just need to wrap it in a tool and update the base_vfs to point to the new commit so subsequent reads see the committed state.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/commit.py\", \"content\": \"\\\"\\\"\\\"\\nCommit pending VFS changes mid-turn with a descriptive message.\\n\\\"\\\"\\\"\\n\\nfrom typing import TYPE_CHECKING, Any\\n\\nfrom forge.git_backend.commit_types import CommitType\\n\\nif TYPE_CHECKING:\\n    from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"commit\\\",\\n            \\\"description\\\": \\\"Commit pending changes mid-turn with a descriptive message. Use this to create atomic commits for each logical change rather than one big commit at the end. After commit, you can continue making more changes.\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"message\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"Commit message describing the change (e.g., 'Add cancel button to AI chat')\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"message\\\"],\\n            },\\n        },\\n    }\\n\\n\\ndef execute(vfs: \\\"WorkInProgressVFS\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Commit pending changes and reset VFS for more work\\\"\\\"\\\"\\n    message = args.get(\\\"message\\\")\\n\\n    if not isinstance(message, str) or not message.strip():\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"message must be a non-empty string\\\"}\\n\\n    # Check if there are changes to commit\\n    pending = vfs.get_pending_changes()\\n    deleted = vfs.get_deleted_files()\\n\\n    if not pending and not deleted:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No pending changes to commit\\\"}\\n\\n    # Build summary of what's being committed\\n    summary_parts = []\\n    if pending:\\n        summary_parts.append(f\\\"{len(pending)} file(s) modified/created\\\")\\n    if deleted:\\n        summary_parts.append(f\\\"{len(deleted)} file(s) deleted\\\")\\n    summary = \\\", \\\".join(summary_parts)\\n\\n    # Commit with MAJOR type (these are intentional atomic commits)\\n    commit_oid = vfs.commit(\\n        message=message.strip(),\\n        commit_type=CommitType.MAJOR,\\n    )\\n\\n    # Update base_vfs to point to new commit so subsequent reads see committed state\\n    from forge.vfs.git_commit import GitCommitVFS\\n\\n    new_commit = vfs.repo.get_branch_head(vfs.branch_name)\\n    vfs.base_vfs = GitCommitVFS(vfs.repo.repo, new_commit)\\n\\n    return {\\n        \\\"success\\\": True,\\n        \\\"message\\\": f\\\"Committed: {summary}\\\",\\n        \\\"commit\\\": commit_oid[:12],\\n    }\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_017EMYNBoCAsJP8LBV2qtg7v",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017EMYNBoCAsJP8LBV2qtg7v",
+      "content": "{\"message\": \"Wrote 2439 bytes to forge/tools/builtin/commit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to register it as a builtin tool. Let me check how other tools are registered:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/__init__.py\",\"forge/tools/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01WHKYaPuda5HM5sMoS9bzew",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WHKYaPuda5HM5sMoS9bzew",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/__init__.py\", \"forge/tools/manager.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see - I just need to add `\"commit\"` to the `BUILTIN_TOOLS` set. The tool module is already in the right place and will be auto-discovered:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/manager.py\", \"search\": \"    # Built-in tools that are always approved\\n    BUILTIN_TOOLS = {\\n        \\\"write_file\\\",\\n        \\\"delete_file\\\",\\n        \\\"search_replace\\\",\\n        \\\"update_context\\\",\\n        \\\"grep_open\\\",\\n        \\\"grep_context\\\",\\n        \\\"get_lines\\\",\\n        \\\"rename_file\\\",\\n        \\\"set_license\\\",\\n        \\\"compact\\\",\\n        \\\"undo_edit\\\",\\n    }\", \"replace\": \"    # Built-in tools that are always approved\\n    BUILTIN_TOOLS = {\\n        \\\"write_file\\\",\\n        \\\"delete_file\\\",\\n        \\\"search_replace\\\",\\n        \\\"update_context\\\",\\n        \\\"grep_open\\\",\\n        \\\"grep_context\\\",\\n        \\\"get_lines\\\",\\n        \\\"rename_file\\\",\\n        \\\"set_license\\\",\\n        \\\"compact\\\",\\n        \\\"undo_edit\\\",\\n        \\\"commit\\\",\\n    }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017JQMr2cbsvbxKzNrdCJMJ9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017JQMr2cbsvbxKzNrdCJMJ9",
+      "content": "{\"message\": \"Replaced in forge/tools/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything is correct:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01CS2SqUSJaNq8CmzYQYAa4n",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CS2SqUSJaNq8CmzYQYAa4n",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 49 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 49 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me clean up context before the mega-turn:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/tools/builtin/write_file.py\",\"forge/vfs/work_in_progress.py\",\"forge/tools/builtin/__init__.py\",\"forge/tools/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_016YJ5fYp9fvcX3MvX9NZxRT",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016YJ5fYp9fvcX3MvX9NZxRT",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 4 files from context\", \"remove\": [\"forge/tools/builtin/write_file.py\", \"forge/vfs/work_in_progress.py\", \"forge/tools/builtin/__init__.py\", \"forge/tools/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The `commit` tool is ready. Now I can:\n\n1. Make a feature\n2. `commit` with a descriptive message  \n3. Move on to the next feature\n4. Repeat\n\nEach feature gets its own clean commit instead of one giant blob.\n\nReady for the mega-turn? I'll load up the key files and start attacking the list. Want me to proceed, or any last adjustments to priorities?"
     }
   ]
 }

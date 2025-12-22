@@ -119,6 +119,23 @@ The branch-first architecture is **largely complete**:
 
 ---
 
+## Tool Improvements
+
+### New Tools
+- [ ] `undo_edit` - Revert a file to its state before the last edit (useful when search_replace goes wrong)
+- [ ] `grep_context` - Show lines around a pattern match without adding to context (like `grep -A -B`)
+  - `pattern`: regex to find
+  - `context_before`/`context_after`: lines to show
+  - `file`: optional, limit to one file
+  - Returns snippet only, doesn't add to active context (for peeking)
+
+### Compaction Nudge
+- [ ] Warn AI when context exceeds threshold (suggest compacting)
+- [ ] Threshold: ~40k tokens or ~20 tool calls since last compaction
+- [ ] Use hysteresis to avoid repeated warnings (don't re-warn until drops below threshold)
+
+---
+
 ## Tech Debt
 
 - [ ] Error handling uses too many try/except blocks (violates "no fallbacks" philosophy)

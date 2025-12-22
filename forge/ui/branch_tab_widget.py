@@ -434,11 +434,13 @@ class BranchTabWidget(QWidget):
             self._quick_open.file_selected.connect(self.open_file)
             self._quick_open.hide()
 
-        # Position at top center of the file tabs area
-        tabs_rect = self.file_tabs.geometry()
-        popup_width = min(500, tabs_rect.width() - 40)
-        popup_x = tabs_rect.x() + (tabs_rect.width() - popup_width) // 2
-        popup_y = tabs_rect.y() + 10
+        # Position at top center of the file tabs area (in global coordinates)
+        tabs_global_pos = self.file_tabs.mapToGlobal(self.file_tabs.rect().topLeft())
+        tabs_width = self.file_tabs.width()
+
+        popup_width = min(500, tabs_width - 40)
+        popup_x = tabs_global_pos.x() + (tabs_width - popup_width) // 2
+        popup_y = tabs_global_pos.y() + 10
 
         self._quick_open.setFixedWidth(popup_width)
         self._quick_open.move(popup_x, popup_y)

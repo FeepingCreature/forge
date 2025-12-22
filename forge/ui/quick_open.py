@@ -88,6 +88,10 @@ class QuickOpenWidget(QWidget):
 
     def __init__(self, workspace: "BranchWorkspace", parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        # Make it a popup window so Qt doesn't try to lay it out with siblings
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+
         self.workspace = workspace
         self._all_files: list[str] = []
 

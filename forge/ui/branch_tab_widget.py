@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
 from forge.ui.file_explorer_widget import FileExplorerWidget
+from forge.ui.quick_open import QuickOpenWidget
 
 if TYPE_CHECKING:
     from forge.config.settings import Settings
@@ -93,6 +95,13 @@ class BranchTabWidget(QWidget):
         self.splitter.setSizes([200, 800])
 
         layout.addWidget(self.splitter)
+
+        # Quick open widget (hidden by default, positioned at top)
+        self._quick_open: QuickOpenWidget | None = None
+
+        # Setup Ctrl+E shortcut for quick open
+        quick_open_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
+        quick_open_shortcut.activated.connect(self._show_quick_open)
 
     def add_ai_chat_tab(self, chat_widget: QWidget) -> int:
         """
@@ -416,3 +425,22 @@ class BranchTabWidget(QWidget):
             if self.file_tabs.widget(i) == editor:
                 self.file_tabs.setTabToolTip(i, f"{filepath}\n~{tokens:,} tokens in context")
                 break
+
+    def _show_quick_open(self) -> None:
+        """Show the quick open popup (Ctrl+E)"""
+        # Create quick open widget lazily
+        if self._quick_open is None:
+            self._quick_open = QuickOpenWidget(self.workspace, self)
+            self._quick_open.file_selected.connect(self.open_file)
+            self._quick_open.hide()
+
+        # Position at top center of the file tabs area
+        tabs_rect = self.file_tabs.geometry()
+        popup_width = min(500, tabs_rect.width() - 40)
+        popup_x = tabs_rect.x() + (tabs_rect.width() - popup_width) // 2
+        popup_y = tabs_rect.y() + 10
+
+        self._quick_open.setFixedWidth(popup_width)
+        self._quick_open.move(popup_x, popup_y)
+        self._quick_open.show()
+        self._quick_open.raise_()

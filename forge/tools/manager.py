@@ -34,6 +34,7 @@ class ToolManager:
         "compact",
         "undo_edit",
         "commit",
+        "run_tests",
     }
 
     def __init__(

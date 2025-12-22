@@ -61,65 +61,66 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
         for line in content.splitlines():
             if line.startswith("test:") or line.startswith("test "):
                 return ["make", "test"], "make test"
-    
+
     # Check for pytest indicators
     has_pytest = False
-    
+
     # Check pyproject.toml for pytest
     pyproject = tmpdir / "pyproject.toml"
     if pyproject.exists():
         content = pyproject.read_text()
         if "[tool.pytest" in content or "pytest" in content.lower():
             has_pytest = True
-    
+
     # Check for pytest.ini
     if (tmpdir / "pytest.ini").exists():
         has_pytest = True
-    
+
     # Check for conftest.py
     if (tmpdir / "conftest.py").exists():
         has_pytest = True
-    
+
     # Check for test files
     test_files = list(tmpdir.rglob("test_*.py")) + list(tmpdir.rglob("*_test.py"))
     if test_files:
         has_pytest = True
-    
+
     if has_pytest:
         return ["python", "-m", "pytest"], "pytest"
-    
+
     # Check for package.json with test script
     package_json = tmpdir / "package.json"
     if package_json.exists():
         import json
+
         try:
             pkg = json.loads(package_json.read_text())
             if "scripts" in pkg and "test" in pkg["scripts"]:
                 return ["npm", "test"], "npm test"
         except json.JSONDecodeError:
             pass
-    
+
     # Check for Cargo.toml (Rust)
     if (tmpdir / "Cargo.toml").exists():
         return ["cargo", "test"], "cargo test"
-    
+
     # Check for go.mod (Go)
     if (tmpdir / "go.mod").exists():
         return ["go", "test", "./..."], "go test"
-    
+
     # Default: try pytest anyway
     return ["python", "-m", "pytest"], "pytest (default)"
 
 
 def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     """Run tests and return results"""
-    
+
     pattern = args.get("pattern", "")
     verbose = args.get("verbose", False)
-    
+
     # Materialize VFS to temp directory
     tmpdir = vfs.materialize_to_tempdir()
-    
+
     results: dict[str, Any] = {
         "success": False,
         "passed": False,
@@ -127,27 +128,29 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         "output": "",
         "summary": "",
     }
-    
+
     try:
         # Discover test command
         cmd, cmd_desc = _discover_test_command(tmpdir)
         results["test_command"] = cmd_desc
-        
+
         # Add pattern filter if specified
         if pattern:
             if "pytest" in cmd_desc:
                 cmd.extend(["-k", pattern])
             elif cmd_desc == "make test":
                 # Can't easily filter make test, note it
-                results["note"] = f"Pattern filtering not supported with make test, running all tests"
-        
+                results["note"] = (
+                    "Pattern filtering not supported with make test, running all tests"
+                )
+
         # Add verbose flag
         if verbose:
             if "pytest" in cmd_desc:
                 cmd.append("-v")
             elif "cargo" in cmd_desc:
                 cmd.append("--verbose")
-        
+
         # Run tests with timeout
         try:
             result = subprocess.run(
@@ -157,15 +160,15 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
                 text=True,
                 timeout=300,  # 5 minute timeout
             )
-            
+
             output = result.stdout
             if result.stderr:
                 output += "\n--- stderr ---\n" + result.stderr
-            
+
             results["output"] = output
             results["passed"] = result.returncode == 0
             results["success"] = True
-            
+
             # Generate summary
             if results["passed"]:
                 results["summary"] = f"✓ Tests passed ({cmd_desc})"
@@ -174,22 +177,25 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
                 # Try to extract failure count from pytest output
                 if "pytest" in cmd_desc:
                     for line in output.splitlines():
-                        if "failed" in line.lower() and ("passed" in line.lower() or "error" in line.lower()):
+                        if "failed" in line.lower() and (
+                            "passed" in line.lower() or "error" in line.lower()
+                        ):
                             results["summary"] += f"\n{line.strip()}"
                             break
-            
+
         except subprocess.TimeoutExpired:
             results["output"] = "Test run timed out after 5 minutes"
             results["summary"] = "✗ Tests timed out"
             results["success"] = True  # Tool succeeded, tests timed out
-            
+
         except FileNotFoundError as e:
             results["output"] = f"Command not found: {e}"
             results["summary"] = f"✗ Could not run {cmd_desc}: command not found"
-            
+
     finally:
         # Clean up temp directory
         import shutil
+
         shutil.rmtree(tmpdir, ignore_errors=True)
-    
+
     return results

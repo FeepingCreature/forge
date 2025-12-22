@@ -74,8 +74,12 @@ These are real issues but not strategic priorities.
 - [x] Cancel button during AI turn
   - If streaming text (not tool): cancel request, mark as canceled, inject user comment
   - If in tool execution: cancel, discard pending VFS changes
+- [x] Enter while AI running queues message, auto-sends after turn completes
+- [x] Turn UI: fixed-width marker, top+bottom actions with distinct semantics
+  - Top: "Revert this" / "Fork before"
+  - Bottom: "Revert to here" / "Fork after"
+  - Click on turn marker scrolls to top/bottom
 - [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)
-- [ ] User text entered during streaming gets added at next turn (or interrupts if mid-speech)
 
 ---
 

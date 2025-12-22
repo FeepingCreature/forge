@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "forge/git_backend/__init__.py",
-    "forge/git_backend/actions.py",
-    "forge/ui/git_graph_widget.py",
     "forge/git_backend/repository.py",
+    "forge/ui/git_graph_widget.py",
+    "forge/git_backend/actions.py",
+    "forge/git_backend/__init__.py",
     "CLAUDE.md"
   ],
   "messages": [
@@ -1047,6 +1047,83 @@
     {
       "role": "assistant",
       "content": "All checks pass. Now only the source branch's `.forge/session.json` is removed before merging - the target branch's session persists and will see the merged-in files."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 69 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I think the \"can merge or not\" check doesn't consider that session.json can't collide? Also, maybe compact."
+    },
+    {
+      "role": "assistant",
+      "content": "Good catches! Let me fix the `check_merge_clean` function to also strip session.json from the source, and then compact the context.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/git_backend/actions.py\", \"search\": \"def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str) -> bool:\\n    \\\"\\\"\\\"\\n    Quick check if a merge would be clean (no conflicts).\\n\\n    Returns True if merge would succeed without conflicts.\\n    \\\"\\\"\\\"\\n    target_commit = repo.get_branch_head(target_branch)\\n    source_commit: pygit2.Commit = repo.repo[source_oid]  # type: ignore[assignment]\\n\\n    # Find merge base\\n    merge_base = repo.repo.merge_base(target_commit.id, source_commit.id)\\n    if not merge_base:\\n        # No common ancestor - could still merge, but risky\\n        return False\\n\\n    # Check if already merged (source is ancestor of target or vice versa)\\n    if merge_base == source_commit.id:\\n        # Source is already in target's history\\n        return True\\n    if merge_base == target_commit.id:\\n        # Target is behind source - fast-forward possible\\n        return True\\n\\n    # Do a merge tree check\\n    merge_result = repo.repo.merge_trees(\\n        ancestor=merge_base,\\n        ours=target_commit.tree,\\n        theirs=source_commit.tree,\\n    )\\n\\n    return not merge_result.conflicts\", \"replace\": \"def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str) -> bool:\\n    \\\"\\\"\\\"\\n    Quick check if a merge would be clean (no conflicts).\\n\\n    Returns True if merge would succeed without conflicts.\\n    Note: Ignores .forge/session.json conflicts since we strip that from source.\\n    \\\"\\\"\\\"\\n    target_commit = repo.get_branch_head(target_branch)\\n    source_commit: pygit2.Commit = repo.repo[source_oid]  # type: ignore[assignment]\\n\\n    # Find merge base\\n    merge_base = repo.repo.merge_base(target_commit.id, source_commit.id)\\n    if not merge_base:\\n        # No common ancestor - could still merge, but risky\\n        return False\\n\\n    # Check if already merged (source is ancestor of target or vice versa)\\n    if merge_base == source_commit.id:\\n        # Source is already in target's history\\n        return True\\n    if merge_base == target_commit.id:\\n        # Target is behind source - fast-forward possible\\n        return True\\n\\n    # Do a merge tree check\\n    merge_result = repo.repo.merge_trees(\\n        ancestor=merge_base,\\n        ours=target_commit.tree,\\n        theirs=source_commit.tree,\\n    )\\n\\n    if not merge_result.conflicts:\\n        return True\\n\\n    # Check if the only conflicts are in .forge/session.json (which we ignore)\\n    for conflict in merge_result.conflicts:\\n        for entry in conflict:\\n            if entry is not None and entry.path != \\\".forge/session.json\\\":\\n                # Found a real conflict\\n                return False\\n\\n    # Only session.json conflicts, which we'll strip\\n    return True\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_013UE2CGvUCrRABb5W4UpoU8",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"42\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\",\"49\"], \"summary\": \"Implemented merge drag feature for Git graph panel:\\n\\n1. Created forge/git_backend/actions.py with:\\n   - GitAction abstract base class (perform/undo/description methods)\\n   - MergeAction: performs merge, removes .forge/session.json from SOURCE tree only before merging\\n   - check_merge_clean(): quick conflict check\\n   - GitActionLog: in-memory log for undo capability\\n\\n2. Updated forge/ui/git_graph_widget.py:\\n   - Added MergeDragSpline class for visual feedback during drag\\n   - CommitPanel: added merge_drag_started signal, grayed_out/merge_check_icon properties, drag detection\\n   - GitGraphScene: merge drag state tracking, start/update/end/cancel_merge_drag methods, _perform_merge\\n   - GitGraphView: mouse event handling during drag, scroll wheel works, Escape cancels\\n\\n3. Updated forge/git_backend/__init__.py to export new classes\\n\\nKey behaviors:\\n- Drag merge button to branch HEAD to merge\\n- Invalid targets (non-HEADs) grayed out during drag\\n- Spline snaps to target when hovering\\n- Shows \u2713/\u2717 icon for clean/conflict check on hover\\n- Conflicts show dialog with file list\\n- Session.json removed from source only (target session persists)\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01G41vdqTJnJu2mBR63pzyxS",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013UE2CGvUCrRABb5W4UpoU8",
+      "content": "{\"message\": \"Replaced in forge/git_backend/actions.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01G41vdqTJnJu2mBR63pzyxS",
+      "content": "{\"compact\": true, \"message\": \"Compacted 49 tool result(s)\", \"success\": true, \"summary\": \"Implemented merge drag feature for Git graph panel:\\n\\n1. Created forge/git_backend/actions.py with:\\n   - GitAction abstract base class (perform/undo/description methods)\\n   - MergeAction: performs merge, removes .forge/session.json from SOURCE tree only before merging\\n   - check_merge_clean(): quick conflict check\\n   - GitActionLog: in-memory log for undo capability\\n\\n2. Updated forge/ui/git_graph_widget.py:\\n   - Added MergeDragSpline class for visual feedback during drag\\n   - CommitPanel: added merge_drag_started signal, grayed_out/merge_check_icon properties, drag detection\\n   - GitGraphScene: merge drag state tracking, start/update/end/cancel_merge_drag methods, _perform_merge\\n   - GitGraphView: mouse event handling during drag, scroll wheel works, Escape cancels\\n\\n3. Updated forge/git_backend/__init__.py to export new classes\\n\\nKey behaviors:\\n- Drag merge button to branch HEAD to merge\\n- Invalid targets (non-HEADs) grayed out during drag\\n- Spline snaps to target when hovering\\n- Shows \\u2713/\\u2717 icon for clean/conflict check on hover\\n- Conflicts show dialog with file list\\n- Session.json removed from source only (target session persists)\", \"tool_call_ids\": [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"11\", \"12\", \"13\", \"14\", \"15\", \"16\", \"17\", \"18\", \"19\", \"20\", \"21\", \"22\", \"23\", \"24\", \"25\", \"26\", \"27\", \"28\", \"29\", \"30\", \"31\", \"32\", \"33\", \"34\", \"35\", \"36\", \"37\", \"38\", \"39\", \"40\", \"41\", \"42\", \"43\", \"44\", \"45\", \"46\", \"47\", \"48\", \"49\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `compact`\n```json\n{\n  \"summary\": \"Implemented merge drag feature for Git graph panel:\\n\\n1. Created forge/git_backend/actions.py with:\\n   - GitAction abstract base class (perform/undo/description methods)\\n   - MergeAction: performs merge, removes .forge/session.json from SOURCE tree only before merging\\n   - check_merge_clean(): quick conflict check\\n   - GitActionLog: in-memory log for undo capability\\n\\n2. Updated forge/ui/git_graph_widget.py:\\n   - Added MergeDragSpline class for visual feedback during drag\\n   - CommitPanel: added merge_drag_started signal, grayed_out/merge_check_icon properties, drag detection\\n   - GitGraphScene: merge drag state tracking, start/update/end/cancel_merge_drag methods, _perform_merge\\n   - GitGraphView: mouse event handling during drag, scroll wheel works, Escape cancels\\n\\n3. Updated forge/git_backend/__init__.py to export new classes\\n\\nKey behaviors:\\n- Drag merge button to branch HEAD to merge\\n- Invalid targets (non-HEADs) grayed out during drag\\n- Spline snaps to target when hovering\\n- Shows \\u2713/\\u2717 icon for clean/conflict check on hover\\n- Conflicts show dialog with file list\\n- Session.json removed from source only (target session persists)\",\n  \"tool_call_ids\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\",\n    \"7\",\n    \"8\",\n    \"9\",\n    \"10\",\n    \"11\",\n    \"12\",\n    \"13\",\n    \"14\",\n    \"15\",\n    \"16\",\n    \"17\",\n    \"18\",\n    \"19\",\n    \"20\",\n    \"21\",\n    \"22\",\n    \"23\",\n    \"24\",\n    \"25\",\n    \"26\",\n    \"27\",\n    \"28\",\n    \"29\",\n    \"30\",\n    \"31\",\n    \"32\",\n    \"33\",\n    \"34\",\n    \"35\",\n    \"36\",\n    \"37\",\n    \"38\",\n    \"39\",\n    \"40\",\n    \"41\",\n    \"42\",\n    \"43\",\n    \"44\",\n    \"45\",\n    \"46\",\n    \"47\",\n    \"48\",\n    \"49\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"compact\": true,\n  \"message\": \"Compacted 49 tool result(s)\",\n  \"success\": true,\n  \"summary\": \"Implemented merge drag feature for Git graph panel:\\n\\n1. Created forge/git_backend/actions.py with:\\n   - GitAction abstract base class (perform/undo/description methods)\\n   - MergeAction: performs merge, removes .forge/session.json from SOURCE tree only before merging\\n   - check_merge_clean(): quick conflict check\\n   - GitActionLog: in-memory log for undo capability\\n\\n2. Updated forge/ui/git_graph_widget.py:\\n   - Added MergeDragSpline class for visual feedback during drag\\n   - CommitPanel: added merge_drag_started signal, grayed_out/merge_check_icon properties, drag detection\\n   - GitGraphScene: merge drag state tracking, start/update/end/cancel_merge_drag methods, _perform_merge\\n   - GitGraphView: mouse event handling during drag, scroll wheel works, Escape cancels\\n\\n3. Updated forge/git_backend/__init__.py to export new classes\\n\\nKey behaviors:\\n- Drag merge button to branch HEAD to merge\\n- Invalid targets (non-HEADs) grayed out during drag\\n- Spline snaps to target when hovering\\n- Shows \\u2713/\\u2717 icon for clean/conflict check on hover\\n- Conflicts show dialog with file list\\n- Session.json removed from source only (target session persists)\",\n  \"tool_call_ids\": [\n    \"1\",\n    \"2\",\n    \"3\",\n    \"4\",\n    \"5\",\n    \"6\",\n    \"7\",\n    \"8\",\n    \"9\",\n    \"10\",\n    \"11\",\n    \"12\",\n    \"13\",\n    \"14\",\n    \"15\",\n    \"16\",\n    \"17\",\n    \"18\",\n    \"19\",\n    \"20\",\n    \"21\",\n    \"22\",\n    \"23\",\n    \"24\",\n    \"25\",\n    \"26\",\n    \"27\",\n    \"28\",\n    \"29\",\n    \"30\",\n    \"31\",\n    \"32\",\n    \"33\",\n    \"34\",\n    \"35\",\n    \"36\",\n    \"37\",\n    \"38\",\n    \"39\",\n    \"40\",\n    \"41\",\n    \"42\",\n    \"43\",\n    \"44\",\n    \"45\",\n    \"46\",\n    \"47\",\n    \"48\",\n    \"49\"\n  ]\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01J5eDS9nW3VAm3pDjRriTqW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01J5eDS9nW3VAm3pDjRriTqW",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 47 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. The fix now makes `check_merge_clean` iterate through all conflicts and return `True` only if all conflicts are in `.forge/session.json` (which we strip during the actual merge). Any other conflict will correctly return `False`."
     }
   ]
 }

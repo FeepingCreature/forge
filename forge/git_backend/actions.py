@@ -190,6 +190,7 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
     Quick check if a merge would be clean (no conflicts).
 
     Returns True if merge would succeed without conflicts.
+    Note: Ignores .forge/session.json conflicts since we strip that from source.
     """
     target_commit = repo.get_branch_head(target_branch)
     source_commit: pygit2.Commit = repo.repo[source_oid]  # type: ignore[assignment]
@@ -215,7 +216,18 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
         theirs=source_commit.tree,
     )
 
-    return not merge_result.conflicts
+    if not merge_result.conflicts:
+        return True
+
+    # Check if the only conflicts are in .forge/session.json (which we ignore)
+    for conflict in merge_result.conflicts:
+        for entry in conflict:
+            if entry is not None and entry.path != ".forge/session.json":
+                # Found a real conflict
+                return False
+
+    # Only session.json conflicts, which we'll strip
+    return True
 
 
 class GitActionLog:

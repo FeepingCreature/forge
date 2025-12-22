@@ -24,7 +24,7 @@ These are real issues but not strategic priorities.
 
 ## Search
 
-- [ ] Global search hotkey (Ctrl+Shift+F)
+- [x] Global search hotkey (Ctrl+Shift+F)
 - [ ] Search in webview (chat history)
 - [ ] Ctrl+Return in search to ask model "find code that does X" (AI-assisted search)
 

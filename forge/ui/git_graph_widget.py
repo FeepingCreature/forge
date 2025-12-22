@@ -119,13 +119,13 @@ class CommitPanel(QGraphicsObject):
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
     def boundingRect(self) -> QRectF:  # noqa: N802
-        """Return bounding rect including button areas."""
+        """Return bounding rect (buttons are now inside panel)."""
         # Panel is drawn with top-left at (-WIDTH/2, -HEIGHT/2)
         return QRectF(
             -self.WIDTH / 2,
-            -self.HEIGHT / 2 - self.BUTTON_HEIGHT,
+            -self.HEIGHT / 2,
             self.WIDTH,
-            self.HEIGHT + 2 * self.BUTTON_HEIGHT,
+            self.HEIGHT,
         )
 
     def _get_button_opacity(self) -> float:
@@ -231,17 +231,22 @@ class CommitPanel(QGraphicsObject):
             self._draw_buttons(painter, panel_rect)
 
     def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:
-        """Draw the merge/rebase/squash buttons with current opacity."""
+        """Draw the merge/rebase/squash buttons with current opacity (inside panel)."""
         opacity = self._button_opacity_value
-        button_width = 60
-        small_button_width = 50
+        button_width = 52
+        button_height = 20
+        margin = 6
+        spacing = 4
 
-        # Merge button (top)
+        # All buttons inside the panel at the bottom
+        button_y = panel_rect.bottom() - button_height - margin
+
+        # Merge button (left)
         merge_rect = QRectF(
-            panel_rect.center().x() - button_width / 2,
-            panel_rect.top() - self.BUTTON_HEIGHT - 4,
+            panel_rect.left() + margin,
+            button_y,
             button_width,
-            self.BUTTON_HEIGHT,
+            button_height,
         )
         merge_color = QColor(76, 175, 80, int(opacity * 255))  # Green
         merge_border = QColor(56, 142, 60, int(opacity * 255))
@@ -250,17 +255,17 @@ class CommitPanel(QGraphicsObject):
         painter.drawRoundedRect(merge_rect, 4, 4)
 
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
-        font = QFont("sans-serif", 9)
+        font = QFont("sans-serif", 8)
         font.setBold(True)
         painter.setFont(font)
         painter.drawText(merge_rect, Qt.AlignmentFlag.AlignCenter, "Merge")
 
-        # Rebase button (bottom left)
+        # Rebase button (center)
         rebase_rect = QRectF(
-            panel_rect.center().x() - button_width / 2 - small_button_width / 2 - 2,
-            panel_rect.bottom() + 4,
+            merge_rect.right() + spacing,
+            button_y,
             button_width,
-            self.BUTTON_HEIGHT,
+            button_height,
         )
         rebase_color = QColor(255, 152, 0, int(opacity * 255))  # Orange
         rebase_border = QColor(230, 126, 0, int(opacity * 255))
@@ -271,12 +276,12 @@ class CommitPanel(QGraphicsObject):
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
         painter.drawText(rebase_rect, Qt.AlignmentFlag.AlignCenter, "Rebase")
 
-        # Squash button (bottom right, smaller)
+        # Squash button (right)
         squash_rect = QRectF(
-            panel_rect.center().x() + button_width / 2 - small_button_width / 2 + 2,
-            panel_rect.bottom() + 4,
-            small_button_width,
-            self.BUTTON_HEIGHT,
+            rebase_rect.right() + spacing,
+            button_y,
+            button_width,
+            button_height,
         )
         squash_color = QColor(156, 39, 176, int(opacity * 255))  # Purple
         squash_border = QColor(123, 31, 139, int(opacity * 255))
@@ -285,10 +290,7 @@ class CommitPanel(QGraphicsObject):
         painter.drawRoundedRect(squash_rect, 4, 4)
 
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
-        font = QFont("sans-serif", 8)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, "Squash ↓")
+        painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, "Squash")
 
         # Store button rects for click detection
         self._merge_rect = merge_rect
@@ -365,52 +367,50 @@ class SplineEdge(QGraphicsPathItem):
         path.moveTo(self.start)
 
         dx = self.end.x() - self.start.x()
-        dy = self.end.y() - self.start.y()
         r = self.CORNER_RADIUS
+
+        # Y coordinate for horizontal segment - directly above the end (parent) commit
+        # end.y is at top of parent panel, so put the turn just above that
+        turn_y = self.end.y() - r * 2
 
         if abs(dx) < 5:
             # Straight vertical line - just draw it
             path.lineTo(self.end)
         elif dx > 0:
-            # Going up-right: start vertical, turn right, go horizontal, turn up, end vertical
-            # First go up a bit, then turn right
-            mid_y = self.start.y() + dy / 2
-
-            # Start going up
-            path.lineTo(self.start.x(), mid_y + r)
-            # Round corner turning right
+            # Going up-right: start vertical, turn right, go horizontal, turn down, end vertical
+            # Go up from start to the turn level
+            path.lineTo(self.start.x(), turn_y - r)
+            # Round corner turning right (curve bows upward)
             path.quadTo(
-                QPointF(self.start.x(), mid_y),
-                QPointF(self.start.x() + r, mid_y),
+                QPointF(self.start.x(), turn_y),
+                QPointF(self.start.x() + r, turn_y),
             )
-            # Go horizontal
-            path.lineTo(self.end.x() - r, mid_y)
-            # Round corner turning up
+            # Go horizontal to above end
+            path.lineTo(self.end.x() - r, turn_y)
+            # Round corner turning down (curve bows upward)
             path.quadTo(
-                QPointF(self.end.x(), mid_y),
-                QPointF(self.end.x(), mid_y - r),
+                QPointF(self.end.x(), turn_y),
+                QPointF(self.end.x(), turn_y + r),
             )
-            # Go up to end
+            # Go down to end
             path.lineTo(self.end)
         else:
-            # Going up-left: start vertical, turn left, go horizontal, turn up, end vertical
-            mid_y = self.start.y() + dy / 2
-
-            # Start going up
-            path.lineTo(self.start.x(), mid_y + r)
-            # Round corner turning left
+            # Going up-left: start vertical, turn left, go horizontal, turn down, end vertical
+            # Go up from start to the turn level
+            path.lineTo(self.start.x(), turn_y - r)
+            # Round corner turning left (curve bows upward)
             path.quadTo(
-                QPointF(self.start.x(), mid_y),
-                QPointF(self.start.x() - r, mid_y),
+                QPointF(self.start.x(), turn_y),
+                QPointF(self.start.x() - r, turn_y),
             )
-            # Go horizontal
-            path.lineTo(self.end.x() + r, mid_y)
-            # Round corner turning up
+            # Go horizontal to above end
+            path.lineTo(self.end.x() + r, turn_y)
+            # Round corner turning down (curve bows upward)
             path.quadTo(
-                QPointF(self.end.x(), mid_y),
-                QPointF(self.end.x(), mid_y - r),
+                QPointF(self.end.x(), turn_y),
+                QPointF(self.end.x(), turn_y + r),
             )
-            # Go up to end
+            # Go down to end
             path.lineTo(self.end)
 
         self.setPath(path)
@@ -760,9 +760,9 @@ class BranchListWidget(QWidget):
         """Load branches into the list, ordered by last commit time (newest first)."""
         self._list.clear()
 
-        # Get branch names with their tip commit times
+        # Get local branch names with their tip commit times (skip remotes)
         branch_times: list[tuple[str, int]] = []
-        for branch_name in self.repo.repo.branches:
+        for branch_name in self.repo.repo.branches.local:
             branch = self.repo.repo.branches[branch_name]
             commit = branch.peel(pygit2.Commit)
             branch_times.append((branch_name, commit.commit_time))
@@ -845,6 +845,9 @@ class GitGraphView(QGraphicsView):
 
         # Reserve space on left for branch list overlay
         self._update_branch_list_margin()
+
+        # Scroll to show leftmost content
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().minimum())
 
     def _update_branch_list_margin(self) -> None:
         """Update scene rect to include space for branch list overlay."""

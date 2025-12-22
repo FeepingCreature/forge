@@ -1,8 +1,8 @@
 {
   "active_files": [
     "forge/ui/git_graph_widget.py",
-    "CLAUDE.md",
     "forge/prompts/system.py",
+    "CLAUDE.md",
     "forge/ui/main_window.py"
   ],
   "messages": [
@@ -1821,6 +1821,120 @@
     {
       "role": "assistant",
       "content": "Done! Here's a summary of all the changes:\n\n## Changes Made\n\n1. **Removed debug prints** - Cleaned up the zoom logging\n\n2. **Branches ordered by last commit time** - `BranchListWidget._load_branches()` now sorts branches by their tip commit timestamp (newest first)\n\n3. **Left margin for branch list** - Added `_update_branch_list_margin()` to shift the scene rect left so the branch list overlay doesn't cover commits\n\n4. **Ctrl+scroll zooms** - Extracted `_apply_zoom()` helper, `wheelEvent` now checks for Ctrl modifier and zooms instead of scrolling\n\n5. **Axis-aligned splines with rounded corners** - `SplineEdge._build_path()` now:\n   - Goes vertical first, then horizontal, then vertical again\n   - Uses `quadTo()` for smooth 90\u00b0 rounded corners at the turns\n   - Uses `mid_y` (midpoint between start and end y) for the horizontal segment\n\n6. **Squash button** - Added a smaller purple \"Squash \u2193\" button next to Rebase at the bottom of commit panels, with `squash_requested` signal propagated through the widget hierarchy\n\n7. **Window title with folder name** - `MainWindow.__init__()` now sets `\"Forge \u2014 {folder_name}\"` as the window title"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Sweet. Next round:\n- We have a left margin, but we should start out the view scrolled all the way to the left too.\n- branch ordering works, excellent\n- we probably don't need remote branches in the quick-access list\n- ctrl-scroll no issues works fine\n- the axis-aligned splines look great... except the curves are the wrong way around :) That is, they curve down when they should curve up, and up when they should curve down. Some operation on y is the wrong way around.\n- Right now you have the turn halfway between ancestor and child commit when branching off. Instead, put it directly above the ancestor commit.\n- A problem with the buttons is that the \"Merge\" button of the commit below, and the \"Rebase/Squash\" button of the commit above, overlap; so you can't mouse over rebase/squash because it instead selects Merge of the commit below. Maybe move them inside the commit box?\n- The Squash button needs to be slightly larger - or just remove the arrow."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll tackle all of these. Let me make the changes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _load_branches(self) -> None:\\n        \\\"\\\"\\\"Load branches into the list, ordered by last commit time (newest first).\\\"\\\"\\\"\\n        self._list.clear()\\n\\n        # Get branch names with their tip commit times\\n        branch_times: list[tuple[str, int]] = []\\n        for branch_name in self.repo.repo.branches:\\n            branch = self.repo.repo.branches[branch_name]\\n            commit = branch.peel(pygit2.Commit)\\n            branch_times.append((branch_name, commit.commit_time))\", \"replace\": \"    def _load_branches(self) -> None:\\n        \\\"\\\"\\\"Load branches into the list, ordered by last commit time (newest first).\\\"\\\"\\\"\\n        self._list.clear()\\n\\n        # Get local branch names with their tip commit times (skip remotes)\\n        branch_times: list[tuple[str, int]] = []\\n        for branch_name in self.repo.repo.branches.local:\\n            branch = self.repo.repo.branches[branch_name]\\n            commit = branch.peel(pygit2.Commit)\\n            branch_times.append((branch_name, commit.commit_time))\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01BTsNfzpz8s773gXRERB1zZ",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _build_path(self) -> None:\\n        \\\"\\\"\\\"Build an axis-aligned path with rounded corners.\\\"\\\"\\\"\\n        path = QPainterPath()\\n        path.moveTo(self.start)\\n\\n        dx = self.end.x() - self.start.x()\\n        dy = self.end.y() - self.start.y()\\n        r = self.CORNER_RADIUS\\n\\n        if abs(dx) < 5:\\n            # Straight vertical line - just draw it\\n            path.lineTo(self.end)\\n        elif dx > 0:\\n            # Going up-right: start vertical, turn right, go horizontal, turn up, end vertical\\n            # First go up a bit, then turn right\\n            mid_y = self.start.y() + dy / 2\\n\\n            # Start going up\\n            path.lineTo(self.start.x(), mid_y + r)\\n            # Round corner turning right\\n            path.quadTo(\\n                QPointF(self.start.x(), mid_y),\\n                QPointF(self.start.x() + r, mid_y),\\n            )\\n            # Go horizontal\\n            path.lineTo(self.end.x() - r, mid_y)\\n            # Round corner turning up\\n            path.quadTo(\\n                QPointF(self.end.x(), mid_y),\\n                QPointF(self.end.x(), mid_y - r),\\n            )\\n            # Go up to end\\n            path.lineTo(self.end)\\n        else:\\n            # Going up-left: start vertical, turn left, go horizontal, turn up, end vertical\\n            mid_y = self.start.y() + dy / 2\\n\\n            # Start going up\\n            path.lineTo(self.start.x(), mid_y + r)\\n            # Round corner turning left\\n            path.quadTo(\\n                QPointF(self.start.x(), mid_y),\\n                QPointF(self.start.x() - r, mid_y),\\n            )\\n            # Go horizontal\\n            path.lineTo(self.end.x() + r, mid_y)\\n            # Round corner turning up\\n            path.quadTo(\\n                QPointF(self.end.x(), mid_y),\\n                QPointF(self.end.x(), mid_y - r),\\n            )\\n            # Go up to end\\n            path.lineTo(self.end)\\n\\n        self.setPath(path)\", \"replace\": \"    def _build_path(self) -> None:\\n        \\\"\\\"\\\"Build an axis-aligned path with rounded corners.\\\"\\\"\\\"\\n        path = QPainterPath()\\n        path.moveTo(self.start)\\n\\n        dx = self.end.x() - self.start.x()\\n        r = self.CORNER_RADIUS\\n\\n        # Y coordinate for horizontal segment - directly above the end (parent) commit\\n        # end.y is at top of parent panel, so put the turn just above that\\n        turn_y = self.end.y() - r * 2\\n\\n        if abs(dx) < 5:\\n            # Straight vertical line - just draw it\\n            path.lineTo(self.end)\\n        elif dx > 0:\\n            # Going up-right: start vertical, turn right, go horizontal, turn down, end vertical\\n            # Go up from start to the turn level\\n            path.lineTo(self.start.x(), turn_y - r)\\n            # Round corner turning right (curve bows upward)\\n            path.quadTo(\\n                QPointF(self.start.x(), turn_y),\\n                QPointF(self.start.x() + r, turn_y),\\n            )\\n            # Go horizontal to above end\\n            path.lineTo(self.end.x() - r, turn_y)\\n            # Round corner turning down (curve bows upward)\\n            path.quadTo(\\n                QPointF(self.end.x(), turn_y),\\n                QPointF(self.end.x(), turn_y + r),\\n            )\\n            # Go down to end\\n            path.lineTo(self.end)\\n        else:\\n            # Going up-left: start vertical, turn left, go horizontal, turn down, end vertical\\n            # Go up from start to the turn level\\n            path.lineTo(self.start.x(), turn_y - r)\\n            # Round corner turning left (curve bows upward)\\n            path.quadTo(\\n                QPointF(self.start.x(), turn_y),\\n                QPointF(self.start.x() - r, turn_y),\\n            )\\n            # Go horizontal to above end\\n            path.lineTo(self.end.x() + r, turn_y)\\n            # Round corner turning down (curve bows upward)\\n            path.quadTo(\\n                QPointF(self.end.x(), turn_y),\\n                QPointF(self.end.x(), turn_y + r),\\n            )\\n            # Go down to end\\n            path.lineTo(self.end)\\n\\n        self.setPath(path)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01QwrgjBP6s5BtYExwN38eC8",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:\\n        \\\"\\\"\\\"Draw the merge/rebase/squash buttons with current opacity.\\\"\\\"\\\"\\n        opacity = self._button_opacity_value\\n        button_width = 60\\n        small_button_width = 50\\n\\n        # Merge button (top)\\n        merge_rect = QRectF(\\n            panel_rect.center().x() - button_width / 2,\\n            panel_rect.top() - self.BUTTON_HEIGHT - 4,\\n            button_width,\\n            self.BUTTON_HEIGHT,\\n        )\\n        merge_color = QColor(76, 175, 80, int(opacity * 255))  # Green\\n        merge_border = QColor(56, 142, 60, int(opacity * 255))\\n        painter.setBrush(merge_color)\\n        painter.setPen(QPen(merge_border, 1))\\n        painter.drawRoundedRect(merge_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        font = QFont(\\\"sans-serif\\\", 9)\\n        font.setBold(True)\\n        painter.setFont(font)\\n        painter.drawText(merge_rect, Qt.AlignmentFlag.AlignCenter, \\\"Merge\\\")\\n\\n        # Rebase button (bottom left)\\n        rebase_rect = QRectF(\\n            panel_rect.center().x() - button_width / 2 - small_button_width / 2 - 2,\\n            panel_rect.bottom() + 4,\\n            button_width,\\n            self.BUTTON_HEIGHT,\\n        )\\n        rebase_color = QColor(255, 152, 0, int(opacity * 255))  # Orange\\n        rebase_border = QColor(230, 126, 0, int(opacity * 255))\\n        painter.setBrush(rebase_color)\\n        painter.setPen(QPen(rebase_border, 1))\\n        painter.drawRoundedRect(rebase_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        painter.drawText(rebase_rect, Qt.AlignmentFlag.AlignCenter, \\\"Rebase\\\")\\n\\n        # Squash button (bottom right, smaller)\\n        squash_rect = QRectF(\\n            panel_rect.center().x() + button_width / 2 - small_button_width / 2 + 2,\\n            panel_rect.bottom() + 4,\\n            small_button_width,\\n            self.BUTTON_HEIGHT,\\n        )\\n        squash_color = QColor(156, 39, 176, int(opacity * 255))  # Purple\\n        squash_border = QColor(123, 31, 139, int(opacity * 255))\\n        painter.setBrush(squash_color)\\n        painter.setPen(QPen(squash_border, 1))\\n        painter.drawRoundedRect(squash_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        font = QFont(\\\"sans-serif\\\", 8)\\n        font.setBold(True)\\n        painter.setFont(font)\\n        painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, \\\"Squash \u2193\\\")\\n\\n        # Store button rects for click detection\\n        self._merge_rect = merge_rect\\n        self._rebase_rect = rebase_rect\\n        self._squash_rect = squash_rect\", \"replace\": \"    def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:\\n        \\\"\\\"\\\"Draw the merge/rebase/squash buttons with current opacity (inside panel).\\\"\\\"\\\"\\n        opacity = self._button_opacity_value\\n        button_width = 52\\n        button_height = 20\\n        margin = 6\\n        spacing = 4\\n\\n        # All buttons inside the panel at the bottom\\n        button_y = panel_rect.bottom() - button_height - margin\\n\\n        # Merge button (left)\\n        merge_rect = QRectF(\\n            panel_rect.left() + margin,\\n            button_y,\\n            button_width,\\n            button_height,\\n        )\\n        merge_color = QColor(76, 175, 80, int(opacity * 255))  # Green\\n        merge_border = QColor(56, 142, 60, int(opacity * 255))\\n        painter.setBrush(merge_color)\\n        painter.setPen(QPen(merge_border, 1))\\n        painter.drawRoundedRect(merge_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        font = QFont(\\\"sans-serif\\\", 8)\\n        font.setBold(True)\\n        painter.setFont(font)\\n        painter.drawText(merge_rect, Qt.AlignmentFlag.AlignCenter, \\\"Merge\\\")\\n\\n        # Rebase button (center)\\n        rebase_rect = QRectF(\\n            merge_rect.right() + spacing,\\n            button_y,\\n            button_width,\\n            button_height,\\n        )\\n        rebase_color = QColor(255, 152, 0, int(opacity * 255))  # Orange\\n        rebase_border = QColor(230, 126, 0, int(opacity * 255))\\n        painter.setBrush(rebase_color)\\n        painter.setPen(QPen(rebase_border, 1))\\n        painter.drawRoundedRect(rebase_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        painter.drawText(rebase_rect, Qt.AlignmentFlag.AlignCenter, \\\"Rebase\\\")\\n\\n        # Squash button (right)\\n        squash_rect = QRectF(\\n            rebase_rect.right() + spacing,\\n            button_y,\\n            button_width,\\n            button_height,\\n        )\\n        squash_color = QColor(156, 39, 176, int(opacity * 255))  # Purple\\n        squash_border = QColor(123, 31, 139, int(opacity * 255))\\n        painter.setBrush(squash_color)\\n        painter.setPen(QPen(squash_border, 1))\\n        painter.drawRoundedRect(squash_rect, 4, 4)\\n\\n        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))\\n        painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, \\\"Squash\\\")\\n\\n        # Store button rects for click detection\\n        self._merge_rect = merge_rect\\n        self._rebase_rect = rebase_rect\\n        self._squash_rect = squash_rect\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01GPFZ14FRje8D21gj7MQQdA",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def boundingRect(self) -> QRectF:  # noqa: N802\\n        \\\"\\\"\\\"Return bounding rect including button areas.\\\"\\\"\\\"\\n        # Panel is drawn with top-left at (-WIDTH/2, -HEIGHT/2)\\n        return QRectF(\\n            -self.WIDTH / 2,\\n            -self.HEIGHT / 2 - self.BUTTON_HEIGHT,\\n            self.WIDTH,\\n            self.HEIGHT + 2 * self.BUTTON_HEIGHT,\\n        )\", \"replace\": \"    def boundingRect(self) -> QRectF:  # noqa: N802\\n        \\\"\\\"\\\"Return bounding rect (buttons are now inside panel).\\\"\\\"\\\"\\n        # Panel is drawn with top-left at (-WIDTH/2, -HEIGHT/2)\\n        return QRectF(\\n            -self.WIDTH / 2,\\n            -self.HEIGHT / 2,\\n            self.WIDTH,\\n            self.HEIGHT,\\n        )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01VU1QK5NeNbKi8XkYCrxVHV",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        # Reserve space on left for branch list overlay\\n        self._update_branch_list_margin()\", \"replace\": \"        # Reserve space on left for branch list overlay\\n        self._update_branch_list_margin()\\n\\n        # Scroll to show leftmost content\\n        self.horizontalScrollBar().setValue(self.horizontalScrollBar().minimum())\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01CEBggMtDLtPovYuwXog2Gf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01BTsNfzpz8s773gXRERB1zZ",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01QwrgjBP6s5BtYExwN38eC8",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01GPFZ14FRje8D21gj7MQQdA",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01VU1QK5NeNbKi8XkYCrxVHV",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01CEBggMtDLtPovYuwXog2Gf",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me run the checks to make sure everything compiles:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_bdrk_01DZdqjt2yPFVgB4KLcvGceU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01DZdqjt2yPFVgB4KLcvGceU",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Here's a summary of the changes:\n\n## Changes Made\n\n1. **Scroll to left on load** - Added `horizontalScrollBar().setValue(minimum())` after setting up the scene\n\n2. **Local branches only in quick-access list** - Changed `repo.repo.branches` to `repo.repo.branches.local` to skip remote branches\n\n3. **Ctrl+scroll works** - Already confirmed working\n\n4. **Fixed spline routing** - Changed the horizontal turn to be directly above the parent commit (`turn_y = self.end.y() - r * 2`) instead of halfway between. The curves now go up from the child, turn at the parent's level, then come down into the parent.\n\n5. **Buttons moved inside panel** - All three buttons (Merge, Rebase, Squash) are now inside the commit panel at the bottom, laid out horizontally left-to-right. This eliminates the overlap issue between adjacent commits.\n\n6. **Squash button simplified** - Removed the arrow, just says \"Squash\" now, same size as the other buttons (52px wide)\n\n7. **Bounding rect simplified** - Since buttons are now inside the panel, the bounding rect no longer needs the extra height for external buttons"
     }
   ]
 }

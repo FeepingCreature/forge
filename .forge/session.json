@@ -183,6 +183,39 @@
     {
       "role": "assistant",
       "content": "Good, that's captured. Now we have a clear split:\n- **TODO.md** - Strategic priorities (test runner, build tool, command palette, session forking)\n- **POLISH_TODO.md** - Dogfooding friction (lots of small but real improvements)\n\nSo what do you want to tackle? Looking at both lists, some candidates:\n\n**Quick wins (< 30 min):**\n- `forge <filename>` CLI arg\n- More aggressive compaction hints\n- Warning icon bubbling to parent dirs\n\n**Medium effort (1-2 hours):**\n- Restore open files on startup\n- Global search hotkey (Ctrl+Shift+F)\n- Branch fork with/without session option\n\n**Bigger features:**\n- `run_tests` tool\n- Command palette\n- Small-model code completion\n\nWhat's bugging you most right now?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f5bdefbc",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "oh yeah, more POLISH todos:\n- option while the AI is running to get a system notification when it's done\n- branch tab marker when waiting for input\n- user input while the ai is running\n- pause and cancel buttons so you have time to type something if the ai is currently confusing itself, if entering user text while the AI is streaming speech and not a tool it should cancel the request there, mark it as canceled, and inject the comment; otherwise, it just gets added at the next turn; I don't know if openrouter gives us a way to pause and resume streaming so this might have to be limited to cancel no matter how cool pause would be, if canceling pending vfs changes are discarded"
+    },
+    {
+      "role": "assistant",
+      "content": "Good ones - these are about the AI interaction flow. Let me add them:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"POLISH_TODO.md\", \"search\": \"## AI Behavior\\n\\n- [ ] More aggressive compaction hints (model happily runs at 60k context)\\n- [ ] Long-term: AI can kick off autonomous work on separate branches via tool call\", \"replace\": \"## AI Behavior\\n\\n- [ ] More aggressive compaction hints (model happily runs at 60k context)\\n- [ ] Long-term: AI can kick off autonomous work on separate branches via tool call\\n\\n---\\n\\n## AI Turn Interaction\\n\\n- [ ] Option to get system notification when AI turn completes\\n- [ ] Branch tab marker when waiting for user input\\n- [ ] Allow user to type while AI is running (queued for next turn)\\n- [ ] Cancel button during AI turn\\n  - If streaming text (not tool): cancel request, mark as canceled, inject user comment\\n  - If in tool execution: cancel, discard pending VFS changes\\n- [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)\\n- [ ] User text entered during streaming gets added at next turn (or interrupts if mid-speech)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01Tg4m1opsrz1MoZnYpErST4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01Tg4m1opsrz1MoZnYpErST4",
+      "content": "{\"message\": \"Replaced in POLISH_TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The cancel/interrupt flow is actually pretty important for usability - when the AI starts going down a wrong path, you want to stop it early rather than waste tokens and time.\n\nAlright, we've got good lists now. What do you want to work on? \n\nLooking at impact vs effort:\n\n**High impact, probably quick:**\n- Cancel button (most useful when AI is confused)\n- `forge <filename>` CLI\n- More aggressive compaction hints\n\n**High impact, medium effort:**\n- `run_tests` tool (biggest capability gap)\n- System notification on completion (nice for long runs)\n\n**Nice but lower priority:**\n- Branch tab \"waiting for input\" marker\n- Open file restoration\n\nWhat's calling to you?"
     }
   ]
 }

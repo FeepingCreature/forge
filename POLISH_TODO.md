@@ -62,6 +62,19 @@ These are real issues but not strategic priorities.
 
 ---
 
+## AI Turn Interaction
+
+- [ ] Option to get system notification when AI turn completes
+- [ ] Branch tab marker when waiting for user input
+- [ ] Allow user to type while AI is running (queued for next turn)
+- [ ] Cancel button during AI turn
+  - If streaming text (not tool): cancel request, mark as canceled, inject user comment
+  - If in tool execution: cancel, discard pending VFS changes
+- [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)
+- [ ] User text entered during streaming gets added at next turn (or interrupts if mid-speech)
+
+---
+
 ## Tool Rendering
 
 - [ ] `compact` tool needs pretty rendering in chat

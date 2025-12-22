@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 import pygit2
 from PySide6.QtCore import (
+    Property,
     QEasingCurve,
     QPointF,
     QPropertyAnimation,
@@ -81,7 +82,7 @@ class CommitPanel(QGraphicsObject):
     """
     A commit panel showing commit info with hover buttons.
 
-    Shows: short hash, first line of message, branch labels.
+    Shows: short hash, multiline message, branch labels.
     On hover: fade in Merge (top) and Rebase (bottom) buttons.
     """
 
@@ -89,9 +90,9 @@ class CommitPanel(QGraphicsObject):
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
 
-    # Panel dimensions
-    WIDTH = 180
-    HEIGHT = 70
+    # Panel dimensions - bigger to fit multiline messages
+    WIDTH = 220
+    HEIGHT = 100
     CORNER_RADIUS = 8
     BUTTON_HEIGHT = 24
     BUTTON_FADE_DURATION = 150
@@ -106,34 +107,36 @@ class CommitPanel(QGraphicsObject):
         self.node = node
         self.color = color
         self._hovered = False
-        self._button_opacity = 0.0
+        self._button_opacity_value = 0.0
 
         # Enable hover events
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
 
         # Setup fade animation for buttons
-        self._fade_anim = QPropertyAnimation(self, b"button_opacity")
+        self._fade_anim = QPropertyAnimation(self, b"buttonOpacity")
         self._fade_anim.setDuration(self.BUTTON_FADE_DURATION)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
 
     def boundingRect(self) -> QRectF:  # noqa: N802
         """Return bounding rect including button areas."""
+        # Panel is drawn with top-left at (-WIDTH/2, -HEIGHT/2)
         return QRectF(
             -self.WIDTH / 2,
-            -self.BUTTON_HEIGHT,
+            -self.HEIGHT / 2 - self.BUTTON_HEIGHT,
             self.WIDTH,
             self.HEIGHT + 2 * self.BUTTON_HEIGHT,
         )
 
-    def get_button_opacity(self) -> float:
-        return self._button_opacity
+    def _get_button_opacity(self) -> float:
+        return self._button_opacity_value
 
-    def set_button_opacity(self, value: float) -> None:
-        self._button_opacity = value
+    def _set_button_opacity(self, value: float) -> None:
+        self._button_opacity_value = value
         self.update()
 
-    button_opacity = property(get_button_opacity, set_button_opacity)
+    # Use PySide6 Property for QPropertyAnimation compatibility
+    buttonOpacity = Property(float, _get_button_opacity, _set_button_opacity)  # noqa: N815
 
     def paint(
         self,
@@ -144,8 +147,8 @@ class CommitPanel(QGraphicsObject):
         """Paint the commit panel."""
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Panel rectangle (centered horizontally)
-        panel_rect = QRectF(-self.WIDTH / 2, 0, self.WIDTH, self.HEIGHT)
+        # Panel rectangle (centered both horizontally and vertically)
+        panel_rect = QRectF(-self.WIDTH / 2, -self.HEIGHT / 2, self.WIDTH, self.HEIGHT)
 
         # Draw shadow
         shadow_rect = panel_rect.translated(2, 2)
@@ -165,41 +168,52 @@ class CommitPanel(QGraphicsObject):
         painter.drawRoundedRect(panel_rect, self.CORNER_RADIUS, self.CORNER_RADIUS)
 
         # Left color bar
-        bar_rect = QRectF(-self.WIDTH / 2, 4, 4, self.HEIGHT - 8)
+        bar_rect = QRectF(-self.WIDTH / 2, -self.HEIGHT / 2 + 4, 4, self.HEIGHT - 8)
         painter.setBrush(self.color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(bar_rect, 2, 2)
 
         # Text setup
         text_x = -self.WIDTH / 2 + 12
-        text_width = self.WIDTH - 20
+        text_width = self.WIDTH - 24
 
         # Draw short hash
         painter.setPen(QColor("#666666"))
         font = QFont("monospace", 9)
         font.setBold(True)
         painter.setFont(font)
+        hash_y = -self.HEIGHT / 2 + 8
         painter.drawText(
-            QRectF(text_x, 6, text_width, 16), Qt.AlignmentFlag.AlignLeft, self.node.short_id
+            QRectF(text_x, hash_y, text_width, 16), Qt.AlignmentFlag.AlignLeft, self.node.short_id
         )
 
-        # Draw commit message (first line, truncated)
+        # Draw commit message with word wrap (up to 3 lines)
         painter.setPen(QColor("#333333"))
         font = QFont("sans-serif", 9)
         painter.setFont(font)
         fm = QFontMetrics(font)
-        message = fm.elidedText(self.node.message, Qt.TextElideMode.ElideRight, int(text_width))
-        painter.drawText(QRectF(text_x, 22, text_width, 18), Qt.AlignmentFlag.AlignLeft, message)
 
-        # Draw branch labels if any
+        message_y = hash_y + 18
+        message_height = 48  # Space for ~3 lines
+        message_rect = QRectF(text_x, message_y, text_width, message_height)
+
+        # Word wrap the message
+        painter.drawText(
+            message_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
+            self.node.message,
+        )
+
+        # Draw branch labels if any (at bottom of panel)
         if self.node.branch_names:
+            label_y = self.HEIGHT / 2 - 20
             label_x = text_x
             for branch_name in self.node.branch_names[:2]:  # Max 2 labels
                 label_text = branch_name if len(branch_name) <= 12 else branch_name[:10] + "…"
                 label_width = fm.horizontalAdvance(label_text) + 8
 
                 # Label background
-                label_rect = QRectF(label_x, 44, label_width, 16)
+                label_rect = QRectF(label_x, label_y, label_width, 16)
                 painter.setBrush(self.color.lighter(140))
                 painter.setPen(QPen(self.color, 1))
                 painter.drawRoundedRect(label_rect, 3, 3)
@@ -213,12 +227,12 @@ class CommitPanel(QGraphicsObject):
                 label_x += label_width + 4
 
         # Draw hover buttons with fade
-        if self._button_opacity > 0.01:
+        if self._button_opacity_value > 0.01:
             self._draw_buttons(painter, panel_rect)
 
     def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:
         """Draw the merge/rebase buttons with current opacity."""
-        opacity = self._button_opacity
+        opacity = self._button_opacity_value
         button_width = 60
 
         # Merge button (top)
@@ -264,7 +278,7 @@ class CommitPanel(QGraphicsObject):
         """Handle hover enter - fade in buttons."""
         self._hovered = True
         self._fade_anim.stop()
-        self._fade_anim.setStartValue(self._button_opacity)
+        self._fade_anim.setStartValue(self._button_opacity_value)
         self._fade_anim.setEndValue(1.0)
         self._fade_anim.start()
         self.update()
@@ -273,7 +287,7 @@ class CommitPanel(QGraphicsObject):
         """Handle hover leave - fade out buttons."""
         self._hovered = False
         self._fade_anim.stop()
-        self._fade_anim.setStartValue(self._button_opacity)
+        self._fade_anim.setStartValue(self._button_opacity_value)
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.start()
         self.update()
@@ -287,7 +301,7 @@ class CommitPanel(QGraphicsObject):
 
         pos = event.pos()
 
-        if self._button_opacity > 0.5:
+        if self._button_opacity_value > 0.5:
             if hasattr(self, "_merge_rect") and self._merge_rect.contains(pos):
                 self.merge_requested.emit(self.node.oid)
                 event.accept()
@@ -356,9 +370,9 @@ class SplineEdge(QGraphicsPathItem):
 class GitGraphScene(QGraphicsScene):
     """Scene containing the git graph with commit panels and spline edges."""
 
-    # Layout constants
-    ROW_HEIGHT = 100
-    COLUMN_WIDTH = 220
+    # Layout constants - increased for bigger panels
+    ROW_HEIGHT = 130
+    COLUMN_WIDTH = 260
     PADDING = 50
 
     # Signals for git operations
@@ -690,10 +704,12 @@ class BranchListWidget(QWidget):
             item.setForeground(color.darker(120))
             self._list.addItem(item)
 
-        # Adjust height based on items (max 10 visible)
-        item_height = 24
+        # Adjust height to fit all items up to 10 (no scrolling unless > 10)
+        item_height = 26
         visible_items = min(self._list.count(), 10)
-        self._list.setFixedHeight(visible_items * item_height + 8)
+        list_height = max(visible_items * item_height + 10, 50)
+        self._list.setFixedHeight(list_height)
+        self.setFixedHeight(list_height + 12)  # Account for margins
 
     def _on_item_clicked(self, item: QListWidgetItem) -> None:
         """Handle branch click."""
@@ -776,11 +792,24 @@ class GitGraphView(QGraphicsView):
             # Clamp zoom
             new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
 
-            # Apply zoom
+            # Apply zoom centered on viewport center
             if new_zoom != self._zoom:
+                # Get the center of the viewport in scene coordinates
+                center = self.mapToScene(self.viewport().rect().center())
+
                 factor = new_zoom / self._zoom
                 self._zoom = new_zoom
+
+                # Scale around the center
+                self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
                 self.scale(factor, factor)
+                # Adjust to keep center in place
+                new_center = self.mapToScene(self.viewport().rect().center())
+                delta = center - new_center
+                self.translate(delta.x(), delta.y())
+                # Restore anchor for wheel zoom
+                self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+
             event.accept()
         else:
             super().mouseMoveEvent(event)

@@ -1,7 +1,10 @@
 {
   "active_files": [
-    "GRAPH_COMMIT_ORDERING.md",
+    "forge/ui/ai_chat_widget.py",
+    ".forge/session.json",
+    "forge/ui/main_window.py",
     "CLAUDE.md",
+    "GRAPH_COMMIT_ORDERING.md",
     "forge/ui/git_graph_widget.py",
     "forge/main.py"
   ],
@@ -1308,6 +1311,104 @@
     {
       "role": "assistant",
       "content": "Done. The context label now shows \"~0\" on startup so it's visible. After the first AI message, it'll update with real stats."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! But well I mean, hang on- we should already know the context sizes even before hitting up the AI, right? We have the prompt in hand from the session replay."
+    },
+    {
+      "role": "assistant",
+      "content": "You're absolutely right! We have all the context information before making any API call - it's just a matter of computing the token counts from the prompt manager state. Let me look at how the context stats flow works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"context_stats_updated\"}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_01TaxULdzWru6yMpSWwrh3FP",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TaxULdzWru6yMpSWwrh3FP",
+      "content": "{\"action\": \"update_context\", \"add\": [\".forge/session.json\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/main_window.py\"], \"matches\": [{\"filepath\": \".forge/session.json\", \"first_match\": \"context_stats_updated\", \"match_count\": 7}, {\"filepath\": \"forge/ui/ai_chat_widget.py\", \"first_match\": \"context_stats_updated\", \"match_count\": 2}, {\"filepath\": \"forge/ui/main_window.py\", \"first_match\": \"context_stats_updated\", \"match_count\": 3}], \"message\": \"Found 3 files matching 'context_stats_updated'\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, you're right. The `_on_context_stats_updated` method only gets called when `context_stats_updated` signal is emitted from the chat widget, which happens in `_emit_context_stats()`. That's only called after:\n1. `add_file_to_context`\n2. `remove_file_from_context`\n\nBut not on startup. We could compute initial stats from the prompt manager when a session is loaded. Let me look at where we could trigger this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Generate repository summaries on session creation (if not already done)\\n        if not self.session_manager.repo_summaries:\\n            self._add_system_message(\\\"\ud83d\udd0d Generating repository summaries in background...\\\")\\n            self._start_summary_generation()\\n\\n        self._update_chat_display()\\n        self._check_for_unapproved_tools()\", \"replace\": \"        # Generate repository summaries on session creation (if not already done)\\n        if not self.session_manager.repo_summaries:\\n            self._add_system_message(\\\"\ud83d\udd0d Generating repository summaries in background...\\\")\\n            self._start_summary_generation()\\n        else:\\n            # Summaries already exist (restored session) - emit initial context stats\\n            self._emit_context_stats()\\n\\n        self._update_chat_display()\\n        self._check_for_unapproved_tools()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011R8ZDmnxXW7KJMAi7nbVPM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011R8ZDmnxXW7KJMAi7nbVPM",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "That should help for restored sessions. But for brand new sessions, we also need to emit stats after summary generation completes. Let me check if that's already there:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display(scroll_to_bottom=True)\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\", \"replace\": \"        # Update the progress message to show completion\\n        if hasattr(self, \\\"_summary_message_index\\\") and self._summary_message_index < len(\\n            self.messages\\n        ):\\n            self.messages[self._summary_message_index][\\\"content\\\"] = (\\n                f\\\"\u2705 Generated summaries for {count} files\\\"\\n            )\\n            self._update_chat_display(scroll_to_bottom=True)\\n        else:\\n            self._add_system_message(f\\\"\u2705 Generated summaries for {count} files\\\")\\n\\n        # Emit initial context stats now that summaries are ready\\n        self._emit_context_stats()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01VgGsKgr3zdjHn6LkYAURLk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VgGsKgr3zdjHn6LkYAURLk",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I've added the `_emit_context_stats()` call in both places:\n\n1. After summaries finish generating (for new sessions)\n2. When restoring a session that already has summaries\n\nLet me run the checks:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01LrEPoNPh2AWVueQiUzz6qZ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LrEPoNPh2AWVueQiUzz6qZ",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Now the context stats widget should update:\n\n1. **On startup with existing session**: Right after init, if summaries already exist (restored session), it calls `_emit_context_stats()`\n2. **On startup with new session**: After summary generation completes, it calls `_emit_context_stats()`\n\nThis should make the context stats visible from the moment the session is ready to use."
     }
   ]
 }

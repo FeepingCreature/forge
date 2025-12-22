@@ -353,6 +353,9 @@ class AIChatWidget(QWidget):
         if not self.session_manager.repo_summaries:
             self._add_system_message("🔍 Generating repository summaries in background...")
             self._start_summary_generation()
+        else:
+            # Summaries already exist (restored session) - emit initial context stats
+            self._emit_context_stats()
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
@@ -477,6 +480,9 @@ class AIChatWidget(QWidget):
             self._update_chat_display(scroll_to_bottom=True)
         else:
             self._add_system_message(f"✅ Generated summaries for {count} files")
+
+        # Emit initial context stats now that summaries are ready
+        self._emit_context_stats()
 
     def _on_summaries_error(self, error_msg: str) -> None:
         """Handle summary generation error"""

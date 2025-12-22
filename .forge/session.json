@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "forge/ui/git_graph_widget.py",
+    "GRAPH_COMMIT_ORDERING.md",
     "CLAUDE.md",
-    "forge/main.py",
-    "GRAPH_COMMIT_ORDERING.md"
+    "forge/ui/git_graph_widget.py",
+    "forge/main.py"
   ],
   "messages": [
     {
@@ -1210,6 +1210,104 @@
     {
       "role": "assistant",
       "content": "Done! The context stats now show as a permanent widget on the right side of the status bar:\n- Compact display: `~26,000 (13%)` or `\u26a0\ufe0f ~160,000 (82%)` if over 80%\n- Hover tooltip shows the full breakdown (files, summaries, conversation)"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "(Restarted.) Hm, the context stats widget isn't showing up for me. Ideas? Does it not initialize on app start?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - looking at the code, `_on_context_stats_updated` only gets called when the AI chat widget emits `context_stats_updated`. That only happens after an LLM response.\n\nWe should initialize the context label with something on startup, and also trigger a stats update when the tab is first shown. Let me check main_window.py:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_0169TmpQjghuiHnfQLeYTntD",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0169TmpQjghuiHnfQLeYTntD",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The `context_label` is only updated when `_on_context_stats_updated` is called, which only happens after an LLM response. Let me initialize it with a default value:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"        # Context stats display (right side of status bar)\\n        self.context_label = QLabel(\\\"\\\")\\n        self.context_label.setToolTip(\\\"Context token usage\\\")\\n        self.status_bar.addPermanentWidget(self.context_label)\", \"replace\": \"        # Context stats display (right side of status bar)\\n        self.context_label = QLabel(\\\"~0\\\")\\n        self.context_label.setToolTip(\\\"Context token usage (updates after first AI message)\\\")\\n        self.status_bar.addPermanentWidget(self.context_label)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01N7wT85bXZ63fQ3AKfXXYjz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01N7wT85bXZ63fQ3AKfXXYjz",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the label now shows \"~0\" on startup. That should be visible. Let me also clean up my context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/main_window.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01K1ksXE3kgjhjSti3y5pgMj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01K1ksXE3kgjhjSti3y5pgMj",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/ui/main_window.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01PyL1fGGb7eeH4feS11GBts",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PyL1fGGb7eeH4feS11GBts",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done. The context label now shows \"~0\" on startup so it's visible. After the first AI message, it'll update with real stats."
     }
   ]
 }

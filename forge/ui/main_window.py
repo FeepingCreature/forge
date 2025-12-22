@@ -97,8 +97,8 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("Ready")
 
         # Context stats display (right side of status bar)
-        self.context_label = QLabel("")
-        self.context_label.setToolTip("Context token usage")
+        self.context_label = QLabel("~0")
+        self.context_label.setToolTip("Context token usage (updates after first AI message)")
         self.status_bar.addPermanentWidget(self.context_label)
 
         # Cost display (right side of status bar, bold)

@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "forge/ui/git_graph_widget.py",
     "GRAPH_COMMIT_ORDERING.md",
+    "CLAUDE.md",
     "forge/main.py",
-    "CLAUDE.md"
+    "forge/ui/git_graph_widget.py"
   ],
   "messages": [
     {
@@ -893,6 +893,64 @@
     {
       "role": "assistant",
       "content": "All checks pass. The key change is:\n\n**New `_compute_order_keys()` method:**\n- Does a topological sort where children must come before parents\n- Uses a min-heap with negative timestamp as the priority, so when multiple commits are \"ready\" (all their children processed), we pick the newest one first\n- Returns an order key for each commit\n\n**Updated `_assign_rows()`:**\n- Now uses the topological order keys instead of raw timestamps\n- The row-packing algorithm stays the same - it just uses the correct order now\n\nThis means:\n1. Ancestry is always respected (child before parent)\n2. When there's no ancestry constraint between two commits, the newer one comes first\n3. Rebased commits that have wonky timestamps will still be ordered correctly by their position in the graph\n\nTry it out and let me know if it handles the rebased history better!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah that did it! Closer and closer... okay now we have a problem where, say we branched off branch A, it gets slot 1. even past the point where it branched off, the next branch will get slot 2 and so on, even if there's space, branches will wander more and more to the right."
+    },
+    {
+      "role": "assistant",
+      "content": "Right, the issue is that we never \"free\" lanes when they're no longer needed. When a branch merges back or ends, that lane should become available for reuse.\n\nLet me think about this: when processing top-to-bottom, a lane becomes \"free\" when we've passed all commits that use it. But we need to track which lanes are actually in use at each row.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _assign_columns(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign columns (lanes) to commits.\\n\\n        Process from top (newest) to bottom (oldest).\\n        Each commit continues the lane of its first child that wants it.\\n        \\\"\\\"\\\"\\n        # Group nodes by row\\n        rows: dict[int, list[CommitNode]] = {}\\n        for node in self.nodes:\\n            if node.row not in rows:\\n                rows[node.row] = []\\n            rows[node.row].append(node)\\n\\n        # For each commit, track which lane it's in\\n        commit_lane: dict[str, int] = {}\\n        # For each commit, track which child \\\"claimed\\\" it (wants to continue its lane)\\n        claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it\\n        next_lane = 0\\n\\n        # Process rows from top (newest) to bottom (oldest)\\n        for row in range(self.num_rows):\\n            if row not in rows:\\n                continue\\n\\n            row_nodes = rows[row]\\n\\n            for node in row_nodes:\\n                # Check if a child already claimed us (wants us in their lane)\\n                if node.oid in claimed_by:\\n                    child_oid = claimed_by[node.oid]\\n                    node.column = commit_lane[child_oid]\\n                    print(\\n                        f\\\"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}\\\"\\n                    )\\n                else:\\n                    # Allocate new lane\\n                    node.column = next_lane\\n                    print(f\\\"Row {row}: {node.short_id} unclaimed, new lane {node.column}\\\")\\n                    next_lane += 1\\n\\n                commit_lane[node.oid] = node.column\\n\\n                # Claim a parent (so we continue in this lane)\\n                # Only claim/steal if we're in a lower (more primary) lane\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent in claimed_by:\\n                        old_claimer = claimed_by[first_parent]\\n                        old_lane = commit_lane[old_claimer]\\n                        if node.column < old_lane:\\n                            # We're in a more primary lane, steal the claim\\n                            claimed_by[first_parent] = node.oid\\n                            print(\\n                                f\\\"  -> steals parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane})\\\"\\n                            )\\n                        else:\\n                            print(\\n                                f\\\"  -> can't steal parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane} <= {node.column})\\\"\\n                            )\\n                    else:\\n                        claimed_by[first_parent] = node.oid\\n                        print(f\\\"  -> claims parent {first_parent[:7]}\\\")\\n\\n        self.num_columns = next_lane if next_lane > 0 else 1\", \"replace\": \"    def _assign_columns(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign columns (lanes) to commits.\\n\\n        Process from top (newest) to bottom (oldest).\\n        Each commit continues the lane of its first child that wants it.\\n        Lanes are reused when they become free.\\n        \\\"\\\"\\\"\\n        # Group nodes by row\\n        rows: dict[int, list[CommitNode]] = {}\\n        for node in self.nodes:\\n            if node.row not in rows:\\n                rows[node.row] = []\\n            rows[node.row].append(node)\\n\\n        # For each commit, track which lane it's in\\n        commit_lane: dict[str, int] = {}\\n        # For each commit, track which child \\\"claimed\\\" it (wants to continue its lane)\\n        claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it\\n        # Track which lanes are currently \\\"active\\\" (have a line running through)\\n        active_lanes: set[int] = set()\\n        max_lane = 0\\n\\n        # Process rows from top (newest) to bottom (oldest)\\n        for row in range(self.num_rows):\\n            if row not in rows:\\n                continue\\n\\n            row_nodes = rows[row]\\n\\n            # First pass: figure out which lanes are ending at this row\\n            # (commits whose parents are all in this row or not claimed)\\n            lanes_ending_here: set[int] = set()\\n            for node in row_nodes:\\n                if node.oid in claimed_by:\\n                    child_oid = claimed_by[node.oid]\\n                    lane = commit_lane[child_oid]\\n                    # Check if this lane continues (node claims a parent not in this row)\\n                    continues = False\\n                    if node.parent_oids:\\n                        first_parent = node.parent_oids[0]\\n                        if first_parent in self.oid_to_node:\\n                            parent_node = self.oid_to_node[first_parent]\\n                            if parent_node.row != row:\\n                                continues = True\\n                    if not continues:\\n                        lanes_ending_here.add(lane)\\n\\n            # Free up lanes that are ending\\n            for lane in lanes_ending_here:\\n                active_lanes.discard(lane)\\n\\n            for node in row_nodes:\\n                # Check if a child already claimed us (wants us in their lane)\\n                if node.oid in claimed_by:\\n                    child_oid = claimed_by[node.oid]\\n                    node.column = commit_lane[child_oid]\\n                else:\\n                    # Allocate a lane - find lowest free lane\\n                    lane = 0\\n                    while lane in active_lanes:\\n                        lane += 1\\n                    node.column = lane\\n                    max_lane = max(max_lane, lane)\\n\\n                commit_lane[node.oid] = node.column\\n                active_lanes.add(node.column)\\n\\n                # Claim a parent (so we continue in this lane)\\n                # Only claim/steal if we're in a lower (more primary) lane\\n                if node.parent_oids:\\n                    first_parent = node.parent_oids[0]\\n                    if first_parent in claimed_by:\\n                        old_claimer = claimed_by[first_parent]\\n                        old_lane = commit_lane[old_claimer]\\n                        if node.column < old_lane:\\n                            # We're in a more primary lane, steal the claim\\n                            claimed_by[first_parent] = node.oid\\n                    else:\\n                        claimed_by[first_parent] = node.oid\\n\\n        self.num_columns = max_lane + 1 if max_lane >= 0 else 1\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01DDA1kxCCz4hb3bbV7KVnY4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01DDA1kxCCz4hb3bbV7KVnY4",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_bdrk_01HomKuwkWnZMfcVuG2zrJYW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01HomKuwkWnZMfcVuG2zrJYW",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Checks pass. The key change is:\n\n1. **Track `active_lanes`** - the set of lanes currently in use\n2. **Before processing each row**, check which lanes are ending (commits that don't claim a parent outside this row)\n3. **Free those lanes** by removing them from `active_lanes`\n4. **When allocating a new lane**, find the lowest unused lane instead of always incrementing\n\nThis way, when a branch ends (merges or is just a tip with no continuation), its lane becomes available for reuse by subsequent branches.\n\nTry it out and let me know if lanes are being reused properly now!"
     }
   ]
 }

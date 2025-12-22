@@ -210,6 +210,7 @@ class GitGraphWidget(QWidget):
 
         Process from top (newest) to bottom (oldest).
         Each commit continues the lane of its first child that wants it.
+        Lanes are reused when they become free.
         """
         # Group nodes by row
         rows: dict[int, list[CommitNode]] = {}
@@ -222,7 +223,9 @@ class GitGraphWidget(QWidget):
         commit_lane: dict[str, int] = {}
         # For each commit, track which child "claimed" it (wants to continue its lane)
         claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it
-        next_lane = 0
+        # Track which lanes are currently "active" (have a line running through)
+        active_lanes: set[int] = set()
+        max_lane = 0
 
         # Process rows from top (newest) to bottom (oldest)
         for row in range(self.num_rows):
@@ -231,21 +234,43 @@ class GitGraphWidget(QWidget):
 
             row_nodes = rows[row]
 
+            # First pass: figure out which lanes are ending at this row
+            # (commits whose parents are all in this row or not claimed)
+            lanes_ending_here: set[int] = set()
+            for node in row_nodes:
+                if node.oid in claimed_by:
+                    child_oid = claimed_by[node.oid]
+                    lane = commit_lane[child_oid]
+                    # Check if this lane continues (node claims a parent not in this row)
+                    continues = False
+                    if node.parent_oids:
+                        first_parent = node.parent_oids[0]
+                        if first_parent in self.oid_to_node:
+                            parent_node = self.oid_to_node[first_parent]
+                            if parent_node.row != row:
+                                continues = True
+                    if not continues:
+                        lanes_ending_here.add(lane)
+
+            # Free up lanes that are ending
+            for lane in lanes_ending_here:
+                active_lanes.discard(lane)
+
             for node in row_nodes:
                 # Check if a child already claimed us (wants us in their lane)
                 if node.oid in claimed_by:
                     child_oid = claimed_by[node.oid]
                     node.column = commit_lane[child_oid]
-                    print(
-                        f"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}"
-                    )
                 else:
-                    # Allocate new lane
-                    node.column = next_lane
-                    print(f"Row {row}: {node.short_id} unclaimed, new lane {node.column}")
-                    next_lane += 1
+                    # Allocate a lane - find lowest free lane
+                    lane = 0
+                    while lane in active_lanes:
+                        lane += 1
+                    node.column = lane
+                    max_lane = max(max_lane, lane)
 
                 commit_lane[node.oid] = node.column
+                active_lanes.add(node.column)
 
                 # Claim a parent (so we continue in this lane)
                 # Only claim/steal if we're in a lower (more primary) lane
@@ -257,18 +282,10 @@ class GitGraphWidget(QWidget):
                         if node.column < old_lane:
                             # We're in a more primary lane, steal the claim
                             claimed_by[first_parent] = node.oid
-                            print(
-                                f"  -> steals parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane})"
-                            )
-                        else:
-                            print(
-                                f"  -> can't steal parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane} <= {node.column})"
-                            )
                     else:
                         claimed_by[first_parent] = node.oid
-                        print(f"  -> claims parent {first_parent[:7]}")
 
-        self.num_columns = next_lane if next_lane > 0 else 1
+        self.num_columns = max_lane + 1 if max_lane >= 0 else 1
 
     def _update_size(self) -> None:
         """Update widget size based on graph dimensions."""

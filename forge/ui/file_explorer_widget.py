@@ -65,6 +65,7 @@ class FileExplorerWidget(QWidget):
         self._context_files: set[str] = set()  # Files currently in AI context
         self._all_files: list[str] = []  # All files in the VFS (cached for context calculations)
         self._large_files: set[str] = set()  # Files that are large (10k+ chars)
+        self._file_sizes: dict[str, int] = {}  # File sizes in characters
         self._root_item: QTreeWidgetItem | None = None  # The <root> item
         self._setup_ui()
         self.refresh()
@@ -98,6 +99,7 @@ class FileExplorerWidget(QWidget):
         """Refresh the file tree from VFS"""
         self.tree.clear()
         self._large_files.clear()
+        self._file_sizes.clear()
 
         # Get all files from VFS and cache them
         files = self.workspace.vfs.list_files()
@@ -107,6 +109,7 @@ class FileExplorerWidget(QWidget):
         for filepath in self._all_files:
             try:
                 content = self.workspace.vfs.read_file(filepath)
+                self._file_sizes[filepath] = len(content)
                 if len(content) >= LARGE_FILE_THRESHOLD:
                     self._large_files.add(filepath)
             except Exception:
@@ -155,7 +158,16 @@ class FileExplorerWidget(QWidget):
             file_item.setText(COL_CONTEXT, ICON_NONE)  # Context icon in separate column
             file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole, filepath)  # Store full path
             file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
-            file_item.setToolTip(COL_NAME, filepath)
+
+            # Build tooltip with file path and size info
+            tooltip_parts = [filepath]
+            if filepath in self._file_sizes:
+                size = self._file_sizes[filepath]
+                tokens = size // 3  # Rough estimate
+                tooltip_parts.append(f"Size: {size:,} chars (~{tokens:,} tokens)")
+                if filepath in self._large_files:
+                    tooltip_parts.append("⚠️ Large file - may consume significant context")
+            file_item.setToolTip(COL_NAME, "\n".join(tooltip_parts))
             file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
 
             current_parent.addChild(file_item)

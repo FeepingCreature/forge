@@ -1,0 +1,177 @@
+{
+  "active_files": [
+    "CLAUDE.md",
+    "forge/session/manager.py"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! Prompt debugging question. We have 7k tokens of repo summary. That's a lil bit much to carry around in every request, but it's fine if it's all useful. Is any of the summaries too big? Could/should we compress them? What do you think?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the summaries, I can spot several that are bloated or redundant:\n\n## Obvious cuts (license files - ~500 tokens wasted)\n\nThese license file summaries are completely useless:\n- `forge/licenses/AGPL-3.0.txt` - \"full text of the GNU Affero...\"\n- `forge/licenses/Apache-2.0.txt` - \"full text of the Apache License...\"\n- `forge/licenses/GPL-3.0.txt` - This one is especially bad - it has a long description of GPL terms\n- `forge/licenses/LGPL-3.0.txt`, `MIT.txt`, `MPL-2.0.txt`, `BSD-*`, `Unlicense.txt`\n\n**Recommendation**: All license files should just say \"License text\" or be excluded entirely.\n\n## Redundant/empty summaries\n\n- `forge/licenses/.gitkeep` - \"empty .gitkeep file\" - just exclude .gitkeep files\n- `.gitignore` - Lists every single ignore pattern. Should be \"Standard Python gitignore\"\n- `LICENSE` - \"full text of GPL-3.0\" - just say \"GPL-3.0 license\"\n\n## Overly verbose summaries\n\n- `DESIGN.md` - Lists every VFS method signature. Could be \"VFS architecture: GitCommitVFS (read-only), WorkInProgressVFS (writable with pending changes), tool interface pattern\"\n- `forge/vfs/work_in_progress.py` - Lists every method. Could be \"Writable VFS layer with pending changes, commit(), materialize_to_tempdir()\"\n- `forge/ui/ai_chat_widget.py` - Lists workers and signals. Could be compressed.\n\n## My recommendations\n\n1. **Exclude license text files from summaries** - They're never useful for navigation\n2. **Exclude .gitkeep files**\n3. **Compress .gitignore to one line**: \"Standard Python gitignore\"\n4. **Cap summary length** - If a summary exceeds ~100 tokens, it's probably too detailed\n\nThe goal is navigation - \"what files exist and roughly what's in them\" - not documentation. If I need details, I'll load the file.\n\nWant me to look at how summaries are generated and suggest code changes?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 3ec7ade4",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah, it's mostly a prompting issue. I don't want to hardcode specific files because the summarization logic is not specific to this repo... how would you solve this generically?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the problem: the summarization prompt asks for \"public interfaces\" which works great for code, but produces garbage for:\n\n1. **License files** - No public interfaces, but the LLM tries to describe the license\n2. **Config/data files** - `.gitignore`, `requirements.txt`, JSON files\n3. **Documentation** - Already human-readable, summarizing adds little value\n\n## Generic solutions\n\n**Option 1: Skip non-code files entirely**\n\nSimplest. Only summarize files with code extensions (`.py`, `.js`, `.ts`, etc.). For everything else, just use the filename - that's usually enough context.\n\n**Option 2: Different prompts for different file types**\n\n- Code files \u2192 current \"public interfaces\" prompt\n- Docs (`.md`) \u2192 \"One-line description of what this documents\"\n- Config files \u2192 Skip or just \"Configuration for X\"\n- License/legal \u2192 Skip entirely\n\n**Option 3: Let the LLM decide to skip**\n\nAdd to the prompt: \"If this file has no public interfaces (e.g., license text, config files, data), respond with just: `No public interfaces`\"\n\nThen filter those out or replace with a minimal placeholder.\n\n## My recommendation\n\n**Option 1 is cleanest**. The summary's purpose is navigation - \"where's the code that does X?\" License files and `.gitignore` never answer that question. Just skip them:\n\n```python\nCODE_EXTENSIONS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java', '.c', '.cpp', '.h'}\n\ndef should_summarize(filepath: str) -> bool:\n    return Path(filepath).suffix.lower() in CODE_EXTENSIONS\n```\n\nFor non-code files, include them in the file listing but with no summary (or a one-word category like \"license\", \"config\", \"docs\" based on extension/path).\n\nThis cuts your 7k tokens significantly - most of the bloat is from license files and the verbose `.gitignore` summary.\n\nWant me to implement this?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 58ac9e58",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "wait, *most* of the bloat is from license files? jeez... how'd that happen? It should be like one line per. Is it the GPL summary?\nOption 1... we do want to get a *rough* idea of what a file is for. Maybe just adjust the summarizer guidance to be terse when describing documents and to not explain things that are widely known? Also re files there's not actually a good way to recognize code files. It's definitely a good idea to have a blacklist tho, we don't want to summarize png, jpg, pdf etc (well, not yet- maybe we can hook up an image model eventually)."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, let me check what's actually in those summaries:\n\nLooking at the repo summaries in the system prompt:\n\n- `forge/licenses/GPL-3.0.txt` - Has a huge summary listing all the GPL terms (\"Defines terms such as 'This License', 'Copyright', 'The Program'...\" etc.)\n- Other license files each have 1-2 lines, but there are 9 of them\n\nThe GPL one is the worst offender. But the real issue is the prompt - it asks for \"public interfaces\" so the LLM tries to find *something* to say even when there's nothing useful.\n\nLet me look at the summarization prompt and tweak it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Generate a micro-README for this file listing its public interfaces.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFormat as a bulleted list:\\n- ClassName: brief description\\n- function_name(): brief description\\n- CONSTANT: brief description\\n\\nOnly list PUBLIC interfaces (classes, functions, constants that would be imported/used).\\nSkip private items (starting with _).\\nKeep each line under 80 chars.\\nRespond with ONLY the bulleted list, no introduction or explanation.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file for a developer navigating the codebase.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE files: List public interfaces (classes, functions, constants) as bullets.\\nFor OTHER files (docs, config, licenses, data): One short line describing what it is.\\n\\nRules:\\n- Be terse. Skip obvious/well-known things (e.g., don't explain what MIT license means).\\n- Skip private items (starting with _).\\n- Keep each line under 80 chars.\\n- For files with no useful content to summarize, just write \\\"No public interfaces.\\\"\\n\\nRespond with ONLY the summary, no introduction.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01CpVmGSNb1ChLtvB7k8S4Tp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CpVmGSNb1ChLtvB7k8S4Tp",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good change. Now let me think about the blacklist for binary files:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        # List files through VFS (includes any pending new files)\\n        files = self.vfs.list_files()\\n        # Filter out forge metadata files upfront\\n        files = [f for f in files if not f.startswith(\\\".forge/\\\")]\", \"replace\": \"        # List files through VFS (includes any pending new files)\\n        files = self.vfs.list_files()\\n        # Filter out forge metadata and binary files\\n        files = [f for f in files if self._should_summarize(filepath=f)]\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GvQPmeUa5kDhyoQiHPdBiW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GvQPmeUa5kDhyoQiHPdBiW",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_should_summarize` method:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"    def _cache_summary(self, filepath: str, blob_oid: str, summary: str) -> None:\\n        \\\"\\\"\\\"Cache a summary for a file with a specific content hash\\\"\\\"\\\"\\n        cache_key = self._get_cache_key(filepath, blob_oid)\\n        cache_file = self.cache_dir / cache_key\\n        cache_file.write_text(summary)\", \"replace\": \"    def _cache_summary(self, filepath: str, blob_oid: str, summary: str) -> None:\\n        \\\"\\\"\\\"Cache a summary for a file with a specific content hash\\\"\\\"\\\"\\n        cache_key = self._get_cache_key(filepath, blob_oid)\\n        cache_file = self.cache_dir / cache_key\\n        cache_file.write_text(summary)\\n\\n    # Binary/non-summarizable file extensions\\n    _SKIP_EXTENSIONS = {\\n        # Images\\n        \\\".png\\\", \\\".jpg\\\", \\\".jpeg\\\", \\\".gif\\\", \\\".bmp\\\", \\\".ico\\\", \\\".svg\\\", \\\".webp\\\",\\n        # Fonts\\n        \\\".ttf\\\", \\\".otf\\\", \\\".woff\\\", \\\".woff2\\\", \\\".eot\\\",\\n        # Audio/video\\n        \\\".mp3\\\", \\\".mp4\\\", \\\".wav\\\", \\\".ogg\\\", \\\".webm\\\", \\\".avi\\\", \\\".mov\\\",\\n        # Archives\\n        \\\".zip\\\", \\\".tar\\\", \\\".gz\\\", \\\".bz2\\\", \\\".xz\\\", \\\".7z\\\", \\\".rar\\\",\\n        # Binaries\\n        \\\".exe\\\", \\\".dll\\\", \\\".so\\\", \\\".dylib\\\", \\\".bin\\\", \\\".dat\\\",\\n        # Other\\n        \\\".pdf\\\", \\\".doc\\\", \\\".docx\\\", \\\".xls\\\", \\\".xlsx\\\", \\\".ppt\\\", \\\".pptx\\\",\\n        \\\".pyc\\\", \\\".pyo\\\", \\\".class\\\", \\\".o\\\", \\\".a\\\",\\n    }\\n\\n    def _should_summarize(self, filepath: str) -> bool:\\n        \\\"\\\"\\\"Check if a file should be summarized (not binary, not forge metadata)\\\"\\\"\\\"\\n        # Skip forge metadata\\n        if filepath.startswith(\\\".forge/\\\"):\\n            return False\\n\\n        # Skip binary files by extension\\n        suffix = Path(filepath).suffix.lower()\\n        if suffix in self._SKIP_EXTENSIONS:\\n            return False\\n\\n        return True\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WhiKuvaTKJufTswqQBuhJv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WhiKuvaTKJufTswqQBuhJv",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me run the checks to make sure the code is correct:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01RHfktMQKeHqHdVEarerj84",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RHfktMQKeHqHdVEarerj84",
+      "content": "{\"format_diffs\": {\"forge/session/manager.py\": \"--- before+++ after@@ -82,18 +82,56 @@     # Binary/non-summarizable file extensions\\n     _SKIP_EXTENSIONS = {\\n         # Images\\n-        \\\".png\\\", \\\".jpg\\\", \\\".jpeg\\\", \\\".gif\\\", \\\".bmp\\\", \\\".ico\\\", \\\".svg\\\", \\\".webp\\\",\\n+        \\\".png\\\",\\n+        \\\".jpg\\\",\\n+        \\\".jpeg\\\",\\n+        \\\".gif\\\",\\n+        \\\".bmp\\\",\\n+        \\\".ico\\\",\\n+        \\\".svg\\\",\\n+        \\\".webp\\\",\\n         # Fonts\\n-        \\\".ttf\\\", \\\".otf\\\", \\\".woff\\\", \\\".woff2\\\", \\\".eot\\\",\\n+        \\\".ttf\\\",\\n+        \\\".otf\\\",\\n+        \\\".woff\\\",\\n+        \\\".woff2\\\",\\n+        \\\".eot\\\",\\n         # Audio/video\\n-        \\\".mp3\\\", \\\".mp4\\\", \\\".wav\\\", \\\".ogg\\\", \\\".webm\\\", \\\".avi\\\", \\\".mov\\\",\\n+        \\\".mp3\\\",\\n+        \\\".mp4\\\",\\n+        \\\".wav\\\",\\n+        \\\".ogg\\\",\\n+        \\\".webm\\\",\\n+        \\\".avi\\\",\\n+        \\\".mov\\\",\\n         # Archives\\n-        \\\".zip\\\", \\\".tar\\\", \\\".gz\\\", \\\".bz2\\\", \\\".xz\\\", \\\".7z\\\", \\\".rar\\\",\\n+        \\\".zip\\\",\\n+        \\\".tar\\\",\\n+        \\\".gz\\\",\\n+        \\\".bz2\\\",\\n+        \\\".xz\\\",\\n+        \\\".7z\\\",\\n+        \\\".rar\\\",\\n         # Binaries\\n-        \\\".exe\\\", \\\".dll\\\", \\\".so\\\", \\\".dylib\\\", \\\".bin\\\", \\\".dat\\\",\\n+        \\\".exe\\\",\\n+        \\\".dll\\\",\\n+        \\\".so\\\",\\n+        \\\".dylib\\\",\\n+        \\\".bin\\\",\\n+        \\\".dat\\\",\\n         # Other\\n-        \\\".pdf\\\", \\\".doc\\\", \\\".docx\\\", \\\".xls\\\", \\\".xlsx\\\", \\\".ppt\\\", \\\".pptx\\\",\\n-        \\\".pyc\\\", \\\".pyo\\\", \\\".class\\\", \\\".o\\\", \\\".a\\\",\\n+        \\\".pdf\\\",\\n+        \\\".doc\\\",\\n+        \\\".docx\\\",\\n+        \\\".xls\\\",\\n+        \\\".xlsx\\\",\\n+        \\\".ppt\\\",\\n+        \\\".pptx\\\",\\n+        \\\".pyc\\\",\\n+        \\\".pyo\\\",\\n+        \\\".class\\\",\\n+        \\\".o\\\",\\n+        \\\".a\\\",\\n     }\\n \\n     def _should_summarize(self, filepath: str) -> bool:\\n\"}, \"formatted_files\": [\"forge/session/manager.py\"], \"lint_output\": \"ruff check forge/ main.py\\nSIM103 Return the condition `suffix not in self._SKIP_EXTENSIONS` directly\\n   --> forge/session/manager.py:145:9\\n    |\\n143 |           # Skip binary files by extension\\n144 |           suffix = Path(filepath).suffix.lower()\\n145 | /         if suffix in self._SKIP_EXTENSIONS:\\n146 | |             return False\\n147 | |\\n148 | |         return True\\n    | |___________________^\\n149 |\\n150 |       def build_context(self) -> dict[str, Any]:\\n    |\\nhelp: Replace with `return suffix not in self._SKIP_EXTENSIONS`\\n\\nFound 1 error.\\nNo fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).\\nmake: *** [Makefile:13: lint-check] Error 1\\n\", \"lint_passed\": false, \"success\": false, \"summary\": \"Formatted 1 files: forge/session/manager.py\\n\\u2713 Type check passed\\n\\u2717 Lint failed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/session/manager.py\": \"--- before+++ after@@ -82,18 +82,56 @@     # Binary/non-summarizable file extensions\\n     _SKIP_EXTENSIONS = {\\n         # Images\\n-        \\\".png\\\", \\\".jpg\\\", \\\".jpeg\\\", \\\".gif\\\", \\\".bmp\\\", \\\".ico\\\", \\\".svg\\\", \\\".webp\\\",\\n+        \\\".png\\\",\\n+        \\\".jpg\\\",\\n+        \\\".jpeg\\\",\\n+        \\\".gif\\\",\\n+        \\\".bmp\\\",\\n+        \\\".ico\\\",\\n+        \\\".svg\\\",\\n+        \\\".webp\\\",\\n         # Fonts\\n-        \\\".ttf\\\", \\\".otf\\\", \\\".woff\\\", \\\".woff2\\\", \\\".eot\\\",\\n+        \\\".ttf\\\",\\n+        \\\".otf\\\",\\n+        \\\".woff\\\",\\n+        \\\".woff2\\\",\\n+        \\\".eot\\\",\\n         # Audio/video\\n-        \\\".mp3\\\", \\\".mp4\\\", \\\".wav\\\", \\\".ogg\\\", \\\".webm\\\", \\\".avi\\\", \\\".mov\\\",\\n+        \\\".mp3\\\",\\n+        \\\".mp4\\\",\\n+        \\\".wav\\\",\\n+        \\\".ogg\\\",\\n+        \\\".webm\\\",\\n+        \\\".avi\\\",\\n+        \\\".mov\\\",\\n         # Archives\\n-        \\\".zip\\\", \\\".tar\\\", \\\".gz\\\", \\\".bz2\\\", \\\".xz\\\", \\\".7z\\\", \\\".rar\\\",\\n+        \\\".zip\\\",\\n+        \\\".tar\\\",\\n+        \\\".gz\\\",\\n+        \\\".bz2\\\",\\n+        \\\".xz\\\",\\n+        \\\".7z\\\",\\n+        \\\".rar\\\",\\n         # Binaries\\n-        \\\".exe\\\", \\\".dll\\\", \\\".so\\\", \\\".dylib\\\", \\\".bin\\\", \\\".dat\\\",\\n+        \\\".exe\\\",\\n+        \\\".dll\\\",\\n+        \\\".so\\\",\\n+        \\\".dylib\\\",\\n+        \\\".bin\\\",\\n+        \\\".dat\\\",\\n         # Other\\n-        \\\".pdf\\\", \\\".doc\\\", \\\".docx\\\", \\\".xls\\\", \\\".xlsx\\\", \\\".ppt\\\", \\\".pptx\\\",\\n-        \\\".pyc\\\", \\\".pyo\\\", \\\".class\\\", \\\".o\\\", \\\".a\\\",\\n+        \\\".pdf\\\",\\n+        \\\".doc\\\",\\n+        \\\".docx\\\",\\n+        \\\".xls\\\",\\n+        \\\".xlsx\\\",\\n+        \\\".ppt\\\",\\n+        \\\".pptx\\\",\\n+        \\\".pyc\\\",\\n+        \\\".pyo\\\",\\n+        \\\".class\\\",\\n+        \\\".o\\\",\\n+        \\\".a\\\",\\n     }\\n \\n     def _should_summarize(self, filepath: str) -> bool:\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/session/manager.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nSIM103 Return the condition `suffix not in self._SKIP_EXTENSIONS` directly\\n   --> forge/session/manager.py:145:9\\n    |\\n143 |           # Skip binary files by extension\\n144 |           suffix = Path(filepath).suffix.lower()\\n145 | /         if suffix in self._SKIP_EXTENSIONS:\\n146 | |             return False\\n147 | |\\n148 | |         return True\\n    | |___________________^\\n149 |\\n150 |       def build_context(self) -> dict[str, Any]:\\n    |\\nhelp: Replace with `return suffix not in self._SKIP_EXTENSIONS`\\n\\nFound 1 error.\\nNo fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).\\nmake: *** [Makefile:13: lint-check] Error 1\\n\",\n  \"lint_passed\": false,\n  \"success\": false,\n  \"summary\": \"Formatted 1 files: forge/session/manager.py\\n\\u2713 Type check passed\\n\\u2717 Lint failed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Formatter expanded the set (fine), and there's a lint suggestion. Let me fix the lint issue:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"    def _should_summarize(self, filepath: str) -> bool:\\n        \\\"\\\"\\\"Check if a file should be summarized (not binary, not forge metadata)\\\"\\\"\\\"\\n        # Skip forge metadata\\n        if filepath.startswith(\\\".forge/\\\"):\\n            return False\\n\\n        # Skip binary files by extension\\n        suffix = Path(filepath).suffix.lower()\\n        if suffix in self._SKIP_EXTENSIONS:\\n            return False\\n\\n        return True\", \"replace\": \"    def _should_summarize(self, filepath: str) -> bool:\\n        \\\"\\\"\\\"Check if a file should be summarized (not binary, not forge metadata)\\\"\\\"\\\"\\n        # Skip forge metadata\\n        if filepath.startswith(\\\".forge/\\\"):\\n            return False\\n\\n        # Skip binary files by extension\\n        suffix = Path(filepath).suffix.lower()\\n        return suffix not in self._SKIP_EXTENSIONS\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011hnCGfAkWRRv5rYwb1ng6N",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011hnCGfAkWRRv5rYwb1ng6N",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Checks should pass now. Let me verify:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01UjWSbodK3DpTGJE31LGf72",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UjWSbodK3DpTGJE31LGf72",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All passing. To summarize the changes:\n\n1. **Updated summarization prompt** - Now tells the LLM to be terse for non-code files (docs, config, licenses) and to skip explaining well-known things\n\n2. **Added binary file blacklist** - `_SKIP_EXTENSIONS` set with images, fonts, audio/video, archives, binaries, etc. These files are excluded from summarization entirely\n\n3. **Added `_should_summarize()` method** - Filters out `.forge/` metadata and binary files\n\nThe prompt change is the key one - it should fix the verbose GPL summary and make license files just say something like \"GPL-3.0 license text\" instead of explaining what the GPL means. You'll need to clear the cache or force-refresh to see the new summaries for existing files."
+    }
+  ]
+}

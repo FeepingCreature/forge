@@ -79,6 +79,71 @@ class SessionManager:
         cache_file = self.cache_dir / cache_key
         cache_file.write_text(summary)
 
+    # Binary/non-summarizable file extensions
+    _SKIP_EXTENSIONS = {
+        # Images
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".webp",
+        # Fonts
+        ".ttf",
+        ".otf",
+        ".woff",
+        ".woff2",
+        ".eot",
+        # Audio/video
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".ogg",
+        ".webm",
+        ".avi",
+        ".mov",
+        # Archives
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".rar",
+        # Binaries
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".dat",
+        # Other
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".pyc",
+        ".pyo",
+        ".class",
+        ".o",
+        ".a",
+    }
+
+    def _should_summarize(self, filepath: str) -> bool:
+        """Check if a file should be summarized (not binary, not forge metadata)"""
+        # Skip forge metadata
+        if filepath.startswith(".forge/"):
+            return False
+
+        # Skip binary files by extension
+        suffix = Path(filepath).suffix.lower()
+        return suffix not in self._SKIP_EXTENSIONS
+
     def build_context(self) -> dict[str, Any]:
         """Build context for LLM with summaries and active files (legacy method)"""
         context = {"summaries": self.repo_summaries, "active_files": {}}
@@ -359,8 +424,8 @@ Keep it under 72 characters."""
 
         # List files through VFS (includes any pending new files)
         files = self.vfs.list_files()
-        # Filter out forge metadata files upfront
-        files = [f for f in files if not f.startswith(".forge/")]
+        # Filter out forge metadata and binary files
+        files = [f for f in files if self._should_summarize(filepath=f)]
         total_files = len(files)
         print(f"� Generating summaries for {total_files} files (cached summaries will be reused)")
 
@@ -397,7 +462,7 @@ Keep it under 72 characters."""
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
 
-            prompt = f"""Generate a micro-README for this file listing its public interfaces.
+            prompt = f"""Summarize this file for a developer navigating the codebase.
 
 File: {filepath}
 
@@ -405,15 +470,16 @@ File: {filepath}
 {content}
 ```
 
-Format as a bulleted list:
-- ClassName: brief description
-- function_name(): brief description
-- CONSTANT: brief description
+For CODE files: List public interfaces (classes, functions, constants) as bullets.
+For OTHER files (docs, config, licenses, data): One short line describing what it is.
 
-Only list PUBLIC interfaces (classes, functions, constants that would be imported/used).
-Skip private items (starting with _).
-Keep each line under 80 chars.
-Respond with ONLY the bulleted list, no introduction or explanation."""
+Rules:
+- Be terse. Skip obvious/well-known things (e.g., don't explain what MIT license means).
+- Skip private items (starting with _).
+- Keep each line under 80 chars.
+- For files with no useful content to summarize, just write "No public interfaces."
+
+Respond with ONLY the summary, no introduction."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)

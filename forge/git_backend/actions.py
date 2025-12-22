@@ -59,12 +59,24 @@ class MergeAction(GitAction):
         if not isinstance(source_commit, pygit2.Commit):
             raise ValueError(f"Source {self.source_oid} is not a commit")
 
-        # Delete .forge/session.json from the merge to avoid conflicts
-        # We do a three-way merge of trees, excluding session.json
+        # Remove .forge/session.json from both trees before merging to avoid conflicts
+        # This file is session-specific and shouldn't be merged
+        target_tree = self._remove_session_from_tree_if_present(target_commit.tree)
+        source_tree = self._remove_session_from_tree_if_present(source_commit.tree)
+
+        merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)
+        if not merge_base_oid:
+            raise ValueError("No common ancestor found - cannot merge unrelated histories")
+
+        ancestor_commit = self.repo.repo[merge_base_oid]
+        assert isinstance(ancestor_commit, pygit2.Commit)
+        ancestor_tree = self._remove_session_from_tree_if_present(ancestor_commit.tree)
+
+        # Do a three-way merge of trees with session.json removed
         merge_result = self.repo.repo.merge_trees(
-            ancestor=self.repo.repo.merge_base(target_commit.id, source_commit.id),
-            ours=target_commit.tree,
-            theirs=source_commit.tree,
+            ancestor=ancestor_tree,
+            ours=target_tree,
+            theirs=source_tree,
         )
 
         if merge_result.conflicts:
@@ -89,8 +101,8 @@ class MergeAction(GitAction):
                 files_str += f", ... ({len(conflict_paths) - 5} more)"
             raise ValueError(f"Merge has conflicts in: {files_str}")
 
-        # Build the merged tree, but remove .forge/session.json if present
-        tree_oid = self._build_merge_tree_without_session(merge_result)
+        # Build the merged tree
+        tree_oid = merge_result.write_tree(self.repo.repo)
 
         # Create merge commit
         signature = pygit2.Signature("Forge AI", "ai@forge.dev")
@@ -113,15 +125,8 @@ class MergeAction(GitAction):
 
         self.result_oid = str(commit_oid)
 
-    def _build_merge_tree_without_session(self, merge_result: pygit2.Index) -> pygit2.Oid:
-        """Build tree from merge result, removing .forge/session.json."""
-        # Write the index to a tree
-        tree_oid = merge_result.write_tree(self.repo.repo)
-
-        # Check if .forge/session.json exists in the tree
-        tree = self.repo.repo.get(tree_oid)
-        assert isinstance(tree, pygit2.Tree)
-
+    def _remove_session_from_tree_if_present(self, tree: pygit2.Tree) -> pygit2.Tree:
+        """Remove .forge/session.json from a tree if it exists, return tree."""
         try:
             forge_entry = tree[".forge"]
             forge_tree = self.repo.repo.get(forge_entry.id)
@@ -129,14 +134,15 @@ class MergeAction(GitAction):
                 try:
                     forge_tree["session.json"]
                     # session.json exists, need to remove it
-                    return self._remove_session_from_tree(tree)
+                    new_tree_oid = self._remove_session_from_tree(tree)
+                    new_tree = self.repo.repo.get(new_tree_oid)
+                    assert isinstance(new_tree, pygit2.Tree)
+                    return new_tree
                 except KeyError:
                     pass
         except KeyError:
             pass
-
-        # No session.json to remove
-        return tree_oid
+        return tree
 
     def _remove_session_from_tree(self, tree: pygit2.Tree) -> pygit2.Oid:
         """Remove .forge/session.json from a tree."""

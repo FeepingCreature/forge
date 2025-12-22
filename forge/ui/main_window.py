@@ -190,6 +190,9 @@ class MainWindow(QMainWindow):
         # The AI's context is restored, but user's UI state is not forced
         if session_data and "active_files" in session_data:
             for filepath in session_data["active_files"]:
+                # Never restore session.json to context - it contains conversation history
+                if filepath == ".forge/session.json":
+                    continue
                 # Just add to context, don't open tab
                 with contextlib.suppress(FileNotFoundError):
                     chat_widget.add_file_to_context(filepath)

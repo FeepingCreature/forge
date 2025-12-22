@@ -1,12 +1,9 @@
 {
   "active_files": [
-    "forge/ui/ai_chat_widget.py",
-    ".forge/session.json",
-    "forge/ui/main_window.py",
-    "CLAUDE.md",
-    "GRAPH_COMMIT_ORDERING.md",
     "forge/ui/git_graph_widget.py",
-    "forge/main.py"
+    "CLAUDE.md",
+    "forge/ui/ai_chat_widget.py",
+    "GRAPH_COMMIT_ORDERING.md"
   ],
   "messages": [
     {
@@ -1409,6 +1406,143 @@
     {
       "role": "assistant",
       "content": "All checks pass. Now the context stats widget should update:\n\n1. **On startup with existing session**: Right after init, if summaries already exist (restored session), it calls `_emit_context_stats()`\n2. **On startup with new session**: After summary generation completes, it calls `_emit_context_stats()`\n\nThis should make the context stats visible from the moment the session is ready to use."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Can confirm it works! And jesus christ, 107k tokens. (Note that we're even underestimating that- I'm seeing 134k in the openrouter stats, you should probably do /3 instead of /4.) Can you see where it's going in the prompt on your end? Right now every individual agent turn can cost me up to 60 cents."
+    },
+    {
+      "role": "assistant",
+      "content": "Yeah, looking at the breakdown: **files 85.3k tokens for 7 files** - that's the problem. The session.json alone is probably massive since it contains the entire conversation history.\n\nLet me check what's in context:\n\n```\nActive files:\n- forge/ui/ai_chat_widget.py\n- .forge/session.json  <- This is the culprit!\n- forge/ui/main_window.py\n- CLAUDE.md\n- GRAPH_COMMIT_ORDERING.md\n- forge/ui/git_graph_widget.py\n- forge/main.py\n```\n\nThe `.forge/session.json` contains the entire conversation history as JSON, plus it's being counted *in addition to* the conversation itself in the prompt. So you're paying for the conversation twice!\n\nLet me fix this - session.json should never be in the active context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01EXuWL9d2vtAyvzkZXnyNn9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EXuWL9d2vtAyvzkZXnyNn9",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the context stats: **files 85.3k tokens for 7 files**. The session.json is 77k tokens according to what you pasted earlier - that's the entire conversation history stored as JSON, which is being loaded *in addition to* the actual conversation in the prompt.\n\nThe fix should be in `add_file_to_context` - we should never add `.forge/session.json` to the active context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def add_file_to_context(self, filepath: str) -> None:\\n        \\\"\\\"\\\"Add a file to the AI context\\\"\\\"\\\"\\n        self.session_manager.add_active_file(filepath)\\n        self.context_changed.emit(self.session_manager.active_files.copy())\\n        self._emit_context_stats()\", \"replace\": \"    def add_file_to_context(self, filepath: str) -> None:\\n        \\\"\\\"\\\"Add a file to the AI context\\\"\\\"\\\"\\n        # Never add session.json to context - it contains the conversation history\\n        # which would duplicate context and waste tokens\\n        if filepath == \\\".forge/session.json\\\":\\n            return\\n        self.session_manager.add_active_file(filepath)\\n        self.context_changed.emit(self.session_manager.active_files.copy())\\n        self._emit_context_stats()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WUkTpoygNhpuK78tfhLGof",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WUkTpoygNhpuK78tfhLGof",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch. But wait - the session.json is still showing in context. Let me also remove it from the current session's active files, and let me also check if we should prevent it from being restored from session data:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\", \"replace\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Never restore session.json to context - it contains conversation history\\n                if filepath == \\\".forge/session.json\\\":\\n                    continue\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01QwvCer5La99qwzqsc63mmJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QwvCer5La99qwzqsc63mmJ",
+      "content": "{\"error\": \"Search text not found in file.\\n\\nMost similar text found (line 80, 31.3% similar, edit distance 303):\\n\\n```\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n     \\n```\\n\\nDiff (your search vs actual file content):\\n```diff\\n--- SEARCH (expected)+++ FOUND (actual)@@ -1,7 +1,12 @@-        # Restore active files to AI context (but don't force open tabs)\\n-        # The AI's context is restored, but user's UI state is not forced\\n-        if session_data and \\\"active_files\\\" in session_data:\\n-            for filepath in session_data[\\\"active_files\\\"]:\\n-                # Just add to context, don't open tab\\n-                with contextlib.suppress(FileNotFoundError):\\n-                    chat_widget.add_file_to_context(filepath)+        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n+        try:\\n+            for chunk in self.client.chat_stream(self.messages, self.tools):\\n+                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n+                    continue\\n+\\n+                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n+\\n+                # Handle content chunks\\n+                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n+                    content = delta[\\\"content\\\"]\\n+     \\n```\", \"success\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `search_replace`\n```json\n{\n  \"filepath\": \"forge/ui/ai_chat_widget.py\",\n  \"replace\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Never restore session.json to context - it contains conversation history\\n                if filepath == \\\".forge/session.json\\\":\\n                    continue\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\",\n  \"search\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\"\n}\n```\n**Result:**\n```json\n{\n  \"error\": \"Search text not found in file.\\n\\nMost similar text found (line 80, 31.3% similar, edit distance 303):\\n\\n```\\n        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n        try:\\n            for chunk in self.client.chat_stream(self.messages, self.tools):\\n                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n                    continue\\n\\n                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n\\n                # Handle content chunks\\n                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n                    content = delta[\\\"content\\\"]\\n     \\n```\\n\\nDiff (your search vs actual file content):\\n```diff\\n--- SEARCH (expected)+++ FOUND (actual)@@ -1,7 +1,12 @@-        # Restore active files to AI context (but don't force open tabs)\\n-        # The AI's context is restored, but user's UI state is not forced\\n-        if session_data and \\\"active_files\\\" in session_data:\\n-            for filepath in session_data[\\\"active_files\\\"]:\\n-                # Just add to context, don't open tab\\n-                with contextlib.suppress(FileNotFoundError):\\n-                    chat_widget.add_file_to_context(filepath)+        \\\"\\\"\\\"Run the streaming request\\\"\\\"\\\"\\n+        try:\\n+            for chunk in self.client.chat_stream(self.messages, self.tools):\\n+                if \\\"choices\\\" not in chunk or not chunk[\\\"choices\\\"]:\\n+                    continue\\n+\\n+                delta = chunk[\\\"choices\\\"][0].get(\\\"delta\\\", {})\\n+\\n+                # Handle content chunks\\n+                if \\\"content\\\" in delta and delta[\\\"content\\\"]:\\n+                    content = delta[\\\"content\\\"]\\n+     \\n```\",\n  \"success\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "That's in main_window.py, not ai_chat_widget.py. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\", \"replace\": \"        # Restore active files to AI context (but don't force open tabs)\\n        # The AI's context is restored, but user's UI state is not forced\\n        if session_data and \\\"active_files\\\" in session_data:\\n            for filepath in session_data[\\\"active_files\\\"]:\\n                # Never restore session.json to context - it contains conversation history\\n                if filepath == \\\".forge/session.json\\\":\\n                    continue\\n                # Just add to context, don't open tab\\n                with contextlib.suppress(FileNotFoundError):\\n                    chat_widget.add_file_to_context(filepath)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_015DwqrktwQXWRBbbEZtRw1Z",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015DwqrktwQXWRBbbEZtRw1Z",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, but the session.json is still in context from the grep_open earlier. Let me also clean up my own context and run check:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\".forge/session.json\",\"forge/ui/main_window.py\",\"forge/main.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01XkM9DQ682FomnCkFDQAHzj",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01SS3RHUn49QBQBZGEuMZC1h",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XkM9DQ682FomnCkFDQAHzj",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 3 files from context\", \"remove\": [\".forge/session.json\", \"forge/ui/main_window.py\", \"forge/main.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SS3RHUn49QBQBZGEuMZC1h",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All good. Now the session.json is blocked from being added to context in two places:\n\n1. **`add_file_to_context()`** - returns early if filepath is `.forge/session.json`\n2. **Session restore in main_window.py** - skips `.forge/session.json` when restoring active files\n\nThis should prevent the conversation history from being doubled up in the context. Next time you start a session, you shouldn't see that 77k+ token file bloat."
     }
   ]
 }

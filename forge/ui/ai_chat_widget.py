@@ -596,6 +596,10 @@ class AIChatWidget(QWidget):
 
     def add_file_to_context(self, filepath: str) -> None:
         """Add a file to the AI context"""
+        # Never add session.json to context - it contains the conversation history
+        # which would duplicate context and waste tokens
+        if filepath == ".forge/session.json":
+            return
         self.session_manager.add_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())
         self._emit_context_stats()

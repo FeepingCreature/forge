@@ -4,6 +4,7 @@ Session manager for coordinating AI turns and git commits
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -78,6 +79,71 @@ class SessionManager:
         cache_key = self._get_cache_key(filepath, blob_oid)
         cache_file = self.cache_dir / cache_key
         cache_file.write_text(summary)
+
+    # Binary/non-summarizable file extensions
+    _SKIP_EXTENSIONS = {
+        # Images
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".webp",
+        # Fonts
+        ".ttf",
+        ".otf",
+        ".woff",
+        ".woff2",
+        ".eot",
+        # Audio/video
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".ogg",
+        ".webm",
+        ".avi",
+        ".mov",
+        # Archives
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".rar",
+        # Binaries
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".dat",
+        # Other
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+        ".pyc",
+        ".pyo",
+        ".class",
+        ".o",
+        ".a",
+    }
+
+    def _should_summarize(self, filepath: str) -> bool:
+        """Check if a file should be summarized (not binary, not forge metadata)"""
+        # Skip forge metadata
+        if filepath.startswith(".forge/"):
+            return False
+
+        # Skip binary files by extension
+        suffix = Path(filepath).suffix.lower()
+        return suffix not in self._SKIP_EXTENSIONS
 
     def build_context(self) -> dict[str, Any]:
         """Build context for LLM with summaries and active files (legacy method)"""
@@ -359,8 +425,8 @@ Keep it under 72 characters."""
 
         # List files through VFS (includes any pending new files)
         files = self.vfs.list_files()
-        # Filter out forge metadata files upfront
-        files = [f for f in files if not f.startswith(".forge/")]
+        # Filter out forge metadata and binary files
+        files = [f for f in files if self._should_summarize(filepath=f)]
         total_files = len(files)
         print(f"� Generating summaries for {total_files} files (cached summaries will be reused)")
 
@@ -397,7 +463,7 @@ Keep it under 72 characters."""
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
 
-            prompt = f"""Generate a micro-README for this file listing its public interfaces.
+            prompt = f"""Summarize this file's public interfaces for codebase navigation.
 
 File: {filepath}
 
@@ -405,21 +471,23 @@ File: {filepath}
 {content}
 ```
 
-Format as a bulleted list:
-- ClassName: brief description
-- function_name(): brief description
-- CONSTANT: brief description
+First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
 
-Only list PUBLIC interfaces (classes, functions, constants that would be imported/used).
-Skip private items (starting with _).
-Keep each line under 80 chars.
-Respond with ONLY the bulleted list, no introduction or explanation."""
+If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
+If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
+
+Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)
 
             summary_content = response["choices"][0]["message"]["content"]
-            summary = str(summary_content).strip().strip("\"'")
+            summary = str(summary_content).strip()
+
+            # Extract content from <summary> tags if present
+            match = re.search(r"<summary>(.*?)</summary>", summary, re.DOTALL)
+            if match:
+                summary = match.group(1).strip()
 
             # Cache the summary
             self._cache_summary(filepath, blob_oid, summary)

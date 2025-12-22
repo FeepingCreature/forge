@@ -7,6 +7,7 @@ See GRAPH_COMMIT_ORDERING.md for the algorithm details.
 
 import heapq
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import pygit2
 from PySide6.QtCore import (
@@ -35,11 +36,15 @@ from PySide6.QtWidgets import (
     QGraphicsView,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QStyle,
     QStyleOptionGraphicsItem,
     QVBoxLayout,
     QWidget,
 )
+
+if TYPE_CHECKING:
+    from forge.git_backend.actions import GitActionLog
 
 from forge.git_backend.repository import ForgeRepository
 
@@ -89,6 +94,7 @@ class CommitPanel(QGraphicsObject):
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
     squash_requested = Signal(str)  # oid
+    merge_drag_started = Signal(str)  # oid - emitted when merge button drag begins
 
     # Panel dimensions - bigger to fit multiline messages
     WIDTH = 220
@@ -108,6 +114,8 @@ class CommitPanel(QGraphicsObject):
         self.color = color
         self._hovered = False
         self._button_opacity_value = 0.0
+        self._grayed_out = False  # For merge drag visual feedback
+        self._merge_check_icon: str | None = None  # "clean" or "conflict" when hovering during drag
 
         # Enable hover events
         self.setAcceptHoverEvents(True)
@@ -228,9 +236,48 @@ class CommitPanel(QGraphicsObject):
             self.node.message,
         )
 
-        # Draw hover buttons with fade
-        if self._button_opacity_value > 0.01:
+        # Draw hover buttons with fade (but not when grayed out)
+        if self._button_opacity_value > 0.01 and not self._grayed_out:
             self._draw_buttons(painter, panel_rect)
+
+        # Draw grayed out overlay
+        if self._grayed_out:
+            painter.setBrush(QColor(255, 255, 255, 180))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(panel_rect, self.CORNER_RADIUS, self.CORNER_RADIUS)
+
+        # Draw merge check icon
+        if self._merge_check_icon:
+            self._draw_merge_check_icon(painter, panel_rect)
+
+    def _draw_merge_check_icon(self, painter: QPainter, panel_rect: QRectF) -> None:
+        """Draw the merge check icon (checkmark or X) on the panel."""
+        icon_size = 32
+        icon_rect = QRectF(
+            panel_rect.right() - icon_size - 8,
+            panel_rect.top() + 8,
+            icon_size,
+            icon_size,
+        )
+
+        # Draw circle background
+        if self._merge_check_icon == "clean":
+            bg_color = QColor("#4CAF50")  # Green
+            icon_text = "✓"
+        else:
+            bg_color = QColor("#F44336")  # Red
+            icon_text = "✗"
+
+        painter.setBrush(bg_color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(icon_rect)
+
+        # Draw icon text
+        painter.setPen(QColor("#FFFFFF"))
+        font = QFont("sans-serif", 18)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(icon_rect, Qt.AlignmentFlag.AlignCenter, icon_text)
 
     def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:
         """Draw the merge/rebase/squash buttons with current opacity (inside panel)."""
@@ -318,7 +365,7 @@ class CommitPanel(QGraphicsObject):
         self.update()
 
     def mousePressEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse press - check for button clicks."""
+        """Handle mouse press - check for button clicks or start merge drag."""
         from PySide6.QtWidgets import QGraphicsSceneMouseEvent
 
         if not isinstance(event, QGraphicsSceneMouseEvent):
@@ -328,7 +375,8 @@ class CommitPanel(QGraphicsObject):
 
         if self._button_opacity_value > 0.5:
             if hasattr(self, "_merge_rect") and self._merge_rect.contains(pos):
-                self.merge_requested.emit(self.node.oid)
+                # Start merge drag instead of immediate action
+                self._merge_drag_pending = True
                 event.accept()
                 return
             if hasattr(self, "_rebase_rect") and self._rebase_rect.contains(pos):
@@ -340,7 +388,32 @@ class CommitPanel(QGraphicsObject):
                 event.accept()
                 return
 
+        self._merge_drag_pending = False
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
+        """Handle mouse move - start merge drag if pending."""
+        from PySide6.QtWidgets import QGraphicsSceneMouseEvent
+
+        if not isinstance(event, QGraphicsSceneMouseEvent):
+            return
+
+        if getattr(self, "_merge_drag_pending", False):
+            # Start the merge drag
+            self._merge_drag_pending = False
+            self.merge_drag_started.emit(self.node.oid)
+            event.accept()
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: object) -> None:  # noqa: N802
+        """Handle mouse release - cancel pending merge drag."""
+        from PySide6.QtWidgets import QGraphicsSceneMouseEvent
+
+        self._merge_drag_pending = False
+        if isinstance(event, QGraphicsSceneMouseEvent):
+            super().mouseReleaseEvent(event)
 
 
 class SplineEdge(QGraphicsPathItem):
@@ -446,6 +519,48 @@ class SplineEdge(QGraphicsPathItem):
         self.setZValue(-1)
 
 
+class MergeDragSpline(QGraphicsPathItem):
+    """
+    A spline drawn during merge drag operation.
+
+    Draws from the source commit's merge button upward, then curves toward cursor.
+    """
+
+    def __init__(self, start: QPointF, parent: QGraphicsItem | None = None) -> None:
+        super().__init__(parent)
+        self.start = start
+        self.end = start  # Will be updated during drag
+
+        pen = QPen(QColor("#4CAF50"), 3)  # Green like merge button
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        self.setPen(pen)
+        self.setBrush(Qt.BrushStyle.NoBrush)
+        self.setZValue(100)  # Draw on top
+
+    def update_end(self, end: QPointF) -> None:
+        """Update the end point and rebuild the path."""
+        self.end = end
+        self._build_path()
+
+    def _build_path(self) -> None:
+        """Build a curved path from start to end."""
+        path = QPainterPath()
+        path.moveTo(self.start)
+
+        # Control points for a nice curve
+        # Start going up, then curve toward target
+        dy = self.end.y() - self.start.y()
+
+        # First control point: above start
+        c1 = QPointF(self.start.x(), self.start.y() - 50)
+        # Second control point: above end
+        c2 = QPointF(self.end.x(), self.end.y() - abs(dy) * 0.3 - 30)
+
+        path.cubicTo(c1, c2, self.end)
+        self.setPath(path)
+
+
 class GitGraphScene(QGraphicsScene):
     """Scene containing the git graph with commit panels and spline edges."""
 
@@ -458,6 +573,7 @@ class GitGraphScene(QGraphicsScene):
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
     squash_requested = Signal(str)  # oid
+    merge_completed = Signal()  # Emitted after successful merge
 
     def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -467,6 +583,16 @@ class GitGraphScene(QGraphicsScene):
         self.oid_to_panel: dict[str, CommitPanel] = {}
         self.num_rows = 0
         self.num_columns = 0
+
+        # Merge drag state
+        self._merge_drag_active = False
+        self._merge_drag_source_oid: str | None = None
+        self._merge_drag_spline: MergeDragSpline | None = None
+        self._merge_drag_valid_targets: set[str] = set()  # OIDs of valid drop targets
+        self._merge_drag_hover_target: str | None = None  # Currently hovered target
+
+        # Action log for undo
+        self._action_log: GitActionLog | None = None
 
         self.setBackgroundBrush(QColor("#FAFAFA"))
 
@@ -726,6 +852,217 @@ class GitGraphScene(QGraphicsScene):
         height = self.num_rows * self.ROW_HEIGHT + 2 * self.PADDING
         self.setSceneRect(0, 0, width, height)
 
+    def set_action_log(self, action_log: "GitActionLog") -> None:
+        """Set the action log for recording undoable actions."""
+        self._action_log = action_log
+
+    def _get_branch_heads(self) -> dict[str, str]:
+        """Get mapping of branch name -> HEAD commit OID."""
+        heads: dict[str, str] = {}
+        for branch_name in self.repo.repo.branches.local:
+            branch = self.repo.repo.branches[branch_name]
+            commit = branch.peel(pygit2.Commit)
+            heads[branch_name] = str(commit.id)
+        return heads
+
+    def _get_valid_merge_targets(self, source_oid: str) -> set[str]:
+        """Get OIDs of valid merge targets (branch HEADs, excluding source's branch)."""
+        heads = self._get_branch_heads()
+        source_branches = set()
+
+        # Find which branches the source commit is HEAD of
+        for branch_name, head_oid in heads.items():
+            if head_oid == source_oid:
+                source_branches.add(branch_name)
+
+        # Valid targets are HEADs of other branches
+        valid: set[str] = set()
+        for branch_name, head_oid in heads.items():
+            if branch_name not in source_branches and head_oid != source_oid:
+                valid.add(head_oid)
+
+        return valid
+
+    def start_merge_drag(self, source_oid: str) -> None:
+        """Start a merge drag operation from the given commit."""
+        if source_oid not in self.oid_to_panel:
+            return
+
+        self._merge_drag_active = True
+        self._merge_drag_source_oid = source_oid
+        self._merge_drag_valid_targets = self._get_valid_merge_targets(source_oid)
+        self._merge_drag_hover_target = None
+
+        # Create spline starting from source panel's top center
+        source_panel = self.oid_to_panel[source_oid]
+        start_pos = source_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)
+        self._merge_drag_spline = MergeDragSpline(start_pos)
+        self.addItem(self._merge_drag_spline)
+
+        # Gray out invalid targets
+        for oid, panel in self.oid_to_panel.items():
+            if oid != source_oid and oid not in self._merge_drag_valid_targets:
+                panel._grayed_out = True
+                panel.update()
+
+    def update_merge_drag(self, scene_pos: QPointF) -> None:
+        """Update the merge drag spline endpoint and check hover targets."""
+        if not self._merge_drag_active or self._merge_drag_spline is None:
+            return
+
+        # Check if hovering over a valid target
+        old_hover = self._merge_drag_hover_target
+        self._merge_drag_hover_target = None
+
+        for oid in self._merge_drag_valid_targets:
+            if oid not in self.oid_to_panel:
+                continue
+            panel = self.oid_to_panel[oid]
+            if panel.sceneBoundingRect().contains(scene_pos):
+                self._merge_drag_hover_target = oid
+                break
+
+        # Update spline endpoint - snap to target if hovering, else follow cursor
+        if self._merge_drag_hover_target:
+            target_panel = self.oid_to_panel[self._merge_drag_hover_target]
+            # Snap to top center of target panel
+            snap_pos = target_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)
+            self._merge_drag_spline.update_end(snap_pos)
+        else:
+            self._merge_drag_spline.update_end(scene_pos)
+
+        # Update merge check icon if hover target changed
+        if self._merge_drag_hover_target != old_hover:
+            # Clear old hover
+            if old_hover and old_hover in self.oid_to_panel:
+                self.oid_to_panel[old_hover]._merge_check_icon = None
+                self.oid_to_panel[old_hover].update()
+
+            # Check new hover
+            if self._merge_drag_hover_target and self._merge_drag_source_oid:
+                self._check_merge_and_update_icon(
+                    self._merge_drag_source_oid, self._merge_drag_hover_target
+                )
+
+    def _check_merge_and_update_icon(self, source_oid: str, target_oid: str) -> None:
+        """Check if merge would be clean and update the target panel's icon."""
+        from forge.git_backend.actions import check_merge_clean
+
+        # Find branch for target
+        heads = self._get_branch_heads()
+        target_branch = None
+        for branch_name, head_oid in heads.items():
+            if head_oid == target_oid:
+                target_branch = branch_name
+                break
+
+        if not target_branch:
+            return
+
+        is_clean = check_merge_clean(self.repo, source_oid, target_branch)
+
+        if target_oid in self.oid_to_panel:
+            panel = self.oid_to_panel[target_oid]
+            panel._merge_check_icon = "clean" if is_clean else "conflict"
+            panel.update()
+
+    def end_merge_drag(self, scene_pos: QPointF) -> bool:
+        """
+        End the merge drag operation.
+
+        Returns True if a merge was performed, False otherwise.
+        """
+        if not self._merge_drag_active:
+            return False
+
+        # Clean up spline
+        if self._merge_drag_spline:
+            self.removeItem(self._merge_drag_spline)
+            self._merge_drag_spline = None
+
+        # Un-gray panels and clear icons
+        for panel in self.oid_to_panel.values():
+            panel._grayed_out = False
+            panel._merge_check_icon = None
+            panel.update()
+
+        source_oid = self._merge_drag_source_oid
+        target_oid = self._merge_drag_hover_target
+
+        # Reset state
+        self._merge_drag_active = False
+        self._merge_drag_source_oid = None
+        self._merge_drag_valid_targets = set()
+        self._merge_drag_hover_target = None
+
+        # Perform merge if we have a valid target
+        if source_oid and target_oid:
+            return self._perform_merge(source_oid, target_oid)
+
+        return False
+
+    def cancel_merge_drag(self) -> None:
+        """Cancel the merge drag without performing any action."""
+        if not self._merge_drag_active:
+            return
+
+        # Clean up spline
+        if self._merge_drag_spline:
+            self.removeItem(self._merge_drag_spline)
+            self._merge_drag_spline = None
+
+        # Un-gray panels and clear icons
+        for panel in self.oid_to_panel.values():
+            panel._grayed_out = False
+            panel._merge_check_icon = None
+            panel.update()
+
+        self._merge_drag_active = False
+        self._merge_drag_source_oid = None
+        self._merge_drag_valid_targets = set()
+        self._merge_drag_hover_target = None
+
+    def _perform_merge(self, source_oid: str, target_oid: str) -> bool:
+        """Perform the merge operation."""
+        from forge.git_backend.actions import MergeAction
+
+        # Find target branch
+        heads = self._get_branch_heads()
+        target_branch = None
+        for branch_name, head_oid in heads.items():
+            if head_oid == target_oid:
+                target_branch = branch_name
+                break
+
+        if not target_branch:
+            return False
+
+        # Create and perform merge action
+        action = MergeAction(
+            repo=self.repo,
+            source_oid=source_oid,
+            target_branch=target_branch,
+        )
+
+        try:
+            action.perform()
+        except ValueError as e:
+            # Merge has conflicts - show dialog
+            QMessageBox.warning(
+                None,
+                "Merge Conflict",
+                f"Cannot merge: {e}\n\nConflict resolution is not yet implemented.",
+            )
+            return False
+
+        # Record action for undo
+        if self._action_log:
+            self._action_log.record(action)
+
+        # Emit signal to trigger refresh
+        self.merge_completed.emit()
+        return True
+
 
 class BranchListWidget(QWidget):
     """Overlay widget listing branches for quick navigation."""
@@ -833,6 +1170,12 @@ class GitGraphView(QGraphicsView):
         self._scene.rebase_requested.connect(self.rebase_requested.emit)
         self._scene.squash_requested.connect(self.squash_requested.emit)
 
+        # Connect merge drag signals from panels
+        self._connect_panel_signals()
+
+        # Track if we're in a merge drag (need to intercept mouse events)
+        self._in_merge_drag = False
+
         # Setup view
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
@@ -936,7 +1279,7 @@ class GitGraphView(QGraphicsView):
         return False  # Let other events through
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        """Handle mouse wheel - Ctrl+wheel zooms, plain wheel scrolls."""
+        """Handle mouse wheel - Ctrl+wheel zooms, plain wheel scrolls. Works during merge drag."""
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             # Ctrl+wheel = zoom
             delta = event.angleDelta().y()
@@ -946,8 +1289,76 @@ class GitGraphView(QGraphicsView):
                 self._apply_zoom(self._zoom / 1.1)
             event.accept()
         else:
-            # Plain wheel = scroll
+            # Plain wheel = scroll (allow during merge drag too)
             super().wheelEvent(event)
+
+    def _connect_panel_signals(self) -> None:
+        """Connect merge_drag_started signals from all panels."""
+        for panel in self._scene.oid_to_panel.values():
+            panel.merge_drag_started.connect(self._on_merge_drag_started)
+
+    def _on_merge_drag_started(self, oid: str) -> None:
+        """Handle merge drag start from a panel."""
+        self._in_merge_drag = True
+        self._scene.start_merge_drag(oid)
+        # Change to no drag mode so we can track mouse movement
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+
+    def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
+        """Handle mouse move - update merge drag if active."""
+        from PySide6.QtGui import QMouseEvent
+
+        if not isinstance(event, QMouseEvent):
+            return
+
+        if self._in_merge_drag:
+            scene_pos = self.mapToScene(event.pos())
+            self._scene.update_merge_drag(scene_pos)
+            event.accept()
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: object) -> None:  # noqa: N802
+        """Handle mouse release - end merge drag if active."""
+        from PySide6.QtGui import QMouseEvent
+
+        if not isinstance(event, QMouseEvent):
+            return
+
+        if self._in_merge_drag and event.button() == Qt.MouseButton.LeftButton:
+            scene_pos = self.mapToScene(event.pos())
+            merged = self._scene.end_merge_drag(scene_pos)
+            self._in_merge_drag = False
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+            if merged:
+                # Refresh the graph after merge
+                self.refresh()
+
+            event.accept()
+            return
+
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event: object) -> None:  # noqa: N802
+        """Handle key press - Escape cancels merge drag."""
+        from PySide6.QtGui import QKeyEvent
+
+        if not isinstance(event, QKeyEvent):
+            return
+
+        if self._in_merge_drag and event.key() == Qt.Key.Key_Escape:
+            self._scene.cancel_merge_drag()
+            self._in_merge_drag = False
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
     def _jump_to_branch(self, branch_name: str) -> None:
         """Jump to center the view on a branch's tip commit."""
@@ -966,14 +1377,27 @@ class GitGraphView(QGraphicsView):
 
     def refresh(self) -> None:
         """Refresh the graph (reload commits and redraw)."""
+        # Preserve action log
+        old_action_log = self._scene._action_log if self._scene else None
+
         self._scene = GitGraphScene(self.repo)
         self.setScene(self._scene)
         self._scene.merge_requested.connect(self.merge_requested.emit)
         self._scene.rebase_requested.connect(self.rebase_requested.emit)
         self._scene.squash_requested.connect(self.squash_requested.emit)
+
+        # Restore action log and reconnect panel signals
+        if old_action_log:
+            self._scene.set_action_log(old_action_log)
+        self._connect_panel_signals()
+
         # Refresh branch list and update margin
         self._branch_list._load_branches()
         self._update_branch_list_margin()
+
+    def set_action_log(self, action_log: "GitActionLog") -> None:
+        """Set the action log for recording undoable actions."""
+        self._scene.set_action_log(action_log)
 
     def fit_in_view(self) -> None:
         """Fit the entire graph in the view."""

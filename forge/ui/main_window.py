@@ -96,6 +96,11 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
 
+        # Context stats display (right side of status bar)
+        self.context_label = QLabel("")
+        self.context_label.setToolTip("Context token usage")
+        self.status_bar.addPermanentWidget(self.context_label)
+
         # Cost display (right side of status bar, bold)
         self.cost_label = QLabel("<b>$0.0000</b>")
         self.cost_label.setToolTip("Session API cost (OpenRouter)")
@@ -621,7 +626,7 @@ class MainWindow(QMainWindow):
             if filepath and "error" not in file_info:
                 branch_widget.update_file_tab_tooltip(filepath, tokens)
 
-        # Update status bar with breakdown of context usage
+        # Update context label (permanent widget on right side of status bar)
         file_tokens = stats.get("file_tokens", 0)
         summary_tokens = stats.get("summary_tokens", 0)
         conversation_tokens = stats.get("conversation_tokens", 0)
@@ -632,20 +637,26 @@ class MainWindow(QMainWindow):
         model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         context_limit = self._get_model_context_limit(model)
 
-        # Build status message with breakdown
-        breakdown = f"files: ~{file_tokens:,} ({file_count}) | summaries: ~{summary_tokens:,} | conversation: ~{conversation_tokens:,}"
-
+        # Build compact display for permanent label
         if context_limit:
             percent = (total_tokens / context_limit) * 100
-            status = f"📊 ~{total_tokens:,} tokens ({percent:.0f}%) | {breakdown}"
-
-            # Warn if context is getting large
             if percent > 80:
-                status = f"⚠️ {status}"
+                text = f"⚠️ ~{total_tokens:,} ({percent:.0f}%)"
+            else:
+                text = f"~{total_tokens:,} ({percent:.0f}%)"
         else:
-            status = f"📊 ~{total_tokens:,} tokens | {breakdown}"
+            text = f"~{total_tokens:,}"
 
-        self.status_bar.showMessage(status)
+        # Set tooltip with full breakdown
+        tooltip = (
+            f"Context tokens: ~{total_tokens:,}\n"
+            f"  Files: ~{file_tokens:,} ({file_count} files)\n"
+            f"  Summaries: ~{summary_tokens:,}\n"
+            f"  Conversation: ~{conversation_tokens:,}"
+        )
+
+        self.context_label.setText(text)
+        self.context_label.setToolTip(tooltip)
 
     def _get_model_context_limit(self, model: str) -> int | None:
         """Get context limit for a model (returns None if unknown)"""

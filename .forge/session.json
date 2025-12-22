@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "GRAPH_COMMIT_ORDERING.md",
-    "forge/main.py",
     "forge/ui/git_graph_widget.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/main.py",
+    "GRAPH_COMMIT_ORDERING.md"
   ],
   "messages": [
     {
@@ -1092,6 +1092,124 @@
     {
       "role": "assistant",
       "content": "Checks pass. Try running it now - lanes should be reused once they're no longer needed (when their edge reaches its parent). Let me know if it's working!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yep, it's working! Nice! These queries are still pricy, what's your context distribution look like? That should probably be to the right in the status bar instead of set as a message..."
+    },
+    {
+      "role": "assistant",
+      "content": "Good to hear it's working! And yeah, the context is reasonable - 24k tokens with most of it being conversation history (12.6k). The files are quite lean (4.7k for 4 files).\n\nLet me move the context stats to the right side of the status bar. First let me look at the main window to see the current status bar setup:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_011tRvrMYU7tnYV6Z9vydii9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011tRvrMYU7tnYV6Z9vydii9",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue - `_on_context_stats_updated` is already updating the status bar with context stats, but it uses `showMessage()` which can be overwritten by other status updates. I should add a permanent widget on the right side (like the cost label) for the context stats.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"        # Status bar\\n        self.status_bar = QStatusBar()\\n        self.setStatusBar(self.status_bar)\\n        self.status_bar.showMessage(\\\"Ready\\\")\\n\\n        # Cost display (right side of status bar, bold)\\n        self.cost_label = QLabel(\\\"<b>$0.0000</b>\\\")\\n        self.cost_label.setToolTip(\\\"Session API cost (OpenRouter)\\\")\\n        self.status_bar.addPermanentWidget(self.cost_label)\", \"replace\": \"        # Status bar\\n        self.status_bar = QStatusBar()\\n        self.setStatusBar(self.status_bar)\\n        self.status_bar.showMessage(\\\"Ready\\\")\\n\\n        # Context stats display (right side of status bar)\\n        self.context_label = QLabel(\\\"\\\")\\n        self.context_label.setToolTip(\\\"Context token usage\\\")\\n        self.status_bar.addPermanentWidget(self.context_label)\\n\\n        # Cost display (right side of status bar, bold)\\n        self.cost_label = QLabel(\\\"<b>$0.0000</b>\\\")\\n        self.cost_label.setToolTip(\\\"Session API cost (OpenRouter)\\\")\\n        self.status_bar.addPermanentWidget(self.cost_label)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01T4ty1xeF7aic9q1ih5xXBQ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01T4ty1xeF7aic9q1ih5xXBQ",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update `_on_context_stats_updated` to use the permanent label instead of `showMessage`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"    def _on_context_stats_updated(\\n        self, stats: dict[str, Any], branch_widget: BranchTabWidget\\n    ) -> None:\\n        \\\"\\\"\\\"Handle context stats update from AI chat widget\\\"\\\"\\\"\\n        # Only update if this is the current branch\\n        if self.branch_tabs.currentWidget() != branch_widget:\\n            return\\n\\n        # Update file tab tooltips with token counts\\n        for file_info in stats.get(\\\"active_files\\\", []):\\n            filepath = file_info.get(\\\"filepath\\\", \\\"\\\")\\n            tokens = file_info.get(\\\"tokens\\\", 0)\\n            if filepath and \\\"error\\\" not in file_info:\\n                branch_widget.update_file_tab_tooltip(filepath, tokens)\\n\\n        # Update status bar with breakdown of context usage\\n        file_tokens = stats.get(\\\"file_tokens\\\", 0)\\n        summary_tokens = stats.get(\\\"summary_tokens\\\", 0)\\n        conversation_tokens = stats.get(\\\"conversation_tokens\\\", 0)\\n        total_tokens = stats.get(\\\"total_context_tokens\\\", 0)\\n        file_count = stats.get(\\\"file_count\\\", 0)\\n\\n        # Get model context limit from settings for warning\\n        model = self.settings.get(\\\"llm.model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        context_limit = self._get_model_context_limit(model)\\n\\n        # Build status message with breakdown\\n        breakdown = f\\\"files: ~{file_tokens:,} ({file_count}) | summaries: ~{summary_tokens:,} | conversation: ~{conversation_tokens:,}\\\"\\n\\n        if context_limit:\\n            percent = (total_tokens / context_limit) * 100\\n            status = f\\\"\ud83d\udcca ~{total_tokens:,} tokens ({percent:.0f}%) | {breakdown}\\\"\\n\\n            # Warn if context is getting large\\n            if percent > 80:\\n                status = f\\\"\u26a0\ufe0f {status}\\\"\\n        else:\\n            status = f\\\"\ud83d\udcca ~{total_tokens:,} tokens | {breakdown}\\\"\\n\\n        self.status_bar.showMessage(status)\", \"replace\": \"    def _on_context_stats_updated(\\n        self, stats: dict[str, Any], branch_widget: BranchTabWidget\\n    ) -> None:\\n        \\\"\\\"\\\"Handle context stats update from AI chat widget\\\"\\\"\\\"\\n        # Only update if this is the current branch\\n        if self.branch_tabs.currentWidget() != branch_widget:\\n            return\\n\\n        # Update file tab tooltips with token counts\\n        for file_info in stats.get(\\\"active_files\\\", []):\\n            filepath = file_info.get(\\\"filepath\\\", \\\"\\\")\\n            tokens = file_info.get(\\\"tokens\\\", 0)\\n            if filepath and \\\"error\\\" not in file_info:\\n                branch_widget.update_file_tab_tooltip(filepath, tokens)\\n\\n        # Update context label (permanent widget on right side of status bar)\\n        file_tokens = stats.get(\\\"file_tokens\\\", 0)\\n        summary_tokens = stats.get(\\\"summary_tokens\\\", 0)\\n        conversation_tokens = stats.get(\\\"conversation_tokens\\\", 0)\\n        total_tokens = stats.get(\\\"total_context_tokens\\\", 0)\\n        file_count = stats.get(\\\"file_count\\\", 0)\\n\\n        # Get model context limit from settings for warning\\n        model = self.settings.get(\\\"llm.model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        context_limit = self._get_model_context_limit(model)\\n\\n        # Build compact display for permanent label\\n        if context_limit:\\n            percent = (total_tokens / context_limit) * 100\\n            if percent > 80:\\n                text = f\\\"\u26a0\ufe0f ~{total_tokens:,} ({percent:.0f}%)\\\"\\n            else:\\n                text = f\\\"~{total_tokens:,} ({percent:.0f}%)\\\"\\n        else:\\n            text = f\\\"~{total_tokens:,}\\\"\\n\\n        # Set tooltip with full breakdown\\n        tooltip = (\\n            f\\\"Context tokens: ~{total_tokens:,}\\\\n\\\"\\n            f\\\"  Files: ~{file_tokens:,} ({file_count} files)\\\\n\\\"\\n            f\\\"  Summaries: ~{summary_tokens:,}\\\\n\\\"\\n            f\\\"  Conversation: ~{conversation_tokens:,}\\\"\\n        )\\n\\n        self.context_label.setText(text)\\n        self.context_label.setToolTip(tooltip)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017NJo3kFoSjWppBs8ug2eJn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017NJo3kFoSjWppBs8ug2eJn",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01MxENF5p8rYXDqpYpM1mGcc",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MxENF5p8rYXDqpYpM1mGcc",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All good! The context stats are now in a permanent label on the right side of the status bar (next to the cost), with a compact display and a tooltip showing the full breakdown. Let me clean up my context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/main_window.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01TUiLfifEFT5d6y6Ffnk9Gj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TUiLfifEFT5d6y6Ffnk9Gj",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/ui/main_window.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The context stats now show as a permanent widget on the right side of the status bar:\n- Compact display: `~26,000 (13%)` or `\u26a0\ufe0f ~160,000 (82%)` if over 80%\n- Hover tooltip shows the full breakdown (files, summaries, conversation)"
     }
   ]
 }

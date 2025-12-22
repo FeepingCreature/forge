@@ -243,6 +243,7 @@ class SearchBar(QWidget):
     closed = Signal()
     find_next = Signal(str)
     find_prev = Signal(str)
+    search_changed = Signal(str)  # Emitted when search text changes (for re-highlighting)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -257,7 +258,7 @@ class SearchBar(QWidget):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Find...")
         self.search_input.returnPressed.connect(self._on_find_next)
-        self.search_input.textChanged.connect(self._on_text_changed)
+        self.search_input.textChanged.connect(self._on_search_changed)
         layout.addWidget(self.search_input, 1)
 
         # Match count label
@@ -316,10 +317,9 @@ class SearchBar(QWidget):
             }
         """)
 
-    def _on_text_changed(self, text: str) -> None:
-        """Trigger search when text changes"""
-        if text:
-            self.find_next.emit(text)
+    def _on_search_changed(self, text: str) -> None:
+        """Trigger search update when text changes"""
+        self.search_changed.emit(text)
 
     def _on_find_next(self) -> None:
         text = self.search_input.text()
@@ -376,17 +376,18 @@ class EditorWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Search bar (hidden by default)
+        # Create custom code editor
+        self.editor = CodeEditor()
+        layout.addWidget(self.editor)
+
+        # Search bar (hidden by default, at bottom)
         self.search_bar = SearchBar()
         self.search_bar.hide()
         self.search_bar.closed.connect(self._close_search)
         self.search_bar.find_next.connect(self._find_next)
         self.search_bar.find_prev.connect(self._find_prev)
+        self.search_bar.search_changed.connect(self._on_search_changed)
         layout.addWidget(self.search_bar)
-
-        # Create custom code editor
-        self.editor = CodeEditor()
-        layout.addWidget(self.editor)
 
         # Keyboard shortcuts
         self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
@@ -408,6 +409,54 @@ class EditorWidget(QWidget):
         self._clear_search_highlights()
         self.editor.setFocus()
 
+    def _on_search_changed(self, text: str) -> None:
+        """Handle search text changes - update matches but stay on current if valid"""
+        if not text:
+            self._clear_search_highlights()
+            self.search_bar.set_match_info(0, 0)
+            return
+
+        # Remember current cursor position
+        cursor = self.editor.textCursor()
+        cursor_pos = cursor.selectionStart()
+
+        # Find all matches
+        self._update_match_positions(text)
+
+        if not self._match_positions:
+            self._current_match_index = -1
+            self.search_bar.set_match_info(0, 0)
+            self._clear_search_highlights()
+            return
+
+        # Try to stay on the current match if cursor is still within a match
+        found_current = False
+        for i, pos in enumerate(self._match_positions):
+            if pos <= cursor_pos < pos + len(text):
+                self._current_match_index = i
+                found_current = True
+                break
+
+        # If cursor not in a match, find the nearest match at or after cursor
+        if not found_current:
+            self._current_match_index = 0
+            for i, pos in enumerate(self._match_positions):
+                if pos >= cursor_pos:
+                    self._current_match_index = i
+                    break
+
+        # Update display
+        self.search_bar.set_match_info(self._current_match_index + 1, len(self._match_positions))
+        self._highlight_matches(text)
+
+        # Move cursor to current match
+        match_pos = self._match_positions[self._current_match_index]
+        cursor = self.editor.textCursor()
+        cursor.setPosition(match_pos)
+        cursor.setPosition(match_pos + len(text), cursor.MoveMode.KeepAnchor)
+        self.editor.setTextCursor(cursor)
+        self.editor.centerCursor()
+
     def _find_next(self, text: str) -> None:
         """Find and highlight the next occurrence"""
         self._do_find(text, forward=True)
@@ -416,12 +465,9 @@ class EditorWidget(QWidget):
         """Find and highlight the previous occurrence"""
         self._do_find(text, forward=False)
 
-    def _do_find(self, text: str, forward: bool = True) -> None:
-        """Perform the search operation"""
-        document = self.editor.document()
-        content = document.toPlainText()
-
-        # Find all matches
+    def _update_match_positions(self, text: str) -> None:
+        """Update the list of match positions"""
+        content = self.editor.document().toPlainText()
         self._match_positions = []
         search_text = text.lower()
         content_lower = content.lower()
@@ -433,28 +479,36 @@ class EditorWidget(QWidget):
             self._match_positions.append(idx)
             pos = idx + 1
 
+    def _do_find(self, text: str, forward: bool = True) -> None:
+        """Perform the search operation - move to next/prev match"""
+        if not text:
+            return
+
+        # Update matches first
+        self._update_match_positions(text)
+
         if not self._match_positions:
             self._current_match_index = -1
             self.search_bar.set_match_info(0, 0)
             self._clear_search_highlights()
             return
 
-        # Determine which match to select
+        # Determine which match to select based on current position
         cursor = self.editor.textCursor()
-        cursor_pos = cursor.position()
+        cursor_pos = cursor.selectionStart()
 
         if forward:
-            # Find next match after cursor
+            # Find next match strictly after current position
             next_idx = -1
             for i, pos in enumerate(self._match_positions):
-                if pos > cursor_pos or (pos == cursor_pos and self._current_match_index != i):
+                if pos > cursor_pos:
                     next_idx = i
                     break
             if next_idx == -1:
                 next_idx = 0  # Wrap around
             self._current_match_index = next_idx
         else:
-            # Find previous match before cursor
+            # Find previous match before current position
             prev_idx = -1
             for i in range(len(self._match_positions) - 1, -1, -1):
                 if self._match_positions[i] < cursor_pos:

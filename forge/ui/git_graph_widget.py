@@ -4,6 +4,7 @@ Git graph widget - visualizes commit history with temporal ordering.
 See GRAPH_COMMIT_ORDERING.md for the algorithm details.
 """
 
+import heapq
 from dataclasses import dataclass
 
 import pygit2
@@ -114,15 +115,70 @@ class GitGraphWidget(QWidget):
 
         return False
 
+    def _compute_order_keys(self) -> dict[str, int]:
+        """
+        Compute a global order key for each commit.
+
+        Uses topological sort (ancestry) as primary order, timestamp as tiebreaker.
+        Returns dict mapping oid -> order_key (lower = should appear first/top).
+        """
+        # Build child -> parents map (we have this in nodes)
+        # Build parent -> children map
+        children_of: dict[str, list[str]] = {node.oid: [] for node in self.nodes}
+        for node in self.nodes:
+            for parent_oid in node.parent_oids:
+                if parent_oid in children_of:
+                    children_of[parent_oid].append(node.oid)
+
+        # Count how many children each node has (in-degree for reverse topo sort)
+        in_degree: dict[str, int] = {}
+        for node in self.nodes:
+            in_degree[node.oid] = len(children_of[node.oid])
+
+        # Start with nodes that have no children (branch tips)
+        # Use negative timestamp so newest comes first (highest timestamp = lowest sort key)
+        ready: list[tuple[int, str]] = []
+        for node in self.nodes:
+            if in_degree[node.oid] == 0:
+                ready.append((-node.timestamp, node.oid))
+
+        heapq.heapify(ready)
+
+        order_key: dict[str, int] = {}
+        current_order = 0
+
+        while ready:
+            _, oid = heapq.heappop(ready)
+
+            # Skip if already processed (can happen with merge commits)
+            if oid in order_key:
+                continue
+
+            order_key[oid] = current_order
+            current_order += 1
+
+            # Decrement in-degree of parents, add to ready if they hit 0
+            node = self.oid_to_node[oid]
+            for parent_oid in node.parent_oids:
+                if parent_oid not in in_degree:
+                    continue  # Parent not in our commit set
+                in_degree[parent_oid] -= 1
+                if in_degree[parent_oid] == 0:
+                    parent_node = self.oid_to_node[parent_oid]
+                    heapq.heappush(ready, (-parent_node.timestamp, parent_oid))
+
+        return order_key
+
     def _assign_rows(self) -> None:
         """
         Assign rows using temporal contiguity algorithm.
 
-        Process commits newest-first, greedily packing into rows.
-        Start new row when we hit an ancestor conflict.
+        Process commits in topological order (with time tiebreaker),
+        greedily packing into rows. Start new row when we hit an ancestor conflict.
         """
-        # Sort by timestamp, newest first
-        sorted_nodes = sorted(self.nodes, key=lambda n: -n.timestamp)
+        # Get topological order with time tiebreaker
+        order_keys = self._compute_order_keys()
+        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float("inf")))
 
         current_row = 0
         current_row_nodes: list[CommitNode] = []

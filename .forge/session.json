@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "CLAUDE.md",
+    "forge/ui/git_graph_widget.py",
     "GRAPH_COMMIT_ORDERING.md",
     "forge/main.py",
-    "forge/ui/git_graph_widget.py"
+    "CLAUDE.md"
   ],
   "messages": [
     {
@@ -795,6 +795,104 @@
     {
       "role": "assistant",
       "content": "Try running it now. The logic is now: only steal a parent claim if your lane number is lower (more \"primary\"). So lane 0 can steal from lane 2, but lane 2 can't steal from lane 0."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 65 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yep, that part works now, well done!\n\nWe have a new issue, and I'm sorry but the GRAPH_COMMIT_ORDERING idea is very pretty but we have to rethink it again.\n\nPeople are evil and rebase branches... I'm running on a bigger test repo and I'm seeing a lot of instances where a simple single branch history actually goes *back in time*. Commits even along a single branch aren't necessarily continuous. Luckily I think the algo *works*, but we have to change the *global commit order*.\n\nWe have to assign every commit an \"order key\". The idea is that commits are globally ordered by ancestry, except that ordering among commits on different non-ancestrous branches is undefined- ie. A-B-C, A-D-C, there *is no* ordering between B and D, so the order of those two commits is tie-broken by the commit date. Does that make sense, you think?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, that makes sense! The issue is that commit timestamps can be lies (rebases, amended commits, etc.), so we can't trust them for the primary ordering. But ancestry is always true.\n\nLet me think through this:\n\n1. **Ancestry is the source of truth**: If A is an ancestor of B, then A must come after B (lower in the graph)\n2. **Time is only a tiebreaker**: When two commits have no ancestry relationship (neither is ancestor of the other), use timestamp to decide order\n3. **This is basically a topological sort with time as the tiebreaker**\n\nThe algorithm would be:\n1. Build the full ancestry graph\n2. Compute an \"order key\" for each commit using topological sort\n3. When multiple commits could be next in the topo sort (no remaining dependencies), pick the newest one first\n\nLet me update the code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    def _assign_rows(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign rows using temporal contiguity algorithm.\\n\\n        Process commits newest-first, greedily packing into rows.\\n        Start new row when we hit an ancestor conflict.\\n        \\\"\\\"\\\"\\n        # Sort by timestamp, newest first\\n        sorted_nodes = sorted(self.nodes, key=lambda n: -n.timestamp)\\n\\n        current_row = 0\\n        current_row_nodes: list[CommitNode] = []\\n\\n        for node in sorted_nodes:\\n            # Check if node can join current row (no ancestor relationship)\\n            can_join = True\\n            for existing in current_row_nodes:\\n                if self._is_ancestor(node, existing) or self._is_ancestor(existing, node):\\n                    can_join = False\\n                    break\\n\\n            if can_join and current_row_nodes:\\n                # Add to current row\\n                current_row_nodes.append(node)\\n                node.row = current_row\\n            else:\\n                # Start new row\\n                if current_row_nodes:\\n                    current_row += 1\\n                current_row_nodes = [node]\\n                node.row = current_row\\n\\n        self.num_rows = current_row + 1\", \"replace\": \"    def _compute_order_keys(self) -> dict[str, int]:\\n        \\\"\\\"\\\"\\n        Compute a global order key for each commit.\\n\\n        Uses topological sort (ancestry) as primary order, timestamp as tiebreaker.\\n        Returns dict mapping oid -> order_key (lower = should appear first/top).\\n        \\\"\\\"\\\"\\n        # Build child -> parents map (we have this in nodes)\\n        # Build parent -> children map\\n        children_of: dict[str, list[str]] = {node.oid: [] for node in self.nodes}\\n        for node in self.nodes:\\n            for parent_oid in node.parent_oids:\\n                if parent_oid in children_of:\\n                    children_of[parent_oid].append(node.oid)\\n\\n        # Count how many children each node has (in-degree for reverse topo sort)\\n        in_degree: dict[str, int] = {}\\n        for node in self.nodes:\\n            in_degree[node.oid] = len(children_of[node.oid])\\n\\n        # Start with nodes that have no children (branch tips)\\n        # Use negative timestamp so newest comes first (highest timestamp = lowest sort key)\\n        ready: list[tuple[int, str]] = []\\n        for node in self.nodes:\\n            if in_degree[node.oid] == 0:\\n                ready.append((-node.timestamp, node.oid))\\n        \\n        import heapq\\n        heapq.heapify(ready)\\n\\n        order_key: dict[str, int] = {}\\n        current_order = 0\\n\\n        while ready:\\n            _, oid = heapq.heappop(ready)\\n            \\n            # Skip if already processed (can happen with merge commits)\\n            if oid in order_key:\\n                continue\\n                \\n            order_key[oid] = current_order\\n            current_order += 1\\n\\n            # Decrement in-degree of parents, add to ready if they hit 0\\n            node = self.oid_to_node[oid]\\n            for parent_oid in node.parent_oids:\\n                if parent_oid not in in_degree:\\n                    continue  # Parent not in our commit set\\n                in_degree[parent_oid] -= 1\\n                if in_degree[parent_oid] == 0:\\n                    parent_node = self.oid_to_node[parent_oid]\\n                    heapq.heappush(ready, (-parent_node.timestamp, parent_oid))\\n\\n        return order_key\\n\\n    def _assign_rows(self) -> None:\\n        \\\"\\\"\\\"\\n        Assign rows using temporal contiguity algorithm.\\n\\n        Process commits in topological order (with time tiebreaker),\\n        greedily packing into rows. Start new row when we hit an ancestor conflict.\\n        \\\"\\\"\\\"\\n        # Get topological order with time tiebreaker\\n        order_keys = self._compute_order_keys()\\n        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float('inf')))\\n\\n        current_row = 0\\n        current_row_nodes: list[CommitNode] = []\\n\\n        for node in sorted_nodes:\\n            # Check if node can join current row (no ancestor relationship)\\n            can_join = True\\n            for existing in current_row_nodes:\\n                if self._is_ancestor(node, existing) or self._is_ancestor(existing, node):\\n                    can_join = False\\n                    break\\n\\n            if can_join and current_row_nodes:\\n                # Add to current row\\n                current_row_nodes.append(node)\\n                node.row = current_row\\n            else:\\n                # Start new row\\n                if current_row_nodes:\\n                    current_row += 1\\n                current_row_nodes = [node]\\n                node.row = current_row\\n\\n        self.num_rows = current_row + 1\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01RJDGthKBKb79LNGk8NPHC1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01RJDGthKBKb79LNGk8NPHC1",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me also run the checks and clean up the import:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"\\\"\\\"\\\"\\nGit graph widget - visualizes commit history with temporal ordering.\\n\\nSee GRAPH_COMMIT_ORDERING.md for the algorithm details.\\n\\\"\\\"\\\"\\n\\nfrom dataclasses import dataclass\\n\\nimport pygit2\", \"replace\": \"\\\"\\\"\\\"\\nGit graph widget - visualizes commit history with temporal ordering.\\n\\nSee GRAPH_COMMIT_ORDERING.md for the algorithm details.\\n\\\"\\\"\\\"\\n\\nimport heapq\\nfrom dataclasses import dataclass\\n\\nimport pygit2\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01Mpc8Rbw87jNkTNM65jgQyE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01Mpc8Rbw87jNkTNM65jgQyE",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see there's a duplicate `import heapq` - one at the top and one inside the function. Let me remove the one inside the function:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        # Start with nodes that have no children (branch tips)\\n        # Use negative timestamp so newest comes first (highest timestamp = lowest sort key)\\n        ready: list[tuple[int, str]] = []\\n        for node in self.nodes:\\n            if in_degree[node.oid] == 0:\\n                ready.append((-node.timestamp, node.oid))\\n        \\n        import heapq\\n        heapq.heapify(ready)\", \"replace\": \"        # Start with nodes that have no children (branch tips)\\n        # Use negative timestamp so newest comes first (highest timestamp = lowest sort key)\\n        ready: list[tuple[int, str]] = []\\n        for node in self.nodes:\\n            if in_degree[node.oid] == 0:\\n                ready.append((-node.timestamp, node.oid))\\n\\n        heapq.heapify(ready)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01CNs8M9r4BipnShqxtaFWSf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01CNs8M9r4BipnShqxtaFWSf",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_bdrk_017zZ9Ek1NjLoTwDqmpNpTve",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_017zZ9Ek1NjLoTwDqmpNpTve",
+      "content": "{\"format_diffs\": {\"forge/ui/git_graph_widget.py\": \"--- before+++ after@@ -149,11 +149,11 @@ \\n         while ready:\\n             _, oid = heapq.heappop(ready)\\n-            \\n+\\n             # Skip if already processed (can happen with merge commits)\\n             if oid in order_key:\\n                 continue\\n-                \\n+\\n             order_key[oid] = current_order\\n             current_order += 1\\n \\n@@ -178,7 +178,7 @@         \\\"\\\"\\\"\\n         # Get topological order with time tiebreaker\\n         order_keys = self._compute_order_keys()\\n-        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float('inf')))\\n+        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float(\\\"inf\\\")))\\n \\n         current_row = 0\\n         current_row_nodes: list[CommitNode] = []\\n\"}, \"formatted_files\": [\"forge/ui/git_graph_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/git_graph_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/git_graph_widget.py\": \"--- before+++ after@@ -149,11 +149,11 @@ \\n         while ready:\\n             _, oid = heapq.heappop(ready)\\n-            \\n+\\n             # Skip if already processed (can happen with merge commits)\\n             if oid in order_key:\\n                 continue\\n-                \\n+\\n             order_key[oid] = current_order\\n             current_order += 1\\n \\n@@ -178,7 +178,7 @@         \\\"\\\"\\\"\\n         # Get topological order with time tiebreaker\\n         order_keys = self._compute_order_keys()\\n-        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float('inf')))\\n+        sorted_nodes = sorted(self.nodes, key=lambda n: order_keys.get(n.oid, float(\\\"inf\\\")))\\n \\n         current_row = 0\\n         current_row_nodes: list[CommitNode] = []\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/git_graph_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/git_graph_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 43 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. The key change is:\n\n**New `_compute_order_keys()` method:**\n- Does a topological sort where children must come before parents\n- Uses a min-heap with negative timestamp as the priority, so when multiple commits are \"ready\" (all their children processed), we pick the newest one first\n- Returns an order key for each commit\n\n**Updated `_assign_rows()`:**\n- Now uses the topological order keys instead of raw timestamps\n- The row-packing algorithm stays the same - it just uses the correct order now\n\nThis means:\n1. Ancestry is always respected (child before parent)\n2. When there's no ancestry constraint between two commits, the newer one comes first\n3. Rebased commits that have wonky timestamps will still be ordered correctly by their position in the graph\n\nTry it out and let me know if it handles the rebased history better!"
     }
   ]
 }

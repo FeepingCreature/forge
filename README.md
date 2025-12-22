@@ -1,19 +1,29 @@
 # Forge - AI Agent IDE
 
-**WARNING**: Forge is alpha code at best!
+**WARNING**: Forge is alpha software. Expect rough edges.
 
-Forge is a Qt-based coding assistant backed by git. AI sessions are independent branches. Each turn of AI activity
-is one commit. Checking out a commit includes the conversation that led to it. Agents can work on multiple
-branches simultaneously.
+Forge is a Qt-based IDE where AI agents work through git. Every AI session is a branch. Every AI turn is a commit. Check out any commit to see the conversation that created it.
+
+## Philosophy
+
+**Git is the interface.** The AI doesn't touch your filesystem—it reads and writes git objects directly through a virtual filesystem (VFS). Changes accumulate in memory during an AI turn, then commit atomically. This means:
+
+- **Instant rollback**: Don't like what the AI did? `git reset --hard HEAD~1`
+- **Clean history**: Each logical change is one commit
+- **Parallel work**: Multiple branches open simultaneously, no checkout conflicts
+- **Full audit trail**: The conversation is stored in `.forge/session.json` within each branch
+
+**Tools, not commands.** The AI has no shell access. Instead, it has a set of tools that operate on the VFS. Built-in tools handle file editing. Custom tools (in `./tools/`) can do anything—but require explicit approval before first use.
 
 ## Features
 
-- **Git-native**: AI works through a virtual filesystem that reads/writes git objects directly
-- **Atomic commits**: Each AI turn = one commit. Clean history, easy rollback
-- **Branch tabs**: Work on multiple branches simultaneously without checkout conflicts
-- **Tool-based editing**: No command-line calls, only tools. File editing tools are predefined.
-- **Custom tools**: Add Python scripts to `./tools/` for project-specific automation
-- **Session persistence**: Conversations are stored in `.forge/session.json` within each branch
+- **Branch-first workflow**: Each tab is a branch with its own AI session
+- **Atomic commits**: AI turn = one commit. Always.
+- **Smart context**: AI sees file summaries for the whole repo, full content for active files
+- **Tool system**: Secure, auditable capabilities instead of shell commands
+- **Session persistence**: Conversations survive across restarts
+- **Keyboard-driven**: Ctrl+E quick open, Ctrl+Shift+F global search, Ctrl+S save
+- **Cancel & rewind**: Stop the AI mid-turn, or rewind conversation to any point
 
 ## Installation
 
@@ -27,97 +37,155 @@ brew install libgit2
 # Ubuntu/Debian
 sudo apt-get install libgit2-dev
 
-# Then install Forge
+# Install Forge
 pip install -e .
 ```
 
-Set your [OpenRouter](https://openrouter.ai/) API key via Settings (gear icon) or environment:
+Set your [OpenRouter](https://openrouter.ai/) API key:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
+# Or configure via Settings (gear icon)
 ```
 
 ## Usage
 
 ```bash
-# Run from any git repository
+# Open Forge in any git repository
 cd your-project
 forge
+
+# Open specific files
+forge src/main.py README.md
 ```
 
 ## How It Works
 
-1. **Open a branch** — Each branch tab is an isolated workspace with its own VFS and AI session
-2. **Chat with the AI** — Describe what you want to build or change
-3. **AI uses tools** — `write_file`, `search_replace`, `grep_open`, etc. operate on the VFS
-4. **Changes commit atomically** — When the AI turn ends, all changes become one git commit
-5. **Review and merge** — Use normal git workflow to review diffs, merge branches
+```
+┌─────────────────────────────────────────────────────────────┐
+│  User: "Add a cache decorator to the database module"       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  AI reads file summaries → identifies relevant files        │
+│  AI calls grep_open("database") → loads matching files      │
+│  AI calls search_replace() → edits database.py              │
+│  AI calls write_file() → creates cache.py                   │
+│  AI calls check() → runs format/typecheck/lint              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  All changes committed atomically as one git commit         │
+│  Session state saved to .forge/session.json                 │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### What the AI Sees
-
-- **File summaries**: ~50 token summary of every file (generated at session start)
-- **Active files**: Full content of files explicitly loaded into context
-- **Conversation history**: The full chat for this branch's session
-
-### Built-in Tools
+## Built-in Tools
 
 | Tool | Purpose |
 |------|---------|
 | `write_file` | Create or overwrite a file |
-| `search_replace` | Make targeted edits to existing files |
+| `search_replace` | Make targeted edits (with fuzzy matching for near-misses) |
 | `delete_file` | Remove a file |
 | `rename_file` | Move or rename a file |
-| `update_context` | Add/remove files from AI's active context |
-| `grep_open` | Search files by regex, add matches to context |
+| `update_context` | Add/remove files from active context |
+| `grep_open` | Search by regex, add matches to context |
+| `grep_context` | Peek at matches without loading full files |
 | `get_lines` | View lines around a specific line number |
+| `undo_edit` | Revert a file to its state before this turn |
+| `compact` | Summarize old tool results to save context space |
+| `commit` | Create atomic commits mid-turn |
 | `set_license` | Add a LICENSE file |
 | `check` | Run `make check` (format + typecheck + lint) |
 
-### Custom Tools
+## Custom Tools
 
-Add Python scripts to `./tools/` in your repository:
+Add Python scripts to `./tools/` for project-specific automation:
 
 ```python
-# tools/my_tool.py
+# tools/run_tests.py
 def get_schema() -> dict:
-    """JSON schema for the LLM"""
     return {
-        "name": "my_tool",
-        "description": "Does something useful",
-        "parameters": {...}
+        "type": "function", 
+        "function": {
+            "name": "run_tests",
+            "description": "Run the project's test suite",
+            "parameters": {"type": "object", "properties": {}}
+        }
     }
 
 def execute(vfs, args: dict) -> dict:
-    """Run the tool using the VFS"""
-    content = vfs.read_file(args["path"])
-    # ... do something ...
-    vfs.write_file(args["path"], new_content)
-    return {"success": True}
+    # Materialize VFS to temp directory
+    tmpdir = vfs.materialize_to_tempdir()
+    # Run tests...
+    return {"success": True, "output": "..."}
 ```
 
-As the AI can also add tools, custom tools require one-time approval before use (security measure).
+Custom tools require one-time approval before use (shown in UI with source code). This prevents the AI from creating tools to escape its sandbox.
 
-### Why pygit2?
+## Keyboard Shortcuts
 
-Forge uses pygit2 (libgit2 bindings) to manipulate git objects directly:
-- Create commits without touching the working directory
-- Read files from any branch/commit without checkout
-- Multiple branches open simultaneously
-- Build trees in memory before committing
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+E` | Quick open file |
+| `Ctrl+S` | Save current file |
+| `Ctrl+Shift+S` | Save all files |
+| `Ctrl+Shift+F` | Global search |
+| `Ctrl+Tab` | Next branch tab |
+| `Ctrl+Shift+Tab` | Previous branch tab |
+| `Ctrl+W` | Close file tab |
+| `Ctrl+Shift+W` | Close branch tab |
+| `Ctrl+N` | New branch |
+
+## Security Model
+
+Forge's security comes from **capability restriction**, not permission prompts:
+
+1. **No shell access**: The AI cannot run arbitrary commands
+2. **VFS sandbox**: All file operations go through git, not the filesystem
+3. **Tool approval**: Custom tools require explicit one-time approval
+4. **Immutable history**: Every change is a git commit—trivially reversible
+
+The goal is autonomous AI work within safe boundaries, not constant "are you sure?" prompts.
 
 ## Development
 
 ```bash
-# Install with dev dependencies
+# Install with dev dependencies  
 pip install -e ".[dev]"
 
-# Run checks (format + typecheck + lint)
-make check
-
-# Individual checks
+# Run checks
+make check      # format + typecheck + lint
 make format     # Auto-format with ruff
 make typecheck  # Type check with mypy
 make lint       # Lint with ruff
+```
+
+Forge develops itself. Most features were built by the AI agent running in Forge.
+
+## Architecture
+
+```
+forge/
+├── vfs/           # Virtual filesystem (git-backed)
+│   ├── base.py          # VFS interface
+│   ├── git_commit.py    # Read-only view of a commit
+│   └── work_in_progress.py  # Writable layer for AI turns
+├── git_backend/   # Git operations (pygit2 wrapper)
+├── session/       # Session management and prompt building
+├── tools/         # Tool system
+│   ├── manager.py       # Tool discovery and approval
+│   └── builtin/         # Built-in tools
+├── llm/           # OpenRouter integration
+├── prompts/       # Prompt construction
+└── ui/            # Qt interface
+    ├── main_window.py
+    ├── ai_chat_widget.py
+    ├── branch_tab_widget.py
+    ├── file_explorer_widget.py
+    └── ...
 ```
 
 ## License

@@ -272,6 +272,7 @@ class AIChatWidget(QWidget):
     # Signals for AI turn lifecycle
     ai_turn_started = Signal()  # Emitted when AI turn begins
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
+    mid_turn_commit = Signal(str)  # Emitted when commit tool runs mid-turn (commit_oid)
     context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
     context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
 
@@ -1052,6 +1053,12 @@ class AIChatWidget(QWidget):
             if missing_ids:
                 result["error"] = f"IDs not found: {missing_ids}"
                 result["success"] = False  # Partial failure
+
+        # Handle commit tool - emit signal to refresh UI
+        if tool_name == "commit" and result.get("success"):
+            commit_oid = result.get("commit_oid", "")
+            if commit_oid:
+                self.mid_turn_commit.emit(commit_oid)
 
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":

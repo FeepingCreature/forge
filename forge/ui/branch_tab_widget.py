@@ -125,6 +125,8 @@ class BranchTabWidget(QWidget):
             chat_widget.ai_turn_started.connect(self._on_ai_turn_started)
         if hasattr(chat_widget, "ai_turn_finished"):
             chat_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
+        if hasattr(chat_widget, "mid_turn_commit"):
+            chat_widget.mid_turn_commit.connect(self._on_mid_turn_commit)
 
         return index
 
@@ -158,6 +160,17 @@ class BranchTabWidget(QWidget):
 
         # Forward signal
         self.ai_turn_finished.emit(commit_oid)
+
+    def _on_mid_turn_commit(self, commit_oid: str) -> None:
+        """Handle mid-turn commit from AI - refresh UI without unlocking editors"""
+        # Refresh VFS and file explorer to show new/removed files
+        self.workspace.refresh_vfs()
+        if self._file_explorer:
+            self._file_explorer.refresh()
+
+        # Refresh any open files that may have changed
+        for filepath in list(self._editors.keys()):
+            self.refresh_file(filepath)
 
     def open_file(self, filepath: str) -> int:
         """

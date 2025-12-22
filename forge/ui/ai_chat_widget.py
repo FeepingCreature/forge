@@ -265,6 +265,16 @@ class ChatBridge(QObject):
         """Handle rewind to a specific message index"""
         self.parent_widget._handle_rewind_to_message(message_index)
 
+    @Slot(int)
+    def handleRevertTurn(self, first_message_index: int) -> None:
+        """Handle reverting a turn (and all following turns)"""
+        self.parent_widget._handle_revert_turn(first_message_index)
+
+    @Slot(int)
+    def handleForkFromTurn(self, first_message_index: int) -> None:
+        """Handle forking from before a turn"""
+        self.parent_widget._handle_fork_from_turn(first_message_index)
+
 
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering"""
@@ -273,6 +283,7 @@ class AIChatWidget(QWidget):
     ai_turn_started = Signal()  # Emitted when AI turn begins
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
     mid_turn_commit = Signal(str)  # Emitted when commit tool runs mid-turn (commit_oid)
+    fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)
     context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
     context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
 
@@ -1459,30 +1470,46 @@ class AIChatWidget(QWidget):
                 opacity: 0.5;
                 cursor: not-allowed;
             }
-            /* Rewind button */
-            .message {
-                position: relative;
+            /* Turn wrapper and actions */
+            .turn {
+                margin-bottom: 8px;
+                border-left: 3px solid transparent;
+                padding-left: 0;
+                transition: border-color 0.2s, padding-left 0.2s;
             }
-            .rewind-btn {
-                position: absolute;
-                top: 8px;
-                right: 8px;
-                background: #ff9800;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 12px;
-                cursor: pointer;
+            .turn:hover {
+                border-left-color: #e0e0e0;
+                padding-left: 8px;
+            }
+            .turn-actions {
+                display: flex;
+                gap: 8px;
+                padding: 8px 0 16px 0;
                 opacity: 0;
                 transition: opacity 0.2s;
             }
-            .message:hover .rewind-btn {
-                opacity: 0.7;
+            .turn:hover .turn-actions {
+                opacity: 1;
             }
-            .rewind-btn:hover {
-                opacity: 1 !important;
-                background: #f57c00;
+            .turn-btn {
+                background: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 4px 12px;
+                font-size: 12px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .turn-btn:hover {
+                background: #e0e0e0;
+            }
+            .revert-btn:hover {
+                background: #ffecb3;
+                border-color: #ff9800;
+            }
+            .fork-btn:hover {
+                background: #e3f2fd;
+                border-color: #2196f3;
             }
         """
         )
@@ -1537,9 +1564,15 @@ class AIChatWidget(QWidget):
                 });
             }
 
-            function rewindTo(messageIndex) {
+            function revertTurn(messageIndex) {
                 if (bridge) {
-                    bridge.handleRewindToMessage(messageIndex);
+                    bridge.handleRevertTurn(messageIndex);
+                }
+            }
+
+            function forkFromTurn(messageIndex) {
+                if (bridge) {
+                    bridge.handleForkFromTurn(messageIndex);
                 }
             }
 
@@ -1644,7 +1677,11 @@ class AIChatWidget(QWidget):
         return "".join(html_parts)
 
     def _build_messages_html(self) -> str:
-        """Build HTML for all messages (to inject into the container)"""
+        """Build HTML for all messages, grouped by turn.
+
+        A "turn" is a user message followed by all AI responses until the next user message.
+        Each turn gets Revert/Fork buttons at the bottom.
+        """
         html_parts = []
 
         # Build a lookup of tool_call_id -> parsed result for rendering tool calls with results
@@ -1658,60 +1695,93 @@ class AIChatWidget(QWidget):
                 except json.JSONDecodeError:
                     tool_results[tool_call_id] = {}
 
+        # Group messages into turns (user message starts a new turn)
+        turns: list[list[tuple[int, dict[str, Any]]]] = []
+        current_turn: list[tuple[int, dict[str, Any]]] = []
+
         for i, msg in enumerate(self.messages):
-            # Skip messages marked for no display (e.g., raw tool results)
             if msg.get("_skip_display"):
                 continue
 
-            role = msg["role"]
-            content_md = msg["content"] or ""
+            role = msg.get("role", "")
 
-            # Check if this is the currently streaming message (last assistant message while streaming)
-            is_streaming_msg = (
-                self._is_streaming and i == len(self.messages) - 1 and role == "assistant"
-            )
-            msg_id = 'id="streaming-message"' if is_streaming_msg else ""
+            # User message starts a new turn (except for the very first message)
+            if role == "user" and current_turn:
+                turns.append(current_turn)
+                current_turn = []
 
-            # Check if this message contains approval buttons that should be disabled
-            # Look for tool names in the content
-            for tool_name in self.handled_approvals:
-                if (
-                    f"onclick=\"approveTool('{tool_name}'" in content_md
-                    or f"onclick=\"rejectTool('{tool_name}'" in content_md
-                ):
-                    # This message has buttons for a handled tool - mark them disabled
-                    # Replace button tags to add disabled attribute
-                    content_md = content_md.replace(
-                        f"<button onclick=\"approveTool('{tool_name}', this)\">",
-                        f"<button onclick=\"approveTool('{tool_name}', this)\" disabled>",
-                    )
-                    content_md = content_md.replace(
-                        f"<button onclick=\"rejectTool('{tool_name}', this)\">",
-                        f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
-                    )
+            current_turn.append((i, msg))
 
-            # For assistant messages with tool_calls, render them specially
-            tool_calls_html = ""
-            if role == "assistant" and "tool_calls" in msg:
-                tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
+        # Don't forget the last turn
+        if current_turn:
+            turns.append(current_turn)
 
-            content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
+        # Render each turn
+        for turn_idx, turn_messages in enumerate(turns):
+            # Check if this turn is currently streaming (last turn and we're streaming)
+            is_current_turn = turn_idx == len(turns) - 1
+            turn_is_streaming = is_current_turn and self._is_streaming
 
-            # Add rewind button for non-streaming messages (not for system or first message)
-            rewind_btn = ""
-            if not is_streaming_msg and i > 0 and role != "system":
-                rewind_btn = (
-                    f'<button class="rewind-btn" onclick="rewindTo({i})">⏪ Rewind here</button>'
+            # Start turn wrapper
+            html_parts.append(f'<div class="turn" data-turn="{turn_idx}">')
+
+            for i, msg in turn_messages:
+                role = msg["role"]
+                content_md = msg["content"] or ""
+
+                # Check if this is the currently streaming message
+                is_streaming_msg = (
+                    self._is_streaming and i == len(self.messages) - 1 and role == "assistant"
                 )
+                msg_id = 'id="streaming-message"' if is_streaming_msg else ""
 
-            html_parts.append(f"""
-            <div class="message {role}" {msg_id}>
-                {rewind_btn}
-                <div class="role">{role.capitalize()}</div>
-                <div class="content">{content}</div>
-                {tool_calls_html}
-            </div>
-            """)
+                # Check if this message contains approval buttons that should be disabled
+                for tool_name in self.handled_approvals:
+                    if (
+                        f"onclick=\"approveTool('{tool_name}'" in content_md
+                        or f"onclick=\"rejectTool('{tool_name}'" in content_md
+                    ):
+                        content_md = content_md.replace(
+                            f"<button onclick=\"approveTool('{tool_name}', this)\">",
+                            f"<button onclick=\"approveTool('{tool_name}', this)\" disabled>",
+                        )
+                        content_md = content_md.replace(
+                            f"<button onclick=\"rejectTool('{tool_name}', this)\">",
+                            f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
+                        )
+
+                # For assistant messages with tool_calls, render them specially
+                tool_calls_html = ""
+                if role == "assistant" and "tool_calls" in msg:
+                    tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
+
+                content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
+
+                html_parts.append(f"""
+                <div class="message {role}" {msg_id}>
+                    <div class="role">{role.capitalize()}</div>
+                    <div class="content">{content}</div>
+                    {tool_calls_html}
+                </div>
+                """)
+
+            # Add turn actions (Revert/Fork) - but not for streaming turns or first turn
+            if not turn_is_streaming and turn_idx > 0:
+                # Get the message index of the first message in this turn (for revert)
+                first_msg_idx = turn_messages[0][0]
+                html_parts.append(f"""
+                <div class="turn-actions">
+                    <button class="turn-btn revert-btn" onclick="revertTurn({first_msg_idx})" title="Undo this turn and all following turns">
+                        ⏪ Revert
+                    </button>
+                    <button class="turn-btn fork-btn" onclick="forkFromTurn({first_msg_idx})" title="Create new branch from before this turn">
+                        🔀 Fork
+                    </button>
+                </div>
+                """)
+
+            # Close turn wrapper
+            html_parts.append("</div>")
 
         return "".join(html_parts)
 
@@ -1761,6 +1831,61 @@ class AIChatWidget(QWidget):
     def _handle_rewind_to_message(self, message_index: int) -> None:
         """Alias for _handle_rewind"""
         self._handle_rewind(message_index)
+
+    def _handle_revert_turn(self, first_message_index: int) -> None:
+        """Handle reverting a turn and all following turns.
+
+        This truncates the conversation to just before the specified turn,
+        and rebuilds the prompt manager state.
+        """
+        # Don't allow revert while processing
+        if self.is_processing:
+            self._add_system_message("⚠️ Cannot revert while AI is processing")
+            return
+
+        # Validate index
+        if first_message_index < 1 or first_message_index >= len(self.messages):
+            return
+
+        # Truncate messages to just before this turn (exclude the first message of the turn)
+        self.messages = self.messages[:first_message_index]
+
+        # Rebuild prompt manager state from scratch
+        self.session_manager.prompt_manager.clear_conversation()
+
+        for msg in self.messages:
+            if msg.get("_ui_only"):
+                continue
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                self.session_manager.append_user_message(content)
+            elif role == "assistant":
+                if "tool_calls" in msg:
+                    self.session_manager.append_tool_call(msg["tool_calls"], content)
+                elif content:
+                    self.session_manager.append_assistant_message(content)
+            elif role == "tool":
+                tool_call_id = msg.get("tool_call_id", "")
+                self.session_manager.append_tool_result(tool_call_id, content)
+
+        self._add_system_message("⏪ Reverted to before this turn")
+        self._update_chat_display()
+        self._emit_context_stats()
+
+    def _handle_fork_from_turn(self, first_message_index: int) -> None:
+        """Handle forking from before a turn.
+
+        This emits a signal that MainWindow should handle to create a new branch
+        with conversation state from before this turn.
+        """
+        # Don't allow fork while processing
+        if self.is_processing:
+            self._add_system_message("⚠️ Cannot fork while AI is processing")
+            return
+
+        # Emit signal for MainWindow to handle
+        self.fork_requested.emit(first_message_index)
 
     def _notify_turn_complete(self, commit_oid: str) -> None:
         """Show system notification when AI turn completes"""

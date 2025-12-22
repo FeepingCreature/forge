@@ -1,5 +1,13 @@
 # Forge TODO
 
+## User Tasks
+
+*Tasks the AI has asked the user to verify. Check off when done, or delete if no longer relevant.*
+
+- [ ] Test middle-mouse zoom in Git view - does it still scroll unexpectedly?
+
+---
+
 ## Current State
 
 The branch-first architecture is **largely complete**:

@@ -25,42 +25,36 @@ The branch-first architecture is **complete**:
 
 ---
 
-## High Priority: Code Execution
+## High Priority: Scoped Capability Tools
 
-These are critical for AI to verify its work.
+The tool system is Forge's security model. NO arbitrary command execution.
+Instead, each capability is a reviewed tool that runs autonomously once approved.
+See DESIGN.md "Tool System: Security Through Capability Design".
 
-### Run Commands Tool
-- [ ] `run_command` tool - Execute shell commands in materialized VFS
-- [ ] Sandbox: run in temp dir, timeout, resource limits
-- [ ] Return stdout/stderr/exit code to AI
-- [ ] AI can run tests, build, execute scripts
-
-### Test Integration
-- [ ] `run_tests` tool - Run project tests (pytest, make test, etc.)
-- [ ] Parse test output to show pass/fail summary
+### Test Runner Tool
+- [ ] `run_tests` tool - Run project's test suite (like `check` but for tests)
+- [ ] Discovers test command: `make test`, `pytest`, `npm test`, etc.
+- [ ] Parse output to show pass/fail summary
 - [ ] On failure, show relevant traceback
 - [ ] AI can iterate until tests pass
+- [ ] Built-in, no approval needed (runs in materialized tempdir)
 
-### REPL/Eval Tool
-- [ ] `eval` tool - Evaluate a Python expression/snippet
-- [ ] Useful for AI to test small code fragments
-- [ ] Returns result or exception
+### Build Tool
+- [ ] `build` tool - Run project's build command
+- [ ] Discovers build command from Makefile, package.json, etc.
+- [ ] Returns build output/errors
+- [ ] Built-in, safe (read-only on source, writes to tempdir)
 
 ---
 
 ## Medium Priority: Developer Experience
 
 ### Quick Actions
-- [ ] Ctrl+P: Quick open (fuzzy file search) - we have the widget, need shortcut
+- [x] Ctrl+E: Quick open (fuzzy file search)
 - [ ] Ctrl+Shift+P: Command palette
 - [ ] Ctrl+G: Go to line
 - [ ] Ctrl+F: Find in file
 - [ ] Ctrl+Shift+F: Find in project
-
-### Diff Review Before Accept
-- [ ] After AI turn, show diff of all changes before committing
-- [ ] User can accept, reject, or edit individual changes
-- [ ] "Accept all" for quick workflow
 
 ### Session Forking UX
 - [ ] "Fork conversation here" button in chat history
@@ -69,9 +63,9 @@ These are critical for AI to verify its work.
 
 ### Project Configuration
 - [ ] `.forge/config.toml` for project-specific settings
-- [ ] Define build/test/run commands
-- [ ] Custom tool paths
 - [ ] Model preferences per-project
+- [ ] Custom test/build commands (read-only to AI - cannot modify autonomously)
+- [ ] Note: Config affects AI capabilities, so AI must not be able to write it
 
 ---
 

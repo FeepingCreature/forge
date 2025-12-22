@@ -106,7 +106,61 @@ ALL file operations go through VFS. No direct filesystem I/O for repository cont
 
 ---
 
-## Tool System
+## Tool System: Security Through Capability Design
+
+### Philosophy: Safe Autonomy, Not Permission Prompts
+
+The tool system is Forge's **primary security model**. The goal is NOT to ask the user for permission on every action - that trains users to click "accept" mindlessly. Instead:
+
+1. **Tools are reviewed once** when created or modified
+2. **Approved tools run autonomously** without further prompts
+3. **Tools are narrowly scoped** - each does one thing safely
+4. **No shell access** - tools operate on VFS, not filesystem
+
+This creates a "happy path" where the AI can work autonomously within safe boundaries.
+
+### Why No `run_command` Tool?
+
+Arbitrary shell execution is intentionally excluded:
+- `rm -rf /` is one prompt away
+- Code execution is command execution by proxy
+- After 20 prompts, users are trained to click "accept"
+- There's no safe way to sandbox arbitrary commands
+
+Instead, specific capabilities are added as individual tools:
+- `check` runs format/lint/typecheck (safe, read-only-ish)
+- `run_tests` (future) runs the project's test suite
+- Each tool is reviewed, understood, then trusted
+
+### The VFS Sandbox
+
+All built-in tools operate on VFS, not the filesystem:
+- **Writes go to git**, not disk
+- **Reversible** - any commit can be undone trivially
+- **Isolated** - changes don't affect working directory until explicitly synced
+- **Auditable** - every change is a commit with full history
+
+The only time we touch the real filesystem is `materialize_to_tempdir()` for running approved tools that need it (like `check`).
+
+### Tool Approval Flow
+
+```
+New/modified tool detected
+    ↓
+Show tool source code to user
+    ↓
+User reviews and approves (or rejects)
+    ↓
+Tool hash recorded in .forge/approved_tools.json
+    ↓
+Tool runs autonomously until modified
+```
+
+If a tool file changes, approval is required again. This prevents the AI from modifying its own tools to escape the sandbox.
+
+**Critical invariant:** The AI cannot autonomously modify files that control its own capabilities (tool definitions, config files that affect execution).
+
+### Implementation
 
 Tools are Python modules in `forge/tools/builtin/` (built-in) or `./tools/` (user-created):
 

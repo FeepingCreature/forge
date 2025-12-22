@@ -376,6 +376,39 @@
     {
       "role": "assistant",
       "content": "All passing. Clear the cache and regenerate to see the new summaries with the `<summary>` tag extraction. Should be cleaner since the model can \"think\" before the tags, then we just grab what's inside."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 002815ac",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hang on, we're still in the old session- \"no preambles\" makes the model fight itself. Can you either drop that or explicitly allow it to consider the matter, implicitly, outside the summary tags?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch - the \"no preambles\" is now redundant since we're extracting from tags anyway. Let me clean that up:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just \\\"\u2014\\\" (the filename is enough context).\\n\\nRules:\\n- Don't describe well-known files (licenses, lockfiles, standard configs).\\n- Keep each bullet under 80 chars.\\n- No preambles, no explanations.\\n\\nReturn your answer inside <summary></summary> tags.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just \\\"\u2014\\\" (the filename is enough context).\\n\\nRules:\\n- Don't describe well-known files (licenses, lockfiles, standard configs).\\n- Keep each bullet under 80 chars.\\n\\nReturn your answer inside <summary></summary> tags.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01HHyMAqm6Mu4ZrtAGNaNo7J",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HHyMAqm6Mu4ZrtAGNaNo7J",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! Ready for you to clear the cache and regenerate. The prompt now:\n\n1. Lets the model think/reason outside the tags\n2. Extracts only what's inside `<summary></summary>`\n3. Doesn't fight the model's urge to be polite - it can preamble all it wants, we just ignore it"
     }
   ]
 }

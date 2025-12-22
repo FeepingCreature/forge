@@ -477,7 +477,6 @@ For config/docs/data: Just "—" (the filename is enough context).
 Rules:
 - Don't describe well-known files (licenses, lockfiles, standard configs).
 - Keep each bullet under 80 chars.
-- No preambles, no explanations.
 
 Return your answer inside <summary></summary> tags."""
 

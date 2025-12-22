@@ -757,6 +757,7 @@ class GitGraphView(QGraphicsView):
         self._middle_dragging = False
         self._middle_drag_start_y = 0
         self._middle_drag_start_zoom = 1.0
+        self._middle_drag_scene_center: QPointF | None = None
 
         # Branch list overlay (top-left corner)
         self._branch_list = BranchListWidget(repo, self)
@@ -781,15 +782,20 @@ class GitGraphView(QGraphicsView):
 
         if event_type == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
             if event.button() == Qt.MouseButton.MiddleButton:
-                print(f"[GitGraphView] Middle mouse press (filter) at y={event.pos().y()}")
+                # Capture the scene center at drag start
+                viewport_center = self.viewport().rect().center()
+                self._middle_drag_scene_center = self.mapToScene(viewport_center)
                 self._middle_dragging = True
                 self._middle_drag_start_y = event.pos().y()
                 self._middle_drag_start_zoom = self._zoom
                 self.setCursor(Qt.CursorShape.SizeVerCursor)
+                print(
+                    f"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}"
+                )
                 return True  # Consume event
 
         elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-            if self._middle_dragging:
+            if self._middle_dragging and self._middle_drag_scene_center is not None:
                 # Calculate zoom based on vertical movement
                 delta_y = self._middle_drag_start_y - event.pos().y()
                 zoom_delta = delta_y / 100.0
@@ -797,17 +803,23 @@ class GitGraphView(QGraphicsView):
                 new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
 
                 if new_zoom != self._zoom:
-                    center = self.mapToScene(self.viewport().rect().center())
+                    # Calculate relative scale factor from current zoom
                     factor = new_zoom / self._zoom
                     self._zoom = new_zoom
-                    print(f"[GitGraphView] Zooming to {self._zoom:.2f}")
 
-                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
+                    h_before = self.horizontalScrollBar().value()
+                    v_before = self.verticalScrollBar().value()
+
+                    # Use AnchorViewCenter - this scales around the viewport center
+                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
                     self.scale(factor, factor)
-                    new_center = self.mapToScene(self.viewport().rect().center())
-                    delta = center - new_center
-                    self.translate(delta.x(), delta.y())
-                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+
+                    h_after = self.horizontalScrollBar().value()
+                    v_after = self.verticalScrollBar().value()
+
+                    print(
+                        f"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}"
+                    )
 
                 return True  # Consume event
 
@@ -817,8 +829,9 @@ class GitGraphView(QGraphicsView):
             and event.button() == Qt.MouseButton.MiddleButton
             and self._middle_dragging
         ):
-            print("[GitGraphView] Middle mouse release (filter)")
+            print("[GitGraphView] Middle mouse release")
             self._middle_dragging = False
+            self._middle_drag_scene_center = None
             self.setCursor(Qt.CursorShape.ArrowCursor)
             return True  # Consume event
 

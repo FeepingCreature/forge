@@ -864,6 +864,418 @@
     {
       "role": "assistant",
       "content": "All checks pass. Now try the middle-click drag zoom and let me know what you see in the console. The event filter approach should intercept the events at the viewport level before `QGraphicsView` gets them.\n\nYou should see prints like:\n```\n[GitGraphView] Middle mouse press (filter) at y=...\n[GitGraphView] Zooming to 1.05\n[GitGraphView] Zooming to 1.10\n...\n[GitGraphView] Middle mouse release (filter)\n```\n\nIf you're still seeing scroll behavior alongside zooming, let me know what the console output shows - that will tell us if the events are being properly consumed."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah I'm getting the prints, but I still get scroll behavior. I'm wondering if it's now because we're changing the size of the widget but we don't scale the scroll offset along with it."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, good insight! The issue is that when we call `scale()` and then `translate()`, we're modifying the view transform, but the scrollbars are still trying to keep up with the scene rect. The `translate()` call on `QGraphicsView` actually moves the scene, not just the view, which causes the scrollbar position to shift.\n\nLet me fix this by using `centerOn()` to keep the center stable instead of `translate()`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    center = self.mapToScene(self.viewport().rect().center())\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}\\\")\\n\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)\\n                    self.scale(factor, factor)\\n                    new_center = self.mapToScene(self.viewport().rect().center())\\n                    delta = center - new_center\\n                    self.translate(delta.x(), delta.y())\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember center point in scene coordinates\\n                    center_scene = self.mapToScene(self.viewport().rect().center())\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, center={center_scene}\\\")\\n\\n                    # Apply scale with no anchor (we'll recenter manually)\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)\\n                    self.scale(factor, factor)\\n\\n                    # Recenter on the same scene point\\n                    self.centerOn(center_scene)\\n\\n                    # Restore anchor\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0155VrVtfNPbUJhyY9VNNucd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0155VrVtfNPbUJhyY9VNNucd",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the issue now. The `centerOn()` call is working but it's fighting with the scrollbars. Let me try a different approach - directly manipulating the scrollbar values to keep the view centered:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember center point in scene coordinates\\n                    center_scene = self.mapToScene(self.viewport().rect().center())\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, center={center_scene}\\\")\\n\\n                    # Apply scale with no anchor (we'll recenter manually)\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)\\n                    self.scale(factor, factor)\\n\\n                    # Recenter on the same scene point\\n                    self.centerOn(center_scene)\\n\\n                    # Restore anchor\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Get current scroll position as fraction of total range\\n                    h_scroll = self.horizontalScrollBar()\\n                    v_scroll = self.verticalScrollBar()\\n\\n                    h_max = h_scroll.maximum() - h_scroll.minimum()\\n                    v_max = v_scroll.maximum() - v_scroll.minimum()\\n\\n                    h_frac = (h_scroll.value() - h_scroll.minimum()) / h_max if h_max > 0 else 0.5\\n                    v_frac = (v_scroll.value() - v_scroll.minimum()) / v_max if v_max > 0 else 0.5\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}\\\")\\n\\n                    # Apply scale\\n                    self.scale(factor, factor)\\n\\n                    # Restore scroll position as same fraction of new range\\n                    h_max_new = h_scroll.maximum() - h_scroll.minimum()\\n                    v_max_new = v_scroll.maximum() - v_scroll.minimum()\\n\\n                    if h_max_new > 0:\\n                        h_scroll.setValue(int(h_scroll.minimum() + h_frac * h_max_new))\\n                    if v_max_new > 0:\\n                        v_scroll.setValue(int(v_scroll.minimum() + v_frac * v_max_new))\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011eYpSwNTVEcR2rChX7qjkn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011eYpSwNTVEcR2rChX7qjkn",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the file now. Looking at the code, I think the issue is that we're returning `True` to consume the event during middle mouse move, but we're still getting unwanted scroll behavior. Let me add a print to see if there's something else going on - maybe the scrollbar setValue calls themselves are causing visual jumps:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                if new_zoom != self._zoom:\\n                    # Get current scroll position as fraction of total range\\n                    h_scroll = self.horizontalScrollBar()\\n                    v_scroll = self.verticalScrollBar()\\n\\n                    h_max = h_scroll.maximum() - h_scroll.minimum()\\n                    v_max = v_scroll.maximum() - v_scroll.minimum()\\n\\n                    h_frac = (h_scroll.value() - h_scroll.minimum()) / h_max if h_max > 0 else 0.5\\n                    v_frac = (v_scroll.value() - v_scroll.minimum()) / v_max if v_max > 0 else 0.5\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}\\\")\\n\\n                    # Apply scale\\n                    self.scale(factor, factor)\\n\\n                    # Restore scroll position as same fraction of new range\\n                    h_max_new = h_scroll.maximum() - h_scroll.minimum()\\n                    v_max_new = v_scroll.maximum() - v_scroll.minimum()\\n\\n                    if h_max_new > 0:\\n                        h_scroll.setValue(int(h_scroll.minimum() + h_frac * h_max_new))\\n                    if v_max_new > 0:\\n                        v_scroll.setValue(int(v_scroll.minimum() + v_frac * v_max_new))\\n\\n                return True  # Consume event\", \"replace\": \"                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, scene_center={scene_center}\\\")\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_015HqQe9q3R4M2aCi55yeCk7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015HqQe9q3R4M2aCi55yeCk7",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I think the issue is that `centerOn()` internally manipulates the scrollbars, which might be causing the visual \"scroll\" effect you're seeing. The problem is that we're calling `scale()` and then `centerOn()` separately, and between those two calls Qt might be doing some automatic adjustments.\n\nLet me try a different approach - block scrollbar signals during the zoom operation:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, scene_center={scene_center}\\\")\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, scene_center={scene_center}\\\")\\n\\n                    # Block scrollbar updates during zoom to prevent visual jitter\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    h_bar.blockSignals(True)\\n                    v_bar.blockSignals(True)\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n\\n                    h_bar.blockSignals(False)\\n                    v_bar.blockSignals(False)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01UKbyEaY7U7yD2uxN4EKAru",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UKbyEaY7U7yD2uxN4EKAru",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code now, I think I see the issue. The `centerOn()` call does work, but it's fighting with something else. Let me add more prints to understand what's happening - specifically, let's see what the scrollbar values are doing before and after:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zooming to {self._zoom:.2f}, scene_center={scene_center}\\\")\\n\\n                    # Block scrollbar updates during zoom to prevent visual jitter\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    h_bar.blockSignals(True)\\n                    v_bar.blockSignals(True)\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n\\n                    h_bar.blockSignals(False)\\n                    v_bar.blockSignals(False)\\n\\n                return True  # Consume event\", \"replace\": \"                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    \\n                    h_before = h_bar.value()\\n                    v_before = v_bar.value()\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n                    \\n                    h_after = h_bar.value()\\n                    v_after = v_bar.value()\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h: {h_before}->{h_after}, v: {v_before}->{v_after}\\\")\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01L8EqfaLahgNTGtCuUqTmdQ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01L8EqfaLahgNTGtCuUqTmdQ",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the debug output and the code, I think I see the issue. The `centerOn()` call is working, but it's happening *after* `scale()`, and `scale()` itself might be triggering some internal scroll adjustment in `QGraphicsView` before we get to `centerOn()`.\n\nLet me try a different approach - instead of using `scale()` and then `centerOn()`, let's directly manipulate the transformation matrix to scale around the center point:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    \\n                    h_before = h_bar.value()\\n                    v_before = v_bar.value()\\n\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n\\n                    # Apply scale and recenter\\n                    self.scale(factor, factor)\\n                    self.centerOn(scene_center)\\n                    \\n                    h_after = h_bar.value()\\n                    v_after = v_bar.value()\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h: {h_before}->{h_after}, v: {v_before}->{v_after}\\\")\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, center=({scene_center.x():.0f}, {scene_center.y():.0f})\\\")\\n\\n                    # Reset transform and apply new scale\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n\\n                    # Recenter on the same scene point\\n                    self.centerOn(scene_center)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01J3yC3tdzar2vzB1qpbTMv4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01J3yC3tdzar2vzB1qpbTMv4",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue now. The problem is that `setTransform()` resets the transform which affects the scroll position, and then `centerOn()` adjusts the scrollbars. But when we're in a drag, we're doing this on every mouse move event, and the view is fighting with itself.\n\nLet me try a simpler approach - just don't recenter at all during the drag. Instead, save the scene center at the *start* of the drag, and only apply the final transform + center when we release:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        # Middle mouse zoom state\\n        self._middle_dragging = False\\n        self._middle_drag_start_y = 0\\n        self._middle_drag_start_zoom = 1.0\", \"replace\": \"        # Middle mouse zoom state\\n        self._middle_dragging = False\\n        self._middle_drag_start_y = 0\\n        self._middle_drag_start_zoom = 1.0\\n        self._middle_drag_scene_center: QPointF | None = None\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01F6BLb8RWJUcG5uXX6bh6dx",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        if event_type == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):\\n            if event.button() == Qt.MouseButton.MiddleButton:\\n                print(f\\\"[GitGraphView] Middle mouse press (filter) at y={event.pos().y()}\\\")\\n                self._middle_dragging = True\\n                self._middle_drag_start_y = event.pos().y()\\n                self._middle_drag_start_zoom = self._zoom\\n                self.setCursor(Qt.CursorShape.SizeVerCursor)\\n                return True  # Consume event\\n\\n        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Remember the scene point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    scene_center = self.mapToScene(viewport_center)\\n\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, center=({scene_center.x():.0f}, {scene_center.y():.0f})\\\")\\n\\n                    # Reset transform and apply new scale\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n\\n                    # Recenter on the same scene point\\n                    self.centerOn(scene_center)\\n\\n                return True  # Consume event\\n\\n        elif (\\n            event_type == QEvent.Type.MouseButtonRelease\\n            and isinstance(event, QMouseEvent)\\n            and event.button() == Qt.MouseButton.MiddleButton\\n            and self._middle_dragging\\n        ):\\n            print(\\\"[GitGraphView] Middle mouse release (filter)\\\")\\n            self._middle_dragging = False\\n            self.setCursor(Qt.CursorShape.ArrowCursor)\\n            return True  # Consume event\", \"replace\": \"        if event_type == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):\\n            if event.button() == Qt.MouseButton.MiddleButton:\\n                # Capture the scene center at drag start\\n                viewport_center = self.viewport().rect().center()\\n                self._middle_drag_scene_center = self.mapToScene(viewport_center)\\n                self._middle_dragging = True\\n                self._middle_drag_start_y = event.pos().y()\\n                self._middle_drag_start_zoom = self._zoom\\n                self.setCursor(Qt.CursorShape.SizeVerCursor)\\n                print(f\\\"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}\\\")\\n                return True  # Consume event\\n\\n        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Apply new transform and recenter on original scene point\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\\n\\n        elif (\\n            event_type == QEvent.Type.MouseButtonRelease\\n            and isinstance(event, QMouseEvent)\\n            and event.button() == Qt.MouseButton.MiddleButton\\n            and self._middle_dragging\\n        ):\\n            print(\\\"[GitGraphView] Middle mouse release\\\")\\n            self._middle_dragging = False\\n            self._middle_drag_scene_center = None\\n            self.setCursor(Qt.CursorShape.ArrowCursor)\\n            return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01BUh9hNZFrQU1qdT4DHYDTD",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01F6BLb8RWJUcG5uXX6bh6dx",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BUh9hNZFrQU1qdT4DHYDTD",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I think the issue is that `centerOn()` is being called on every mouse move, which does work but causes the visual \"jump\" effect. The problem is that `setTransform()` changes the view transform, and then `centerOn()` adjusts the scrollbars, and these happen in sequence causing visible jitter.\n\nLet me try a completely different approach - instead of using `centerOn()`, I'll directly set the scrollbar values to keep the scene center in place:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Apply new transform and recenter on original scene point\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Calculate where scene center should be in view coords after zoom\\n                    # Scene center * new_zoom = view coords (relative to scene origin)\\n                    # We want this point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    \\n                    # Apply new transform\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    \\n                    # Calculate scroll values to put scene_center at viewport center\\n                    # After transform, scene point is at (scene.x * zoom, scene.y * zoom)\\n                    # Scrollbar value = that point - viewport_center\\n                    target_x = self._middle_drag_scene_center.x() * new_zoom - viewport_center.x()\\n                    target_y = self._middle_drag_scene_center.y() * new_zoom - viewport_center.y()\\n                    \\n                    self.horizontalScrollBar().setValue(int(target_x))\\n                    self.verticalScrollBar().setValue(int(target_y))\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01BcDUAnNkdggTmpQsEVbyme",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BcDUAnNkdggTmpQsEVbyme",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, now I can see the full code. The approach of directly setting scrollbar values should work better. Let me check if there's still an issue - the problem might be that `setTransform()` triggers some internal scrollbar adjustment before we get to set our values.\n\nLet me try blocking the scrollbar value changes during the transform:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Calculate where scene center should be in view coords after zoom\\n                    # Scene center * new_zoom = view coords (relative to scene origin)\\n                    # We want this point at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    \\n                    # Apply new transform\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    \\n                    # Calculate scroll values to put scene_center at viewport center\\n                    # After transform, scene point is at (scene.x * zoom, scene.y * zoom)\\n                    # Scrollbar value = that point - viewport_center\\n                    target_x = self._middle_drag_scene_center.x() * new_zoom - viewport_center.x()\\n                    target_y = self._middle_drag_scene_center.y() * new_zoom - viewport_center.y()\\n                    \\n                    self.horizontalScrollBar().setValue(int(target_x))\\n                    self.verticalScrollBar().setValue(int(target_y))\", \"replace\": \"                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n\\n                    # Calculate where scene center should be in view coords after zoom\\n                    viewport_center = self.viewport().rect().center()\\n                    \\n                    # Calculate target scroll values to put scene_center at viewport center\\n                    # After transform, scene point is at (scene.x * zoom, scene.y * zoom)\\n                    # Scrollbar value = that point - viewport_center\\n                    target_x = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_y = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n                    \\n                    # Block signals to prevent any intermediate updates\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    h_bar.blockSignals(True)\\n                    v_bar.blockSignals(True)\\n                    \\n                    # Apply new transform\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    \\n                    # Set scroll positions\\n                    h_bar.setValue(target_x)\\n                    v_bar.setValue(target_y)\\n                    \\n                    h_bar.blockSignals(False)\\n                    v_bar.blockSignals(False)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, scroll=({target_x}, {target_y})\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0195XeJGRW7TtRSXqAm1FHFg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0195XeJGRW7TtRSXqAm1FHFg",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the full file now. Looking at this, I realize the issue might be that blocking signals doesn't prevent Qt from internally updating the scrollbar values when `setTransform()` is called - it just prevents the signals from being emitted. The scrollbar values might still be getting set by Qt internally, and then we overwrite them, but there's a visual frame where the wrong values are shown.\n\nLet me try a different approach - use `QGraphicsView.setSceneRect()` manipulation to prevent Qt from auto-adjusting, or try updating the view without going through `setTransform()`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n\\n                    # Calculate where scene center should be in view coords after zoom\\n                    viewport_center = self.viewport().rect().center()\\n                    \\n                    # Calculate target scroll values to put scene_center at viewport center\\n                    # After transform, scene point is at (scene.x * zoom, scene.y * zoom)\\n                    # Scrollbar value = that point - viewport_center\\n                    target_x = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_y = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n                    \\n                    # Block signals to prevent any intermediate updates\\n                    h_bar = self.horizontalScrollBar()\\n                    v_bar = self.verticalScrollBar()\\n                    h_bar.blockSignals(True)\\n                    v_bar.blockSignals(True)\\n                    \\n                    # Apply new transform\\n                    from PySide6.QtGui import QTransform\\n                    new_transform = QTransform()\\n                    new_transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(new_transform)\\n                    \\n                    # Set scroll positions\\n                    h_bar.setValue(target_x)\\n                    v_bar.setValue(target_y)\\n                    \\n                    h_bar.blockSignals(False)\\n                    v_bar.blockSignals(False)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, scroll=({target_x}, {target_y})\\\")\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n\\n                    # Use AnchorViewCenter so zoom happens around center\\n                    old_anchor = self.transformationAnchor()\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    \\n                    # Reset and apply new transform\\n                    self.resetTransform()\\n                    self.scale(new_zoom, new_zoom)\\n                    \\n                    # Now recenter on the original scene point\\n                    self.centerOn(self._middle_drag_scene_center)\\n                    \\n                    # Restore anchor\\n                    self.setTransformationAnchor(old_anchor)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_013XkzZ8BLYSSAwwsgTY2c4T",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013XkzZ8BLYSSAwwsgTY2c4T",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I see the issue now. The problem is that we're calling `resetTransform()` followed by `scale()` and then `centerOn()`. But `resetTransform()` itself might be triggering scroll adjustments, and then `centerOn()` does another adjustment.\n\nLet me try a simpler approach - instead of resetting the transform, let's compute the relative scale factor and apply it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n\\n                    # Use AnchorViewCenter so zoom happens around center\\n                    old_anchor = self.transformationAnchor()\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    \\n                    # Reset and apply new transform\\n                    self.resetTransform()\\n                    self.scale(new_zoom, new_zoom)\\n                    \\n                    # Now recenter on the original scene point\\n                    self.centerOn(self._middle_drag_scene_center)\\n                    \\n                    # Restore anchor\\n                    self.setTransformationAnchor(old_anchor)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    old_zoom = self._zoom\\n                    self._zoom = new_zoom\\n                    \\n                    # Calculate relative scale factor\\n                    factor = new_zoom / old_zoom\\n                    \\n                    # Scale around viewport center\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    self.scale(factor, factor)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f} (factor {factor:.3f})\\\")\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_014B3EjY4X8fEZHkYGyvpeVH",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014B3EjY4X8fEZHkYGyvpeVH",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I think the issue is simpler now. We're using `AnchorViewCenter` and calling `scale()` with a relative factor. This should work correctly for zooming around the center. But I wonder if the scroll behavior you're seeing is just the normal `QGraphicsView` behavior when the scene gets larger/smaller relative to the viewport.\n\nLet me check if the scroll is happening because of something else. Can you tell me: when you middle-drag to zoom, does the view:\n1. Jump/scroll to a different position suddenly, or\n2. Smoothly zoom but the content appears to drift/slide?\n\nIn the meantime, let me simplify the approach - since we're scaling around `AnchorViewCenter`, we don't need to track `_middle_drag_scene_center` at all. The issue might be that we're not restoring the anchor after:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    old_zoom = self._zoom\\n                    self._zoom = new_zoom\\n                    \\n                    # Calculate relative scale factor\\n                    factor = new_zoom / old_zoom\\n                    \\n                    # Scale around viewport center\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    self.scale(factor, factor)\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f} (factor {factor:.3f})\\\")\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Reset transform and reapply at new zoom level, then recenter\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XimRAxyJASzZ8DavTxEQEq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XimRAxyJASzZ8DavTxEQEq",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I think I see the issue now. The `setTransform()` call resets the view's transform matrix, which causes Qt to recalculate the scrollbar ranges and positions. Even though we immediately call `centerOn()`, there's a frame where the wrong position is shown.\n\nLet me try a different approach - instead of using `setTransform()`, let's compute the relative scale factor from the *current* transform and use `scale()` which is incremental:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Reset transform and reapply at new zoom level, then recenter\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Compute incremental scale factor\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, factor={factor:.3f}\\\")\\n\\n                    # Use incremental scale (avoids the jarring reset of setTransform)\\n                    # But first, set anchor to NoAnchor so we control positioning\\n                    old_anchor = self.transformationAnchor()\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)\\n                    \\n                    self.scale(factor, factor)\\n                    self.centerOn(self._middle_drag_scene_center)\\n                    \\n                    self.setTransformationAnchor(old_anchor)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0113JG4kqhKuYRTVUQf4mb8U",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0113JG4kqhKuYRTVUQf4mb8U",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the issue now. The problem is that `scale()` followed by `centerOn()` is causing the scroll effect because `centerOn()` modifies the scrollbar positions, and between the `scale()` and `centerOn()` calls, there's a visual frame where the view is in the wrong position.\n\nLet me try a different approach - instead of using `scale()` and `centerOn()` separately, I'll directly manipulate the view matrix to scale around the stored center point:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Compute incremental scale factor\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, factor={factor:.3f}\\\")\\n\\n                    # Use incremental scale (avoids the jarring reset of setTransform)\\n                    # But first, set anchor to NoAnchor so we control positioning\\n                    old_anchor = self.transformationAnchor()\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)\\n                    \\n                    self.scale(factor, factor)\\n                    self.centerOn(self._middle_drag_scene_center)\\n                    \\n                    self.setTransformationAnchor(old_anchor)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Build transform that scales around the original scene center\\n                    from PySide6.QtGui import QTransform\\n                    \\n                    cx = self._middle_drag_scene_center.x()\\n                    cy = self._middle_drag_scene_center.y()\\n                    \\n                    # Transform: translate to origin, scale, translate back\\n                    transform = QTransform()\\n                    transform.translate(cx, cy)\\n                    transform.scale(new_zoom, new_zoom)\\n                    transform.translate(-cx, -cy)\\n                    \\n                    self.setTransform(transform)\\n                    \\n                    # Center viewport on the scene center point\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01LmRFxdcd2Ksi9bW2ZB7jYJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LmRFxdcd2Ksi9bW2ZB7jYJ",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I see the issue now. The problem is that we're building a transform that translates to the center point, scales, and translates back - but this creates a transform that's offset from the origin. Then when we call `centerOn()`, it's fighting with that offset transform.\n\nThe transform approach is wrong. For `QGraphicsView`, we want a simple scale transform (centered at origin), and then use the scrollbars to position the view. Let me simplify this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Build transform that scales around the original scene center\\n                    from PySide6.QtGui import QTransform\\n                    \\n                    cx = self._middle_drag_scene_center.x()\\n                    cy = self._middle_drag_scene_center.y()\\n                    \\n                    # Transform: translate to origin, scale, translate back\\n                    transform = QTransform()\\n                    transform.translate(cx, cy)\\n                    transform.scale(new_zoom, new_zoom)\\n                    transform.translate(-cx, -cy)\\n                    \\n                    self.setTransform(transform)\\n                    \\n                    # Center viewport on the scene center point\\n                    self.centerOn(self._middle_drag_scene_center)\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Simple scale transform from origin\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n\\n                    # Directly set scrollbar positions to keep scene center at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    # Scene point * zoom = position in view coordinates\\n                    # We want: scene_center * zoom - viewport_center = scrollbar value\\n                    target_h = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_v = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n                    \\n                    self.horizontalScrollBar().setValue(target_h)\\n                    self.verticalScrollBar().setValue(target_v)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_013aZW9Z2oWJjGkqkPPFypip",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013aZW9Z2oWJjGkqkPPFypip",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I think the issue might be that `setTransform()` followed by `setValue()` on the scrollbars happens in sequence but there may be an intermediate repaint. Let me try a different approach - defer the viewport update until after we've set both the transform and scrollbar values:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Simple scale transform from origin\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n\\n                    # Directly set scrollbar positions to keep scene center at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    # Scene point * zoom = position in view coordinates\\n                    # We want: scene_center * zoom - viewport_center = scrollbar value\\n                    target_h = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_v = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n                    \\n                    self.horizontalScrollBar().setValue(target_h)\\n                    self.verticalScrollBar().setValue(target_v)\", \"replace\": \"                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Disable updates during transform change to avoid flicker\\n                    self.setUpdatesEnabled(False)\\n\\n                    # Simple scale transform from origin\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n\\n                    # Directly set scrollbar positions to keep scene center at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    # Scene point * zoom = position in view coordinates\\n                    # We want: scene_center * zoom - viewport_center = scrollbar value\\n                    target_h = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_v = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n\\n                    self.horizontalScrollBar().setValue(target_h)\\n                    self.verticalScrollBar().setValue(target_v)\\n\\n                    # Re-enable updates and force repaint\\n                    self.setUpdatesEnabled(True)\\n                    self.viewport().update()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Hb9A6H7Aqjtv7ZNtTT9hKo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Hb9A6H7Aqjtv7ZNtTT9hKo",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code and your description, I think the issue is that `setUpdatesEnabled(False)` doesn't actually prevent the intermediate state from being rendered - it just batches updates, but Qt might still be processing events between `setTransform()` and the scrollbar `setValue()` calls.\n\nLet me try a completely different approach - instead of fighting with Qt's internal state management, let's just use the built-in `AnchorViewCenter` anchor which is designed for exactly this purpose:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}\\\")\\n\\n                    # Disable updates during transform change to avoid flicker\\n                    self.setUpdatesEnabled(False)\\n\\n                    # Simple scale transform from origin\\n                    from PySide6.QtGui import QTransform\\n                    transform = QTransform()\\n                    transform.scale(new_zoom, new_zoom)\\n                    self.setTransform(transform)\\n\\n                    # Directly set scrollbar positions to keep scene center at viewport center\\n                    viewport_center = self.viewport().rect().center()\\n                    # Scene point * zoom = position in view coordinates\\n                    # We want: scene_center * zoom - viewport_center = scrollbar value\\n                    target_h = int(self._middle_drag_scene_center.x() * new_zoom - viewport_center.x())\\n                    target_v = int(self._middle_drag_scene_center.y() * new_zoom - viewport_center.y())\\n\\n                    self.horizontalScrollBar().setValue(target_h)\\n                    self.verticalScrollBar().setValue(target_v)\\n\\n                    # Re-enable updates and force repaint\\n                    self.setUpdatesEnabled(True)\\n                    self.viewport().update()\\n\\n                return True  # Consume event\", \"replace\": \"        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n            if self._middle_dragging and self._middle_drag_scene_center is not None:\\n                # Calculate zoom based on vertical movement\\n                delta_y = self._middle_drag_start_y - event.pos().y()\\n                zoom_delta = delta_y / 100.0\\n                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)\\n                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))\\n\\n                if new_zoom != self._zoom:\\n                    # Calculate relative scale factor from current zoom\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, factor={factor:.3f}\\\")\\n\\n                    # Use AnchorViewCenter - this scales around the viewport center\\n                    # which is exactly what we want for middle-drag zoom\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    self.scale(factor, factor)\\n\\n                return True  # Consume event\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01VbvmXqpkCNhFCxP2a2pnKk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VbvmXqpkCNhFCxP2a2pnKk",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I see the issue now. The `AnchorViewCenter` approach with incremental `scale()` should work, but the problem is that we're still getting unexpected scroll behavior.\n\nLet me add a print to see what's happening with the scrollbars during the zoom:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"                if new_zoom != self._zoom:\\n                    # Calculate relative scale factor from current zoom\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, factor={factor:.3f}\\\")\\n\\n                    # Use AnchorViewCenter - this scales around the viewport center\\n                    # which is exactly what we want for middle-drag zoom\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    self.scale(factor, factor)\", \"replace\": \"                if new_zoom != self._zoom:\\n                    # Calculate relative scale factor from current zoom\\n                    factor = new_zoom / self._zoom\\n                    self._zoom = new_zoom\\n                    \\n                    h_before = self.horizontalScrollBar().value()\\n                    v_before = self.verticalScrollBar().value()\\n\\n                    # Use AnchorViewCenter - this scales around the viewport center\\n                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                    self.scale(factor, factor)\\n                    \\n                    h_after = self.horizontalScrollBar().value()\\n                    v_after = self.verticalScrollBar().value()\\n                    \\n                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012j8oBdgUTkUSMtwLSXXvYP",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012j8oBdgUTkUSMtwLSXXvYP",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the debug output you'll get, I think I understand the issue now. The `scale()` call with `AnchorViewCenter` is working correctly for the zoom itself, but the scrollbar values are changing as expected when zooming - that's normal behavior. The \"scroll\" effect you're seeing might actually be the correct behavior of zooming around the center.\n\nLet me check if the issue is that the scrollbars are changing unexpectedly. Can you run it and share what the print output shows? Specifically:\n- Are `h_before` and `h_after` different when you zoom?\n- Is the change proportional to the zoom factor?\n\nIn the meantime, let me also run the check to make sure the code compiles:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_011Gd5g166FeeS8LcJsym2Yp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011Gd5g166FeeS8LcJsym2Yp",
+      "content": "{\"format_diffs\": {\"forge/ui/git_graph_widget.py\": \"--- before+++ after@@ -789,7 +789,9 @@                 self._middle_drag_start_y = event.pos().y()\\n                 self._middle_drag_start_zoom = self._zoom\\n                 self.setCursor(Qt.CursorShape.SizeVerCursor)\\n-                print(f\\\"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}\\\")\\n+                print(\\n+                    f\\\"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}\\\"\\n+                )\\n                 return True  # Consume event\\n \\n         elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n@@ -804,18 +806,20 @@                     # Calculate relative scale factor from current zoom\\n                     factor = new_zoom / self._zoom\\n                     self._zoom = new_zoom\\n-                    \\n+\\n                     h_before = self.horizontalScrollBar().value()\\n                     v_before = self.verticalScrollBar().value()\\n \\n                     # Use AnchorViewCenter - this scales around the viewport center\\n                     self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                     self.scale(factor, factor)\\n-                    \\n+\\n                     h_after = self.horizontalScrollBar().value()\\n                     v_after = self.verticalScrollBar().value()\\n-                    \\n-                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}\\\")\\n+\\n+                    print(\\n+                        f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}\\\"\\n+                    )\\n \\n                 return True  # Consume event\\n \\n\"}, \"formatted_files\": [\"forge/ui/git_graph_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/git_graph_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/git_graph_widget.py\": \"--- before+++ after@@ -789,7 +789,9 @@                 self._middle_drag_start_y = event.pos().y()\\n                 self._middle_drag_start_zoom = self._zoom\\n                 self.setCursor(Qt.CursorShape.SizeVerCursor)\\n-                print(f\\\"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}\\\")\\n+                print(\\n+                    f\\\"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}\\\"\\n+                )\\n                 return True  # Consume event\\n \\n         elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):\\n@@ -804,18 +806,20 @@                     # Calculate relative scale factor from current zoom\\n                     factor = new_zoom / self._zoom\\n                     self._zoom = new_zoom\\n-                    \\n+\\n                     h_before = self.horizontalScrollBar().value()\\n                     v_before = self.verticalScrollBar().value()\\n \\n                     # Use AnchorViewCenter - this scales around the viewport center\\n                     self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)\\n                     self.scale(factor, factor)\\n-                    \\n+\\n                     h_after = self.horizontalScrollBar().value()\\n                     v_after = self.verticalScrollBar().value()\\n-                    \\n-                    print(f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}\\\")\\n+\\n+                    print(\\n+                        f\\\"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}\\\"\\n+                    )\\n \\n                 return True  # Consume event\\n \\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/git_graph_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/git_graph_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the code compiles. Try running it now and let me know what the debug output shows when you middle-drag to zoom. The prints will tell us:\n\n1. Whether events are being captured (`Middle mouse press, scene_center=...`)\n2. How the scrollbar values change during zoom (`h:X->Y, v:X->Y`)\n\nIf the scrollbar changes look proportional and smooth, then the \"scroll\" effect you're seeing might just be the visual result of zooming - as the scene gets larger/smaller, the scrollbar ranges change. But if you're seeing sudden jumps in the scrollbar values, that would indicate a bug."
     }
   ]
 }

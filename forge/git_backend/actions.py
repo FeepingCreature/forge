@@ -67,11 +67,6 @@ class MergeAction(GitAction):
             theirs=source_commit.tree,
         )
 
-        if merge_result.is_uptodate:  # type: ignore[attr-defined]
-            # Already merged, nothing to do
-            self.result_oid = self.previous_target_oid
-            return None
-
         if merge_result.conflicts:
             # For now, we don't handle conflicts
             raise ValueError("Merge has conflicts - conflict resolution not yet implemented")

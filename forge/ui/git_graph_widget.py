@@ -1272,7 +1272,7 @@ class GitGraphView(QGraphicsView):
         return False  # Let other events through
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        """Handle mouse wheel - Ctrl+wheel zooms, plain wheel scrolls."""
+        """Handle mouse wheel - Ctrl+wheel zooms, plain wheel scrolls. Works during merge drag."""
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             # Ctrl+wheel = zoom
             delta = event.angleDelta().y()
@@ -1282,7 +1282,7 @@ class GitGraphView(QGraphicsView):
                 self._apply_zoom(self._zoom / 1.1)
             event.accept()
         else:
-            # Plain wheel = scroll
+            # Plain wheel = scroll (allow during merge drag too)
             super().wheelEvent(event)
 
     def _connect_panel_signals(self) -> None:

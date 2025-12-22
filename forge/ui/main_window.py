@@ -35,9 +35,12 @@ from forge.ui.settings_dialog import SettingsDialog
 class MainWindow(QMainWindow):
     """Main application window with branch-first architecture"""
 
-    def __init__(self) -> None:
+    def __init__(self, initial_files: list[str] | None = None) -> None:
         super().__init__()
         self.setGeometry(100, 100, 1400, 900)
+
+        # Store initial files to open after UI setup
+        self._initial_files = initial_files or []
 
         # Initialize settings
         self.settings = Settings()
@@ -59,6 +62,9 @@ class MainWindow(QMainWindow):
         self._setup_menus()
         self._setup_shortcuts()
         self._open_default_branch()
+
+        # Open any files passed on command line
+        self._open_initial_files()
 
     def _setup_ui(self) -> None:
         """Setup the main UI layout with branch tabs"""
@@ -706,3 +712,18 @@ class MainWindow(QMainWindow):
             self.cost_label.setText(f"<b>${cost:.4f}</b> (${daily:.2f} today)")
         else:
             self.cost_label.setText(f"<b>${cost:.4f}</b>")
+
+    def _open_initial_files(self) -> None:
+        """Open files passed on command line"""
+        if not self._initial_files:
+            return
+
+        for filepath in self._initial_files:
+            # Normalize path (handle relative paths)
+            path = Path(filepath)
+            if not path.is_absolute():
+                # Make relative to repo root
+                path = Path(filepath)
+
+            # Open in current branch
+            self._open_file_by_path(str(path))

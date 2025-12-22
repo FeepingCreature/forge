@@ -7,16 +7,16 @@ These are real issues but not strategic priorities.
 
 ## CLI & Startup
 
-- [ ] `forge <filename>` should open that file on startup
-- [ ] Restore open files on start from XDG cache (`~/.cache/forge/open_files.json` keyed by repo)
+- [x] `forge <filename>` should open that file on startup
+- [x] Restore open files on start from XDG cache (`~/.cache/forge/open_files.json` keyed by repo)
 - [ ] JS files for webview should be bundled in app (no HTTP requests on startup)
 
 ---
 
 ## File Explorer
 
-- [ ] Warning icon (⚠️ large file) should bubble up to parent directories
-- [ ] File mouseover tooltip: show size, maybe summary description
+- [x] Warning icon (⚠️ large file) should bubble up to parent directories
+- [x] File mouseover tooltip: show size, maybe summary description
 - [ ] Global search results shown as icons/markers in explorer view
 - [ ] Explorer could become generic "tool view" with tabs (files, search results, etc.)
 
@@ -57,17 +57,17 @@ These are real issues but not strategic priorities.
 
 ## AI Behavior
 
-- [ ] More aggressive compaction hints (model happily runs at 60k context)
+- [x] More aggressive compaction hints (lowered thresholds from 40k→30k, 20→15)
 - [ ] Long-term: AI can kick off autonomous work on separate branches via tool call
 
 ---
 
 ## AI Turn Interaction
 
-- [ ] Option to get system notification when AI turn completes
-- [ ] Branch tab marker when waiting for user input
+- [x] Option to get system notification when AI turn completes
+- [x] Branch tab marker when waiting for user input (💬 emoji)
 - [ ] Allow user to type while AI is running (queued for next turn)
-- [ ] Cancel button during AI turn
+- [x] Cancel button during AI turn
   - If streaming text (not tool): cancel request, mark as canceled, inject user comment
   - If in tool execution: cancel, discard pending VFS changes
 - [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)

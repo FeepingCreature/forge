@@ -738,5 +738,72 @@ def render_completed_tool_html(
         return render_grep_open_html(args, is_streaming=False, result=result)
     elif name == "get_lines":
         return render_get_lines_html(args, is_streaming=False)
+    elif name == "compact":
+        return render_compact_html(args, result)
+    elif name == "commit":
+        return render_commit_html(args, result)
     else:
         return None  # Unknown tool - use default rendering
+
+
+def render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
+    """Render compact tool call as HTML."""
+    tool_call_ids = args.get("tool_call_ids", [])
+    summary = args.get("summary", "")
+
+    escaped_summary = html.escape(str(summary)) if summary else "..."
+
+    # Count how many were compacted
+    count = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0
+    status = ""
+    if result:
+        if result.get("success"):
+            compacted = result.get("compacted", count)
+            status = f'<span class="success-msg">✓ Compacted {compacted} tool result(s)</span>'
+        else:
+            error = result.get("error", "Unknown error")
+            status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+
+    return f"""
+    <div class="tool-card">
+        <div class="tool-card-header">
+            <span class="tool-icon">📦</span>
+            <span class="tool-name">compact</span>
+        </div>
+        <div class="tool-card-body">
+            <div><strong>Summary:</strong> {escaped_summary}</div>
+            <div class="stats">Tool calls: {count}</div>
+            {status}
+        </div>
+    </div>
+    """
+
+
+def render_commit_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
+    """Render commit tool call as HTML."""
+    message = args.get("message", "")
+
+    escaped_message = html.escape(str(message)) if message else "..."
+
+    status = ""
+    if result:
+        if result.get("success"):
+            commit_oid = result.get("commit", "")
+            msg = result.get("message", "")
+            status = f'<span class="success-msg">✓ {html.escape(str(msg))} → {commit_oid}</span>'
+        else:
+            error = result.get("error", "Unknown error")
+            status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+
+    return f"""
+    <div class="tool-card">
+        <div class="tool-card-header">
+            <span class="tool-icon">💾</span>
+            <span class="tool-name">commit</span>
+        </div>
+        <div class="tool-card-body">
+            <div><code>{escaped_message}</code></div>
+            {status}
+        </div>
+    </div>
+    """

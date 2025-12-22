@@ -208,9 +208,11 @@ class GitGraphWidget(QWidget):
         """
         Assign columns (lanes) to commits.
 
-        Process from top (newest) to bottom (oldest).
-        Each commit continues the lane of its first child that wants it.
-        Lanes are reused when they become free.
+        Two-pass algorithm:
+        1. First pass: assign lanes top-to-bottom, tracking claims
+        2. Second pass: compute which lanes are active at each row
+
+        Then reassign lanes to reuse freed lanes.
         """
         # Group nodes by row
         rows: dict[int, list[CommitNode]] = {}
@@ -219,69 +221,95 @@ class GitGraphWidget(QWidget):
                 rows[node.row] = []
             rows[node.row].append(node)
 
-        # For each commit, track which lane it's in
-        commit_lane: dict[str, int] = {}
-        # For each commit, track which child "claimed" it (wants to continue its lane)
+        # For each commit, track which child "claimed" it
         claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it
-        # Track which lanes are currently "active" (have a line running through)
-        active_lanes: set[int] = set()
+
+        # First pass: establish claims (top to bottom)
+        # Process in row order to establish claim priority
+        for row in range(self.num_rows):
+            if row not in rows:
+                continue
+            # Sort nodes in each row by timestamp (newest first) for consistent ordering
+            row_nodes = sorted(rows[row], key=lambda n: -n.timestamp)
+            rows[row] = row_nodes
+
+            for node in row_nodes:
+                if node.parent_oids:
+                    first_parent = node.parent_oids[0]
+                    if first_parent not in claimed_by:
+                        claimed_by[first_parent] = node.oid
+                    else:
+                        # Check if we should steal (lower row = processed earlier = more primary)
+                        # But we don't have lanes yet... we'll handle stealing in second pass
+                        pass
+
+        # Second pass: assign lanes, reusing freed lanes
+        commit_lane: dict[str, int] = {}
+        # For each row, track which lanes have edges passing through
+        # An edge passes through row R if: child is at row < R and parent is at row > R
+
+        # Precompute: for each commit, what rows does its edge to first parent pass through?
+        edge_rows: dict[str, set[int]] = {}  # commit_oid -> set of rows its edge passes through
+        for node in self.nodes:
+            if node.parent_oids:
+                first_parent = node.parent_oids[0]
+                if first_parent in self.oid_to_node:
+                    parent_node = self.oid_to_node[first_parent]
+                    # Edge passes through rows between node.row and parent_node.row (exclusive)
+                    edge_rows[node.oid] = set(range(node.row + 1, parent_node.row))
+                else:
+                    edge_rows[node.oid] = set()
+            else:
+                edge_rows[node.oid] = set()
+
         max_lane = 0
 
-        # Process rows from top (newest) to bottom (oldest)
         for row in range(self.num_rows):
             if row not in rows:
                 continue
 
             row_nodes = rows[row]
 
-            # First pass: figure out which lanes are ending at this row
-            # (commits whose parents are all in this row or not claimed)
-            lanes_ending_here: set[int] = set()
-            for node in row_nodes:
-                if node.oid in claimed_by:
-                    child_oid = claimed_by[node.oid]
-                    lane = commit_lane[child_oid]
-                    # Check if this lane continues (node claims a parent not in this row)
-                    continues = False
-                    if node.parent_oids:
-                        first_parent = node.parent_oids[0]
-                        if first_parent in self.oid_to_node:
-                            parent_node = self.oid_to_node[first_parent]
-                            if parent_node.row != row:
-                                continues = True
-                    if not continues:
-                        lanes_ending_here.add(lane)
-
-            # Free up lanes that are ending
-            for lane in lanes_ending_here:
-                active_lanes.discard(lane)
+            # Figure out which lanes are "blocked" at this row:
+            # - lanes with commits at this row (will be computed as we assign)
+            # - lanes with edges passing through this row
+            blocked_lanes: set[int] = set()
+            for oid, lanes_passing in edge_rows.items():
+                if row in lanes_passing and oid in commit_lane:
+                    blocked_lanes.add(commit_lane[oid])
 
             for node in row_nodes:
-                # Check if a child already claimed us (wants us in their lane)
+                # Check if a child already claimed us
                 if node.oid in claimed_by:
                     child_oid = claimed_by[node.oid]
-                    node.column = commit_lane[child_oid]
+                    if child_oid in commit_lane:
+                        node.column = commit_lane[child_oid]
+                    else:
+                        # Child not assigned yet? Shouldn't happen if processing top-down
+                        lane = 0
+                        while lane in blocked_lanes:
+                            lane += 1
+                        node.column = lane
                 else:
                     # Allocate a lane - find lowest free lane
                     lane = 0
-                    while lane in active_lanes:
+                    while lane in blocked_lanes:
                         lane += 1
                     node.column = lane
-                    max_lane = max(max_lane, lane)
 
                 commit_lane[node.oid] = node.column
-                active_lanes.add(node.column)
+                blocked_lanes.add(node.column)
+                max_lane = max(max_lane, node.column)
 
-                # Claim a parent (so we continue in this lane)
-                # Only claim/steal if we're in a lower (more primary) lane
+                # Update claims - allow stealing based on lane number
                 if node.parent_oids:
                     first_parent = node.parent_oids[0]
                     if first_parent in claimed_by:
                         old_claimer = claimed_by[first_parent]
-                        old_lane = commit_lane[old_claimer]
-                        if node.column < old_lane:
-                            # We're in a more primary lane, steal the claim
-                            claimed_by[first_parent] = node.oid
+                        if old_claimer in commit_lane:
+                            old_lane = commit_lane[old_claimer]
+                            if node.column < old_lane:
+                                claimed_by[first_parent] = node.oid
                     else:
                         claimed_by[first_parent] = node.oid
 

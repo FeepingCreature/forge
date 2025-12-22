@@ -3,7 +3,10 @@ Code editor widget with custom syntax highlighting
 """
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from forge.ui.code_completion import CompletionManager
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
@@ -368,7 +371,9 @@ class EditorWidget(QWidget):
         self.filepath = filepath
         self._match_positions: list[int] = []
         self._current_match_index = -1
+        self._completion_manager: CompletionManager | None = None
         self._setup_ui()
+        self._setup_completion()
 
     def _setup_ui(self) -> None:
         """Setup the editor"""
@@ -568,6 +573,46 @@ class EditorWidget(QWidget):
         self._match_positions = []
         self._current_match_index = -1
         self.editor.highlight_current_line()
+
+    def _setup_completion(self) -> None:
+        """Setup code completion if filepath is set."""
+        if not self.filepath:
+            return
+
+        from forge.ui.code_completion import CompletionManager
+
+        self._completion_manager = CompletionManager(self.editor, self.filepath)
+
+        # Install event filter to intercept Tab key
+        self.editor.installEventFilter(self)
+
+    def eventFilter(self, obj: Any, event: Any) -> bool:  # noqa: N802
+        """Filter events to intercept Tab key for completions."""
+        from PySide6.QtCore import QEvent
+
+        if obj == self.editor and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if (
+                key == Qt.Key.Key_Tab
+                and self._completion_manager
+                and self._completion_manager.accept_completion()
+            ):
+                return True  # Completion accepted, consume event
+
+            if key == Qt.Key.Key_Escape and self._completion_manager:
+                self._completion_manager.dismiss_completion()
+
+        return super().eventFilter(obj, event)
+
+    def set_completion_enabled(self, enabled: bool) -> None:
+        """Enable or disable code completion."""
+        if self._completion_manager:
+            self._completion_manager.set_enabled(enabled)
+
+    def cleanup(self) -> None:
+        """Clean up resources."""
+        if self._completion_manager:
+            self._completion_manager.cleanup()
 
     def get_text(self) -> str:
         """Get editor content"""

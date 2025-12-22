@@ -209,10 +209,8 @@ class GitGraphWidget(QWidget):
         Assign columns (lanes) to commits.
 
         Two-pass algorithm:
-        1. First pass: assign lanes top-to-bottom, tracking claims
-        2. Second pass: compute which lanes are active at each row
-
-        Then reassign lanes to reuse freed lanes.
+        1. First pass: assign lanes based on claims, tracking lane spans
+        2. Lanes are reused when they're no longer active (no commits or edges)
         """
         # Group nodes by row
         rows: dict[int, list[CommitNode]] = {}
@@ -224,59 +222,25 @@ class GitGraphWidget(QWidget):
         # For each commit, track which child "claimed" it
         claimed_by: dict[str, str] = {}  # parent_oid -> child_oid that claimed it
 
-        # First pass: establish claims (top to bottom)
-        # Process in row order to establish claim priority
-        for row in range(self.num_rows):
-            if row not in rows:
-                continue
-            # Sort nodes in each row by timestamp (newest first) for consistent ordering
-            row_nodes = sorted(rows[row], key=lambda n: -n.timestamp)
-            rows[row] = row_nodes
+        # Track lane usage: lane -> last row it's used (commit or edge endpoint)
+        lane_last_row: dict[int, int] = {}
 
-            for node in row_nodes:
-                if node.parent_oids:
-                    first_parent = node.parent_oids[0]
-                    if first_parent not in claimed_by:
-                        claimed_by[first_parent] = node.oid
-                    else:
-                        # Check if we should steal (lower row = processed earlier = more primary)
-                        # But we don't have lanes yet... we'll handle stealing in second pass
-                        pass
-
-        # Second pass: assign lanes, reusing freed lanes
         commit_lane: dict[str, int] = {}
-        # For each row, track which lanes have edges passing through
-        # An edge passes through row R if: child is at row < R and parent is at row > R
-
-        # Precompute: for each commit, what rows does its edge to first parent pass through?
-        edge_rows: dict[str, set[int]] = {}  # commit_oid -> set of rows its edge passes through
-        for node in self.nodes:
-            if node.parent_oids:
-                first_parent = node.parent_oids[0]
-                if first_parent in self.oid_to_node:
-                    parent_node = self.oid_to_node[first_parent]
-                    # Edge passes through rows between node.row and parent_node.row (exclusive)
-                    edge_rows[node.oid] = set(range(node.row + 1, parent_node.row))
-                else:
-                    edge_rows[node.oid] = set()
-            else:
-                edge_rows[node.oid] = set()
-
         max_lane = 0
 
         for row in range(self.num_rows):
             if row not in rows:
                 continue
 
-            row_nodes = rows[row]
+            # Sort nodes in each row by timestamp (newest first) for consistent ordering
+            row_nodes = sorted(rows[row], key=lambda n: -n.timestamp)
+            rows[row] = row_nodes
 
-            # Figure out which lanes are "blocked" at this row:
-            # - lanes with commits at this row (will be computed as we assign)
-            # - lanes with edges passing through this row
-            blocked_lanes: set[int] = set()
-            for oid, lanes_passing in edge_rows.items():
-                if row in lanes_passing and oid in commit_lane:
-                    blocked_lanes.add(commit_lane[oid])
+            # Find lanes that are still active at this row
+            # A lane is active if its last_row >= current row
+            active_lanes: set[int] = {
+                lane for lane, last_row in lane_last_row.items() if last_row >= row
+            }
 
             for node in row_nodes:
                 # Check if a child already claimed us
@@ -287,19 +251,35 @@ class GitGraphWidget(QWidget):
                     else:
                         # Child not assigned yet? Shouldn't happen if processing top-down
                         lane = 0
-                        while lane in blocked_lanes:
+                        while lane in active_lanes:
                             lane += 1
                         node.column = lane
                 else:
                     # Allocate a lane - find lowest free lane
                     lane = 0
-                    while lane in blocked_lanes:
+                    while lane in active_lanes:
                         lane += 1
                     node.column = lane
 
                 commit_lane[node.oid] = node.column
-                blocked_lanes.add(node.column)
+                active_lanes.add(node.column)
                 max_lane = max(max_lane, node.column)
+
+                # Update lane_last_row: this lane is used until its edge ends
+                # The edge goes from this node to its first parent
+                if node.parent_oids:
+                    first_parent = node.parent_oids[0]
+                    if first_parent in self.oid_to_node:
+                        parent_row = self.oid_to_node[first_parent].row
+                        # Lane is active from current row down to parent row
+                        current_last = lane_last_row.get(node.column, row)
+                        lane_last_row[node.column] = max(current_last, parent_row)
+                    else:
+                        # Parent not in our set, lane just covers this row
+                        lane_last_row[node.column] = max(lane_last_row.get(node.column, row), row)
+                else:
+                    # No parents (root commit), lane just covers this row
+                    lane_last_row[node.column] = max(lane_last_row.get(node.column, row), row)
 
                 # Update claims - allow stealing based on lane number
                 if node.parent_oids:

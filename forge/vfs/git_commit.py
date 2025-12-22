@@ -37,6 +37,12 @@ class GitCommitVFS(VFS):
             for entry in tree:
                 assert entry.name is not None, "Tree entry name should never be None"
                 entry_path = f"{prefix}/{entry.name}" if prefix else entry.name
+
+                # Skip submodules - their filemode is GIT_FILEMODE_COMMIT (0o160000)
+                # and their OIDs point to commits in other repositories
+                if entry.filemode == pygit2.GIT_FILEMODE_COMMIT:
+                    continue
+
                 obj = self.repo[entry.id]
                 assert isinstance(obj, (pygit2.Tree, pygit2.Blob)), (
                     f"Unexpected git object type: {type(obj)}"

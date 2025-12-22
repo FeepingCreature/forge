@@ -180,7 +180,9 @@ class GitGraphWidget(QWidget):
                 if node.oid in claimed_by:
                     child_oid = claimed_by[node.oid]
                     node.column = commit_lane[child_oid]
-                    print(f"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}")
+                    print(
+                        f"Row {row}: {node.short_id} claimed by {child_oid[:7]}, lane {node.column}"
+                    )
                 else:
                     # Allocate new lane
                     node.column = next_lane
@@ -199,9 +201,13 @@ class GitGraphWidget(QWidget):
                         if node.column < old_lane:
                             # We're in a more primary lane, steal the claim
                             claimed_by[first_parent] = node.oid
-                            print(f"  -> steals parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane})")
+                            print(
+                                f"  -> steals parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane})"
+                            )
                         else:
-                            print(f"  -> can't steal parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane} <= {node.column})")
+                            print(
+                                f"  -> can't steal parent {first_parent[:7]} from {old_claimer[:7]} (lane {old_lane} <= {node.column})"
+                            )
                     else:
                         claimed_by[first_parent] = node.oid
                         print(f"  -> claims parent {first_parent[:7]}")

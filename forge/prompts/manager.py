@@ -45,6 +45,11 @@ class PromptManager:
     - to_messages: Convert to API format with cache_control on last block
     """
 
+    # Compaction nudge thresholds
+    TOKEN_THRESHOLD = 40000  # Warn when total tokens exceed this
+    TOOL_CALL_THRESHOLD = 20  # Warn when tool calls since last compaction exceed this
+    HYSTERESIS_FACTOR = 0.7  # Don't re-warn until below threshold * this factor
+
     def __init__(self, system_prompt: str) -> None:
         self.blocks: list[ContentBlock] = []
         self.system_prompt = system_prompt
@@ -53,6 +58,10 @@ class PromptManager:
         self._next_tool_id: int = 1
         # Mapping from user-friendly ID -> actual tool_call_id
         self._tool_id_map: dict[str, str] = {}
+
+        # Compaction nudge state
+        self._last_compaction_tool_id: int = 0  # Tool ID at last compaction
+        self._nudge_suppressed: bool = False  # True = already warned, waiting for hysteresis
 
         # Add system prompt as first block
         self.blocks.append(
@@ -268,6 +277,10 @@ class PromptManager:
         """
         compacted = 0
 
+        # Reset compaction nudge state - they just compacted!
+        self._last_compaction_tool_id = self._next_tool_id - 1
+        self._nudge_suppressed = False
+
         # Translate user-friendly IDs to actual tool_call_ids
         ids_set = self._resolve_tool_ids(tool_call_ids)
 
@@ -423,11 +436,59 @@ class PromptManager:
 
         return stats
 
+    def _check_compaction_nudge(self, stats: dict[str, Any]) -> str | None:
+        """
+        Check if we should nudge the AI to compact.
+
+        Uses hysteresis to avoid repeated warnings:
+        - Warn when exceeding threshold
+        - Don't re-warn until dropping below threshold * HYSTERESIS_FACTOR
+
+        Returns nudge message if needed, None otherwise.
+        """
+        total_tokens = stats["total_tokens"]
+        tool_calls_since_compaction = (self._next_tool_id - 1) - self._last_compaction_tool_id
+
+        # Check if we're below hysteresis threshold (reset suppression)
+        token_hysteresis = self.TOKEN_THRESHOLD * self.HYSTERESIS_FACTOR
+        tool_hysteresis = int(self.TOOL_CALL_THRESHOLD * self.HYSTERESIS_FACTOR)
+
+        if total_tokens < token_hysteresis and tool_calls_since_compaction < tool_hysteresis:
+            self._nudge_suppressed = False
+            return None
+
+        # If already warned and still above threshold, don't re-warn
+        if self._nudge_suppressed:
+            return None
+
+        # Check if we exceed thresholds
+        exceeds_tokens = total_tokens > self.TOKEN_THRESHOLD
+        exceeds_tools = tool_calls_since_compaction > self.TOOL_CALL_THRESHOLD
+
+        if not (exceeds_tokens or exceeds_tools):
+            return None
+
+        # Build nudge message
+        self._nudge_suppressed = True  # Don't warn again until hysteresis reset
+
+        reasons = []
+        if exceeds_tokens:
+            reasons.append(f"context is {total_tokens // 1000}k tokens")
+        if exceeds_tools:
+            reasons.append(f"{tool_calls_since_compaction} tool calls since last compaction")
+
+        return (
+            f"⚠️ COMPACTION SUGGESTED: {', '.join(reasons)}. "
+            f"Consider using the `compact` tool to summarize old tool results and reduce context size. "
+            f"This improves cache efficiency and reduces costs."
+        )
+
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
 
         This gives the AI awareness of context size and session cost.
+        Includes compaction nudge if thresholds are exceeded.
         """
         stats = self.get_context_stats()
 
@@ -451,6 +512,10 @@ class PromptManager:
 
         total_k = format_k(stats["total_tokens"])
 
+        # Check for compaction nudge
+        nudge = self._check_compaction_nudge(stats)
+        nudge_line = f"  <nudge>{nudge}</nudge>\n" if nudge else ""
+
         return (
             f"<context_stats>\n"
             f"  <total_tokens>{total_k}</total_tokens>\n"
@@ -461,6 +526,7 @@ class PromptManager:
             f"conversation {format_k(stats['conversation_tokens'])}"
             f"</breakdown>\n"
             f"  <session_cost>{cost_str}</session_cost>\n"
+            f"{nudge_line}"
             f"</context_stats>"
         )
 

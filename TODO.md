@@ -135,9 +135,9 @@ The branch-first architecture is **largely complete**:
   - Returns snippet only, doesn't add to active context (for peeking)
 
 ### Compaction Nudge
-- [ ] Warn AI when context exceeds threshold (suggest compacting)
-- [ ] Threshold: ~40k tokens or ~20 tool calls since last compaction
-- [ ] Use hysteresis to avoid repeated warnings (don't re-warn until drops below threshold)
+- [x] Warn AI when context exceeds threshold (suggest compacting)
+- [x] Threshold: ~40k tokens or ~20 tool calls since last compaction
+- [x] Use hysteresis to avoid repeated warnings (don't re-warn until drops below threshold)
 
 ---
 

@@ -2,29 +2,33 @@
 Settings dialog for Forge
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING  # noqa: I001
 
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
+    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
     QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from forge.llm.client import LLMClient
 from forge.ui.model_picker_dialog import ModelPickerPopup
 
 if TYPE_CHECKING:
-    from forge.config.settings import Settings
-
-from forge.llm.client import LLMClient
+    from forge.config.settings import Settings  # noqa: I001
 
 
 class ModelFetchWorker(QObject):
@@ -64,6 +68,7 @@ class SettingsDialog(QDialog):
         self._setup_ui()
         self._load_settings()
         self._fetch_models()
+        self._populate_keybindings()
 
     def _setup_ui(self) -> None:
         """Setup the dialog UI"""
@@ -83,6 +88,10 @@ class SettingsDialog(QDialog):
         # Git Settings Tab
         git_tab = self._create_git_tab()
         tabs.addTab(git_tab, "Git")
+
+        # Keybindings Tab
+        keybindings_tab = self._create_keybindings_tab()
+        tabs.addTab(keybindings_tab, "Keybindings")
 
         layout.addWidget(tabs)
 
@@ -199,6 +208,96 @@ class SettingsDialog(QDialog):
         self.commit_model_input.installEventFilter(self)
 
         return widget
+
+    def _create_keybindings_tab(self) -> QWidget:
+        """Create keybindings settings tab"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Instructions
+        info = QLabel(
+            "Click on a shortcut to change it. Press Escape to clear.\n"
+            "Changes take effect after saving and restarting."
+        )
+        info.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        layout.addWidget(info)
+
+        # Table for keybindings
+        self.keybindings_table = QTableWidget()
+        self.keybindings_table.setColumnCount(3)
+        self.keybindings_table.setHorizontalHeaderLabels(["Action", "Shortcut", "Default"])
+        self.keybindings_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        self.keybindings_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.keybindings_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.keybindings_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.keybindings_table.verticalHeader().setVisible(False)
+
+        layout.addWidget(self.keybindings_table)
+
+        # Reset button
+        reset_btn = QPushButton("Reset All to Defaults")
+        reset_btn.clicked.connect(self._reset_keybindings)
+        layout.addWidget(reset_btn)
+
+        # Store keybinding edits for later access
+        self._keybinding_edits: dict[str, QKeySequenceEdit] = {}
+
+        return widget
+
+    def _populate_keybindings(self) -> None:
+        """Populate the keybindings table from ActionRegistry"""
+        # Get action registry from parent (MainWindow)
+        main_window = self.parent()
+        if not hasattr(main_window, "action_registry"):
+            return
+
+        registry = main_window.action_registry
+        actions = registry.get_all()
+
+        # Sort by category then name
+        actions.sort(key=lambda a: (a.category, a.name))
+
+        self.keybindings_table.setRowCount(len(actions))
+
+        for row, action in enumerate(actions):
+            # Action name (with category)
+            name_item = QTableWidgetItem(f"{action.name}")
+            name_item.setData(Qt.ItemDataRole.UserRole, action.id)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            name_item.setToolTip(f"[{action.category}] {action.id}")
+            self.keybindings_table.setItem(row, 0, name_item)
+
+            # Current shortcut (editable)
+            effective_shortcut = registry.get_effective_shortcut(action.id)
+            shortcut_edit = QKeySequenceEdit(QKeySequence(effective_shortcut))
+            shortcut_edit.setProperty("action_id", action.id)
+            self.keybindings_table.setCellWidget(row, 1, shortcut_edit)
+            self._keybinding_edits[action.id] = shortcut_edit
+
+            # Default shortcut (read-only)
+            default_item = QTableWidgetItem(action.shortcut or "(none)")
+            default_item.setFlags(default_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            default_item.setForeground(Qt.GlobalColor.gray)
+            self.keybindings_table.setItem(row, 2, default_item)
+
+    def _reset_keybindings(self) -> None:
+        """Reset all keybindings to defaults"""
+        main_window = self.parent()
+        if not hasattr(main_window, "action_registry"):
+            return
+
+        registry = main_window.action_registry
+
+        for action_id, edit in self._keybinding_edits.items():
+            action = registry.get(action_id)
+            if action:
+                edit.setKeySequence(QKeySequence(action.shortcut))
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
         """Handle click events on model input fields"""
@@ -363,6 +462,21 @@ class SettingsDialog(QDialog):
         # Git settings
         self.settings.set("git.auto_commit", self.auto_commit_input.isChecked())
         self.settings.set("git.commit_message_model", self.commit_model_input.text())
+
+        # Keybindings - collect custom shortcuts
+        keybindings: dict[str, str] = {}
+        main_window = self.parent()
+        if hasattr(main_window, "action_registry"):
+            registry = main_window.action_registry
+            for action_id, edit in self._keybinding_edits.items():
+                action = registry.get(action_id)
+                if action:
+                    new_shortcut = edit.keySequence().toString()
+                    # Only save if different from default
+                    if new_shortcut != action.shortcut:
+                        keybindings[action_id] = new_shortcut
+
+        self.settings.set("keybindings", keybindings)
 
         # Save to file
         self.settings.save()

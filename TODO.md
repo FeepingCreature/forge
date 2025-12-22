@@ -37,7 +37,7 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [x] Parse output to show pass/fail summary
 - [x] On failure, show relevant traceback
 - [x] AI can iterate until tests pass
-- [ ] Built-in (currently user tool, needs approval first run)
+- [x] Built-in tool (no approval needed)
 
 ### Build Tool
 - [ ] `build` tool - Run project's build command
@@ -51,10 +51,11 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 
 ### Quick Actions
 - [x] Ctrl+E: Quick open (fuzzy file search)
-- [ ] Ctrl+Shift+P: Command palette
+- [x] Ctrl+Shift+P: Command palette
+- [x] ActionRegistry for centralized keybinding management
 - [ ] Ctrl+G: Go to line
 - [ ] Ctrl+F: Find in file
-- [ ] Ctrl+Shift+F: Find in project
+- [x] Ctrl+Shift+F: Find in project (global search)
 
 ### Session Forking UX
 - [ ] "Fork conversation here" button in chat history

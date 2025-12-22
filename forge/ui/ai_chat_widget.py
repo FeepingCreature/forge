@@ -271,9 +271,19 @@ class ChatBridge(QObject):
         self.parent_widget._handle_revert_turn(first_message_index)
 
     @Slot(int)
-    def handleForkFromTurn(self, first_message_index: int) -> None:
+    def handleRevertToTurn(self, first_message_index: int) -> None:
+        """Handle reverting TO a turn (keep this turn, undo later)"""
+        self.parent_widget._handle_revert_to_turn(first_message_index)
+
+    @Slot(int)
+    def handleForkBeforeTurn(self, first_message_index: int) -> None:
         """Handle forking from before a turn"""
-        self.parent_widget._handle_fork_from_turn(first_message_index)
+        self.parent_widget._handle_fork_from_turn(first_message_index, before=True)
+
+    @Slot(int)
+    def handleForkAfterTurn(self, first_message_index: int) -> None:
+        """Handle forking from after a turn"""
+        self.parent_widget._handle_fork_from_turn(first_message_index, before=False)
 
 
 class AIChatWidget(QWidget):
@@ -1472,21 +1482,38 @@ class AIChatWidget(QWidget):
             }
             /* Turn wrapper and actions */
             .turn {
+                position: relative;
                 margin-bottom: 8px;
-                border-left: 3px solid transparent;
-                padding-left: 0;
-                transition: border-color 0.2s, padding-left 0.2s;
+                padding-left: 24px;  /* Fixed space for turn marker */
             }
-            .turn:hover {
+            .turn-marker {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 20px;
+                border-left: 3px solid transparent;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .turn:hover .turn-marker {
                 border-left-color: #e0e0e0;
-                padding-left: 8px;
+            }
+            .turn-marker:hover {
+                border-left-color: #2196f3 !important;
             }
             .turn-actions {
                 display: flex;
                 gap: 8px;
-                padding: 8px 0 16px 0;
+                padding: 4px 0;
                 opacity: 0;
                 transition: opacity 0.2s;
+            }
+            .turn-actions-top {
+                padding-bottom: 8px;
+            }
+            .turn-actions-bottom {
+                padding-top: 8px;
             }
             .turn:hover .turn-actions {
                 opacity: 1;
@@ -1565,14 +1592,47 @@ class AIChatWidget(QWidget):
             }
 
             function revertTurn(messageIndex) {
+                // Revert THIS turn and all later turns
                 if (bridge) {
                     bridge.handleRevertTurn(messageIndex);
                 }
             }
 
-            function forkFromTurn(messageIndex) {
+            function revertToTurn(messageIndex) {
+                // Revert TO here (keep this turn, undo later turns)
                 if (bridge) {
-                    bridge.handleForkFromTurn(messageIndex);
+                    bridge.handleRevertToTurn(messageIndex);
+                }
+            }
+
+            function forkBeforeTurn(messageIndex) {
+                // Fork from BEFORE this turn
+                if (bridge) {
+                    bridge.handleForkBeforeTurn(messageIndex);
+                }
+            }
+
+            function forkAfterTurn(messageIndex) {
+                // Fork from AFTER this turn
+                if (bridge) {
+                    bridge.handleForkAfterTurn(messageIndex);
+                }
+            }
+
+            function scrollTurn(turnIndex) {
+                // Click on turn marker scrolls to top/bottom of that turn
+                var turn = document.querySelector('.turn[data-turn="' + turnIndex + '"]');
+                if (!turn) return;
+
+                var turnRect = turn.getBoundingClientRect();
+                var viewportMid = window.innerHeight / 2;
+
+                // If turn top is in bottom half of viewport, scroll to top of turn
+                // Otherwise scroll to bottom of turn
+                if (turnRect.top > viewportMid) {
+                    turn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    turn.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             }
 
@@ -1721,9 +1781,27 @@ class AIChatWidget(QWidget):
             # Check if this turn is currently streaming (last turn and we're streaming)
             is_current_turn = turn_idx == len(turns) - 1
             turn_is_streaming = is_current_turn and self._is_streaming
+            first_msg_idx = turn_messages[0][0]
 
-            # Start turn wrapper
+            # Start turn wrapper with clickable marker
             html_parts.append(f'<div class="turn" data-turn="{turn_idx}">')
+            html_parts.append(
+                f'<div class="turn-marker" onclick="scrollTurn({turn_idx})" '
+                f'title="Click to scroll"></div>'
+            )
+
+            # Add turn actions at TOP - but not for streaming turns or first turn
+            if not turn_is_streaming and turn_idx > 0:
+                html_parts.append(f"""
+                <div class="turn-actions turn-actions-top">
+                    <button class="turn-btn revert-btn" onclick="revertTurn({first_msg_idx})" title="Revert this turn and all later turns">
+                        ⏪ Revert this
+                    </button>
+                    <button class="turn-btn fork-btn" onclick="forkBeforeTurn({first_msg_idx})" title="Fork from before this turn">
+                        🔀 Fork before
+                    </button>
+                </div>
+                """)
 
             for i, msg in turn_messages:
                 role = msg["role"]
@@ -1765,17 +1843,16 @@ class AIChatWidget(QWidget):
                 </div>
                 """)
 
-            # Add turn actions (Revert/Fork) - but not for streaming turns or first turn
+            # Add turn actions at bottom - but not for streaming turns or first turn
             if not turn_is_streaming and turn_idx > 0:
-                # Get the message index of the first message in this turn (for revert)
                 first_msg_idx = turn_messages[0][0]
                 html_parts.append(f"""
-                <div class="turn-actions">
-                    <button class="turn-btn revert-btn" onclick="revertTurn({first_msg_idx})" title="Undo this turn and all following turns">
-                        ⏪ Revert
+                <div class="turn-actions turn-actions-bottom">
+                    <button class="turn-btn revert-btn" onclick="revertToTurn({first_msg_idx})" title="Revert to after this turn (undo later turns)">
+                        ⏪ Revert to here
                     </button>
-                    <button class="turn-btn fork-btn" onclick="forkFromTurn({first_msg_idx})" title="Create new branch from before this turn">
-                        🔀 Fork
+                    <button class="turn-btn fork-btn" onclick="forkAfterTurn({first_msg_idx})" title="Fork from after this turn">
+                        🔀 Fork after
                     </button>
                 </div>
                 """)
@@ -1873,19 +1950,76 @@ class AIChatWidget(QWidget):
         self._update_chat_display()
         self._emit_context_stats()
 
-    def _handle_fork_from_turn(self, first_message_index: int) -> None:
-        """Handle forking from before a turn.
+    def _handle_revert_to_turn(self, first_message_index: int) -> None:
+        """Handle reverting TO a turn (keep this turn, undo later turns).
 
-        This emits a signal that MainWindow should handle to create a new branch
-        with conversation state from before this turn.
+        This truncates the conversation to after the specified turn completes.
+        """
+        # Don't allow revert while processing
+        if self.is_processing:
+            self._add_system_message("⚠️ Cannot revert while AI is processing")
+            return
+
+        # Find the end of this turn (next user message or end of messages)
+        end_idx = len(self.messages)
+        for i in range(first_message_index + 1, len(self.messages)):
+            if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+                end_idx = i
+                break
+
+        # Truncate to end of this turn
+        self.messages = self.messages[:end_idx]
+
+        # Rebuild prompt manager state from scratch
+        self.session_manager.prompt_manager.clear_conversation()
+
+        for msg in self.messages:
+            if msg.get("_ui_only"):
+                continue
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                self.session_manager.append_user_message(content)
+            elif role == "assistant":
+                if "tool_calls" in msg:
+                    self.session_manager.append_tool_call(msg["tool_calls"], content)
+                elif content:
+                    self.session_manager.append_assistant_message(content)
+            elif role == "tool":
+                tool_call_id = msg.get("tool_call_id", "")
+                self.session_manager.append_tool_result(tool_call_id, content)
+
+        self._add_system_message("⏪ Reverted to after this turn")
+        self._update_chat_display()
+        self._emit_context_stats()
+
+    def _handle_fork_from_turn(self, first_message_index: int, before: bool = True) -> None:
+        """Handle forking from a turn.
+
+        Args:
+            first_message_index: Index of first message in the turn
+            before: If True, fork from before this turn. If False, fork from after.
+
+        This emits a signal that MainWindow should handle to create a new branch.
         """
         # Don't allow fork while processing
         if self.is_processing:
             self._add_system_message("⚠️ Cannot fork while AI is processing")
             return
 
-        # Emit signal for MainWindow to handle
-        self.fork_requested.emit(first_message_index)
+        # For "fork after", we need to find the end of this turn
+        if not before:
+            # Find end of turn (next user message or end)
+            end_idx = len(self.messages)
+            for i in range(first_message_index + 1, len(self.messages)):
+                if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+                    end_idx = i
+                    break
+            # Emit the end index so fork includes this turn
+            self.fork_requested.emit(end_idx)
+        else:
+            # Fork before - use the first message index
+            self.fork_requested.emit(first_message_index)
 
     def _notify_turn_complete(self, commit_oid: str) -> None:
         """Show system notification when AI turn completes"""

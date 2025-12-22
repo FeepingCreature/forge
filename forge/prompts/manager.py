@@ -241,6 +241,24 @@ class PromptManager:
                 files.append(block.metadata["filepath"])
         return files
 
+    def clear_conversation(self) -> None:
+        """
+        Clear all conversation blocks, keeping system prompt, summaries, and file content.
+
+        Used when rewinding conversation to rebuild from a subset of messages.
+        """
+        print("🔄 PromptManager: Clearing conversation blocks")
+
+        # Keep only non-conversation blocks
+        keep_types = {BlockType.SYSTEM, BlockType.SUMMARIES, BlockType.FILE_CONTENT}
+        self.blocks = [b for b in self.blocks if b.block_type in keep_types]
+
+        # Reset tool ID tracking
+        self._next_tool_id = 1
+        self._tool_id_map = {}
+        self._last_compaction_tool_id = 0
+        self._nudge_suppressed = False
+
     def _resolve_tool_ids(self, ids: list[str]) -> set[str]:
         """
         Resolve user-friendly IDs (like "1", "2") to actual tool_call_ids.

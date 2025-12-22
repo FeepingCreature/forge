@@ -250,6 +250,21 @@ class ChatBridge(QObject):
         """Handle tool approval from JavaScript"""
         self.parent_widget._handle_approval(tool_name, approved)
 
+    @Slot(int)
+    def handleRewind(self, message_index: int) -> None:
+        """Handle rewind to a specific message index"""
+        self.parent_widget._handle_rewind(message_index)
+
+    @Slot(str)
+    def handleRewindToCommit(self, commit_oid: str) -> None:
+        """Handle rewind to a specific commit"""
+        self.parent_widget._handle_rewind_to_commit(commit_oid)
+
+    @Slot(int)
+    def handleRewindToMessage(self, message_index: int) -> None:
+        """Handle rewind to a specific message index"""
+        self.parent_widget._handle_rewind_to_message(message_index)
+
 
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering"""
@@ -1437,6 +1452,31 @@ class AIChatWidget(QWidget):
                 opacity: 0.5;
                 cursor: not-allowed;
             }
+            /* Rewind button */
+            .message {
+                position: relative;
+            }
+            .rewind-btn {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                background: #ff9800;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 12px;
+                cursor: pointer;
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
+            .message:hover .rewind-btn {
+                opacity: 0.7;
+            }
+            .rewind-btn:hover {
+                opacity: 1 !important;
+                background: #f57c00;
+            }
         """
         )
 
@@ -1488,6 +1528,12 @@ class AIChatWidget(QWidget):
                         }
                     }
                 });
+            }
+
+            function rewindTo(messageIndex) {
+                if (bridge) {
+                    bridge.handleRewindToMessage(messageIndex);
+                }
             }
 
             // Update messages container content (called from Python)
@@ -1643,8 +1689,17 @@ class AIChatWidget(QWidget):
                 tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
 
             content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
+
+            # Add rewind button for non-streaming messages (not for system or first message)
+            rewind_btn = ""
+            if not is_streaming_msg and i > 0 and role != "system":
+                rewind_btn = (
+                    f'<button class="rewind-btn" onclick="rewindTo({i})">⏪ Rewind here</button>'
+                )
+
             html_parts.append(f"""
             <div class="message {role}" {msg_id}>
+                {rewind_btn}
                 <div class="role">{role.capitalize()}</div>
                 <div class="content">{content}</div>
                 {tool_calls_html}
@@ -1652,6 +1707,53 @@ class AIChatWidget(QWidget):
             """)
 
         return "".join(html_parts)
+
+    def _handle_rewind(self, message_index: int) -> None:
+        """Handle rewind request - truncate conversation to message_index"""
+        # Don't allow rewind while processing
+        if self.is_processing:
+            self._add_system_message("⚠️ Cannot rewind while AI is processing")
+            return
+
+        # Validate index
+        if message_index < 0 or message_index >= len(self.messages):
+            return
+
+        # Truncate messages (keep everything up to and including target)
+        self.messages = self.messages[: message_index + 1]
+
+        # Rebuild prompt manager state from scratch
+        self.session_manager.prompt_manager.clear_conversation()
+
+        for msg in self.messages:
+            if msg.get("_ui_only"):
+                continue
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                self.session_manager.append_user_message(content)
+            elif role == "assistant":
+                if "tool_calls" in msg:
+                    self.session_manager.append_tool_call(msg["tool_calls"], content)
+                elif content:
+                    self.session_manager.append_assistant_message(content)
+            elif role == "tool":
+                tool_call_id = msg.get("tool_call_id", "")
+                self.session_manager.append_tool_result(tool_call_id, content)
+
+        self._add_system_message(f"⏪ Rewound conversation to message {message_index + 1}")
+        self._update_chat_display()
+        self._emit_context_stats()
+
+    def _handle_rewind_to_commit(self, commit_oid: str) -> None:
+        """Handle rewind to a specific commit - reset VFS and reload session"""
+        # This is more complex - would need to reset VFS to that commit
+        # For now, just show a message
+        self._add_system_message(f"⏪ Rewind to commit {commit_oid[:8]} not yet implemented")
+
+    def _handle_rewind_to_message(self, message_index: int) -> None:
+        """Alias for _handle_rewind"""
+        self._handle_rewind(message_index)
 
     def _notify_turn_complete(self, commit_oid: str) -> None:
         """Show system notification when AI turn completes"""

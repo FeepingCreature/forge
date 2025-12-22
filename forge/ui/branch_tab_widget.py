@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
 from forge.ui.file_explorer_widget import FileExplorerWidget
+from forge.ui.open_files_cache import get_open_files, save_open_files
 from forge.ui.quick_open import QuickOpenWidget
 
 if TYPE_CHECKING:
@@ -451,3 +452,20 @@ class BranchTabWidget(QWidget):
         self._quick_open.move(popup_x, popup_y)
         self._quick_open.show()
         self._quick_open.raise_()
+
+    def get_open_file_paths(self) -> list[str]:
+        """Get list of currently open file paths (for persistence)"""
+        return list(self._editors.keys())
+
+    def restore_open_files(self, repo_path: str) -> None:
+        """Restore open files from XDG cache"""
+        files = get_open_files(repo_path, self.workspace.branch_name)
+        for filepath in files:
+            # Only open if file exists in VFS
+            if self.workspace.vfs.file_exists(filepath):
+                self.open_file(filepath)
+
+    def save_open_files_to_cache(self, repo_path: str) -> None:
+        """Save currently open files to XDG cache"""
+        files = self.get_open_file_paths()
+        save_open_files(repo_path, self.workspace.branch_name, files)

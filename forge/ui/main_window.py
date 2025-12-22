@@ -209,6 +209,9 @@ class MainWindow(QMainWindow):
                 with contextlib.suppress(FileNotFoundError):
                     chat_widget.add_file_to_context(filepath)
 
+        # Restore open file tabs from XDG cache
+        branch_widget.restore_open_files(str(self.repo.repo.workdir))
+
         # Store references
         self._workspaces[branch_name] = workspace
         self._branch_widgets[branch_name] = branch_widget
@@ -553,6 +556,10 @@ class MainWindow(QMainWindow):
             elif reply == QMessageBox.StandardButton.Save:
                 widget.save_all_files()
 
+        # Save open files to cache before closing
+        if isinstance(widget, BranchTabWidget):
+            widget.save_open_files_to_cache(str(self.repo.repo.workdir))
+
         # Remove from tracking
         branch_name = self._get_branch_name_from_tab(index)
         if branch_name in self._workspaces:
@@ -730,3 +737,13 @@ class MainWindow(QMainWindow):
 
             # Open in current branch
             self._open_file_by_path(str(path))
+
+    def closeEvent(self, event: Any) -> None:  # noqa: N802
+        """Handle window close - save open files cache for all branches"""
+        repo_path = str(self.repo.repo.workdir)
+
+        # Save open files for all open branches
+        for _branch_name, branch_widget in self._branch_widgets.items():
+            branch_widget.save_open_files_to_cache(repo_path)
+
+        super().closeEvent(event)

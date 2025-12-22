@@ -1,9 +1,8 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "forge/ui/main_window.py",
     "forge/ui/git_graph_widget.py",
-    "forge/prompts/system.py"
+    "CLAUDE.md",
+    "TODO.md"
   ],
   "messages": [
     {
@@ -2286,6 +2285,98 @@
     {
       "role": "assistant",
       "content": "All checks pass. \n\nTo summarize the spline fix:\n\n**Before**: Was using a single-corner L-shape going horizontal then vertical, with the turns calculated incorrectly (going the wrong direction).\n\n**After**: Now uses a proper S-shaped path with two rounded corners:\n1. **Vertical down** from child's bottom to `end.y - 2r` (one radius above where we need to turn)\n2. **Curve** horizontally (left or right depending on dx) ending at `end.y - r`\n3. **Horizontal** to just before the parent's column\n4. **Curve down** into the parent's top\n\nThe horizontal segment is at `end.y - r` (one radius above the parent), leaving room for the final curve down into the parent panel.\n\nThe big comment at the top of `SplineEdge` now explains the coordinate system (children at top with lower y, parents at bottom with higher y).\n\nGive it a try and let me know if the splines look correct now!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Niice! Okay, almost perfect. I think the radius isn't exactly halfway the free space between two commit boxes, it's a bit high. But the turns are all perfect. Let's note down in TODO.md that we want drag support for the merge/rebase buttons and also the branch labels (git reset made easy!), we need to implement squash, and that we really need dedicated undo support for git changes. But we can do that in another session. Also don't do compactions yet."
+    },
+    {
+      "role": "assistant",
+      "content": "Great, the splines are working! Let me adjust the corner radius and update the TODO.md with those future tasks.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"    # Corner radius for turns - should be less than half the row height\\n    CORNER_RADIUS = 20\", \"replace\": \"    # Corner radius for turns - should be less than half the space between panels\\n    # Free space = ROW_HEIGHT - CommitPanel.HEIGHT = 130 - 100 = 30, so max radius ~15\\n    CORNER_RADIUS = 15\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_0189hBzSAfE69EfTii99Zi5d",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"add\": [\"TODO.md\"], \"remove\": [\"forge/ui/main_window.py\",\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_01KsXtzPMsZAAXrMeZR1m95A",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_0189hBzSAfE69EfTii99Zi5d",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01KsXtzPMsZAAXrMeZR1m95A",
+      "content": "{\"action\": \"update_context\", \"add\": [\"TODO.md\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/ui/main_window.py\", \"forge/prompts/system.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me add those items to TODO.md:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"TODO.md\", \"search\": \"## Phase 3: Repository View (v2 - Future)\\n\\n### Visual Commit/Branch Overview\\n- [ ] Repository View as default top-level tab (before branch tabs)\\n- [ ] Zoomable whole-repo graph\\n- [ ] Show all commits as graph\\n- [ ] Show all branches\\n- [ ] Abandoned commits visible (toggleable)\\n\\n### Visual Git Operations\\n- [ ] Drag commit onto branch \u2192 merge\\n- [ ] Drag commit to reorder \u2192 rebase\\n- [ ] Right-click commit \u2192 cherry-pick\\n\\n### Branch Operations (in repo view)\\n- [ ] Rename branch (right-click branch label)\\n- [ ] Merge branch (drag onto target)\\n- [ ] Delete branch (right-click branch label)\", \"replace\": \"## Phase 3: Git Graph Improvements\\n\\n### Drag-and-Drop Operations\\n- [ ] Drag Merge/Rebase buttons onto other commits to execute operation\\n- [ ] Drag branch labels onto commits for `git reset` (move branch pointer)\\n- [ ] Visual feedback during drag (highlight valid drop targets)\\n\\n### Git Operations\\n- [ ] Implement Squash button (squash commit into parent)\\n- [ ] Dedicated undo support for git operations (reflog-based?)\\n\\n---\\n\\n## Phase 4: Repository View (v2 - Future)\\n\\n### Visual Commit/Branch Overview\\n- [ ] Repository View as default top-level tab (before branch tabs)\\n- [ ] Zoomable whole-repo graph\\n- [ ] Show all commits as graph\\n- [ ] Show all branches\\n- [ ] Abandoned commits visible (toggleable)\\n\\n### Visual Git Operations\\n- [ ] Drag commit onto branch \u2192 merge\\n- [ ] Drag commit to reorder \u2192 rebase\\n- [ ] Right-click commit \u2192 cherry-pick\\n\\n### Branch Operations (in repo view)\\n- [ ] Rename branch (right-click branch label)\\n- [ ] Merge branch (drag onto target)\\n- [ ] Delete branch (right-click branch label)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01Q2RyUEWFL7S871p8P4WgTa",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01Q2RyUEWFL7S871p8P4WgTa",
+      "content": "{\"message\": \"Replaced in TODO.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the TODO is updated. Let me run checks to make sure everything is clean:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_bdrk_01Bc5rZv5Beh1dJ9Pf8bTHeX",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01Bc5rZv5Beh1dJ9Pf8bTHeX",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. \n\nHere's a summary of this session's work on the Git Graph widget:\n\n## Session Summary\n\n### Major Changes\n1. **Renamed \"Graph\" tab to \"Git\"** in main_window.py\n2. **Replaced QScrollArea with QGraphicsView** for proper pan/zoom\n3. **Created CommitPanel** (QGraphicsObject) with:\n   - 220x100 panels with word-wrapped messages\n   - Branch labels at top, buttons (Merge/Rebase/Squash) at bottom inside panel\n   - Fade-in animation on hover using PySide6 Property\n4. **Created SplineEdge** for S-shaped bezier connections with two rounded corners\n5. **Created BranchListWidget** overlay (top-left) for branch navigation, sorted by last commit time\n6. **Controls**: Mouse wheel scrolls, Ctrl+wheel zooms, middle-mouse drag zooms\n7. **Window title** now shows folder name: \"Forge \u2014 {folder}\"\n8. **Improved search_replace error messages** with clearer hints based on similarity\n\n### Added to TODO.md (Phase 3: Git Graph Improvements)\n- Drag Merge/Rebase buttons onto commits to execute\n- Drag branch labels for `git reset`\n- Implement Squash button\n- Dedicated undo support for git operations (reflog-based)\n\nReady to wrap up this session!"
     }
   ]
 }

@@ -80,7 +80,20 @@ The branch-first architecture is **largely complete**:
 
 ---
 
-## Phase 3: Repository View (v2 - Future)
+## Phase 3: Git Graph Improvements
+
+### Drag-and-Drop Operations
+- [ ] Drag Merge/Rebase buttons onto other commits to execute operation
+- [ ] Drag branch labels onto commits for `git reset` (move branch pointer)
+- [ ] Visual feedback during drag (highlight valid drop targets)
+
+### Git Operations
+- [ ] Implement Squash button (squash commit into parent)
+- [ ] Dedicated undo support for git operations (reflog-based?)
+
+---
+
+## Phase 4: Repository View (v2 - Future)
 
 ### Visual Commit/Branch Overview
 - [ ] Repository View as default top-level tab (before branch tabs)

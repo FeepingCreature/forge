@@ -360,8 +360,9 @@ class SplineEdge(QGraphicsPathItem):
     4. Turn DOWN into parent
     """
 
-    # Corner radius for turns - should be less than half the row height
-    CORNER_RADIUS = 20
+    # Corner radius for turns - should be less than half the space between panels
+    # Free space = ROW_HEIGHT - CommitPanel.HEIGHT = 130 - 100 = 30, so max radius ~15
+    CORNER_RADIUS = 15
 
     def __init__(
         self,

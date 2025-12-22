@@ -77,7 +77,8 @@ These are real issues but not strategic priorities.
 
 ## Tool Rendering
 
-- [ ] `compact` tool needs pretty rendering in chat
+- [x] `compact` tool needs pretty rendering in chat
+- [x] `commit` tool needs pretty rendering in chat
 - [ ] User-defined tools need a hook for custom pretty rendering
 
 ---

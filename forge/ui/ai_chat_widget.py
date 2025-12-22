@@ -717,14 +717,16 @@ class AIChatWidget(QWidget):
         self.session_manager.append_user_message(text)
         self.input_field.clear()
 
-        # Disable input while processing, show cancel button
+        # Show cancel button, but keep input enabled for queuing
         self.is_processing = True
         self._cancel_requested = False
-        self.input_field.setEnabled(False)
         self.send_button.setEnabled(False)
         self.send_button.hide()
         self.cancel_button.setEnabled(True)
         self.cancel_button.show()
+
+        # Keep input enabled but change placeholder to show it will be queued
+        self.input_field.setPlaceholderText("Type here to queue message for next turn...")
 
         # Emit signal that AI turn is starting
         self.ai_turn_started.emit()
@@ -1203,6 +1205,11 @@ class AIChatWidget(QWidget):
         self.cancel_button.hide()
         self.send_button.show()
 
+        # Restore placeholder text
+        self.input_field.setPlaceholderText(
+            "Type your message... (Enter to send, Shift+Enter for new line)"
+        )
+
         # Check for new unapproved tools after AI response
         self._check_for_unapproved_tools()
 
@@ -1210,6 +1217,16 @@ class AIChatWidget(QWidget):
         if not self.pending_approvals:
             self.input_field.setEnabled(True)
             self.send_button.setEnabled(True)
+
+            # Check if user typed a message while AI was working
+            queued_text = self.input_field.toPlainText().strip()
+            if queued_text:
+                # Show notification that message was queued
+                self._add_system_message(
+                    f'📝 Queued message ready: "{queued_text[:50]}{"..." if len(queued_text) > 50 else ""}"'
+                )
+                # Focus the send button so user can easily send
+                self.send_button.setFocus()
 
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat (becomes part of conversation history)"""

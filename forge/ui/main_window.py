@@ -640,17 +640,24 @@ class MainWindow(QMainWindow):
         model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         context_limit = self._get_model_context_limit(model)
 
-        # Build compact display for permanent label
+        # Build display with breakdown: files | summaries | convo
+        def fmt(n: int) -> str:
+            if n >= 1000:
+                return f"{n // 1000}k"
+            return str(n)
+
+        breakdown = f"files {fmt(file_tokens)} | summaries {fmt(summary_tokens)} | convo {fmt(conversation_tokens)}"
+
         if context_limit:
             percent = (total_tokens / context_limit) * 100
             if percent > 80:
-                text = f"⚠️ ~{total_tokens:,} tokens ({percent:.0f}%)"
+                text = f"⚠️ {breakdown} ({percent:.0f}%)"
             else:
-                text = f"~{total_tokens:,} tokens ({percent:.0f}%)"
+                text = f"{breakdown} ({percent:.0f}%)"
         else:
-            text = f"~{total_tokens:,} tokens"
+            text = breakdown
 
-        # Set tooltip with full breakdown
+        # Set tooltip with more detail
         tooltip = (
             f"Context tokens: ~{total_tokens:,}\n"
             f"  Files: ~{file_tokens:,} ({file_count} files)\n"

@@ -1,7 +1,7 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "forge/session/manager.py"
+    "forge/session/manager.py",
+    "CLAUDE.md"
   ],
   "messages": [
     {
@@ -172,6 +172,39 @@
     {
       "role": "assistant",
       "content": "All passing. To summarize the changes:\n\n1. **Updated summarization prompt** - Now tells the LLM to be terse for non-code files (docs, config, licenses) and to skip explaining well-known things\n\n2. **Added binary file blacklist** - `_SKIP_EXTENSIONS` set with images, fonts, audio/video, archives, binaries, etc. These files are excluded from summarization entirely\n\n3. **Added `_should_summarize()` method** - Filters out `.forge/` metadata and binary files\n\nThe prompt change is the key one - it should fix the verbose GPL summary and make license files just say something like \"GPL-3.0 license text\" instead of explaining what the GPL means. You'll need to clear the cache or force-refresh to see the new summaries for existing files."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm. Regenerated... I think the summaries ended up longer."
+    },
+    {
+      "role": "assistant",
+      "content": "Haha yeah, 8.9k is worse! Let me look at what happened:\n\nLooking at the regenerated summaries in the system prompt:\n\n1. **License files** - Still verbose! They're now full sentences like \"This is the GNU General Public License...\" instead of just \"GPL-3.0 license text\"\n\n2. **TODO.md** - Has \"No public interfaces.\" repeated 20+ times?! That's a bug.\n\n3. **Makefile, README, pyproject.toml** - Way too detailed. These are getting full documentation treatment.\n\n4. **.gitignore** - Now has a paragraph explaining what a .gitignore does.\n\nThe prompt change backfired because:\n- \"One short line describing what it is\" \u2192 LLM interprets \"short\" generously\n- It's still trying to be *helpful* by explaining things\n\nLet me try a more aggressive approach:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Summarize this file for a developer navigating the codebase.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE files: List public interfaces (classes, functions, constants) as bullets.\\nFor OTHER files (docs, config, licenses, data): One short line describing what it is.\\n\\nRules:\\n- Be terse. Skip obvious/well-known things (e.g., don't explain what MIT license means).\\n- Skip private items (starting with _).\\n- Keep each line under 80 chars.\\n- For files with no useful content to summarize, just write \\\"No public interfaces.\\\"\\n\\nRespond with ONLY the summary, no introduction.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just the filename is enough context. Write \\\"\u2014\\\" (em dash, nothing else).\\n\\nKeep each bullet under 80 chars. No explanations, no introductions.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01FCFGksPM5pb1xAwPAV6sbQ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01FCFGksPM5pb1xAwPAV6sbQ",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The prompt is updated, but you'll need to clear the cache to regenerate. The TODO.md bug with \"No public interfaces\" repeated 20x is weird though - that suggests something went wrong during generation (maybe rate limiting or streaming issues?).\n\nWant to test this by clearing cache and regenerating? Or should we iterate more on the prompt first?\n\nOne more thought: we could also add a **max length filter** post-generation - if a summary exceeds say 500 chars for a non-code file, just replace it with \"\u2014\". That's a safety net for when the LLM ignores instructions."
     }
   ]
 }

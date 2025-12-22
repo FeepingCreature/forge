@@ -462,7 +462,7 @@ Keep it under 72 characters."""
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
 
-            prompt = f"""Summarize this file for a developer navigating the codebase.
+            prompt = f"""Summarize this file's public interfaces for codebase navigation.
 
 File: {filepath}
 
@@ -470,16 +470,10 @@ File: {filepath}
 {content}
 ```
 
-For CODE files: List public interfaces (classes, functions, constants) as bullets.
-For OTHER files (docs, config, licenses, data): One short line describing what it is.
+For CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).
+For config/docs/data: Just the filename is enough context. Write "—" (em dash, nothing else).
 
-Rules:
-- Be terse. Skip obvious/well-known things (e.g., don't explain what MIT license means).
-- Skip private items (starting with _).
-- Keep each line under 80 chars.
-- For files with no useful content to summarize, just write "No public interfaces."
-
-Respond with ONLY the summary, no introduction."""
+Keep each bullet under 80 chars. No explanations, no introductions."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)

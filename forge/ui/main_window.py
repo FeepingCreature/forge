@@ -37,7 +37,6 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Forge")
         self.setGeometry(100, 100, 1400, 900)
 
         # Initialize settings
@@ -47,6 +46,10 @@ class MainWindow(QMainWindow):
         self.repo = ForgeRepository()
         self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set window title with folder name
+        folder_name = Path(self.repo.repo.workdir).name
+        self.setWindowTitle(f"Forge — {folder_name}")
 
         # Track branch workspaces
         self._workspaces: dict[str, BranchWorkspace] = {}

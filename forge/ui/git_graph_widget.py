@@ -82,12 +82,13 @@ class CommitPanel(QGraphicsObject):
     A commit panel showing commit info with hover buttons.
 
     Shows: short hash, multiline message, branch labels.
-    On hover: fade in Merge (top) and Rebase (bottom) buttons.
+    On hover: fade in Merge (top), Rebase and Squash (bottom) buttons.
     """
 
     # Signals for git operations
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
+    squash_requested = Signal(str)  # oid
 
     # Panel dimensions - bigger to fit multiline messages
     WIDTH = 220
@@ -230,9 +231,10 @@ class CommitPanel(QGraphicsObject):
             self._draw_buttons(painter, panel_rect)
 
     def _draw_buttons(self, painter: QPainter, panel_rect: QRectF) -> None:
-        """Draw the merge/rebase buttons with current opacity."""
+        """Draw the merge/rebase/squash buttons with current opacity."""
         opacity = self._button_opacity_value
         button_width = 60
+        small_button_width = 50
 
         # Merge button (top)
         merge_rect = QRectF(
@@ -253,9 +255,9 @@ class CommitPanel(QGraphicsObject):
         painter.setFont(font)
         painter.drawText(merge_rect, Qt.AlignmentFlag.AlignCenter, "Merge")
 
-        # Rebase button (bottom)
+        # Rebase button (bottom left)
         rebase_rect = QRectF(
-            panel_rect.center().x() - button_width / 2,
+            panel_rect.center().x() - button_width / 2 - small_button_width / 2 - 2,
             panel_rect.bottom() + 4,
             button_width,
             self.BUTTON_HEIGHT,
@@ -269,9 +271,29 @@ class CommitPanel(QGraphicsObject):
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
         painter.drawText(rebase_rect, Qt.AlignmentFlag.AlignCenter, "Rebase")
 
+        # Squash button (bottom right, smaller)
+        squash_rect = QRectF(
+            panel_rect.center().x() + button_width / 2 - small_button_width / 2 + 2,
+            panel_rect.bottom() + 4,
+            small_button_width,
+            self.BUTTON_HEIGHT,
+        )
+        squash_color = QColor(156, 39, 176, int(opacity * 255))  # Purple
+        squash_border = QColor(123, 31, 139, int(opacity * 255))
+        painter.setBrush(squash_color)
+        painter.setPen(QPen(squash_border, 1))
+        painter.drawRoundedRect(squash_rect, 4, 4)
+
+        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
+        font = QFont("sans-serif", 8)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, "Squash ↓")
+
         # Store button rects for click detection
         self._merge_rect = merge_rect
         self._rebase_rect = rebase_rect
+        self._squash_rect = squash_rect
 
     def hoverEnterEvent(self, event: object) -> None:  # noqa: N802
         """Handle hover enter - fade in buttons."""
@@ -309,12 +331,19 @@ class CommitPanel(QGraphicsObject):
                 self.rebase_requested.emit(self.node.oid)
                 event.accept()
                 return
+            if hasattr(self, "_squash_rect") and self._squash_rect.contains(pos):
+                self.squash_requested.emit(self.node.oid)
+                event.accept()
+                return
 
         super().mousePressEvent(event)
 
 
 class SplineEdge(QGraphicsPathItem):
-    """A spline (bezier curve) connecting two commits."""
+    """A spline (bezier curve) connecting two commits with axis-aligned routing."""
+
+    # Corner radius for turns
+    CORNER_RADIUS = 20
 
     def __init__(
         self,
@@ -331,34 +360,66 @@ class SplineEdge(QGraphicsPathItem):
         self._setup_style()
 
     def _build_path(self) -> None:
-        """Build the bezier curve path."""
+        """Build an axis-aligned path with rounded corners."""
         path = QPainterPath()
         path.moveTo(self.start)
 
-        # Control points for smooth S-curve
-        # Vertical distance between points
-        dy = self.end.y() - self.start.y()
         dx = self.end.x() - self.start.x()
-
-        # Control point offset (more curve for longer distances)
-        ctrl_offset = min(abs(dy) * 0.4, 60)
+        dy = self.end.y() - self.start.y()
+        r = self.CORNER_RADIUS
 
         if abs(dx) < 5:
-            # Straight vertical - simple bezier
-            ctrl1 = QPointF(self.start.x(), self.start.y() + ctrl_offset)
-            ctrl2 = QPointF(self.end.x(), self.end.y() - ctrl_offset)
-        else:
-            # Diagonal - S-curve
-            ctrl1 = QPointF(self.start.x(), self.start.y() + ctrl_offset)
-            ctrl2 = QPointF(self.end.x(), self.end.y() - ctrl_offset)
+            # Straight vertical line - just draw it
+            path.lineTo(self.end)
+        elif dx > 0:
+            # Going up-right: start vertical, turn right, go horizontal, turn up, end vertical
+            # First go up a bit, then turn right
+            mid_y = self.start.y() + dy / 2
 
-        path.cubicTo(ctrl1, ctrl2, self.end)
+            # Start going up
+            path.lineTo(self.start.x(), mid_y + r)
+            # Round corner turning right
+            path.quadTo(
+                QPointF(self.start.x(), mid_y),
+                QPointF(self.start.x() + r, mid_y),
+            )
+            # Go horizontal
+            path.lineTo(self.end.x() - r, mid_y)
+            # Round corner turning up
+            path.quadTo(
+                QPointF(self.end.x(), mid_y),
+                QPointF(self.end.x(), mid_y - r),
+            )
+            # Go up to end
+            path.lineTo(self.end)
+        else:
+            # Going up-left: start vertical, turn left, go horizontal, turn up, end vertical
+            mid_y = self.start.y() + dy / 2
+
+            # Start going up
+            path.lineTo(self.start.x(), mid_y + r)
+            # Round corner turning left
+            path.quadTo(
+                QPointF(self.start.x(), mid_y),
+                QPointF(self.start.x() - r, mid_y),
+            )
+            # Go horizontal
+            path.lineTo(self.end.x() + r, mid_y)
+            # Round corner turning up
+            path.quadTo(
+                QPointF(self.end.x(), mid_y),
+                QPointF(self.end.x(), mid_y - r),
+            )
+            # Go up to end
+            path.lineTo(self.end)
+
         self.setPath(path)
 
     def _setup_style(self) -> None:
         """Setup pen style."""
         pen = QPen(self.color, 2.5)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         self.setPen(pen)
         self.setBrush(Qt.BrushStyle.NoBrush)
 
@@ -377,6 +438,7 @@ class GitGraphScene(QGraphicsScene):
     # Signals for git operations
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
+    squash_requested = Signal(str)  # oid
 
     def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -635,6 +697,7 @@ class GitGraphScene(QGraphicsScene):
             panel.setPos(pos)
             panel.merge_requested.connect(self.merge_requested.emit)
             panel.rebase_requested.connect(self.rebase_requested.emit)
+            panel.squash_requested.connect(self.squash_requested.emit)
 
             self.addItem(panel)
             self.oid_to_panel[node.oid] = panel
@@ -694,9 +757,20 @@ class BranchListWidget(QWidget):
         self.adjustSize()
 
     def _load_branches(self) -> None:
-        """Load branches into the list."""
+        """Load branches into the list, ordered by last commit time (newest first)."""
         self._list.clear()
-        for branch_name in sorted(self.repo.repo.branches):
+
+        # Get branch names with their tip commit times
+        branch_times: list[tuple[str, int]] = []
+        for branch_name in self.repo.repo.branches:
+            branch = self.repo.repo.branches[branch_name]
+            commit = branch.peel(pygit2.Commit)
+            branch_times.append((branch_name, commit.commit_time))
+
+        # Sort by commit time descending (newest first)
+        branch_times.sort(key=lambda x: -x[1])
+
+        for branch_name, _ in branch_times:
             item = QListWidgetItem(branch_name)
             # Color code by lane
             color = get_lane_color(hash(branch_name) % len(LANE_COLORS))
@@ -721,6 +795,7 @@ class GitGraphView(QGraphicsView):
     # Signals for git operations
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
+    squash_requested = Signal(str)  # oid
 
     MIN_ZOOM = 0.2
     MAX_ZOOM = 2.0
@@ -737,6 +812,7 @@ class GitGraphView(QGraphicsView):
         # Forward signals
         self._scene.merge_requested.connect(self.merge_requested.emit)
         self._scene.rebase_requested.connect(self.rebase_requested.emit)
+        self._scene.squash_requested.connect(self.squash_requested.emit)
 
         # Setup view
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -767,6 +843,30 @@ class GitGraphView(QGraphicsView):
         # Install event filter on viewport to catch middle mouse before QGraphicsView does
         self.viewport().installEventFilter(self)
 
+        # Reserve space on left for branch list overlay
+        self._update_branch_list_margin()
+
+    def _update_branch_list_margin(self) -> None:
+        """Update scene rect to include space for branch list overlay."""
+        if self._scene:
+            # Add left margin for branch list
+            rect = self._scene.sceneRect()
+            branch_width = self._branch_list.width() + 16
+            if rect.left() >= 0:
+                # Shift scene rect to leave room for overlay
+                self._scene.setSceneRect(
+                    -branch_width, rect.top(), rect.width() + branch_width, rect.height()
+                )
+
+    def _apply_zoom(self, new_zoom: float) -> None:
+        """Apply zoom level, clamped to min/max."""
+        new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
+        if new_zoom != self._zoom:
+            factor = new_zoom / self._zoom
+            self._zoom = new_zoom
+            self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+            self.scale(factor, factor)
+
     def eventFilter(self, obj: object, event: object) -> bool:  # noqa: N802
         """Filter events on viewport to intercept middle mouse before QGraphicsView."""
         from PySide6.QtCore import QEvent
@@ -789,9 +889,6 @@ class GitGraphView(QGraphicsView):
                 self._middle_drag_start_y = event.pos().y()
                 self._middle_drag_start_zoom = self._zoom
                 self.setCursor(Qt.CursorShape.SizeVerCursor)
-                print(
-                    f"[GitGraphView] Middle mouse press, scene_center={self._middle_drag_scene_center}"
-                )
                 return True  # Consume event
 
         elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
@@ -800,27 +897,7 @@ class GitGraphView(QGraphicsView):
                 delta_y = self._middle_drag_start_y - event.pos().y()
                 zoom_delta = delta_y / 100.0
                 new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)
-                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
-
-                if new_zoom != self._zoom:
-                    # Calculate relative scale factor from current zoom
-                    factor = new_zoom / self._zoom
-                    self._zoom = new_zoom
-
-                    h_before = self.horizontalScrollBar().value()
-                    v_before = self.verticalScrollBar().value()
-
-                    # Use AnchorViewCenter - this scales around the viewport center
-                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
-                    self.scale(factor, factor)
-
-                    h_after = self.horizontalScrollBar().value()
-                    v_after = self.verticalScrollBar().value()
-
-                    print(
-                        f"[GitGraphView] Zoom {self._zoom:.2f}, h:{h_before}->{h_after}, v:{v_before}->{v_after}"
-                    )
-
+                self._apply_zoom(new_zoom)
                 return True  # Consume event
 
         elif (
@@ -829,7 +906,6 @@ class GitGraphView(QGraphicsView):
             and event.button() == Qt.MouseButton.MiddleButton
             and self._middle_dragging
         ):
-            print("[GitGraphView] Middle mouse release")
             self._middle_dragging = False
             self._middle_drag_scene_center = None
             self.setCursor(Qt.CursorShape.ArrowCursor)
@@ -838,8 +914,18 @@ class GitGraphView(QGraphicsView):
         return False  # Let other events through
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        """Handle mouse wheel for vertical scrolling."""
-        super().wheelEvent(event)
+        """Handle mouse wheel - Ctrl+wheel zooms, plain wheel scrolls."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            # Ctrl+wheel = zoom
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self._apply_zoom(self._zoom * 1.1)
+            elif delta < 0:
+                self._apply_zoom(self._zoom / 1.1)
+            event.accept()
+        else:
+            # Plain wheel = scroll
+            super().wheelEvent(event)
 
     def _jump_to_branch(self, branch_name: str) -> None:
         """Jump to center the view on a branch's tip commit."""
@@ -862,8 +948,10 @@ class GitGraphView(QGraphicsView):
         self.setScene(self._scene)
         self._scene.merge_requested.connect(self.merge_requested.emit)
         self._scene.rebase_requested.connect(self.rebase_requested.emit)
-        # Refresh branch list too
+        self._scene.squash_requested.connect(self.squash_requested.emit)
+        # Refresh branch list and update margin
         self._branch_list._load_branches()
+        self._update_branch_list_margin()
 
     def fit_in_view(self) -> None:
         """Fit the entire graph in the view."""

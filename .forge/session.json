@@ -2,7 +2,6 @@
   "active_files": [
     "forge/ui/git_graph_widget.py",
     "CLAUDE.md",
-    "forge/ui/ai_chat_widget.py",
     "GRAPH_COMMIT_ORDERING.md"
   ],
   "messages": [
@@ -1543,6 +1542,254 @@
     {
       "role": "assistant",
       "content": "All good. Now the session.json is blocked from being added to context in two places:\n\n1. **`add_file_to_context()`** - returns early if filepath is `.forge/session.json`\n2. **Session restore in main_window.py** - skips `.forge/session.json` when restoring active files\n\nThis should prevent the conversation history from being doubled up in the context. Next time you start a session, you shouldn't see that 77k+ token file bloat."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah... that has dropped it way down. Well spotted. Must have been confusing for you to get your own conversation echoed twice lol. I did note that while you were doing those turns, and even after, the tokens widget didn't update- I had to restart to see the current 44k. Note that we should probably write \"Tokens\" after that. Also, still need /3 instead of /4."
+    },
+    {
+      "role": "assistant",
+      "content": "Good points! Let me fix both issues:\n\n1. Change `/4` to `/3` for more accurate token estimation\n2. Add \"tokens\" label after the number\n3. Make sure stats emit after file context changes from tools",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"len\\\\(content\\\\) // 4\"}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_01SbVvh9SiGFUhCZqkF2mERL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SbVvh9SiGFUhCZqkF2mERL",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"matches\": [], \"message\": \"No files match pattern: len\\\\(content\\\\) // 4\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"// 4\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_01STuGeZbhb9bkthngs9xnzo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01STuGeZbhb9bkthngs9xnzo",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\", \"forge/session/manager.py\"], \"matches\": [{\"filepath\": \"forge/prompts/manager.py\", \"first_match\": \"// 4\", \"match_count\": 4}, {\"filepath\": \"forge/session/manager.py\", \"first_match\": \"// 4\", \"match_count\": 1}], \"message\": \"Found 2 files matching '// 4'\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the issue - `// 4` is used throughout for token estimation. Let me fix all occurrences to use `// 3` instead, and also update the status bar label.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"            # Estimate ~4 chars per token\\n            total += len(block.content) // 4\", \"replace\": \"            # Estimate ~3 chars per token (more accurate for code)\\n            total += len(block.content) // 3\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MQusF7iZrW2JtDtavdM5FF",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"            # For tool calls, also count the tool call metadata\\n            if block.block_type == BlockType.TOOL_CALL:\\n                tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n                for tc in tool_calls:\\n                    total += len(json.dumps(tc)) // 4\", \"replace\": \"            # For tool calls, also count the tool call metadata\\n            if block.block_type == BlockType.TOOL_CALL:\\n                tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n                for tc in tool_calls:\\n                    total += len(json.dumps(tc)) // 3\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NkJaMWPUHdTa4rqdJBGhme",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"            # Estimate ~4 chars per token\\n            tokens = len(block.content) // 4\", \"replace\": \"            # Estimate ~3 chars per token (more accurate for code)\\n            tokens = len(block.content) // 3\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01SJumhuNj34hDPckVtZWATH",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"                # Also count tool call metadata\\n                tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n                for tc in tool_calls:\\n                    stats[\\\"conversation_tokens\\\"] += len(json.dumps(tc)) // 4\", \"replace\": \"                # Also count tool call metadata\\n                tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n                for tc in tool_calls:\\n                    stats[\\\"conversation_tokens\\\"] += len(json.dumps(tc)) // 3\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_015ELBAmtV8scfRTsM7WsiWS",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"    def _estimate_tokens(self, text: str) -> int:\\n        \\\"\\\"\\\"Rough token estimate (4 chars per token average)\\\"\\\"\\\"\\n        return len(text) // 4\", \"replace\": \"    def _estimate_tokens(self, text: str) -> int:\\n        \\\"\\\"\\\"Rough token estimate (3 chars per token average, more accurate for code)\\\"\\\"\\\"\\n        return len(text) // 3\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012q2Q9vXhLgKG73QqsJ1aH4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MQusF7iZrW2JtDtavdM5FF",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NkJaMWPUHdTa4rqdJBGhme",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SJumhuNj34hDPckVtZWATH",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015ELBAmtV8scfRTsM7WsiWS",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012q2Q9vXhLgKG73QqsJ1aH4",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the `/3` changes are in. Now let me update the status bar label to say \"tokens\" and also fix the live update issue. Let me check the main_window for the label:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\"], \"remove\": [\"forge/prompts/manager.py\",\"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01YJMkPpFrRAuBBPuuExtqDe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YJMkPpFrRAuBBPuuExtqDe",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/prompts/manager.py\", \"forge/session/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the issue. Looking at `_on_context_stats_updated`, the label text doesn't include \"tokens\". Let me fix that and also check why the stats aren't updating live during tool execution:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"search\": \"        # Build compact display for permanent label\\n        if context_limit:\\n            percent = (total_tokens / context_limit) * 100\\n            if percent > 80:\\n                text = f\\\"\u26a0\ufe0f ~{total_tokens:,} ({percent:.0f}%)\\\"\\n            else:\\n                text = f\\\"~{total_tokens:,} ({percent:.0f}%)\\\"\\n        else:\\n            text = f\\\"~{total_tokens:,}\\\"\", \"replace\": \"        # Build compact display for permanent label\\n        if context_limit:\\n            percent = (total_tokens / context_limit) * 100\\n            if percent > 80:\\n                text = f\\\"\u26a0\ufe0f ~{total_tokens:,} tokens ({percent:.0f}%)\\\"\\n            else:\\n                text = f\\\"~{total_tokens:,} tokens ({percent:.0f}%)\\\"\\n        else:\\n            text = f\\\"~{total_tokens:,} tokens\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MicXM4YVVpHYshBFtXZCZK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MicXM4YVVpHYshBFtXZCZK",
+      "content": "{\"message\": \"Replaced in forge/ui/main_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the label is updated. Now I need to address why the context stats don't update live during tool execution. Looking at the code, `_emit_context_stats()` is only called in a few places, but not after tools modify the context during an AI turn.\n\nLooking at `_on_tool_finished` in ai_chat_widget.py, when `update_context` runs, it emits `context_changed` but doesn't emit `context_stats_updated`. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # If tool modified context, emit signal to update UI\\n        if result.get(\\\"action\\\") == \\\"update_context\\\":\\n            self.context_changed.emit(self.session_manager.active_files.copy())\", \"replace\": \"        # If tool modified context, emit signal to update UI\\n        if result.get(\\\"action\\\") == \\\"update_context\\\":\\n            self.context_changed.emit(self.session_manager.active_files.copy())\\n            self._emit_context_stats()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XKd4vNRsUgaxfHN4ZXTmrK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XKd4vNRsUgaxfHN4ZXTmrK",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the context stats should now update when tools modify the context. Let me also make sure we emit stats after the assistant message is finalized (when conversation tokens change):",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # This is a final text response with no tool calls\\n        # Add to prompt manager\\n        if result.get(\\\"content\\\"):\\n            self.session_manager.append_assistant_message(result[\\\"content\\\"])\\n\\n        # Commit now\\n        commit_oid = self.session_manager.commit_ai_turn(self.messages)\", \"replace\": \"        # This is a final text response with no tool calls\\n        # Add to prompt manager\\n        if result.get(\\\"content\\\"):\\n            self.session_manager.append_assistant_message(result[\\\"content\\\"])\\n\\n        # Emit updated context stats (conversation tokens changed)\\n        self._emit_context_stats()\\n\\n        # Commit now\\n        commit_oid = self.session_manager.commit_ai_turn(self.messages)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01T3KAqZusTn5KuYTo52wZd2",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01T3KAqZusTn5KuYTo52wZd2",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the changes are in. Let me run the checks and clean up context:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_0168XjZP7vn6UZeQgZpZqv1g",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/main_window.py\",\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Jrp5amuijr583k4B98nfWU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0168XjZP7vn6UZeQgZpZqv1g",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Jrp5amuijr583k4B98nfWU",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/ui/main_window.py\", \"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Summary of changes:\n\n1. **Token estimation**: Changed from `/4` to `/3` chars per token (5 occurrences) - more accurate for code\n2. **Label text**: Now shows \"~X tokens (Y%)\" instead of just \"~X (Y%)\"\n3. **Live updates**: Added `_emit_context_stats()` calls:\n   - After `update_context` tool modifies context\n   - After assistant message is finalized\n\nThe context stats should now update live during AI turns."
     }
   ]
 }

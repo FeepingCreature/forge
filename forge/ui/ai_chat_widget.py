@@ -898,6 +898,9 @@ class AIChatWidget(QWidget):
         if result.get("content"):
             self.session_manager.append_assistant_message(result["content"])
 
+        # Emit updated context stats (conversation tokens changed)
+        self._emit_context_stats()
+
         # Commit now
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
@@ -1013,6 +1016,7 @@ class AIChatWidget(QWidget):
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())
+            self._emit_context_stats()
 
         # Display tool result
         # Built-in tools with native rendering don't need system messages on success -

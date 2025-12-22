@@ -644,11 +644,11 @@ class MainWindow(QMainWindow):
         if context_limit:
             percent = (total_tokens / context_limit) * 100
             if percent > 80:
-                text = f"⚠️ ~{total_tokens:,} ({percent:.0f}%)"
+                text = f"⚠️ ~{total_tokens:,} tokens ({percent:.0f}%)"
             else:
-                text = f"~{total_tokens:,} ({percent:.0f}%)"
+                text = f"~{total_tokens:,} tokens ({percent:.0f}%)"
         else:
-            text = f"~{total_tokens:,}"
+            text = f"~{total_tokens:,} tokens"
 
         # Set tooltip with full breakdown
         tooltip = (

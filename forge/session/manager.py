@@ -206,8 +206,8 @@ class SessionManager:
         return self.tool_manager.vfs
 
     def _estimate_tokens(self, text: str) -> int:
-        """Rough token estimate (4 chars per token average)"""
-        return len(text) // 4
+        """Rough token estimate (3 chars per token average, more accurate for code)"""
+        return len(text) // 3
 
     def get_active_files_with_stats(self) -> dict[str, Any]:
         """Get active files with token counts and context stats"""

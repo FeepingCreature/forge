@@ -359,13 +359,13 @@ class PromptManager:
             # Skip file content and summaries - those are counted separately
             if block.block_type in (BlockType.FILE_CONTENT, BlockType.SUMMARIES, BlockType.SYSTEM):
                 continue
-            # Estimate ~4 chars per token
-            total += len(block.content) // 4
+            # Estimate ~3 chars per token (more accurate for code)
+            total += len(block.content) // 3
             # For tool calls, also count the tool call metadata
             if block.block_type == BlockType.TOOL_CALL:
                 tool_calls = block.metadata.get("tool_calls", [])
                 for tc in tool_calls:
-                    total += len(json.dumps(tc)) // 4
+                    total += len(json.dumps(tc)) // 3
         return total
 
     def get_context_stats(self) -> dict[str, Any]:
@@ -395,8 +395,8 @@ class PromptManager:
             if block.deleted:
                 continue
 
-            # Estimate ~4 chars per token
-            tokens = len(block.content) // 4
+            # Estimate ~3 chars per token (more accurate for code)
+            tokens = len(block.content) // 3
 
             if block.block_type == BlockType.SYSTEM:
                 stats["system_tokens"] += tokens
@@ -410,7 +410,7 @@ class PromptManager:
                 # Also count tool call metadata
                 tool_calls = block.metadata.get("tool_calls", [])
                 for tc in tool_calls:
-                    stats["conversation_tokens"] += len(json.dumps(tc)) // 4
+                    stats["conversation_tokens"] += len(json.dumps(tc)) // 3
             else:
                 stats["conversation_tokens"] += tokens
 

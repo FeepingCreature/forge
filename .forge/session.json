@@ -1,8 +1,8 @@
 {
   "active_files": [
     "CLAUDE.md",
-    "forge/tools/builtin/search_replace.py",
     "forge/ui/main_window.py",
+    "forge/ui/git_graph_widget.py",
     "forge/prompts/system.py"
   ],
   "messages": [
@@ -2169,6 +2169,123 @@
     {
       "role": "assistant",
       "content": "All checks pass. Now when a search_replace fails with a close match, future-me will see:\n\n**For 95%+ similarity:**\n```\nSearch text not found in file.\n\n**VERY CLOSE MATCH - check the diff carefully for:\n  \u2022 Trailing whitespace or newlines\n  \u2022 Small typos\n  \u2022 Indentation differences**\n\nFound 99.5% similar text at line 364 (edit distance: 10):\n\n```\n    def _build_path(self) -> None:\n        \"\"\"Build an axis-aligned path with rounded corners.\"\"\"\n        path = QPainterPath()\n    ...\n        self.setPath(path)\n```\n\nDiff (--- your search vs +++ actual file):\n```diff\n...\n```\n```\n\nThe key improvements:\n1. **Prominent hint** based on similarity level - tells me what to look for\n2. **Truncated preview** (first 3 + last 2 lines) instead of the full match - avoids the wall of text\n3. **Clearer diff header** - `--- your search vs +++ actual file` instead of the more cryptic `SEARCH (expected)` / `FOUND (actual)`\n\nWant me to get back to the git graph splines now, or anything else on this?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 66 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah let's go back to the splines... the path that the spline takes is very confused now. It's still about one r higher than it should be, but it's also turning the wrong way again now. Can you walk me through the splines in an example case and we can think about it together?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, let me walk through the spline logic carefully.\n\n**Current code for a branch going up-right** (child at bottom-left, parent at top-right):\n\n```python\n# start = bottom center of child panel (e.g., x=100, y=200)\n# end = top center of parent panel (e.g., x=300, y=50)\n# r = CORNER_RADIUS (e.g., 15)\n\n# Step 1: Go horizontal from start to just before end.x\npath.lineTo(self.end.x() - r, self.start.y())\n# \u2192 draws line from (100, 200) to (285, 200)\n\n# Step 2: Round corner turning up\npath.quadTo(\n    QPointF(self.end.x(), self.start.y()),  # control point: (300, 200)\n    QPointF(self.end.x(), self.start.y() - r),  # end point: (300, 185)\n)\n# \u2192 curves from (285, 200) to (300, 185) with control at (300, 200)\n\n# Step 3: Go up to end\npath.lineTo(self.end)\n# \u2192 draws line from (300, 185) to (300, 50)\n```\n\n**The problem**: In step 2, the curve ends at `start.y() - r = 185`, but then we draw a line to `end.y = 50`. That's going **up** (decreasing y), which is correct.\n\nBut wait - I think I see the issue. The `quadTo` control point determines how the curve bows. With:\n- Current point: `(285, 200)`\n- Control: `(300, 200)` \n- End: `(300, 185)`\n\nThe curve will bow **downward** (toward higher y), then come back up to 185. That's the wrong direction!\n\nFor a clean corner turning from horizontal-right to vertical-up, the curve should bow **upward** (toward lower y). The control point should be at the corner, but the geometry of quadratic bezier means the curve bows *away* from the straight line between start and end, *toward* the control point.\n\nHmm, actually with control at (300, 200) and endpoints at (285, 200) and (300, 185), the curve would bow toward 200... which is downward. So it curves down before going up. That's wrong.\n\n**What we want**: A curve that stays above y=200, turning smoothly from horizontal to vertical.\n\nI think the issue is we need the curve to start curving *before* we reach the corner, not after. Let me think about this differently...\n\nFor an L-shaped path going right then up, we want:\n1. Horizontal line stopping at `(end.x - r, start.y)` \u2713\n2. Quarter-circle arc from there to `(end.x, start.y - r)`, curving through the corner region\n\nThe `quadTo` approximates a quarter circle if the control point is at the corner. But the curve bows toward the control point, so if control is at `(end.x, start.y)` = `(300, 200)`, it bows toward 200 (down).\n\n**Fix**: We need the control point to make the curve bow upward. For a quarter-circle approximation going from `(285, 200)` to `(300, 185)`, the control point should be at `(300, 200)` but... that's what we have.\n\nWait, I think I'm confusing myself. Let me draw it:\n\n```\n      (300, 185) \u2190 end of curve (then goes up to parent)\n           |\n           |  \u2190 the curve should be here, bowing left\n           |\n(285,200)--+ (300, 200) control point\n```\n\nWith `quadTo((300,200), (300,185))` from `(285,200)`:\n- The curve starts at (285, 200) heading toward control (300, 200) - so heading RIGHT\n- The curve ends at (300, 185) coming from direction of control (300, 200) - so coming from BELOW\n\nThat means the curve goes right, then curves up. That sounds correct actually?\n\nCan you describe what you're seeing visually? Maybe a quick sketch in words of where the spline goes wrong?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 0922ae22",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "-- okay hang on- someone is fundamentally confused. The git view is drawn *upwards*: children are above parents. So for a spline between child and parent the child is *above* the parent, so child at bottom-left and parent at top-right makes no sense. I think this is confusing because a git graph is upside-down compared to a usual graph. Maybe at the least remember to add a big comment to that regard in the source. Can you step through it again with that in mind?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, that's the confusion! Let me re-think this properly.\n\n**Git graph is drawn upside-down**: Newer commits (children) are at the TOP (lower y values), older commits (parents) are at the BOTTOM (higher y values).\n\nSo for a spline connecting child \u2192 parent:\n- `start` = bottom center of **child** panel (the newer commit, which is HIGHER on screen = LOWER y)\n- `end` = top center of **parent** panel (the older commit, which is LOWER on screen = HIGHER y)\n\nSo `start.y < end.y` (we're drawing DOWN from child to parent).\n\n**Example for a branch going down-right** (child at top-left, parent at bottom-right):\n\n```python\n# start = bottom of child panel (e.g., x=100, y=50)  \u2190 child is ABOVE\n# end = top of parent panel (e.g., x=300, y=150)     \u2190 parent is BELOW\n# r = 15\n\n# Current code:\npath.lineTo(self.end.x() - r, self.start.y())  # (285, 50) - horizontal right\npath.quadTo(\n    QPointF(self.end.x(), self.start.y()),     # control: (300, 50)\n    QPointF(self.end.x(), self.start.y() - r), # end: (300, 35) \u2190 WRONG! Goes UP\n)\npath.lineTo(self.end)  # (300, 150)\n```\n\n**The bug**: `self.start.y() - r` goes UP (lower y), but we need to go DOWN (higher y) toward the parent!\n\nIt should be `self.start.y() + r` to curve downward:\n\n```python\npath.lineTo(self.end.x() - r, self.start.y())  # horizontal to (285, 50)\npath.quadTo(\n    QPointF(self.end.x(), self.start.y()),     # control: (300, 50)  \n    QPointF(self.end.x(), self.start.y() + r), # end: (300, 65) \u2190 curves DOWN\n)\npath.lineTo(self.end)  # down to (300, 150)\n```\n\nDoes that match your understanding? If so, I'll fix the code and add a big comment about the coordinate system."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c1928ee8",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah, because the top left is (0, 0). Start is bottom center of child panel, yes. So we have to go down to ... start.x, end.y - 2 r, curve to start.x - r, end.y - r via control start.x, end.y - r, go left to end.x + r, end.y - r, curve to end via control end.x, end.y - r. I thiiiink that's right?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me trace through that carefully for a child going down-right to parent:\n\n```\nChild panel (top-left, newer commit)\n    start = bottom center of child (x=100, y=50)\n    \nParent panel (bottom-right, older commit)  \n    end = top center of parent (x=300, y=150)\n```\n\nYour path:\n1. **Down** from `start` to `(start.x, end.y - 2r)` = `(100, 120)` \u2014 vertical line down\n2. **Curve** to `(start.x + r, end.y - r)` = `(115, 135)` via control `(start.x, end.y - r)` = `(100, 135)` \u2014 curves right\n3. **Horizontal** to `(end.x - r, end.y - r)` = `(285, 135)` \u2014 horizontal line right\n4. **Curve** to `end` = `(300, 150)` via control `(end.x, end.y - r)` = `(300, 135)` \u2014 curves down\n\nWait, you wrote `start.x - r` in step 2, but for going right we'd want `start.x + r`. And step 3 would be `end.x - r`. Let me re-read...\n\nOh I see, you were maybe describing the up-left case? Let me do both:\n\n**Going down-right** (child top-left, parent bottom-right, dx > 0):\n1. Down: `start` \u2192 `(start.x, end.y - 2r)`\n2. Curve right: \u2192 `(start.x + r, end.y - r)` via control `(start.x, end.y - r)`\n3. Right: \u2192 `(end.x - r, end.y - r)`\n4. Curve down: \u2192 `end` via control `(end.x, end.y - r)`\n\n**Going down-left** (child top-right, parent bottom-left, dx < 0):\n1. Down: `start` \u2192 `(start.x, end.y - 2r)`\n2. Curve left: \u2192 `(start.x - r, end.y - r)` via control `(start.x, end.y - r)`\n3. Left: \u2192 `(end.x + r, end.y - r)`\n4. Curve down: \u2192 `end` via control `(end.x, end.y - r)`\n\nDoes that look right?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 3caeff0b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "no I was describing down-left. On x to go left we reduce, right? So -r because we're curving off the start centerline? Idk am I totally off here, I might be a bit sleep deprived.\nDown left is start [line <start.x, end.y - 2r> down] [curve left via <start.x - r, end.y - **2 r**> to <start.x - r, end.y - r>] [go left to <end.x + r, end.y - r>] [curve down via <end.x, end.y - r> to end].\nDown right would be start [line <start.x, end.y - 2r> down] [curve right via <start.x + r, end.y - **2 r**> to <start.x + r, end.y - r>] [go right to <end.x - r, end.y - r>] [curve down via <end.x, end.y - r> to end].\nThe 2 r is because when we have to start the turn we still have to leave space for another turn into the target. And r should be half the distance between two commits.\nI think that's right..."
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, I think you've got it right! Let me trace through down-left to make sure:\n\n```\nChild (top-right): start = (300, 50)  \u2190 bottom center of child\nParent (bottom-left): end = (100, 150) \u2190 top center of parent\nr = 15 (should be half vertical distance between commits)\n\n1. Line down: start (300, 50) \u2192 (300, 120)  [end.y - 2r = 150 - 30 = 120]\n2. Curve left via (285, 120) to (285, 135)  [start.x - r, end.y - 2r] \u2192 [start.x - r, end.y - r]\n3. Line left: (285, 135) \u2192 (115, 135)  [end.x + r = 100 + 15 = 115]\n4. Curve down via (100, 135) to (100, 150)  [end.x, end.y - r] \u2192 end\n```\n\nAnd down-right:\n```\nChild (top-left): start = (100, 50)\nParent (bottom-right): end = (300, 150)\n\n1. Line down: (100, 50) \u2192 (100, 120)\n2. Curve right via (115, 120) to (115, 135)  [start.x + r, end.y - 2r] \u2192 [start.x + r, end.y - r]\n3. Line right: (115, 135) \u2192 (285, 135)\n4. Curve down via (300, 135) to (300, 150)\n```\n\nThe horizontal segment is at `end.y - r` (just above the parent), giving room for the final curve down into the parent. And r = half the row height means the curves have space.\n\nLet me fix the code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/git_graph_widget.py\"], \"remove\": [\"forge/tools/builtin/search_replace.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_018qWFA7C35GGeaZD7DCYLdh",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_018qWFA7C35GGeaZD7DCYLdh",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/git_graph_widget.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"forge/tools/builtin/search_replace.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the code. Let me fix the spline path with the correct logic and add a big comment about the coordinate system:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/git_graph_widget.py\", \"search\": \"class SplineEdge(QGraphicsPathItem):\\n    \\\"\\\"\\\"A spline (bezier curve) connecting two commits with axis-aligned routing.\\\"\\\"\\\"\\n\\n    # Corner radius for turns\\n    CORNER_RADIUS = 20\\n\\n    def __init__(\\n        self,\\n        start: QPointF,\\n        end: QPointF,\\n        color: QColor,\\n        parent: QGraphicsItem | None = None,\\n    ) -> None:\\n        super().__init__(parent)\\n        self.start = start\\n        self.end = end\\n        self.color = color\\n        self._build_path()\\n        self._setup_style()\\n\\n    def _build_path(self) -> None:\\n        \\\"\\\"\\\"Build an axis-aligned path with rounded corners.\\n\\n        For diagonal connections (different columns), the path is an L-shape:\\n        - Go horizontal from start to the target column\\n        - Round corner\\n        - Go vertical to the end point\\n\\n        This creates a clean single-corner path.\\n        \\\"\\\"\\\"\\n        path = QPainterPath()\\n        path.moveTo(self.start)\\n\\n        dx = self.end.x() - self.start.x()\\n        r = self.CORNER_RADIUS\\n\\n        if abs(dx) < 5:\\n            # Straight vertical line - just draw it\\n            path.lineTo(self.end)\\n        elif dx > 0:\\n            # Going up-right: horizontal first, then turn up\\n            # Go horizontal from start to just before end.x\\n            path.lineTo(self.end.x() - r, self.start.y())\\n            # Round corner turning up\\n            path.quadTo(\\n                QPointF(self.end.x(), self.start.y()),\\n                QPointF(self.end.x(), self.start.y() - r),\\n            )\\n            # Go up to end\\n            path.lineTo(self.end)\\n        else:\\n            # Going up-left: horizontal first, then turn up\\n            # Go horizontal from start to just past end.x\\n            path.lineTo(self.end.x() + r, self.start.y())\\n            # Round corner turning up\\n            path.quadTo(\\n                QPointF(self.end.x(), self.start.y()),\\n                QPointF(self.end.x(), self.start.y() - r),\\n            )\\n            # Go up to end\\n            path.lineTo(self.end)\\n\\n        self.setPath(path)\", \"replace\": \"class SplineEdge(QGraphicsPathItem):\\n    \\\"\\\"\\\"\\n    A spline (bezier curve) connecting child commit to parent commit.\\n\\n    COORDINATE SYSTEM NOTE:\\n    The git graph is drawn \\\"upside down\\\" compared to typical graphs:\\n    - Newer commits (children) are at the TOP of the screen (LOWER y values)\\n    - Older commits (parents) are at the BOTTOM of the screen (HIGHER y values)\\n    - So start.y < end.y (we draw DOWN from child to parent)\\n\\n    For diagonal connections, we use an S-shaped path with two rounded corners:\\n    1. Go DOWN from child\\n    2. Turn horizontally toward parent's column\\n    3. Go horizontal\\n    4. Turn DOWN into parent\\n    \\\"\\\"\\\"\\n\\n    # Corner radius for turns - should be less than half the row height\\n    CORNER_RADIUS = 20\\n\\n    def __init__(\\n        self,\\n        start: QPointF,\\n        end: QPointF,\\n        color: QColor,\\n        parent: QGraphicsItem | None = None,\\n    ) -> None:\\n        super().__init__(parent)\\n        self.start = start\\n        self.end = end\\n        self.color = color\\n        self._build_path()\\n        self._setup_style()\\n\\n    def _build_path(self) -> None:\\n        \\\"\\\"\\\"Build an axis-aligned path with two rounded corners.\\n\\n        Path structure for diagonal connections:\\n        1. Vertical line DOWN from start to (start.x, end.y - 2r)\\n        2. Curve toward target column, ending at (start.x \u00b1 r, end.y - r)\\n        3. Horizontal line to (end.x \u2213 r, end.y - r)\\n        4. Curve DOWN into parent, ending at end\\n\\n        The horizontal segment is at (end.y - r), leaving room for the\\n        final curve down into the parent panel.\\n        \\\"\\\"\\\"\\n        path = QPainterPath()\\n        path.moveTo(self.start)\\n\\n        dx = self.end.x() - self.start.x()\\n        r = self.CORNER_RADIUS\\n\\n        if abs(dx) < 5:\\n            # Straight vertical line - just draw it\\n            path.lineTo(self.end)\\n        elif dx > 0:\\n            # Going down-right: child is top-left, parent is bottom-right\\n            # 1. Line down from start to turn level\\n            path.lineTo(self.start.x(), self.end.y() - 2 * r)\\n            # 2. Curve right: control at corner, end one radius right and down\\n            path.quadTo(\\n                QPointF(self.start.x(), self.end.y() - r),\\n                QPointF(self.start.x() + r, self.end.y() - r),\\n            )\\n            # 3. Horizontal line right to above parent\\n            path.lineTo(self.end.x() - r, self.end.y() - r)\\n            # 4. Curve down into parent\\n            path.quadTo(\\n                QPointF(self.end.x(), self.end.y() - r),\\n                self.end,\\n            )\\n        else:\\n            # Going down-left: child is top-right, parent is bottom-left\\n            # 1. Line down from start to turn level\\n            path.lineTo(self.start.x(), self.end.y() - 2 * r)\\n            # 2. Curve left: control at corner, end one radius left and down\\n            path.quadTo(\\n                QPointF(self.start.x(), self.end.y() - r),\\n                QPointF(self.start.x() - r, self.end.y() - r),\\n            )\\n            # 3. Horizontal line left to above parent\\n            path.lineTo(self.end.x() + r, self.end.y() - r)\\n            # 4. Curve down into parent\\n            path.quadTo(\\n                QPointF(self.end.x(), self.end.y() - r),\\n                self.end,\\n            )\\n\\n        self.setPath(path)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_015BKoDPP58vKx5dSF9RwgQk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015BKoDPP58vKx5dSF9RwgQk",
+      "content": "{\"message\": \"Replaced in forge/ui/git_graph_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the spline code is now updated. Let me run checks to make sure everything compiles:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01H1BSYba26t4wZmoBkYXtrH",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01H1BSYba26t4wZmoBkYXtrH",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 44 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. \n\nTo summarize the spline fix:\n\n**Before**: Was using a single-corner L-shape going horizontal then vertical, with the turns calculated incorrectly (going the wrong direction).\n\n**After**: Now uses a proper S-shaped path with two rounded corners:\n1. **Vertical down** from child's bottom to `end.y - 2r` (one radius above where we need to turn)\n2. **Curve** horizontally (left or right depending on dx) ending at `end.y - r`\n3. **Horizontal** to just before the parent's column\n4. **Curve down** into the parent's top\n\nThe horizontal segment is at `end.y - r` (one radius above the parent), leaving room for the final curve down into the parent panel.\n\nThe big comment at the top of `SplineEdge` now explains the coordinate system (children at top with lower y, parents at bottom with higher y).\n\nGive it a try and let me know if the splines look correct now!"
     }
   ]
 }

@@ -344,9 +344,23 @@ class CommitPanel(QGraphicsObject):
 
 
 class SplineEdge(QGraphicsPathItem):
-    """A spline (bezier curve) connecting two commits with axis-aligned routing."""
+    """
+    A spline (bezier curve) connecting child commit to parent commit.
 
-    # Corner radius for turns
+    COORDINATE SYSTEM NOTE:
+    The git graph is drawn "upside down" compared to typical graphs:
+    - Newer commits (children) are at the TOP of the screen (LOWER y values)
+    - Older commits (parents) are at the BOTTOM of the screen (HIGHER y values)
+    - So start.y < end.y (we draw DOWN from child to parent)
+
+    For diagonal connections, we use an S-shaped path with two rounded corners:
+    1. Go DOWN from child
+    2. Turn horizontally toward parent's column
+    3. Go horizontal
+    4. Turn DOWN into parent
+    """
+
+    # Corner radius for turns - should be less than half the row height
     CORNER_RADIUS = 20
 
     def __init__(
@@ -364,14 +378,16 @@ class SplineEdge(QGraphicsPathItem):
         self._setup_style()
 
     def _build_path(self) -> None:
-        """Build an axis-aligned path with rounded corners.
+        """Build an axis-aligned path with two rounded corners.
 
-        For diagonal connections (different columns), the path is an L-shape:
-        - Go horizontal from start to the target column
-        - Round corner
-        - Go vertical to the end point
+        Path structure for diagonal connections:
+        1. Vertical line DOWN from start to (start.x, end.y - 2r)
+        2. Curve toward target column, ending at (start.x ± r, end.y - r)
+        3. Horizontal line to (end.x ∓ r, end.y - r)
+        4. Curve DOWN into parent, ending at end
 
-        This creates a clean single-corner path.
+        The horizontal segment is at (end.y - r), leaving room for the
+        final curve down into the parent panel.
         """
         path = QPainterPath()
         path.moveTo(self.start)
@@ -383,27 +399,37 @@ class SplineEdge(QGraphicsPathItem):
             # Straight vertical line - just draw it
             path.lineTo(self.end)
         elif dx > 0:
-            # Going up-right: horizontal first, then turn up
-            # Go horizontal from start to just before end.x
-            path.lineTo(self.end.x() - r, self.start.y())
-            # Round corner turning up
+            # Going down-right: child is top-left, parent is bottom-right
+            # 1. Line down from start to turn level
+            path.lineTo(self.start.x(), self.end.y() - 2 * r)
+            # 2. Curve right: control at corner, end one radius right and down
             path.quadTo(
-                QPointF(self.end.x(), self.start.y()),
-                QPointF(self.end.x(), self.start.y() - r),
+                QPointF(self.start.x(), self.end.y() - r),
+                QPointF(self.start.x() + r, self.end.y() - r),
             )
-            # Go up to end
-            path.lineTo(self.end)
+            # 3. Horizontal line right to above parent
+            path.lineTo(self.end.x() - r, self.end.y() - r)
+            # 4. Curve down into parent
+            path.quadTo(
+                QPointF(self.end.x(), self.end.y() - r),
+                self.end,
+            )
         else:
-            # Going up-left: horizontal first, then turn up
-            # Go horizontal from start to just past end.x
-            path.lineTo(self.end.x() + r, self.start.y())
-            # Round corner turning up
+            # Going down-left: child is top-right, parent is bottom-left
+            # 1. Line down from start to turn level
+            path.lineTo(self.start.x(), self.end.y() - 2 * r)
+            # 2. Curve left: control at corner, end one radius left and down
             path.quadTo(
-                QPointF(self.end.x(), self.start.y()),
-                QPointF(self.end.x(), self.start.y() - r),
+                QPointF(self.start.x(), self.end.y() - r),
+                QPointF(self.start.x() - r, self.end.y() - r),
             )
-            # Go up to end
-            path.lineTo(self.end)
+            # 3. Horizontal line left to above parent
+            path.lineTo(self.end.x() + r, self.end.y() - r)
+            # 4. Curve down into parent
+            path.quadTo(
+                QPointF(self.end.x(), self.end.y() - r),
+                self.end,
+            )
 
         self.setPath(path)
 

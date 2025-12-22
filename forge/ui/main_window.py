@@ -187,6 +187,11 @@ class MainWindow(QMainWindow):
         # Connect user typing signal to clear waiting indicator
         chat_widget.user_typing.connect(branch_widget.clear_waiting_indicator)
 
+        # Connect fork request from chat widget (for turn-level fork)
+        chat_widget.fork_requested.connect(
+            lambda msg_idx, bn=branch_name: self._fork_from_turn(bn, msg_idx)
+        )
+
         # Connect file explorer context changes to chat widget
         branch_widget.context_file_added.connect(chat_widget.add_file_to_context)
         branch_widget.context_file_removed.connect(chat_widget.remove_file_from_context)
@@ -393,6 +398,63 @@ class MainWindow(QMainWindow):
                 self._open_branch(name)
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to fork branch: {e}")
+
+    def _fork_from_turn(self, source_branch: str, first_message_index: int) -> None:
+        """Fork a branch from before a specific turn in the conversation.
+
+        This creates a new branch and copies the session with the conversation
+        truncated to just before the specified turn.
+        """
+        import pygit2
+
+        from forge.ui.fork_branch_dialog import ForkBranchDialog
+
+        dialog = ForkBranchDialog(source_branch, self)
+        # Pre-check the "include session" checkbox since we're forking from conversation
+        dialog.include_session.setChecked(True)
+
+        if dialog.exec() != ForkBranchDialog.DialogCode.Accepted:
+            return
+
+        name = dialog.get_branch_name()
+        if not name:
+            return
+
+        try:
+            # Get source branch head
+            source_obj = self.repo.get_branch_head(source_branch)
+            source_commit = source_obj.peel(pygit2.Commit)
+            self.repo.repo.branches.create(name, source_commit)
+
+            # Copy session with truncated conversation
+            self._copy_session_truncated(source_branch, name, first_message_index)
+
+            self._open_branch(name)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to fork branch: {e}")
+
+    def _copy_session_truncated(
+        self, source_branch: str, target_branch: str, first_message_index: int
+    ) -> None:
+        """Copy session data with conversation truncated to before a specific message."""
+        from forge.vfs.work_in_progress import WorkInProgressVFS
+
+        try:
+            session_path = ".forge/session.json"
+            session_content = self.repo.get_file_content(session_path, source_branch)
+            session_data = json.loads(session_content)
+
+            # Truncate messages to before the specified index
+            if "messages" in session_data:
+                session_data["messages"] = session_data["messages"][:first_message_index]
+
+            # Write truncated session to target branch
+            target_vfs = WorkInProgressVFS(self.repo, target_branch)
+            target_vfs.write_file(session_path, json.dumps(session_data, indent=2))
+            target_vfs.commit(f"Fork from {source_branch} (conversation truncated)")
+        except Exception:
+            # If session copy fails, continue without it
+            pass
 
     def _copy_session(self, source_branch: str, target_branch: str) -> None:
         """Copy session data from one branch to another"""

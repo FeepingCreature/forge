@@ -1,6 +1,6 @@
 """Dialog for forking a branch with options."""
 
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,

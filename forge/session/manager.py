@@ -4,6 +4,7 @@ Session manager for coordinating AI turns and git commits
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -471,17 +472,25 @@ File: {filepath}
 ```
 
 For CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).
-For config/docs/data: Just the filename is enough context. Write "—" (em dash, nothing else).
+For config/docs/data: Just "—" (the filename is enough context).
 
-Examples of files that should be "—": LICENSE, README.md, .gitignore, Makefile, *.txt license files, pyproject.toml, requirements.txt, CHANGELOG.md, CONTRIBUTING.md, *.json, *.yaml, *.toml config files.
+Rules:
+- Don't describe well-known files (licenses, lockfiles, standard configs).
+- Keep each bullet under 80 chars.
+- No preambles, no explanations.
 
-Keep each bullet under 80 chars. No explanations, no introductions."""
+Return your answer inside <summary></summary> tags."""
 
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)
 
             summary_content = response["choices"][0]["message"]["content"]
-            summary = str(summary_content).strip().strip("\"'")
+            summary = str(summary_content).strip()
+
+            # Extract content from <summary> tags if present
+            match = re.search(r"<summary>(.*?)</summary>", summary, re.DOTALL)
+            if match:
+                summary = match.group(1).strip()
 
             # Cache the summary
             self._cache_summary(filepath, blob_oid, summary)

@@ -1,7 +1,7 @@
 {
   "active_files": [
-    "forge/session/manager.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/session/manager.py"
   ],
   "messages": [
     {
@@ -251,6 +251,131 @@
     {
       "role": "assistant",
       "content": "Looks good! The prompt now has concrete examples. Clear the cache and regenerate to see if the license files and README finally behave.\n\nOne small thing - we could also add \"DESIGN.md\" to that examples list since it's a docs file that was getting verbose summaries. But let's see how this round goes first."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Regenerated. Hm, we're still at 4k... how's it like?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the new summaries... it's *better* but still inconsistent:\n\n**Good (using \"\u2014\"):**\n- `.gitignore`, `DESIGN.md`, `LICENSE`, `Makefile`, `TODO.md` \u2713\n- `BSD-3-Clause.txt`, `MIT.txt`, `MPL-2.0.txt` \u2713\n\n**Bad (still verbose):**\n- `README.md` - Has bullet list of tools, THEN \"\u2014 README.md\" AND \"\u2014 LICENSE\" at the end (confused)\n- `forge/__init__.py` - Lists \"Forge\" then dumps example files from the prompt\n- `forge/config/settings.py` - Full sentences, then \"\u2014\" at end\n- `AGPL-3.0.txt`, `Apache-2.0.txt`, `GPL-3.0.txt`, `LGPL-3.0.txt` - Still explaining what the license is\n- Several tool files - \"Public interfaces in...\" preamble, should just be bullets\n- `forge/prompts/system.py` - \"The public interfaces in the ... file are:\" preamble\n\n**The pattern:** The model is hedging - giving both a summary AND \"\u2014\", or adding preambles. It's trying to be helpful.\n\nTwo quick fixes:\n\n1. **Post-process**: Strip common preambles and trailing dashes\n2. **Stronger prompt**: \"Output ONLY bullets OR ONLY '\u2014'. Never both. No preambles like 'Public interfaces:'\"\n\nWant me to try the stronger prompt, or add post-processing to clean up the output? Post-processing is more reliable since we can't fully control LLM output."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 6cf57d44",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Let's just add something like \"Do not describe standard files like well-known licenses?\" For the preambles... maybe tell it to return the answer between a set of xml tags then filter on that? That way it's not fighting its urge to be polite with a preamble, and we can discard it automatically. This will also give it space to consider stuff like licenses."
+    },
+    {
+      "role": "assistant",
+      "content": "Smart! Let the model think, then extract just what we need:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just the filename is enough context. Write \\\"\u2014\\\" (em dash, nothing else).\\n\\nExamples of files that should be \\\"\u2014\\\": LICENSE, README.md, .gitignore, Makefile, *.txt license files, pyproject.toml, requirements.txt, CHANGELOG.md, CONTRIBUTING.md, *.json, *.yaml, *.toml config files.\\n\\nKeep each bullet under 80 chars. No explanations, no introductions.\\\"\\\"\\\"\", \"replace\": \"            prompt = f\\\"\\\"\\\"Summarize this file's public interfaces for codebase navigation.\\n\\nFile: {filepath}\\n\\n```\\n{content}\\n```\\n\\nFor CODE: Bulleted list of public classes/functions/constants (skip _ prefixed).\\nFor config/docs/data: Just \\\"\u2014\\\" (the filename is enough context).\\n\\nRules:\\n- Don't describe well-known files (licenses, lockfiles, standard configs).\\n- Keep each bullet under 80 chars.\\n- No preambles, no explanations.\\n\\nReturn your answer inside <summary></summary> tags.\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01RG4PFEZTCsuNvA2kiP27zb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01RG4PFEZTCsuNvA2kiP27zb",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the post-processing to extract content from the `<summary>` tags:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            summary_content = response[\\\"choices\\\"][0][\\\"message\\\"][\\\"content\\\"]\\n            summary = str(summary_content).strip().strip(\\\"\\\\\\\"'\\\")\\n\\n            # Cache the summary\", \"replace\": \"            summary_content = response[\\\"choices\\\"][0][\\\"message\\\"][\\\"content\\\"]\\n            summary = str(summary_content).strip()\\n\\n            # Extract content from <summary> tags if present\\n            import re\\n\\n            match = re.search(r\\\"<summary>(.*?)</summary>\\\", summary, re.DOTALL)\\n            if match:\\n                summary = match.group(1).strip()\\n\\n            # Cache the summary\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01QR4Yf4sP6kXdZ1FRRxocKJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01QR4Yf4sP6kXdZ1FRRxocKJ",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me move that import to the top of the file where it belongs:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"import hashlib\\nimport json\\nfrom pathlib import Path\\nfrom typing import TYPE_CHECKING, Any\", \"replace\": \"import hashlib\\nimport json\\nimport re\\nfrom pathlib import Path\\nfrom typing import TYPE_CHECKING, Any\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01RxsVUgSHtZWjY6z7oFs6qa",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"            # Extract content from <summary> tags if present\\n            import re\\n\\n            match = re.search(r\\\"<summary>(.*?)</summary>\\\", summary, re.DOTALL)\", \"replace\": \"            # Extract content from <summary> tags if present\\n            match = re.search(r\\\"<summary>(.*?)</summary>\\\", summary, re.DOTALL)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01RegrVGBqvjyuhQGEuuudWC",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01RxsVUgSHtZWjY6z7oFs6qa",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01RegrVGBqvjyuhQGEuuudWC",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! Let me run the checks to make sure everything's clean:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_bdrk_0144JarRRyKk96Dakahm8DkH",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_0144JarRRyKk96Dakahm8DkH",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 46 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All passing. Clear the cache and regenerate to see the new summaries with the `<summary>` tag extraction. Should be cleaner since the model can \"think\" before the tags, then we just grab what's inside."
     }
   ]
 }

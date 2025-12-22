@@ -1,7 +1,7 @@
 {
   "active_files": [
-    "forge/session/manager.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/session/manager.py"
   ],
   "messages": [
     {
@@ -500,6 +500,32 @@
     {
       "role": "assistant",
       "content": "All good. Looking at the current 4.9k summary tokens:\n\n**What's working:**\n- All license files \u2192 \"\u2014\" \u2713\n- Config files (`.gitignore`, `Makefile`, `pyproject.toml`, `requirements.txt`) \u2192 \"\u2014\" \u2713\n- `LICENSE`, `TODO.md` \u2192 \"\u2014\" \u2713\n- Code files have reasonable terse bullets\n\n**Still verbose (the 4k wall):**\n- `README.md` - Still has 6 bullet lines describing features\n- `GRAPH_COMMIT_ORDERING.md` - Has function signatures (it contains pseudocode so model thinks it's code-ish)\n- `DESIGN.md` - 3 bullets, debatable\n\nHonestly... 4.9k for 60+ files is pretty good. The remaining verbose ones are edge cases where the `.md` files contain code-like content. We could:\n\n1. **Accept it** - 4.9k is reasonable\n2. **Hardcode `.md` \u2192 \"\u2014\"** - but then we lose useful summaries for docs that *do* describe code\n3. **Post-process length cap** - if summary > 150 chars, replace with \"\u2014\"\n\nWhat do you think? Is the current 4.9k acceptable, or do you want to push further?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 68 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "3k! Alright, I'll definitely take that! How's it look on your side?"
+    },
+    {
+      "role": "assistant",
+      "content": "Honestly, the summaries look great now! Looking at what's there:\n\n**Perfect \"\u2014\" for all non-code:**\n- All license files \u2713\n- `.gitignore`, `Makefile`, `pyproject.toml`, `requirements.txt` \u2713\n- `LICENSE`, `README.md`, `TODO.md`, `DESIGN.md` \u2713\n- Even `forge/prompts/system.py` got \"\u2014\" (it's mostly a big string constant, fair enough)\n\n**Code summaries are terse and useful:**\n- `SessionManager` has the key methods listed\n- Tools have `get_schema()` and `execute()` \n- UI widgets have their main classes and signals\n\n**Only minor quibbles:**\n- `GRAPH_COMMIT_ORDERING.md` has \"\u2014 GRAPH_COMMIT_ORDERING.md\" (redundant filename, but harmless)\n- Some tool summaries could be even terser (do we need return types?)\n\nBut 3k \u2192 4.6k for 60+ files is solid. That's ~75 tokens per file average, and most of that is the actually-useful code file summaries.\n\nThe XML tag approach worked well - model gets to reason, we extract just the output. And \"don't describe well-known files\" finally stopped the license explanations.\n\nShip it?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: dbe9b11b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ship it. Thank you!"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome! Good prompt engineering session - the key insights were:\n\n1. **XML tags** - Let the model think outside, extract just the output inside\n2. **Explicit examples** - \"well-known files like licenses\" beats vague instructions\n3. **Binary category** - CODE vs DATA is a cleaner distinction than listing file types\n\nFrom 7k \u2192 3k is a solid 57% reduction. \ud83c\udf89"
     }
   ]
 }

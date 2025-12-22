@@ -22,7 +22,6 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
-    QMouseEvent,
     QPainter,
     QPainterPath,
     QPen,
@@ -764,64 +763,70 @@ class GitGraphView(QGraphicsView):
         self._branch_list.branch_clicked.connect(self._jump_to_branch)
         self._branch_list.move(8, 8)
 
-    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
-        """Handle mouse wheel for vertical scrolling."""
-        # Use wheel for vertical scroll (default behavior)
-        super().wheelEvent(event)
+        # Install event filter on viewport to catch middle mouse before QGraphicsView does
+        self.viewport().installEventFilter(self)
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse press - middle button starts zoom drag."""
-        if event.button() == Qt.MouseButton.MiddleButton:
-            self._middle_dragging = True
-            self._middle_drag_start_y = event.pos().y()
-            self._middle_drag_start_zoom = self._zoom
-            self.setCursor(Qt.CursorShape.SizeVerCursor)
-            event.accept()
-        else:
-            super().mousePressEvent(event)
+    def eventFilter(self, obj: object, event: object) -> bool:  # noqa: N802
+        """Filter events on viewport to intercept middle mouse before QGraphicsView."""
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QMouseEvent
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse move - zoom if middle dragging."""
-        if self._middle_dragging:
-            # Calculate zoom based on vertical movement
-            delta_y = self._middle_drag_start_y - event.pos().y()
-            # 100 pixels of drag = one full zoom factor
-            zoom_delta = delta_y / 100.0
-            new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)
+        if obj is not self.viewport():
+            return False
 
-            # Clamp zoom
-            new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
+        if not isinstance(event, QEvent):
+            return False
 
-            # Apply zoom centered on viewport center
-            if new_zoom != self._zoom:
-                # Get the center of the viewport in scene coordinates
-                center = self.mapToScene(self.viewport().rect().center())
+        event_type = event.type()
 
-                factor = new_zoom / self._zoom
-                self._zoom = new_zoom
+        if event_type == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
+            if event.button() == Qt.MouseButton.MiddleButton:
+                print(f"[GitGraphView] Middle mouse press (filter) at y={event.pos().y()}")
+                self._middle_dragging = True
+                self._middle_drag_start_y = event.pos().y()
+                self._middle_drag_start_zoom = self._zoom
+                self.setCursor(Qt.CursorShape.SizeVerCursor)
+                return True  # Consume event
 
-                # Scale around the center
-                self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
-                self.scale(factor, factor)
-                # Adjust to keep center in place
-                new_center = self.mapToScene(self.viewport().rect().center())
-                delta = center - new_center
-                self.translate(delta.x(), delta.y())
-                # Restore anchor for wheel zoom
-                self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        elif event_type == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+            if self._middle_dragging:
+                # Calculate zoom based on vertical movement
+                delta_y = self._middle_drag_start_y - event.pos().y()
+                zoom_delta = delta_y / 100.0
+                new_zoom = self._middle_drag_start_zoom * (1.0 + zoom_delta)
+                new_zoom = max(self.MIN_ZOOM, min(self.MAX_ZOOM, new_zoom))
 
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
+                if new_zoom != self._zoom:
+                    center = self.mapToScene(self.viewport().rect().center())
+                    factor = new_zoom / self._zoom
+                    self._zoom = new_zoom
+                    print(f"[GitGraphView] Zooming to {self._zoom:.2f}")
 
-    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        """Handle mouse release - end middle drag zoom."""
-        if event.button() == Qt.MouseButton.MiddleButton and self._middle_dragging:
+                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)
+                    self.scale(factor, factor)
+                    new_center = self.mapToScene(self.viewport().rect().center())
+                    delta = center - new_center
+                    self.translate(delta.x(), delta.y())
+                    self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+
+                return True  # Consume event
+
+        elif (
+            event_type == QEvent.Type.MouseButtonRelease
+            and isinstance(event, QMouseEvent)
+            and event.button() == Qt.MouseButton.MiddleButton
+            and self._middle_dragging
+        ):
+            print("[GitGraphView] Middle mouse release (filter)")
             self._middle_dragging = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
+            return True  # Consume event
+
+        return False  # Let other events through
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
+        """Handle mouse wheel for vertical scrolling."""
+        super().wheelEvent(event)
 
     def _jump_to_branch(self, branch_name: str) -> None:
         """Jump to center the view on a branch's tip commit."""

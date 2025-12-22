@@ -284,6 +284,7 @@ class AIChatWidget(QWidget):
         self.stream_worker: StreamWorker | None = None
         self._is_streaming = False
         self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls
+        self._cancel_requested = False  # Track if user requested cancellation
 
         # Tool execution worker
         self.tool_thread: QThread | None = None
@@ -400,8 +401,15 @@ class AIChatWidget(QWidget):
         self.send_button.clicked.connect(self._send_message)
         self.send_button.setMaximumWidth(80)
 
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self._cancel_ai_turn)
+        self.cancel_button.setMaximumWidth(80)
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.hide()
+
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(self.send_button)
+        input_layout.addWidget(self.cancel_button)
 
         layout.addLayout(input_layout)
 
@@ -700,11 +708,14 @@ class AIChatWidget(QWidget):
         self.session_manager.append_user_message(text)
         self.input_field.clear()
 
-        # Disable input while processing
+        # Disable input while processing, show cancel button
         self.is_processing = True
+        self._cancel_requested = False
         self.input_field.setEnabled(False)
         self.send_button.setEnabled(False)
-        self.send_button.setText("Thinking...")
+        self.send_button.hide()
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.show()
 
         # Emit signal that AI turn is starting
         self.ai_turn_started.emit()
@@ -1126,9 +1137,59 @@ class AIChatWidget(QWidget):
         # Start the thread
         self.stream_thread.start()
 
+    def _cancel_ai_turn(self) -> None:
+        """Cancel the current AI turn - abort streaming/tool execution and discard changes"""
+        if not self.is_processing:
+            return
+
+        self._cancel_requested = True
+
+        # Clean up streaming thread if active
+        if self.stream_thread and self.stream_thread.isRunning():
+            self.stream_thread.quit()
+            self.stream_thread.wait(1000)  # Wait up to 1 second
+            if self.stream_thread.isRunning():
+                self.stream_thread.terminate()
+            self.stream_thread = None
+            self.stream_worker = None
+
+        # Clean up tool thread if active
+        if self.tool_thread and self.tool_thread.isRunning():
+            self.tool_thread.quit()
+            self.tool_thread.wait(1000)
+            if self.tool_thread.isRunning():
+                self.tool_thread.terminate()
+            self.tool_thread = None
+            self.tool_worker = None
+
+        # Clear streaming state
+        self._is_streaming = False
+        self._streaming_tool_calls = []
+
+        # Discard pending VFS changes
+        self.session_manager.vfs.clear_pending_changes()
+
+        # Remove the incomplete assistant message if present
+        if self.messages and self.messages[-1].get("role") == "assistant":
+            self.messages.pop()
+
+        # Add cancellation notice
+        self._add_system_message("🛑 AI turn cancelled by user")
+
+        # Emit signal that AI turn is finished (no commit)
+        self.ai_turn_finished.emit("")
+
+        self._reset_input()
+        self._update_chat_display()
+
     def _reset_input(self) -> None:
         """Re-enable input after processing (if no pending approvals)"""
         self.is_processing = False
+
+        # Hide cancel button, show send button
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.hide()
+        self.send_button.show()
 
         # Check for new unapproved tools after AI response
         self._check_for_unapproved_tools()
@@ -1137,7 +1198,6 @@ class AIChatWidget(QWidget):
         if not self.pending_approvals:
             self.input_field.setEnabled(True)
             self.send_button.setEnabled(True)
-        self.send_button.setText("Send")
 
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat (becomes part of conversation history)"""

@@ -207,12 +207,41 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         # Find the line number of the best match
         line_num = content[:pos].count("\n") + 1
 
+        # Build a focused error message
+        # Don't show the full match - it's redundant with the diff and can be huge
+        if similarity >= 95:
+            # Very close match - probably whitespace or small typo
+            hint = (
+                "VERY CLOSE MATCH - check the diff carefully for:\n"
+                "  • Trailing whitespace or newlines\n"
+                "  • Small typos\n"
+                "  • Indentation differences"
+            )
+        elif similarity >= 80:
+            hint = (
+                "CLOSE MATCH - the text exists but has differences.\n"
+                "Check the diff below to see exactly what's different."
+            )
+        else:
+            hint = (
+                "NO CLOSE MATCH - the text may have been modified or doesn't exist.\n"
+                "You may need to reload the file to see current content."
+            )
+
+        # Show just first/last few lines of the match for context, not the whole thing
+        match_lines = best_match.split("\n")
+        if len(match_lines) > 6:
+            match_preview = "\n".join(match_lines[:3] + ["    ..."] + match_lines[-2:])
+        else:
+            match_preview = best_match
+
         error_msg = (
             f"Search text not found in file.\n\n"
-            f"Most similar text found (line {line_num}, {similarity:.1f}% similar, "
-            f"edit distance {distance}):\n\n"
-            f"```\n{best_match}\n```\n\n"
-            f"Diff (your search vs actual file content):\n"
+            f"**{hint}**\n\n"
+            f"Found {similarity:.1f}% similar text at line {line_num} "
+            f"(edit distance: {distance}):\n\n"
+            f"```\n{match_preview}\n```\n\n"
+            f"Diff (--- your search vs +++ actual file):\n"
             f"```diff\n{diff}\n```"
         )
 

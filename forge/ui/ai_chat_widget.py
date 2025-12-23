@@ -748,10 +748,8 @@ class AIChatWidget(QWidget):
         if self.is_processing:
             self._queued_message = text
             self.input_field.clear()
-            self._add_system_message(
-                f"📝 Message queued (will be sent after current turn): "
-                f'"{text[:50]}{"..." if len(text) > 50 else ""}"'
-            )
+            # Add queued message indicator via JavaScript to avoid disrupting streaming
+            self._append_queued_message_indicator(text)
             return
 
         # Check for unsaved changes if callback is set
@@ -1296,6 +1294,43 @@ class AIChatWidget(QWidget):
     def _get_conversation_messages(self) -> list[dict[str, Any]]:
         """Get messages that are part of the actual conversation (excludes UI-only messages)"""
         return [msg for msg in self.messages if not msg.get("_ui_only", False)]
+
+    def _append_queued_message_indicator(self, text: str) -> None:
+        """Append a queued message indicator via JavaScript without disrupting streaming"""
+        preview = text[:50] + "..." if len(text) > 50 else text
+        # Escape for JavaScript
+        escaped_preview = (
+            preview.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+            .replace("\n", " ")
+            .replace("\r", "")
+        )
+
+        js_code = f"""
+        (function() {{
+            // Check if we already have a queued indicator
+            var existing = document.getElementById('queued-message-indicator');
+            if (existing) {{
+                existing.remove();
+            }}
+
+            // Create the indicator element
+            var indicator = document.createElement('div');
+            indicator.id = 'queued-message-indicator';
+            indicator.className = 'message system';
+            indicator.style.cssText = 'background: #e8f5e9; border: 2px solid #4caf50; margin: 0 10%;';
+            indicator.innerHTML = '<div class="role">Queued</div><div class="content">📝 Message queued (will be sent after current turn):<br><em>"{escaped_preview}"</em></div>';
+
+            // Append to messages container
+            var container = document.getElementById('messages-container');
+            if (container) {{
+                container.appendChild(indicator);
+                window.scrollTo(0, document.body.scrollHeight);
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
 
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message (no markdown re-render)"""

@@ -15,7 +15,7 @@ SKILLS: dict[str, str] = {
     "create_tool": """\
 # Creating a Custom Tool
 
-Custom tools live in the `/tools` directory at the repository root (NOT in forge/tools/builtin).
+Custom tools live in the `/tools` directory at the repository root.
 Each tool is a single Python file that exports two functions: `get_schema()` and `execute()`.
 
 ## File Structure

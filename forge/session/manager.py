@@ -442,36 +442,51 @@ Keep it under 72 characters."""
         files = self.vfs.list_files()
         # Filter out forge metadata and binary files
         files = [f for f in files if self._should_summarize(filepath=f)]
-        total_files = len(files)
-        print(f"� Generating summaries for {total_files} files (cached summaries will be reused)")
 
-        for i, filepath in enumerate(files):
-            # Report progress
-            if progress_callback:
-                progress_callback(i, total_files, filepath)
+        # First pass: determine which files need generation vs cached
+        # Build list of (filepath, blob_oid, cached_summary_or_none)
+        files_with_cache_info: list[tuple[str, str, str | None]] = []
+        files_needing_generation: list[tuple[str, str]] = []
 
+        for filepath in files:
             # Get blob OID (content hash) for cache key
-            # For pending files, use a hash of the content itself
             try:
                 blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)
             except KeyError:
                 # File is new (pending), hash the content
-                import hashlib
-
                 content = self.vfs.read_file(filepath)
                 blob_oid = hashlib.sha256(content.encode()).hexdigest()
 
-            # Check cache first (unless force refresh)
+            # Check cache (unless force refresh)
+            cached_summary = None
             if not force_refresh:
                 cached_summary = self._get_cached_summary(filepath, blob_oid)
-                if cached_summary:
-                    self.repo_summaries[filepath] = cached_summary
-                    print(f"   ✓ {filepath} (cached)")
-                    continue
+
+            files_with_cache_info.append((filepath, blob_oid, cached_summary))
+            if cached_summary is None:
+                files_needing_generation.append((filepath, blob_oid))
+
+        total_to_generate = len(files_needing_generation)
+        total_cached = len(files) - total_to_generate
+        print(f"📚 Generating summaries: {total_to_generate} to generate, {total_cached} cached")
+
+        # Second pass: load cached summaries and generate missing ones
+        generated_count = 0
+        for filepath, blob_oid, cached_summary in files_with_cache_info:
+            if cached_summary is not None:
+                # Use cached summary
+                self.repo_summaries[filepath] = cached_summary
+                print(f"   ✓ {filepath} (cached)")
+                continue
+
+            # Report progress for files being generated
+            if progress_callback:
+                progress_callback(generated_count, total_to_generate, filepath)
 
             # Generate summary with cheap LLM
-            print(f"   � {filepath} (generating...)")
+            print(f"   📝 {filepath} (generating...)")
             content = self.vfs.read_file(filepath)
+            generated_count += 1
 
             # Truncate very large files for summary generation
             max_chars = 10000
@@ -494,9 +509,9 @@ Keep it under 72 characters."""
             self._cache_summary(filepath, blob_oid, summary)
             self.repo_summaries[filepath] = summary
 
-        # Final progress update
-        if progress_callback:
-            progress_callback(total_files, total_files, "")
+        # Final progress update (signal completion)
+        if progress_callback and total_to_generate > 0:
+            progress_callback(total_to_generate, total_to_generate, "")
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""

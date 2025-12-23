@@ -153,17 +153,15 @@ class MainWindow(QMainWindow):
                     return
 
         # Create workspace and widget
-        workspace = BranchWorkspace(branch_name=branch_name, repo=self.repo)
+        workspace = BranchWorkspace(branch_name=branch_name, repo=self.repo, settings=self.settings)
         branch_widget = BranchTabWidget(workspace, self.settings)
 
         # Create AI chat for this branch
         # Try to load existing session data from .forge/session.json
         session_data = self._load_session_data(branch_name)
         chat_widget = AIChatWidget(
+            workspace=workspace,
             session_data=session_data,
-            settings=self.settings,
-            repo=self.repo,
-            branch_name=branch_name,
         )
 
         # Set up unsaved changes check callback

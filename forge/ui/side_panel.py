@@ -87,3 +87,7 @@ class SidePanelWidget(QWidget):
         """Switch to ask tab and focus the input"""
         self.tabs.setCurrentWidget(self._ask)
         self._ask.focus_input()
+
+    def set_summaries(self, summaries: dict[str, str]) -> None:
+        """Pass repository summaries to the Ask widget"""
+        self._ask.set_summaries(summaries)

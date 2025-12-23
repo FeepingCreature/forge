@@ -5,7 +5,9 @@ BranchWorkspace - manages per-branch state for the branch-first architecture
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
+    from forge.session.manager import SessionManager
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
 
@@ -20,9 +22,10 @@ class BranchWorkspace:
     for git operations (commits, branch management).
     """
 
-    def __init__(self, branch_name: str, repo: "ForgeRepository") -> None:
+    def __init__(self, branch_name: str, repo: "ForgeRepository", settings: "Settings") -> None:
         self.branch_name = branch_name
         self._repo = repo  # Private - only for git operations, not file reading
+        self._settings = settings
 
         # Open file tabs within this branch (paths)
         self.open_files: list[str] = []
@@ -36,6 +39,9 @@ class BranchWorkspace:
         # VFS instance - created lazily, THE source of truth for file content
         self._vfs: WorkInProgressVFS | None = None
 
+        # Session manager - created lazily, owns summaries and prompt state
+        self._session_manager: SessionManager | None = None
+
     @property
     def vfs(self) -> "WorkInProgressVFS":
         """Get or create the VFS for this branch - THE source of truth for file content"""
@@ -44,6 +50,15 @@ class BranchWorkspace:
 
             self._vfs = WorkInProgressVFS(self._repo, self.branch_name)
         return self._vfs
+
+    @property
+    def session_manager(self) -> "SessionManager":
+        """Get or create the session manager for this branch"""
+        if self._session_manager is None:
+            from forge.session.manager import SessionManager
+
+            self._session_manager = SessionManager(self._repo, self.branch_name, self._settings)
+        return self._session_manager
 
     @property
     def has_session(self) -> bool:

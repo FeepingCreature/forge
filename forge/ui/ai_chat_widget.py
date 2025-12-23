@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
 from forge.ui.diff_view import (
@@ -31,7 +30,7 @@ from forge.ui.diff_view import (
 )
 
 if TYPE_CHECKING:
-    from forge.config.settings import Settings
+    from forge.ui.branch_workspace import BranchWorkspace
 
 
 class SummaryWorker(QObject):
@@ -296,21 +295,20 @@ class AIChatWidget(QWidget):
     fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)
     context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
     context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
+    summaries_ready = Signal(dict)  # Emitted when repo summaries are ready (filepath -> summary)
 
     def __init__(
         self,
+        workspace: "BranchWorkspace",
         session_data: dict[str, Any] | None = None,
-        settings: "Settings | None" = None,
-        repo: ForgeRepository | None = None,
-        branch_name: str | None = None,
     ) -> None:
         super().__init__()
-        # Branch name is the session identity (no UUID needed)
-        assert branch_name is not None, "branch_name is required for AIChatWidget"
-        self.branch_name = branch_name
-        self.messages = []
-        self.settings = settings
-        self.repo = repo
+        # Get branch info from workspace
+        self.workspace = workspace
+        self.branch_name = workspace.branch_name
+        self.messages: list[dict[str, Any]] = []
+        self.settings = workspace._settings
+        self.repo = workspace._repo
         self.is_processing = False
         self.streaming_content = ""
 
@@ -335,16 +333,15 @@ class AIChatWidget(QWidget):
         # Summary worker
         self.summary_thread: QThread | None = None
         self.summary_worker: SummaryWorker | None = None
+        self._summaries_ready = False  # Track if summaries have been generated
 
         # Web channel bridge for JavaScript communication
         self.bridge = ChatBridge(self)
         self.channel = QWebChannel()
         self.channel.registerObject("bridge", self.bridge)
 
-        # Initialize session manager (repo and settings are required)
-        assert repo is not None, "Repository is required for AIChatWidget"
-        assert settings is not None, "Settings are required for AIChatWidget"
-        self.session_manager = SessionManager(repo, self.branch_name, settings)
+        # Get session manager from workspace (branch-level ownership)
+        self.session_manager = workspace.session_manager
 
         # Load existing session messages and restore prompt manager state
         if session_data:
@@ -506,6 +503,12 @@ class AIChatWidget(QWidget):
             self.summary_thread.wait()
             self.summary_thread = None
             self.summary_worker = None
+
+        # Mark summaries as ready
+        self._summaries_ready = True
+
+        # Emit signal so other widgets (like AskWidget) can access summaries
+        self.summaries_ready.emit(self.session_manager.repo_summaries)
 
         # Set summaries in prompt manager (one-time snapshot for this session)
         self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)
@@ -750,6 +753,13 @@ class AIChatWidget(QWidget):
             self.input_field.clear()
             # Add queued message indicator via JavaScript to avoid disrupting streaming
             self._append_queued_message_indicator(text)
+            return
+
+        # Block if summaries are still being generated
+        if not self._summaries_ready:
+            self._add_system_message(
+                "⏳ Please wait for repository summaries to finish generating..."
+            )
             return
 
         # Check for unsaved changes if callback is set
@@ -1164,8 +1174,10 @@ class AIChatWidget(QWidget):
             queued = self._queued_message
             self._queued_message = None
 
-            # Add the queued message to conversation
-            self.add_message("user", queued)
+            # Add the queued message to conversation, marked as part of current turn
+            # This prevents it from starting a new visual turn block
+            self.messages.append({"role": "user", "content": queued, "_mid_turn": True})
+            self._update_chat_display(scroll_to_bottom=True)
             self.session_manager.append_user_message(queued)
 
             # Continue with the queued message (AI will see tool results + new message)
@@ -1826,7 +1838,9 @@ class AIChatWidget(QWidget):
             role = msg.get("role", "")
 
             # User message starts a new turn (except for the very first message)
-            if role == "user" and current_turn:
+            # BUT mid-turn user messages (interruptions) stay in the current turn
+            is_mid_turn = msg.get("_mid_turn", False)
+            if role == "user" and current_turn and not is_mid_turn:
                 turns.append(current_turn)
                 current_turn = []
 

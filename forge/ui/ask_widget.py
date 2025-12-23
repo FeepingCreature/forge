@@ -46,7 +46,7 @@ class AskWorker(QObject):
         """Execute the query."""
         prompt = f"""You are a code assistant. Answer the user's question about this codebase based on the file summaries below.
 
-Be concise but helpful. When referencing files, use the format `filepath:line` or just `filepath` so users can click to open them.
+Be concise but helpful. When referencing files, use the EXACT full path from the summaries (e.g., `forge/ui/main_window.py` not just `main_window.py`). These paths become clickable links.
 If you're not sure, say so.
 
 ## File Summaries
@@ -125,9 +125,14 @@ class AskWidget(QWidget):
         self._api_key = api_key
         self._raw_response = ""  # Store raw response for link conversion
         self._all_files: set[str] = set()  # Cache of all files for link detection
+        self._repo_summaries: dict[str, str] = {}  # Set by parent when available
 
         self._setup_ui()
         self._setup_worker()
+
+    def set_summaries(self, summaries: dict[str, str]) -> None:
+        """Set the repository summaries (called by parent when available)."""
+        self._repo_summaries = summaries
 
     def _setup_ui(self) -> None:
         """Setup the widget UI."""
@@ -203,19 +208,15 @@ class AskWidget(QWidget):
         self._worker_thread.start()
 
     def _get_summaries(self) -> str:
-        """Get file summaries from the workspace session manager."""
-        # Get actual summaries from the session manager
-        summaries = self.workspace.session_manager.repo_summaries
+        """Get file summaries (set by parent via set_summaries)."""
+        if not self._repo_summaries:
+            return "(No summaries available yet - please wait for summary generation to complete)"
 
         lines = []
-        for filepath in sorted(summaries.keys()):
-            summary = summaries[filepath]
-            if summary == "—":
-                # Data file, just list it
-                lines.append(f"## {filepath}\n{summary}")
-            else:
-                # Code file with interface summary
-                lines.append(f"## {filepath}\n{summary}")
+        for filepath in sorted(self._repo_summaries.keys()):
+            summary = self._repo_summaries[filepath]
+            # Format: ## filepath\nsummary
+            lines.append(f"## {filepath}\n{summary}")
 
         return "\n".join(lines)
 

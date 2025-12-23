@@ -372,7 +372,9 @@ class AskWidget(QWidget):
             def make_link(match: re.Match[str], fp: str = filepath) -> str:
                 line = match.group(1) or "1"
                 display = f"{fp}:{line}" if match.group(1) else fp
-                return f'<a href="file://{fp}:{line}" style="color: #0066cc;">{display}</a>'
+                # Use forge: scheme with path (no //) to avoid URL host parsing
+                # Format: forge:filepath?line=N
+                return f'<a href="forge:{fp}?line={line}" style="color: #0066cc;">{display}</a>'
 
             escaped = pattern.sub(make_link, escaped)
 
@@ -382,26 +384,20 @@ class AskWidget(QWidget):
 
     def _on_link_clicked(self, url: QUrl) -> None:
         """Handle click on a file link."""
-        if url.scheme() == "file":
-            # Parse filepath:line from URL
-            path = url.path()
-            # URL path includes the line as part of the path after the last colon
-            if ":" in path:
-                # Find the last colon (for line number)
-                last_colon = path.rfind(":")
-                filepath = path[:last_colon]
-                try:
-                    line = int(path[last_colon + 1 :])
-                except ValueError:
-                    filepath = path
-                    line = 1
-            else:
-                filepath = path
-                line = 1
-
-            # Remove leading slash if present (file:// URLs have it)
+        if url.scheme() == "forge":
+            # Custom scheme: forge:filepath?line=N
+            # path() contains the filepath, query param has line number
+            filepath = url.path()
+            # Remove leading slash if present
             if filepath.startswith("/"):
                 filepath = filepath[1:]
+
+            # Get line from query parameter
+            from PySide6.QtCore import QUrlQuery
+
+            query = QUrlQuery(url)
+            line_str = query.queryItemValue("line")
+            line = int(line_str) if line_str else 1
 
             self.file_selected.emit(filepath, line)
 

@@ -169,13 +169,14 @@ If no files seem relevant, output an empty array: []"""
             if relevant_files and self._vfs:
                 self.status_update.emit(f"📂 Loading {len(relevant_files)} file(s)...")
 
-                for filepath in relevant_files[:5]:  # Limit to 5 files to avoid token explosion
+                for filepath in relevant_files[:10]:  # Limit to 10 files
                     try:
                         content = self._vfs.read_file(filepath)
-                        # Truncate very long files
-                        if len(content) > 5000:
-                            content = content[:5000] + "\n... (truncated)"
-                        file_contents += f"\n## {filepath}\n```\n{content}\n```\n"
+                        lines = content.split("\n")
+                        # Add line numbers
+                        numbered_lines = [f"{i + 1:4d} | {line}" for i, line in enumerate(lines)]
+                        numbered_content = "\n".join(numbered_lines)
+                        file_contents += f"\n## {filepath}\n```\n{numbered_content}\n```\n"
                     except Exception:
                         pass  # File doesn't exist or can't be read
 
@@ -185,9 +186,13 @@ If no files seem relevant, output an empty array: []"""
             if file_contents:
                 step2_prompt = f"""You are a code assistant. Answer the user's question using the file contents below.
 
-Be concise but helpful. When referencing files, use the EXACT full path (e.g., `forge/ui/main_window.py` not just `main_window.py`). These paths become clickable links.
+Guidelines:
+- Be concise. Don't quote code - instead link to specific lines.
+- Use EXACT file paths with line numbers: `filepath:LINE` or `filepath:START-END` for ranges.
+- Example: See `forge/ui/main_window.py:42-58` for the implementation.
+- These paths become clickable links that open the file at that location.
 
-## Relevant Files
+## Relevant Files (with line numbers)
 
 {file_contents}
 

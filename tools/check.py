@@ -59,7 +59,7 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         before_format: dict[str, str] = {}
         for py_file in py_files:
             rel_path = str(py_file.relative_to(tmpdir))
-            before_format[rel_path] = py_file.read_text()
+            before_format[rel_path] = py_file.read_text(encoding="utf-8", errors="replace")
         
         # Run make format
         format_result = subprocess.run(
@@ -67,6 +67,8 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             cwd=tmpdir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         
         # Check which files changed and update VFS
@@ -76,7 +78,7 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             rel_path = str(py_file.relative_to(tmpdir))
             if not py_file.exists():
                 continue
-            after_content = py_file.read_text()
+            after_content = py_file.read_text(encoding="utf-8", errors="replace")
             before_content = before_format.get(rel_path, "")
             
             if after_content != before_content:
@@ -95,6 +97,8 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             cwd=tmpdir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         results["typecheck_output"] = typecheck_result.stdout + typecheck_result.stderr
         results["typecheck_passed"] = typecheck_result.returncode == 0
@@ -105,6 +109,8 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             cwd=tmpdir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         results["lint_output"] = lint_result.stdout + lint_result.stderr
         results["lint_passed"] = lint_result.returncode == 0

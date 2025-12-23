@@ -1,18 +1,16 @@
 {
   "active_files": [
-    "tools/builtin/compact.py",
-    "forge/tools/manager.py",
-    "forge/session/manager.py",
-    "tools/builtin/commit.py",
-    "forge/ui/branch_workspace.py",
-    "forge/tools/builtin/commit.py",
-    "forge/ui/ask_widget.py",
-    "forge/ui/branch_tab_widget.py",
     "forge/ui/main_window.py",
-    "forge/ui/side_panel.py",
-    "forge/ui/ai_chat_widget.py",
+    "tools/builtin/compact.py",
+    "forge/ui/editor_widget.py",
+    "forge/ui/branch_tab_widget.py",
+    "tools/builtin/commit.py",
     "CLAUDE.md",
-    "tools/manager.py"
+    "forge/ui/ai_chat_widget.py",
+    "tools/manager.py",
+    "forge/ui/ask_widget.py",
+    "forge/ui/branch_workspace.py",
+    "forge/ui/side_panel.py"
   ],
   "messages": [
     {
@@ -1900,6 +1898,194 @@
     {
       "role": "assistant",
       "content": "Done. Here's what was accomplished in this session:\n\n## Summary of All Changes\n\n### Ask Widget Improvements\n\n1. **Two-step file retrieval process** - The Ask widget now:\n   - First identifies relevant files from summaries\n   - Fetches those files' full content with line numbers\n   - Answers with actual code context for better accuracy\n\n2. **Line numbers in file contents** - Files are shown with line numbers (e.g., `  42 | def foo():`) so the model knows line positions\n\n3. **Line range link support** - Links can now be `filepath:42` or `filepath:42-58` for ranges\n\n4. **Better prompt guidance** - Clarified that links should be in prose, not code blocks\n\n5. **Fixed URL parsing** - Changed from `file://` to `forge:` scheme to avoid host parsing issues\n\n### Architecture Improvements\n\n6. **SessionManager moved to BranchWorkspace** - Summaries are now properly branch-level concerns\n\n7. **Block AI turns while summaries generating** - Users see a message instead of errors\n\n8. **User interruptions stay in same turn** - Mid-turn user messages don't start new visual turn blocks\n\n### Signal Updates\n\n9. **file_selected signal now includes range** - `(filepath, start_line, end_line)` instead of just `(filepath, line)`\n\n### TODO remaining\n- Implement actual line highlighting/scrolling in the editor when a range is provided"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 81 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! It still quotes code... make the injunction against quoting code stronger, but the line links work. We just need editor line highlighting and scrolling now."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll strengthen the prompt against quoting code and then implement the editor line highlighting/scrolling.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"            # Step 3: Answer with full context\\n            if file_contents:\\n                step2_prompt = f\\\"\\\"\\\"You are a code assistant. Answer the user's question using the file contents below.\\n\\nGuidelines:\\n- Be concise. Reference code by linking to line numbers instead of quoting it.\\n- In your prose (NOT in code blocks), use: `filepath:LINE` or `filepath:START-END`\\n- Example: \\\"The main loop is in `forge/ui/main_window.py:42-58`\\\"\\n- These become clickable links. Never put links inside code blocks.\\n\\n## Relevant Files (with line numbers)\\n\\n{file_contents}\\n\\n## Question\\n\\n{self._question}\\n\\n## Answer\\\"\\\"\\\"\", \"replace\": \"            # Step 3: Answer with full context\\n            if file_contents:\\n                step2_prompt = f\\\"\\\"\\\"You are a code assistant. Answer the user's question using the file contents below.\\n\\nIMPORTANT: Do NOT quote or copy code. Instead, link to line ranges.\\n\\nGuidelines:\\n- NEVER include code blocks or quote code in your answer\\n- Reference code ONLY by linking: `filepath:LINE` or `filepath:START-END`\\n- Example: \\\"The main loop is in `forge/ui/main_window.py:42-58`\\\"\\n- These become clickable links that show the actual code\\n- Describe what the code does in prose, then link to it\\n\\n## Relevant Files (with line numbers)\\n\\n{file_contents}\\n\\n## Question\\n\\n{self._question}\\n\\n## Answer\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Qh2YnA3EMiLERvAcnRA3NM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Qh2YnA3EMiLERvAcnRA3NM",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the prompt is updated. Now let me implement the editor line highlighting and scrolling. I need to look at the `EditorWidget` to see how to scroll to a line and highlight a range:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/editor_widget.py\"], \"remove\": [\"forge/session/manager.py\",\"forge/tools/builtin/commit.py\",\"forge/tools/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01WUeoDJA3TagPpeTFnwUwHR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WUeoDJA3TagPpeTFnwUwHR",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/editor_widget.py\"], \"message\": \"Added 1 files, removed 3 files from context\", \"remove\": [\"forge/session/manager.py\", \"forge/tools/builtin/commit.py\", \"forge/tools/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the `EditorWidget`. I need to add methods to:\n1. Go to a specific line\n2. Highlight a range of lines\n\nLet me add these methods to `EditorWidget`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"search\": \"    def get_text(self) -> str:\\n        \\\"\\\"\\\"Get editor content\\\"\\\"\\\"\\n        return self.editor.toPlainText()\\n\\n    def set_text(self, text: str) -> None:\\n        \\\"\\\"\\\"Set editor content\\\"\\\"\\\"\\n        self.editor.setPlainText(text)\", \"replace\": \"    def get_text(self) -> str:\\n        \\\"\\\"\\\"Get editor content\\\"\\\"\\\"\\n        return self.editor.toPlainText()\\n\\n    def set_text(self, text: str) -> None:\\n        \\\"\\\"\\\"Set editor content\\\"\\\"\\\"\\n        self.editor.setPlainText(text)\\n\\n    def go_to_line(self, line: int, end_line: int | None = None) -> None:\\n        \\\"\\\"\\\"Go to a specific line and optionally highlight a range.\\n\\n        Args:\\n            line: Line number to go to (1-indexed)\\n            end_line: If provided, highlight from line to end_line (inclusive)\\n        \\\"\\\"\\\"\\n        # Convert to 0-indexed\\n        line_idx = max(0, line - 1)\\n\\n        # Get the block (line) at the target position\\n        block = self.editor.document().findBlockByLineNumber(line_idx)\\n        if not block.isValid():\\n            return\\n\\n        # Move cursor to the start of the line\\n        cursor = self.editor.textCursor()\\n        cursor.setPosition(block.position())\\n        self.editor.setTextCursor(cursor)\\n\\n        # Center the view on this line\\n        self.editor.centerCursor()\\n\\n        # If we have a range, highlight it\\n        if end_line is not None and end_line >= line:\\n            self._highlight_line_range(line, end_line)\\n        else:\\n            # Just highlight the single line\\n            self._highlight_line_range(line, line)\\n\\n    def _highlight_line_range(self, start_line: int, end_line: int) -> None:\\n        \\\"\\\"\\\"Highlight a range of lines with a distinct background color.\\n\\n        Args:\\n            start_line: First line to highlight (1-indexed)\\n            end_line: Last line to highlight (1-indexed, inclusive)\\n        \\\"\\\"\\\"\\n        extra_selections: list[QTextEdit.ExtraSelection] = []\\n\\n        # Highlight color for the range (light blue)\\n        highlight_color = QColor(\\\"#cce5ff\\\")\\n\\n        for line_num in range(start_line, end_line + 1):\\n            line_idx = line_num - 1\\n            block = self.editor.document().findBlockByLineNumber(line_idx)\\n            if not block.isValid():\\n                continue\\n\\n            selection = QTextEdit.ExtraSelection()\\n            selection.format.setBackground(highlight_color)\\n            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)\\n\\n            cursor = self.editor.textCursor()\\n            cursor.setPosition(block.position())\\n            selection.cursor = cursor\\n            extra_selections.append(selection)\\n\\n        self.editor.setExtraSelections(extra_selections)\\n\\n    def clear_line_highlight(self) -> None:\\n        \\\"\\\"\\\"Clear the line range highlight and restore normal current-line highlighting.\\\"\\\"\\\"\\n        self.editor.highlight_current_line()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01G6xUYxR64tXSsTWoQCRh7L",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01G6xUYxR64tXSsTWoQCRh7L",
+      "content": "{\"message\": \"Replaced in forge/ui/editor_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the `EditorWidget` now has `go_to_line()` method. Now I need to wire it up in `BranchTabWidget` so that when a file is opened from the Ask widget, it scrolls to the line and highlights the range:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/branch_tab_widget.py\", \"search\": \"    def _on_search_file_selected(self, filepath: str, line_num: int) -> None:\\n        \\\"\\\"\\\"Handle file selection from search widget\\\"\\\"\\\"\\n        self.open_file(filepath)\\n        # TODO: Scroll to line_num in the editor\\n\\n    def _on_ask_file_selected(self, filepath: str, start_line: int, end_line: int) -> None:\\n        \\\"\\\"\\\"Handle file selection from ask widget (with line range)\\\"\\\"\\\"\\n        self.open_file(filepath)\\n        # TODO: Scroll to start_line and highlight range to end_line\", \"replace\": \"    def _on_search_file_selected(self, filepath: str, line_num: int) -> None:\\n        \\\"\\\"\\\"Handle file selection from search widget\\\"\\\"\\\"\\n        self.open_file(filepath)\\n        # Scroll to line\\n        if filepath in self._editors:\\n            self._editors[filepath].go_to_line(line_num)\\n\\n    def _on_ask_file_selected(self, filepath: str, start_line: int, end_line: int) -> None:\\n        \\\"\\\"\\\"Handle file selection from ask widget (with line range)\\\"\\\"\\\"\\n        self.open_file(filepath)\\n        # Scroll to start_line and highlight range\\n        if filepath in self._editors:\\n            self._editors[filepath].go_to_line(start_line, end_line)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0136ECVh73cjhKAc3LErYBLV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0136ECVh73cjhKAc3LErYBLV",
+      "content": "{\"message\": \"Replaced in forge/ui/branch_tab_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the wiring is complete. Let me run the checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01LU3E8WcK1eYvb4Pagw4xKY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LU3E8WcK1eYvb4Pagw4xKY",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": false, \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/editor_widget.py:674: error: \\\"ExtraSelection\\\" has no attribute \\\"format\\\"  [attr-defined]\\nforge/ui/editor_widget.py:675: error: \\\"ExtraSelection\\\" has no attribute \\\"format\\\"  [attr-defined]\\nforge/ui/editor_widget.py:679: error: \\\"ExtraSelection\\\" has no attribute \\\"cursor\\\"  [attr-defined]\\nFound 3 errors in 1 file (checked 58 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/ui/editor_widget.py:674: error: \\\"ExtraSelection\\\" has no attribute \\\"format\\\"  [attr-defined]\\nforge/ui/editor_widget.py:675: error: \\\"ExtraSelection\\\" has no attribute \\\"format\\\"  [attr-defined]\\nforge/ui/editor_widget.py:679: error: \\\"ExtraSelection\\\" has no attribute \\\"cursor\\\"  [attr-defined]\\nFound 3 errors in 1 file (checked 58 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to fix the type annotation for `ExtraSelection`. Looking at other usages in the file, they use `Any` type:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"search\": \"    def _highlight_line_range(self, start_line: int, end_line: int) -> None:\\n        \\\"\\\"\\\"Highlight a range of lines with a distinct background color.\\n\\n        Args:\\n            start_line: First line to highlight (1-indexed)\\n            end_line: Last line to highlight (1-indexed, inclusive)\\n        \\\"\\\"\\\"\\n        extra_selections: list[QTextEdit.ExtraSelection] = []\\n\\n        # Highlight color for the range (light blue)\\n        highlight_color = QColor(\\\"#cce5ff\\\")\\n\\n        for line_num in range(start_line, end_line + 1):\\n            line_idx = line_num - 1\\n            block = self.editor.document().findBlockByLineNumber(line_idx)\\n            if not block.isValid():\\n                continue\\n\\n            selection = QTextEdit.ExtraSelection()\\n            selection.format.setBackground(highlight_color)\\n            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)\\n\\n            cursor = self.editor.textCursor()\\n            cursor.setPosition(block.position())\\n            selection.cursor = cursor\\n            extra_selections.append(selection)\\n\\n        self.editor.setExtraSelections(extra_selections)\", \"replace\": \"    def _highlight_line_range(self, start_line: int, end_line: int) -> None:\\n        \\\"\\\"\\\"Highlight a range of lines with a distinct background color.\\n\\n        Args:\\n            start_line: First line to highlight (1-indexed)\\n            end_line: Last line to highlight (1-indexed, inclusive)\\n        \\\"\\\"\\\"\\n        extra_selections: list[Any] = []\\n\\n        # Highlight color for the range (light blue)\\n        highlight_color = QColor(\\\"#cce5ff\\\")\\n\\n        for line_num in range(start_line, end_line + 1):\\n            line_idx = line_num - 1\\n            block = self.editor.document().findBlockByLineNumber(line_idx)\\n            if not block.isValid():\\n                continue\\n\\n            selection: Any = QTextEdit.ExtraSelection()\\n            selection.format.setBackground(highlight_color)\\n            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)\\n\\n            cursor = self.editor.textCursor()\\n            cursor.setPosition(block.position())\\n            selection.cursor = cursor\\n            extra_selections.append(selection)\\n\\n        self.editor.setExtraSelections(extra_selections)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Vk4gnAk6bAe9x13VPYuPYb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Vk4gnAk6bAe9x13VPYuPYb",
+      "content": "{\"message\": \"Replaced in forge/ui/editor_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01LcAwANwdaRRe7TLYLCCoZo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LcAwANwdaRRe7TLYLCCoZo",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add line highlighting and scrolling for Ask widget file links\\n\\n- EditorWidget.go_to_line(line, end_line) scrolls to line and highlights range\\n- EditorWidget._highlight_line_range() highlights lines with light blue background\\n- BranchTabWidget wires up _on_ask_file_selected to call go_to_line with range\\n- Also wires up _on_search_file_selected to scroll to line\\n- Strengthened Ask prompt to forbid quoting code, only link to line ranges\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01NvhogbUH82XASpvURbiGy5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NvhogbUH82XASpvURbiGy5",
+      "content": "{\"commit\": \"fbb7473b00fe\", \"message\": \"Committed: 3 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Add line highlighting and scrolling for Ask widget file links\\n\\n- EditorWidget.go_to_line(line, end_line) scrolls to line and highlights range\\n- EditorWidget._highlight_line_range() highlights lines with light blue background\\n- BranchTabWidget wires up _on_ask_file_selected to call go_to_line with range\\n- Also wires up _on_search_file_selected to scroll to line\\n- Strengthened Ask prompt to forbid quoting code, only link to line ranges\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"fbb7473b00fe\",\n  \"message\": \"Committed: 3 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what was implemented:\n\n## Summary\n\n### Ask Widget Improvements\n1. **Stronger prompt** - Now explicitly forbids quoting code and requires linking to line ranges instead\n\n### Editor Line Highlighting\n2. **`go_to_line(line, end_line)`** - New method on `EditorWidget` that:\n   - Scrolls to the specified line\n   - Centers the view on that line\n   - Highlights the line range with a light blue background (`#cce5ff`)\n\n3. **`_highlight_line_range(start_line, end_line)`** - Helper that applies the highlight to multiple lines\n\n4. **`clear_line_highlight()`** - Clears the range highlight and restores normal current-line highlighting\n\n### Wiring\n5. **`BranchTabWidget._on_ask_file_selected`** - Now calls `go_to_line(start_line, end_line)` after opening the file\n6. **`BranchTabWidget._on_search_file_selected`** - Now calls `go_to_line(line_num)` after opening the file"
     }
   ]
 }

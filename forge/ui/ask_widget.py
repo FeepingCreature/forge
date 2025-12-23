@@ -19,35 +19,188 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.vfs.base import VFS
+
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
 
 
 class AskWorker(QObject):
-    """Worker that queries the model about the codebase."""
+    """Worker that queries the model about the codebase using a two-step process.
+
+    Step 1: Given summaries, identify which files are relevant to the question
+    Step 2: Fetch those files and answer the question with full context
+    """
 
     response_ready = Signal(str)
     error = Signal(str)
     chunk_received = Signal(str)
+    status_update = Signal(str)  # For showing "Identifying relevant files..." etc.
 
     def __init__(self) -> None:
         super().__init__()
         self._question = ""
         self._summaries = ""
         self._api_key = ""
+        self._vfs: VFS | None = None
 
-    def set_query(self, question: str, summaries: str, api_key: str) -> None:
+    def set_query(
+        self, question: str, summaries: str, api_key: str, vfs: VFS | None = None
+    ) -> None:
         """Set the query to execute."""
         self._question = question
         self._summaries = summaries
         self._api_key = api_key
+        self._vfs = vfs
+
+    def _call_llm(self, prompt: str, stream: bool = False) -> str:
+        """Make a non-streaming LLM call."""
+        response = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "HTTP-Referer": "https://github.com/anthropics/forge",
+            },
+            json={
+                "model": "anthropic/claude-3-haiku",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 1000,
+                "temperature": 0.3,
+            },
+            timeout=30.0,
+        )
+        if response.status_code != 200:
+            raise Exception(f"API error: {response.status_code}")
+
+        data = response.json()
+        return str(data["choices"][0]["message"]["content"])
+
+    def _stream_llm(self, prompt: str) -> None:
+        """Make a streaming LLM call, emitting chunks."""
+        with httpx.stream(
+            "POST",
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "HTTP-Referer": "https://github.com/anthropics/forge",
+            },
+            json={
+                "model": "anthropic/claude-3-haiku",
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 2000,
+                "temperature": 0.3,
+                "stream": True,
+            },
+            timeout=60.0,
+        ) as response:
+            if response.status_code != 200:
+                raise Exception(f"API error: {response.status_code}")
+
+            full_response = ""
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    data = line[6:]
+                    if data == "[DONE]":
+                        break
+                    try:
+                        import json
+
+                        chunk = json.loads(data)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            full_response += content
+                            self.chunk_received.emit(content)
+                    except Exception:
+                        pass
+
+            self.response_ready.emit(full_response)
 
     def run(self) -> None:
-        """Execute the query."""
-        prompt = f"""You are a code assistant. Answer the user's question about this codebase based on the file summaries below.
+        """Execute the two-step query process."""
+        try:
+            if not self._api_key:
+                self.error.emit("No API key configured")
+                return
+
+            if not self._summaries or self._summaries.startswith("(No summaries"):
+                self.error.emit(
+                    "No file summaries available yet. Please wait for summary generation to complete."
+                )
+                return
+
+            # Step 1: Identify relevant files
+            self.status_update.emit("🔍 Identifying relevant files...")
+
+            step1_prompt = f"""You are a code assistant. Given the user's question and file summaries, identify which files would need to be examined to answer the question.
+
+## File Summaries
+
+{self._summaries}
+
+## Question
+
+{self._question}
+
+## Task
+
+List the file paths that are most relevant to answering this question. Output ONLY a JSON array of file paths, nothing else. Example: ["forge/ui/main.py", "forge/tools/manager.py"]
+
+If no files seem relevant, output an empty array: []"""
+
+            files_response = self._call_llm(step1_prompt)
+
+            # Parse the file list
+            import json
+            import re
+
+            # Extract JSON array from response (handle markdown code blocks)
+            json_match = re.search(r"\[.*?\]", files_response, re.DOTALL)
+            if json_match:
+                try:
+                    relevant_files = json.loads(json_match.group())
+                except json.JSONDecodeError:
+                    relevant_files = []
+            else:
+                relevant_files = []
+
+            # Step 2: Fetch file contents and answer
+            file_contents = ""
+            if relevant_files and self._vfs:
+                self.status_update.emit(f"📂 Loading {len(relevant_files)} file(s)...")
+
+                for filepath in relevant_files[:5]:  # Limit to 5 files to avoid token explosion
+                    try:
+                        content = self._vfs.read_file(filepath)
+                        # Truncate very long files
+                        if len(content) > 5000:
+                            content = content[:5000] + "\n... (truncated)"
+                        file_contents += f"\n## {filepath}\n```\n{content}\n```\n"
+                    except Exception:
+                        pass  # File doesn't exist or can't be read
+
+            self.status_update.emit("💭 Generating answer...")
+
+            # Step 3: Answer with full context
+            if file_contents:
+                step2_prompt = f"""You are a code assistant. Answer the user's question using the file contents below.
+
+Be concise but helpful. When referencing files, use the EXACT full path (e.g., `forge/ui/main_window.py` not just `main_window.py`). These paths become clickable links.
+
+## Relevant Files
+
+{file_contents}
+
+## Question
+
+{self._question}
+
+## Answer"""
+            else:
+                # No files to fetch, answer from summaries only
+                step2_prompt = f"""You are a code assistant. Answer the user's question based on the file summaries below.
 
 Be concise but helpful. When referencing files, use the EXACT full path from the summaries (e.g., `forge/ui/main_window.py` not just `main_window.py`). These paths become clickable links.
-If you're not sure, say so.
 
 ## File Summaries
 
@@ -59,51 +212,7 @@ If you're not sure, say so.
 
 ## Answer"""
 
-        try:
-            if not self._api_key:
-                self.error.emit("No API key configured")
-                return
-
-            # Use a fast, cheap model
-            with httpx.stream(
-                "POST",
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "HTTP-Referer": "https://github.com/anthropics/forge",
-                },
-                json={
-                    "model": "anthropic/claude-3-haiku",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 1000,
-                    "temperature": 0.3,
-                    "stream": True,
-                },
-                timeout=30.0,
-            ) as response:
-                if response.status_code != 200:
-                    self.error.emit(f"API error: {response.status_code}")
-                    return
-
-                full_response = ""
-                for line in response.iter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data == "[DONE]":
-                            break
-                        try:
-                            import json
-
-                            chunk = json.loads(data)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                full_response += content
-                                self.chunk_received.emit(content)
-                        except Exception:
-                            pass
-
-                self.response_ready.emit(full_response)
+            self._stream_llm(step2_prompt)
 
         except httpx.TimeoutException:
             self.error.emit("Request timed out")
@@ -171,6 +280,7 @@ class AskWidget(QWidget):
         self._worker.chunk_received.connect(self._on_chunk)
         self._worker.response_ready.connect(self._on_response)
         self._worker.error.connect(self._on_error)
+        self._worker.status_update.connect(self._on_status)
         self._worker_thread.started.connect(self._worker.run)
 
     def focus_input(self) -> None:
@@ -196,8 +306,8 @@ class AskWidget(QWidget):
         # Get file summaries from workspace
         summaries = self._get_summaries()
 
-        # Setup and start worker
-        self._worker.set_query(question, summaries, self._api_key)
+        # Setup and start worker (pass VFS for file content fetching)
+        self._worker.set_query(question, summaries, self._api_key, self.workspace.vfs)
 
         # Need to recreate thread if it was already run
         if self._worker_thread.isFinished():
@@ -294,6 +404,10 @@ class AskWidget(QWidget):
                 filepath = filepath[1:]
 
             self.file_selected.emit(filepath, line)
+
+    def _on_status(self, status: str) -> None:
+        """Handle status update from worker."""
+        self.response_area.setPlainText(status)
 
     def _on_error(self, error: str) -> None:
         """Handle error."""

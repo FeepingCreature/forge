@@ -2,6 +2,8 @@
 
 **WARNING**: Forge is alpha software. Expect rough edges.
 
+![Forge Screenshot](images/screenshot.png)
+
 Forge is a Qt-based IDE where AI agents work through git. Every AI session is a branch. Every AI turn is a commit. Check out any commit to see the conversation that created it.
 
 ## Philosophy

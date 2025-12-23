@@ -26,7 +26,7 @@ class SidePanelWidget(QWidget):
 
     # Forward signals from search and ask
     search_file_selected = Signal(str, int)  # filepath, line_number
-    ask_file_selected = Signal(str, int)  # filepath, line_number
+    ask_file_selected = Signal(str, int, int)  # filepath, start_line, end_line
 
     def __init__(
         self,

@@ -81,7 +81,7 @@ class BranchTabWidget(QWidget):
         self._side_panel.file_open_requested.connect(self.open_file)
         self._side_panel.context_toggle_requested.connect(self._on_context_toggle)
         self._side_panel.search_file_selected.connect(self._on_search_file_selected)
-        self._side_panel.ask_file_selected.connect(self._on_search_file_selected)
+        self._side_panel.ask_file_selected.connect(self._on_ask_file_selected)
         self._side_panel.setMinimumWidth(150)
         self._side_panel.setMaximumWidth(400)
         self.splitter.addWidget(self._side_panel)
@@ -432,6 +432,11 @@ class BranchTabWidget(QWidget):
         """Handle file selection from search widget"""
         self.open_file(filepath)
         # TODO: Scroll to line_num in the editor
+
+    def _on_ask_file_selected(self, filepath: str, start_line: int, end_line: int) -> None:
+        """Handle file selection from ask widget (with line range)"""
+        self.open_file(filepath)
+        # TODO: Scroll to start_line and highlight range to end_line
 
     def update_context_display(self, active_files: set[str]) -> None:
         """Update side panel to show which files are in context"""

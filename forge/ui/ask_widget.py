@@ -228,8 +228,9 @@ Be concise but helpful. When referencing files, use the EXACT full path from the
 class AskWidget(QWidget):
     """Widget for asking questions about the codebase."""
 
-    # Emitted when user clicks a file link (filepath, line_number)
-    file_selected = Signal(str, int)
+    # Emitted when user clicks a file link (filepath, start_line, end_line)
+    # For single line links, start_line == end_line
+    file_selected = Signal(str, int, int)
 
     def __init__(
         self, workspace: "BranchWorkspace", api_key: str, parent: QWidget | None = None
@@ -402,21 +403,23 @@ class AskWidget(QWidget):
     def _on_link_clicked(self, url: QUrl) -> None:
         """Handle click on a file link."""
         if url.scheme() == "forge":
-            # Custom scheme: forge:filepath?line=N
-            # path() contains the filepath, query param has line number
+            # Custom scheme: forge:filepath?line=N or forge:filepath?line=N&end=M
+            # path() contains the filepath, query params have line numbers
             filepath = url.path()
             # Remove leading slash if present
             if filepath.startswith("/"):
                 filepath = filepath[1:]
 
-            # Get line from query parameter
+            # Get line range from query parameters
             from PySide6.QtCore import QUrlQuery
 
             query = QUrlQuery(url)
-            line_str = query.queryItemValue("line")
-            line = int(line_str) if line_str else 1
+            start_str = query.queryItemValue("line")
+            end_str = query.queryItemValue("end")
+            start_line = int(start_str) if start_str else 1
+            end_line = int(end_str) if end_str else start_line
 
-            self.file_selected.emit(filepath, line)
+            self.file_selected.emit(filepath, start_line, end_line)
 
     def _on_status(self, status: str) -> None:
         """Handle status update from worker."""

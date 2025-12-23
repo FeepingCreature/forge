@@ -186,11 +186,14 @@ If no files seem relevant, output an empty array: []"""
             if file_contents:
                 step2_prompt = f"""You are a code assistant. Answer the user's question using the file contents below.
 
+IMPORTANT: Do NOT quote or copy code. Instead, link to line ranges.
+
 Guidelines:
-- Be concise. Reference code by linking to line numbers instead of quoting it.
-- In your prose (NOT in code blocks), use: `filepath:LINE` or `filepath:START-END`
+- NEVER include code blocks or quote code in your answer
+- Reference code ONLY by linking: `filepath:LINE` or `filepath:START-END`
 - Example: "The main loop is in `forge/ui/main_window.py:42-58`"
-- These become clickable links. Never put links inside code blocks.
+- These become clickable links that show the actual code
+- Describe what the code does in prose, then link to it
 
 ## Relevant Files (with line numbers)
 

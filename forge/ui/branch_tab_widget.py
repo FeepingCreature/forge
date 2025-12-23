@@ -431,12 +431,16 @@ class BranchTabWidget(QWidget):
     def _on_search_file_selected(self, filepath: str, line_num: int) -> None:
         """Handle file selection from search widget"""
         self.open_file(filepath)
-        # TODO: Scroll to line_num in the editor
+        # Scroll to line
+        if filepath in self._editors:
+            self._editors[filepath].go_to_line(line_num)
 
     def _on_ask_file_selected(self, filepath: str, start_line: int, end_line: int) -> None:
         """Handle file selection from ask widget (with line range)"""
         self.open_file(filepath)
-        # TODO: Scroll to start_line and highlight range to end_line
+        # Scroll to start_line and highlight range
+        if filepath in self._editors:
+            self._editors[filepath].go_to_line(start_line, end_line)
 
     def update_context_display(self, active_files: set[str]) -> None:
         """Update side panel to show which files are in context"""

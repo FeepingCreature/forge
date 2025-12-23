@@ -621,3 +621,66 @@ class EditorWidget(QWidget):
     def set_text(self, text: str) -> None:
         """Set editor content"""
         self.editor.setPlainText(text)
+
+    def go_to_line(self, line: int, end_line: int | None = None) -> None:
+        """Go to a specific line and optionally highlight a range.
+
+        Args:
+            line: Line number to go to (1-indexed)
+            end_line: If provided, highlight from line to end_line (inclusive)
+        """
+        # Convert to 0-indexed
+        line_idx = max(0, line - 1)
+
+        # Get the block (line) at the target position
+        block = self.editor.document().findBlockByLineNumber(line_idx)
+        if not block.isValid():
+            return
+
+        # Move cursor to the start of the line
+        cursor = self.editor.textCursor()
+        cursor.setPosition(block.position())
+        self.editor.setTextCursor(cursor)
+
+        # Center the view on this line
+        self.editor.centerCursor()
+
+        # If we have a range, highlight it
+        if end_line is not None and end_line >= line:
+            self._highlight_line_range(line, end_line)
+        else:
+            # Just highlight the single line
+            self._highlight_line_range(line, line)
+
+    def _highlight_line_range(self, start_line: int, end_line: int) -> None:
+        """Highlight a range of lines with a distinct background color.
+
+        Args:
+            start_line: First line to highlight (1-indexed)
+            end_line: Last line to highlight (1-indexed, inclusive)
+        """
+        extra_selections: list[Any] = []
+
+        # Highlight color for the range (light blue)
+        highlight_color = QColor("#cce5ff")
+
+        for line_num in range(start_line, end_line + 1):
+            line_idx = line_num - 1
+            block = self.editor.document().findBlockByLineNumber(line_idx)
+            if not block.isValid():
+                continue
+
+            selection: Any = QTextEdit.ExtraSelection()
+            selection.format.setBackground(highlight_color)
+            selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
+
+            cursor = self.editor.textCursor()
+            cursor.setPosition(block.position())
+            selection.cursor = cursor
+            extra_selections.append(selection)
+
+        self.editor.setExtraSelections(extra_selections)
+
+    def clear_line_highlight(self) -> None:
+        """Clear the line range highlight and restore normal current-line highlighting."""
+        self.editor.highlight_current_line()

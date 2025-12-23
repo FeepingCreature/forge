@@ -505,3 +505,72 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         if messages is not None:
             data["messages"] = messages
         return data
+
+    def generate_summary_for_file(self, filepath: str) -> str | None:
+        """
+        Generate a summary for a single file (used for newly created files).
+
+        Returns the summary text, or None if the file shouldn't be summarized.
+        """
+        if not self._should_summarize(filepath):
+            return None
+
+        # Read content from VFS (includes pending changes)
+        try:
+            content = self.vfs.read_file(filepath)
+        except (FileNotFoundError, KeyError):
+            return None
+
+        # Generate blob OID from content hash (file is new/pending)
+        blob_oid = hashlib.sha256(content.encode()).hexdigest()
+
+        # Check cache first
+        cached_summary = self._get_cached_summary(filepath, blob_oid)
+        if cached_summary:
+            self.repo_summaries[filepath] = cached_summary
+            return cached_summary
+
+        # Generate summary with cheap LLM
+        model = self.settings.get("llm.summarization_model", "anthropic/claude-3-haiku")
+        api_key = self.settings.get_api_key()
+        client = LLMClient(api_key, model)
+
+        # Truncate very large files for summary generation
+        max_chars = 10000
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n... (truncated)"
+
+        prompt = f"""Summarize this file's public interfaces for codebase navigation.
+
+File: {filepath}
+
+```
+{content}
+```
+
+First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
+
+If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
+If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
+
+Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
+
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat(messages)
+
+        summary_content = response["choices"][0]["message"]["content"]
+        summary = str(summary_content).strip()
+
+        # Extract content from <summary> tags if present
+        match = re.search(r"<summary>(.*?)</summary>", summary, re.DOTALL)
+        if match:
+            summary = match.group(1).strip()
+
+        # Cache the summary
+        self._cache_summary(filepath, blob_oid, summary)
+        self.repo_summaries[filepath] = summary
+
+        # Update prompt manager's summaries
+        self.prompt_manager.set_summaries(self.repo_summaries)
+
+        return summary

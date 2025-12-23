@@ -981,6 +981,14 @@ class AIChatWidget(QWidget):
         # Emit updated context stats (conversation tokens changed)
         self._emit_context_stats()
 
+        # Generate summaries for any newly created files before committing
+        if hasattr(self, "_newly_created_files") and self._newly_created_files:
+            for filepath in self._newly_created_files:
+                self.session_manager.generate_summary_for_file(filepath)
+            # Emit updated summaries
+            self.summaries_ready.emit(self.session_manager.repo_summaries)
+            self._newly_created_files.clear()
+
         # Commit now
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
@@ -1084,6 +1092,14 @@ class AIChatWidget(QWidget):
                 if not hasattr(self, "_pending_file_updates"):
                     self._pending_file_updates = []
                 self._pending_file_updates.append((filepath, tool_call_id))
+
+                # Track newly created files for summary generation
+                # write_file on a file that doesn't exist in repo summaries = new file
+                if tool_name == "write_file":
+                    if filepath not in self.session_manager.repo_summaries:
+                        if not hasattr(self, "_newly_created_files"):
+                            self._newly_created_files = set()
+                        self._newly_created_files.add(filepath)
 
         # Handle compact tool specially - it modifies the prompt manager
         if result.get("compact") and result.get("success"):

@@ -1,8 +1,11 @@
 {
   "active_files": [
-    "forge/tools/manager.py",
     "tools/check.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/vfs/git_commit.py",
+    "forge/tools/manager.py",
+    "forge/vfs/work_in_progress.py",
+    "forge/tools/builtin/run_tests.py"
   ],
   "messages": [
     {
@@ -138,6 +141,132 @@
     {
       "role": "assistant",
       "content": "Done! Try running the check tool again - it should now handle non-UTF-8 content gracefully."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, I still get it as a system error when running check tool."
+    },
+    {
+      "role": "assistant",
+      "content": "The error must be happening somewhere else. Let me check the `run_tests.py` too since it has similar subprocess patterns, and also look for other potential UTF-8 issues. But first, let me understand where exactly the error is occurring.\n\nThe issue might be in the `materialize_to_tempdir` method or somewhere in how the tool result is being processed. Let me check the WorkInProgressVFS and also look at the run_tests tool:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/vfs/work_in_progress.py\",\"forge/tools/builtin/run_tests.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_013ZAP6P42RKWtPJCeWQF26w",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013ZAP6P42RKWtPJCeWQF26w",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/vfs/work_in_progress.py\", \"forge/tools/builtin/run_tests.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue now! In `materialize_to_tempdir()`, the code calls `full_path.write_text(content)` without specifying an encoding. This could fail if the content contains characters that can't be encoded with the system default encoding.\n\nBut more importantly, the `read_file` in `GitCommitVFS` might be the culprit - it could be reading binary content and trying to decode it as UTF-8. Let me check that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/vfs/git_commit.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01CAF5TufY6VxUiQBvp17yEw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CAF5TufY6VxUiQBvp17yEw",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/vfs/git_commit.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found it! The issue is in `GitCommitVFS.read_file()`:\n\n```python\nreturn blob.data.decode(\"utf-8\")\n```\n\nThis will fail if there are any binary files or files with non-UTF-8 encoding in the repository. When `materialize_to_tempdir()` calls `self.read_file(filepath)` for every file in the repo, it will crash on any binary file.\n\nLet me fix both the reading and writing:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/git_commit.py\", \"search\": \"    def read_file(self, path: str) -> str:\\n        \\\"\\\"\\\"Read file content from git tree\\\"\\\"\\\"\\n        try:\\n            entry = self.tree[path]\\n            blob = self.repo[entry.id]\\n            assert isinstance(blob, pygit2.Blob), f\\\"Expected Blob, got {type(blob)}\\\"\\n            return blob.data.decode(\\\"utf-8\\\")\\n        except KeyError as err:\\n            raise FileNotFoundError(f\\\"File not found: {path}\\\") from err\", \"replace\": \"    def read_file(self, path: str) -> str:\\n        \\\"\\\"\\\"Read file content from git tree\\\"\\\"\\\"\\n        try:\\n            entry = self.tree[path]\\n            blob = self.repo[entry.id]\\n            assert isinstance(blob, pygit2.Blob), f\\\"Expected Blob, got {type(blob)}\\\"\\n            return blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n        except KeyError as err:\\n            raise FileNotFoundError(f\\\"File not found: {path}\\\") from err\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WctvN3y5YcwHkbo2sv8apL",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/work_in_progress.py\", \"search\": \"            content = self.read_file(filepath)\\n            full_path.write_text(content)\", \"replace\": \"            content = self.read_file(filepath)\\n            full_path.write_text(content, encoding=\\\"utf-8\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NoFb6AyifKSgUqEQ1Gcrc3",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/run_tests.py\", \"search\": \"            result = subprocess.run(\\n                cmd,\\n                cwd=tmpdir,\\n                capture_output=True,\\n                text=True,\\n                timeout=300,  # 5 minute timeout\\n            )\", \"replace\": \"            result = subprocess.run(\\n                cmd,\\n                cwd=tmpdir,\\n                capture_output=True,\\n                text=True,\\n                encoding=\\\"utf-8\\\",\\n                errors=\\\"replace\\\",\\n                timeout=300,  # 5 minute timeout\\n            )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MzauV8yfg8NbTHN8T1UEFM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WctvN3y5YcwHkbo2sv8apL",
+      "content": "{\"message\": \"Replaced in forge/vfs/git_commit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NoFb6AyifKSgUqEQ1Gcrc3",
+      "content": "{\"message\": \"Replaced in forge/vfs/work_in_progress.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MzauV8yfg8NbTHN8T1UEFM",
+      "content": "{\"message\": \"Replaced in forge/tools/builtin/run_tests.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me commit these fixes and you can try running the check tool again:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix UTF-8 decode errors throughout VFS and tools\\n\\n- GitCommitVFS.read_file(): Add errors=\\\"replace\\\" when decoding blob data\\n- WorkInProgressVFS.materialize_to_tempdir(): Add encoding=\\\"utf-8\\\" when writing files\\n- run_tests.py: Add encoding=\\\"utf-8\\\" and errors=\\\"replace\\\" to subprocess.run()\\n\\nThis prevents crashes when reading binary files or when subprocess output\\ncontains non-UTF-8 bytes.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01Eq8uaf3WdqbThhtMNpG9dY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Eq8uaf3WdqbThhtMNpG9dY",
+      "content": "{\"commit\": \"02f6c03c7aaf\", \"message\": \"Committed: 3 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Fix UTF-8 decode errors throughout VFS and tools\\n\\n- GitCommitVFS.read_file(): Add errors=\\\"replace\\\" when decoding blob data\\n- WorkInProgressVFS.materialize_to_tempdir(): Add encoding=\\\"utf-8\\\" when writing files\\n- run_tests.py: Add encoding=\\\"utf-8\\\" and errors=\\\"replace\\\" to subprocess.run()\\n\\nThis prevents crashes when reading binary files or when subprocess output\\ncontains non-UTF-8 bytes.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"02f6c03c7aaf\",\n  \"message\": \"Committed: 3 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The key fix was in `GitCommitVFS.read_file()` - when `materialize_to_tempdir()` iterates over all files and reads them, it was failing on any file that contained non-UTF-8 bytes.\n\nThe fixes applied:\n1. **`forge/vfs/git_commit.py`**: `blob.data.decode(\"utf-8\", errors=\"replace\")` - handles binary/non-UTF-8 files\n2. **`forge/vfs/work_in_progress.py`**: `write_text(content, encoding=\"utf-8\")` - explicit encoding when writing\n3. **`forge/tools/builtin/run_tests.py`**: `encoding=\"utf-8\", errors=\"replace\"` in subprocess.run()\n4. **`tools/check.py`** (previous commit): Same subprocess.run() fixes\n\nTry running the check tool again - it should work now."
     }
   ]
 }

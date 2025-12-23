@@ -181,7 +181,15 @@ class WorkInProgressVFS(VFS):
             full_path = tmpdir / filepath
             full_path.parent.mkdir(parents=True, exist_ok=True)
 
-            content = self.read_file(filepath)
-            full_path.write_text(content, encoding="utf-8")
+            # Check if file is in pending changes (always text)
+            if filepath in self.pending_changes:
+                full_path.write_text(self.pending_changes[filepath], encoding="utf-8")
+            elif self.base_vfs.is_binary_file(filepath):
+                # Binary file - write raw bytes
+                full_path.write_bytes(self.base_vfs.read_file_bytes(filepath))
+            else:
+                # Text file from base commit
+                content = self.base_vfs.read_file(filepath)
+                full_path.write_text(content, encoding="utf-8")
 
         return tmpdir

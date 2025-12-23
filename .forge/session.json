@@ -216,6 +216,78 @@
     {
       "role": "assistant",
       "content": "Done! I've created the `get_skill` builtin tool with the following:\n\n1. **New file**: `forge/tools/builtin/get_skill.py` - Contains the tool implementation with a `SKILLS` dictionary that maps skill names to their documentation.\n\n2. **Registered in manager**: Added `get_skill` to the `BUILTIN_TOOLS` set in `forge/tools/manager.py` so it's always approved.\n\n3. **Initial skill**: `create_tool` - Comprehensive documentation explaining:\n   - Where custom tools live (`/tools` directory, not `forge/tools/builtin`)\n   - The required `get_schema()` and `execute()` function signatures\n   - The full VFS API (read, write, list, delete, materialize_to_tempdir)\n   - Tool approval process\n   - A complete example tool that runs make commands\n\nThe tool schema dynamically lists available skills in its description and uses an enum for the `skill` parameter, so the AI knows exactly what skills are available."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d75407a6",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! In the description of get_skill, you don't need to mention forge/. If we're in another repo, that AI will have *no* idea that forge/ even exists anywhere, and we shouldn't confuse it with this info."
+    },
+    {
+      "role": "assistant",
+      "content": "Good point! Let me fix that description to not mention `forge/tools/builtin` since that's specific to this repo.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/get_skill.py\", \"search\": \"SKILLS: dict[str, str] = {\\n    \\\"create_tool\\\": \\\"\\\"\\\"\\\\\\n# Creating a Custom Tool\\n\\nCustom tools live in the `/tools` directory at the repository root (NOT in forge/tools/builtin).\\nEach tool is a single Python file that exports two functions: `get_schema()` and `execute()`.\", \"replace\": \"SKILLS: dict[str, str] = {\\n    \\\"create_tool\\\": \\\"\\\"\\\"\\\\\\n# Creating a Custom Tool\\n\\nCustom tools live in the `/tools` directory at the repository root.\\nEach tool is a single Python file that exports two functions: `get_schema()` and `execute()`.\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KyrNi3epxEqKyCRasiRr4h",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\"], \"summary\": \"Created forge/tools/builtin/get_skill.py with SKILLS dict containing \\\"create_tool\\\" documentation. Added \\\"get_skill\\\" to BUILTIN_TOOLS in forge/tools/manager.py. Fixed trailing whitespace lint errors in the example code within the documentation string. Committed as 72d05c02.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_0126nuf7DwdKS8R1EQdJtNuf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KyrNi3epxEqKyCRasiRr4h",
+      "content": "{\"message\": \"Replaced in forge/tools/builtin/get_skill.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0126nuf7DwdKS8R1EQdJtNuf",
+      "content": "{\"compact\": true, \"message\": \"Compacted 10 tool result(s)\", \"success\": true, \"summary\": \"Created forge/tools/builtin/get_skill.py with SKILLS dict containing \\\"create_tool\\\" documentation. Added \\\"get_skill\\\" to BUILTIN_TOOLS in forge/tools/manager.py. Fixed trailing whitespace lint errors in the example code within the documentation string. Committed as 72d05c02.\", \"tool_call_ids\": [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Remove forge/ reference from get_skill create_tool documentation\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01DUGoHr3adsSt36oguTe4Qy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DUGoHr3adsSt36oguTe4Qy",
+      "content": "{\"commit\": \"01d7d5c5e724\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Remove forge/ reference from get_skill create_tool documentation\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"01d7d5c5e724\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Removed the `(NOT in forge/tools/builtin)` parenthetical from the documentation so it just says tools live in `/tools` at the repository root."
     }
   ]
 }

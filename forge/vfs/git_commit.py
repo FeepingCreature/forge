@@ -15,16 +15,6 @@ class GitCommitVFS(VFS):
         self.commit = commit
         self.tree = commit.tree
 
-    def read_file(self, path: str) -> str:
-        """Read file content from git tree"""
-        try:
-            entry = self.tree[path]
-            blob = self.repo[entry.id]
-            assert isinstance(blob, pygit2.Blob), f"Expected Blob, got {type(blob)}"
-            return blob.data.decode("utf-8")
-        except KeyError as err:
-            raise FileNotFoundError(f"File not found: {path}") from err
-
     def read_file_bytes(self, path: str) -> bytes:
         """Read file content as raw bytes from git tree"""
         try:
@@ -35,14 +25,10 @@ class GitCommitVFS(VFS):
         except KeyError as err:
             raise FileNotFoundError(f"File not found: {path}") from err
 
-    def is_binary_file(self, path: str) -> bool:
-        """Check if a file is binary (contains null bytes in first 8KB)"""
-        try:
-            data = self.read_file_bytes(path)
-            # Check first 8KB for null bytes (standard binary detection)
-            return b"\x00" in data[:8192]
-        except FileNotFoundError:
-            return False
+    def read_file(self, path: str) -> str:
+        """Read file content as text (UTF-8 decoded)"""
+        data = self.read_file_bytes(path)
+        return data.decode("utf-8")
 
     def write_file(self, path: str, content: str) -> None:
         """Write operations not supported on read-only VFS"""

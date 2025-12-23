@@ -267,6 +267,104 @@
     {
       "role": "assistant",
       "content": "Done! The key fix was in `GitCommitVFS.read_file()` - when `materialize_to_tempdir()` iterates over all files and reads them, it was failing on any file that contained non-UTF-8 bytes.\n\nThe fixes applied:\n1. **`forge/vfs/git_commit.py`**: `blob.data.decode(\"utf-8\", errors=\"replace\")` - handles binary/non-UTF-8 files\n2. **`forge/vfs/work_in_progress.py`**: `write_text(content, encoding=\"utf-8\")` - explicit encoding when writing\n3. **`forge/tools/builtin/run_tests.py`**: `encoding=\"utf-8\", errors=\"replace\"` in subprocess.run()\n4. **`tools/check.py`** (previous commit): Same subprocess.run() fixes\n\nTry running the check tool again - it should work now."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d07aab6d",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah but no hang on that's no good. We can absolutely 100% not rely on files only having non-utf in it, especially because I have a png file committed."
+    },
+    {
+      "role": "assistant",
+      "content": "You're absolutely right. Using `errors=\"replace\"` on binary files like PNGs would corrupt them when we write them back out. We need to properly distinguish between text and binary files.\n\nThe fix should be in `materialize_to_tempdir()` - we should skip binary files or handle them properly by writing raw bytes. Let me fix this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/git_commit.py\", \"search\": \"    def read_file(self, path: str) -> str:\\n        \\\"\\\"\\\"Read file content from git tree\\\"\\\"\\\"\\n        try:\\n            entry = self.tree[path]\\n            blob = self.repo[entry.id]\\n            assert isinstance(blob, pygit2.Blob), f\\\"Expected Blob, got {type(blob)}\\\"\\n            return blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n        except KeyError as err:\\n            raise FileNotFoundError(f\\\"File not found: {path}\\\") from err\", \"replace\": \"    def read_file(self, path: str) -> str:\\n        \\\"\\\"\\\"Read file content from git tree\\\"\\\"\\\"\\n        try:\\n            entry = self.tree[path]\\n            blob = self.repo[entry.id]\\n            assert isinstance(blob, pygit2.Blob), f\\\"Expected Blob, got {type(blob)}\\\"\\n            return blob.data.decode(\\\"utf-8\\\")\\n        except KeyError as err:\\n            raise FileNotFoundError(f\\\"File not found: {path}\\\") from err\\n\\n    def read_file_bytes(self, path: str) -> bytes:\\n        \\\"\\\"\\\"Read file content as raw bytes from git tree\\\"\\\"\\\"\\n        try:\\n            entry = self.tree[path]\\n            blob = self.repo[entry.id]\\n            assert isinstance(blob, pygit2.Blob), f\\\"Expected Blob, got {type(blob)}\\\"\\n            return blob.data\\n        except KeyError as err:\\n            raise FileNotFoundError(f\\\"File not found: {path}\\\") from err\\n\\n    def is_binary_file(self, path: str) -> bool:\\n        \\\"\\\"\\\"Check if a file is binary (contains null bytes in first 8KB)\\\"\\\"\\\"\\n        try:\\n            data = self.read_file_bytes(path)\\n            # Check first 8KB for null bytes (standard binary detection)\\n            return b\\\"\\\\x00\\\" in data[:8192]\\n        except FileNotFoundError:\\n            return False\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01V3saW7yQVaUBg18JDubDTL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01V3saW7yQVaUBg18JDubDTL",
+      "content": "{\"message\": \"Replaced in forge/vfs/git_commit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me update `materialize_to_tempdir()` to use these methods and handle binary files properly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/vfs/work_in_progress.py\", \"search\": \"    def materialize_to_tempdir(self) -> Path:\\n        \\\"\\\"\\\"\\n        Create a temporary directory with the current VFS state.\\n\\n        Useful for running tests or commands that need actual files.\\n\\n        Returns:\\n            Path to temporary directory\\n        \\\"\\\"\\\"\\n        self._assert_owner()\\n        tmpdir = Path(tempfile.mkdtemp(prefix=\\\"forge_vfs_\\\"))\\n\\n        # Write all files\\n        for filepath in self.list_files():\\n            full_path = tmpdir / filepath\\n            full_path.parent.mkdir(parents=True, exist_ok=True)\\n\\n            content = self.read_file(filepath)\\n            full_path.write_text(content, encoding=\\\"utf-8\\\")\\n\\n        return tmpdir\", \"replace\": \"    def materialize_to_tempdir(self) -> Path:\\n        \\\"\\\"\\\"\\n        Create a temporary directory with the current VFS state.\\n\\n        Useful for running tests or commands that need actual files.\\n\\n        Returns:\\n            Path to temporary directory\\n        \\\"\\\"\\\"\\n        self._assert_owner()\\n        tmpdir = Path(tempfile.mkdtemp(prefix=\\\"forge_vfs_\\\"))\\n\\n        # Write all files\\n        for filepath in self.list_files():\\n            full_path = tmpdir / filepath\\n            full_path.parent.mkdir(parents=True, exist_ok=True)\\n\\n            # Check if file is in pending changes (always text)\\n            if filepath in self.pending_changes:\\n                full_path.write_text(self.pending_changes[filepath], encoding=\\\"utf-8\\\")\\n            elif self.base_vfs.is_binary_file(filepath):\\n                # Binary file - write raw bytes\\n                full_path.write_bytes(self.base_vfs.read_file_bytes(filepath))\\n            else:\\n                # Text file from base commit\\n                content = self.base_vfs.read_file(filepath)\\n                full_path.write_text(content, encoding=\\\"utf-8\\\")\\n\\n        return tmpdir\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01SuXxW22neREmzuCi3yr8th",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SuXxW22neREmzuCi3yr8th",
+      "content": "{\"message\": \"Replaced in forge/vfs/work_in_progress.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me commit this fix:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Handle binary files properly in VFS materialization\\n\\n- Add read_file_bytes() and is_binary_file() to GitCommitVFS\\n- Update materialize_to_tempdir() to detect binary files and write them\\n  as raw bytes instead of trying to decode/encode as UTF-8\\n\\nBinary detection uses the standard null-byte check in first 8KB.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_014vQXqMHd1WBPsy51Yr76Cp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014vQXqMHd1WBPsy51Yr76Cp",
+      "content": "{\"commit\": \"7fef3b7880cc\", \"message\": \"Committed: 2 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Handle binary files properly in VFS materialization\\n\\n- Add read_file_bytes() and is_binary_file() to GitCommitVFS\\n- Update materialize_to_tempdir() to detect binary files and write them\\n  as raw bytes instead of trying to decode/encode as UTF-8\\n\\nBinary detection uses the standard null-byte check in first 8KB.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"7fef3b7880cc\",\n  \"message\": \"Committed: 2 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\"], \"summary\": \"Fixed UTF-8 decode errors in check tool:\\n\\n1. tools/check.py: Added encoding=\\\"utf-8\\\", errors=\\\"replace\\\" to all subprocess.run() calls and py_file.read_text() calls (commit 513fe26)\\n\\n2. Key fix - Binary file handling in VFS (commit 7fef3b7):\\n   - Added read_file_bytes() and is_binary_file() to GitCommitVFS\\n   - Updated materialize_to_tempdir() to detect binary files (null byte in first 8KB) and write them as raw bytes instead of text\\n   - This properly handles PNG and other binary files\\n\\n3. forge/tools/builtin/run_tests.py: Added encoding=\\\"utf-8\\\", errors=\\\"replace\\\" to subprocess.run()\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01URhMZT1jEWQUpgHrZ269Rw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01URhMZT1jEWQUpgHrZ269Rw",
+      "content": "{\"compact\": true, \"message\": \"Compacted 16 tool result(s)\", \"success\": true, \"summary\": \"Fixed UTF-8 decode errors in check tool:\\n\\n1. tools/check.py: Added encoding=\\\"utf-8\\\", errors=\\\"replace\\\" to all subprocess.run() calls and py_file.read_text() calls (commit 513fe26)\\n\\n2. Key fix - Binary file handling in VFS (commit 7fef3b7):\\n   - Added read_file_bytes() and is_binary_file() to GitCommitVFS\\n   - Updated materialize_to_tempdir() to detect binary files (null byte in first 8KB) and write them as raw bytes instead of text\\n   - This properly handles PNG and other binary files\\n\\n3. forge/tools/builtin/run_tests.py: Added encoding=\\\"utf-8\\\", errors=\\\"replace\\\" to subprocess.run()\", \"tool_call_ids\": [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"11\", \"12\", \"13\", \"14\", \"15\", \"16\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The fix now properly handles binary files:\n\n1. **`GitCommitVFS`**: Added `read_file_bytes()` and `is_binary_file()` methods\n2. **`materialize_to_tempdir()`**: Detects binary files (null byte in first 8KB) and writes them as raw bytes instead of trying to decode/encode as text\n\nThis means your PNG files and any other binary content will be copied correctly to the temp directory when running tests or checks. Try running the check tool again."
     }
   ]
 }

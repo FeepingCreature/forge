@@ -334,7 +334,7 @@ These can be fixed immediately with minimal risk:
 2. ~~**Extract grep helpers** (2 files affected)~~ ✅ Done - `forge/tools/builtin/grep_utils.py`
 3. **Add constants module** for magic strings
 4. ~~**Consolidate summary prompt** (1 file, 2 locations)~~ ✅ Done - `_build_summary_prompt()`
-5. **Fix `ask_widget.py`** to use `LLMClient` instead of raw httpx
+5. ~~**Fix `ask_widget.py`** to use `LLMClient` instead of raw httpx~~ ✅ Done - uses `LLMClient`
 
 ---
 

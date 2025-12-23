@@ -8,7 +8,6 @@ Uses file summaries to answer architecture and code questions quickly and cheapl
 import re
 from typing import TYPE_CHECKING
 
-import httpx
 from PySide6.QtCore import QObject, QThread, QUrl, Signal
 from PySide6.QtWidgets import (
     QLabel,
@@ -19,10 +18,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.llm.client import LLMClient
 from forge.vfs.base import VFS
 
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
+
+# Model used for ask queries (fast and cheap)
+ASK_MODEL = "anthropic/claude-3-haiku"
 
 
 class AskWorker(QObject):
@@ -53,68 +56,27 @@ class AskWorker(QObject):
         self._api_key = api_key
         self._vfs = vfs
 
-    def _call_llm(self, prompt: str, stream: bool = False) -> str:
+    def _call_llm(self, prompt: str) -> str:
         """Make a non-streaming LLM call."""
-        response = httpx.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "HTTP-Referer": "https://github.com/FeepingCreature/forge",
-            },
-            json={
-                "model": "anthropic/claude-3-haiku",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 1000,
-                "temperature": 0.3,
-            },
-            timeout=30.0,
-        )
-        if response.status_code != 200:
-            raise Exception(f"API error: {response.status_code}")
-
-        data = response.json()
-        return str(data["choices"][0]["message"]["content"])
+        client = LLMClient(self._api_key, model=ASK_MODEL)
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat(messages)
+        return str(response["choices"][0]["message"]["content"])
 
     def _stream_llm(self, prompt: str) -> None:
         """Make a streaming LLM call, emitting chunks."""
-        with httpx.stream(
-            "POST",
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "HTTP-Referer": "https://github.com/FeepingCreature/forge",
-            },
-            json={
-                "model": "anthropic/claude-3-haiku",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 2000,
-                "temperature": 0.3,
-                "stream": True,
-            },
-            timeout=60.0,
-        ) as response:
-            if response.status_code != 200:
-                raise Exception(f"API error: {response.status_code}")
+        client = LLMClient(self._api_key, model=ASK_MODEL)
+        messages = [{"role": "user", "content": prompt}]
 
-            full_response = ""
-            for line in response.iter_lines():
-                if line.startswith("data: "):
-                    data = line[6:]
-                    if data == "[DONE]":
-                        break
-                    try:
-                        import json
+        full_response = ""
+        for chunk in client.chat_stream(messages):
+            delta = chunk.get("choices", [{}])[0].get("delta", {})
+            content = delta.get("content", "")
+            if content:
+                full_response += content
+                self.chunk_received.emit(content)
 
-                        chunk = json.loads(data)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
-                        content = delta.get("content", "")
-                        if content:
-                            full_response += content
-                            self.chunk_received.emit(content)
-                    except Exception:
-                        pass
-
-            self.response_ready.emit(full_response)
+        self.response_ready.emit(full_response)
 
     def run(self) -> None:
         """Execute the two-step query process."""
@@ -224,8 +186,6 @@ Be concise but helpful. When referencing files, use the EXACT full path from the
 
             self._stream_llm(step2_prompt)
 
-        except httpx.TimeoutException:
-            self.error.emit("Request timed out")
         except Exception as e:
             self.error.emit(str(e))
 

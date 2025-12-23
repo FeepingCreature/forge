@@ -203,29 +203,19 @@ class AskWidget(QWidget):
         self._worker_thread.start()
 
     def _get_summaries(self) -> str:
-        """Get file summaries from the workspace with line numbers."""
-        vfs = self.workspace.vfs
-        files = vfs.list_files()
+        """Get file summaries from the workspace session manager."""
+        # Get actual summaries from the session manager
+        summaries = self.workspace.session_manager.repo_summaries
 
-        # Build summary with line counts
         lines = []
-        for filepath in sorted(files):
-            # Skip binary/non-code files
-            if any(
-                filepath.endswith(ext)
-                for ext in [".png", ".jpg", ".gif", ".ico", ".pyc", ".so", ".whl"]
-            ):
-                continue
-            if filepath.startswith(".git/"):
-                continue
-
-            # Get line count
-            try:
-                content = vfs.read_file(filepath)
-                line_count = len(content.split("\n"))
-                lines.append(f"- {filepath} ({line_count} lines)")
-            except Exception:
-                lines.append(f"- {filepath}")
+        for filepath in sorted(summaries.keys()):
+            summary = summaries[filepath]
+            if summary == "—":
+                # Data file, just list it
+                lines.append(f"## {filepath}\n{summary}")
+            else:
+                # Code file with interface summary
+                lines.append(f"## {filepath}\n{summary}")
 
         return "\n".join(lines)
 

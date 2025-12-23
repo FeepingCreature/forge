@@ -454,16 +454,34 @@ class PromptManager:
 
         return stats
 
-    def _check_compaction_nudge(self, stats: dict[str, Any]) -> str | None:
+    def _get_context_size_label(self, total_tokens: int) -> str:
         """
-        Check if we should nudge the AI to compact.
+        Get a human-readable label for context size.
+
+        Always shown in stats block to give AI awareness of context state.
+        """
+        if total_tokens < 20000:
+            return "small"
+        elif total_tokens < 35000:
+            return "moderate"
+        elif total_tokens < 50000:
+            return "large"
+        elif total_tokens < 80000:
+            return "very large"
+        else:
+            return "extremely large - compaction strongly recommended"
+
+    def _check_compaction_nudge(self) -> bool:
+        """
+        Check if we should inject a compaction nudge into the conversation.
 
         Uses hysteresis to avoid repeated warnings:
         - Warn when exceeding threshold
         - Don't re-warn until dropping below threshold * HYSTERESIS_FACTOR
 
-        Returns nudge message if needed, None otherwise.
+        Returns True if nudge was injected, False otherwise.
         """
+        stats = self.get_context_stats()
         total_tokens = stats["total_tokens"]
         tool_calls_since_compaction = (self._next_tool_id - 1) - self._last_compaction_tool_id
 
@@ -473,20 +491,20 @@ class PromptManager:
 
         if total_tokens < token_hysteresis and tool_calls_since_compaction < tool_hysteresis:
             self._nudge_suppressed = False
-            return None
+            return False
 
         # If already warned and still above threshold, don't re-warn
         if self._nudge_suppressed:
-            return None
+            return False
 
         # Check if we exceed thresholds
         exceeds_tokens = total_tokens > self.TOKEN_THRESHOLD
         exceeds_tools = tool_calls_since_compaction > self.TOOL_CALL_THRESHOLD
 
         if not (exceeds_tokens or exceeds_tools):
-            return None
+            return False
 
-        # Build nudge message
+        # Build nudge message and inject it as a system message in the conversation
         self._nudge_suppressed = True  # Don't warn again until hysteresis reset
 
         reasons = []
@@ -495,18 +513,32 @@ class PromptManager:
         if exceeds_tools:
             reasons.append(f"{tool_calls_since_compaction} tool calls since last compaction")
 
-        return (
-            f"⚠️ COMPACTION SUGGESTED: {', '.join(reasons)}. "
-            f"Consider using the `compact` tool to summarize old tool results and reduce context size. "
-            f"This improves cache efficiency and reduces costs."
+        nudge_msg = (
+            f"<system_nudge>\n"
+            f"⚠️ COMPACTION SUGGESTED: {', '.join(reasons)}.\n\n"
+            f"Use the `compact` tool to summarize old tool results and reduce context size. "
+            f"This improves cache efficiency and reduces costs.\n\n"
+            f"Example: compact tool_call_ids=['1','2','3',...] with a summary of what those calls accomplished.\n"
+            f"</system_nudge>"
         )
+
+        # Inject as a user message so it appears in the conversation flow
+        self.blocks.append(
+            ContentBlock(
+                block_type=BlockType.USER_MESSAGE,
+                content=nudge_msg,
+                metadata={"is_system_nudge": True},
+            )
+        )
+        print(f"📢 Injected compaction nudge: {', '.join(reasons)}")
+        return True
 
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
 
         This gives the AI awareness of context size and session cost.
-        Includes compaction nudge if thresholds are exceeded.
+        Includes a persistent context size label (small/moderate/large/etc).
         """
         stats = self.get_context_stats()
 
@@ -528,15 +560,15 @@ class PromptManager:
         def format_k(tokens: int) -> str:
             return f"{tokens / 1000:.1f}k"
 
-        total_k = format_k(stats["total_tokens"])
+        total_tokens = stats["total_tokens"]
+        total_k = format_k(total_tokens)
 
-        # Check for compaction nudge
-        nudge = self._check_compaction_nudge(stats)
-        nudge_line = f"  <nudge>{nudge}</nudge>\n" if nudge else ""
+        # Get context size label (always shown)
+        size_label = self._get_context_size_label(total_tokens)
 
         return (
             f"<context_stats>\n"
-            f"  <total_tokens>{total_k}</total_tokens>\n"
+            f"  <total_tokens>{total_k} ({size_label})</total_tokens>\n"
             f"  <breakdown>"
             f"system {format_k(stats['system_tokens'])}, "
             f"summaries {format_k(stats['summaries_tokens'])}, "
@@ -544,7 +576,6 @@ class PromptManager:
             f"conversation {format_k(stats['conversation_tokens'])}"
             f"</breakdown>\n"
             f"  <session_cost>{cost_str}</session_cost>\n"
-            f"{nudge_line}"
             f"</context_stats>"
         )
 
@@ -559,7 +590,12 @@ class PromptManager:
 
         Injects context stats at the end of the final user message group, giving
         the AI awareness of context size and session cost before responding.
+
+        Also checks if a compaction nudge should be injected into the conversation.
         """
+        # Check if we should nudge (this may inject a USER_MESSAGE block)
+        self._check_compaction_nudge()
+
         messages: list[dict[str, Any]] = []
 
         # Filter out deleted blocks

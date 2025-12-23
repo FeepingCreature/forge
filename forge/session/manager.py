@@ -388,8 +388,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
     def generate_commit_message(self, changes: dict[str, str]) -> str:
         """Generate commit message using cheap LLM"""
-        # Get commit message model
-        model = self.settings.get("git.commit_message_model", "anthropic/claude-3-haiku")
+        model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
 
         client = LLMClient(api_key, model)
@@ -435,8 +434,7 @@ Keep it under 72 characters."""
             force_refresh: If True, regenerate all summaries even if cached
             progress_callback: Optional callback(current, total, filepath) for progress updates
         """
-        # Use summarization model (typically a cheap/fast model)
-        model = self.settings.get("llm.summarization_model", "anthropic/claude-3-haiku")
+        model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
         client = LLMClient(api_key, model)
 
@@ -533,8 +531,7 @@ Keep it under 72 characters."""
             self.repo_summaries[filepath] = cached_summary
             return cached_summary
 
-        # Generate summary with cheap LLM
-        model = self.settings.get("llm.summarization_model", "anthropic/claude-3-haiku")
+        model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
         client = LLMClient(api_key, model)
 

@@ -24,9 +24,6 @@ from forge.vfs.base import VFS
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
 
-# Default model for ask queries (fast and cheap)
-DEFAULT_ASK_MODEL = "anthropic/claude-3-haiku"
-
 
 class AskWorker(QObject):
     """Worker that queries the model about the codebase using a two-step process.
@@ -45,7 +42,7 @@ class AskWorker(QObject):
         self._question = ""
         self._summaries = ""
         self._api_key = ""
-        self._model = DEFAULT_ASK_MODEL
+        self._model = ""
         self._vfs: VFS | None = None
 
     def set_query(
@@ -222,7 +219,7 @@ class AskWidget(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
 
         # Instructions
-        label = QLabel("Ask about the codebase (uses Haiku):")
+        label = QLabel("Ask about the codebase:")
         label.setStyleSheet("font-size: 11px; color: #666;")
         layout.addWidget(label)
 
@@ -280,7 +277,7 @@ class AskWidget(QWidget):
         summaries = self._get_summaries()
 
         # Get model from settings (same as summarization model)
-        model = self.workspace._settings.get("llm.summarization_model", DEFAULT_ASK_MODEL)
+        model = self.workspace._settings.get_summarization_model()
 
         # Setup and start worker (pass VFS for file content fetching)
         self._worker.set_query(question, summaries, self._api_key, model, self.workspace.vfs)

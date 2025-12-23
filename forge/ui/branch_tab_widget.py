@@ -190,7 +190,7 @@ class BranchTabWidget(QWidget):
                     return i
 
         # Create new editor
-        editor = EditorWidget(filepath=filepath)
+        editor = EditorWidget(filepath=filepath, settings=self.settings)
 
         # Load content from VFS
         try:

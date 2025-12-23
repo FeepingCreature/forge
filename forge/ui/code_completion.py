@@ -1,14 +1,17 @@
 """
 Code completion using a small, fast LLM model.
 
-Uses Haiku or similar cheap model for inline completions.
+Uses the configured summarization model for inline completions.
 """
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from PySide6.QtCore import QObject, QThread, QTimer, Signal
+
+if TYPE_CHECKING:
+    from forge.config.settings import Settings
 
 
 class CompletionWorker(QObject):
@@ -27,6 +30,7 @@ class CompletionWorker(QObject):
         suffix: str,
         cursor_pos: int,
         filepath: str,
+        model: str,
     ) -> None:
         """Queue a completion request."""
         self._pending_request = {
@@ -34,6 +38,7 @@ class CompletionWorker(QObject):
             "suffix": suffix,
             "cursor_pos": cursor_pos,
             "filepath": filepath,
+            "model": model,
         }
         self._process_request()
 
@@ -49,6 +54,7 @@ class CompletionWorker(QObject):
         suffix = req["suffix"]
         cursor_pos = req["cursor_pos"]
         filepath = req["filepath"]
+        model = req["model"]
 
         # Build the prompt
         file_ext = filepath.split(".")[-1] if "." in filepath else ""
@@ -73,7 +79,7 @@ Complete at █:"""
             if not api_key:
                 return
 
-            # Use a fast, cheap model for completions
+            # Use the configured summarization model for completions
             response = httpx.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -81,7 +87,7 @@ Complete at █:"""
                     "HTTP-Referer": "https://github.com/forge-editor/forge",
                 },
                 json={
-                    "model": "anthropic/claude-3-haiku",
+                    "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": 150,
                     "temperature": 0,
@@ -173,10 +179,11 @@ class CompletionManager(QObject):
     Shows ghost text that can be accepted with Tab.
     """
 
-    def __init__(self, editor: Any, filepath: str) -> None:
+    def __init__(self, editor: Any, filepath: str, settings: "Settings") -> None:
         super().__init__()
         self.editor = editor
         self.filepath = filepath
+        self._settings = settings
         self._enabled = True
         self._ghost_text = ""
         self._ghost_cursor_pos = -1
@@ -253,7 +260,8 @@ class CompletionManager(QObject):
         if not prefix or prefix.endswith("\n\n"):
             return
 
-        self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath)
+        model = self._settings.get_summarization_model()
+        self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath, model)
 
     def _on_completion_ready(self, completion: str, cursor_pos: int) -> None:
         """Handle completion from worker."""

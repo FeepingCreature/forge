@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from forge.config.settings import Settings
     from forge.ui.code_completion import CompletionManager
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
@@ -366,9 +367,10 @@ class SearchBar(QWidget):
 class EditorWidget(QWidget):
     """Code editor widget with syntax highlighting and AI integration hooks"""
 
-    def __init__(self, filepath: str | None = None) -> None:
+    def __init__(self, filepath: str | None = None, settings: "Settings | None" = None) -> None:
         super().__init__()
         self.filepath = filepath
+        self._settings = settings
         self._match_positions: list[int] = []
         self._current_match_index = -1
         self._completion_manager: CompletionManager | None = None
@@ -575,13 +577,13 @@ class EditorWidget(QWidget):
         self.editor.highlight_current_line()
 
     def _setup_completion(self) -> None:
-        """Setup code completion if filepath is set."""
-        if not self.filepath:
+        """Setup code completion if filepath and settings are available."""
+        if not self.filepath or not self._settings:
             return
 
         from forge.ui.code_completion import CompletionManager
 
-        self._completion_manager = CompletionManager(self.editor, self.filepath)
+        self._completion_manager = CompletionManager(self.editor, self.filepath, self._settings)
 
         # Install event filter to intercept Tab key
         self.editor.installEventFilter(self)

@@ -196,26 +196,26 @@ class SettingsDialog(QDialog):
         self.auto_commit_input = QCheckBox()
         layout.addRow("Auto-commit AI changes:", self.auto_commit_input)
 
-        # Commit message model with popup picker (click to open)
-        self.commit_model_input = QLineEdit()
-        self.commit_model_input.setReadOnly(True)
-        self.commit_model_input.setPlaceholderText("Loading models...")
-        self.commit_model_input.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._commit_model_picker_enabled = False
+        # Summarization model with popup picker (click to open)
+        self.summarization_model_input = QLineEdit()
+        self.summarization_model_input.setReadOnly(True)
+        self.summarization_model_input.setPlaceholderText("Loading models...")
+        self.summarization_model_input.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._summarization_model_picker_enabled = False
 
-        layout.addRow("Commit Message Model:", self.commit_model_input)
+        layout.addRow("Summarization Model:", self.summarization_model_input)
 
         # Info
         info = QLabel(
-            "The commit message model is used to generate commit messages\n"
-            "for AI changes. A smaller/cheaper model is recommended."
+            "Used for commit messages, file summaries, code completion,\n"
+            "and 'Ask' queries. A smaller/cheaper model is recommended."
         )
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
 
         # Connect click events using event filter
-        self.commit_model_input.installEventFilter(self)
+        self.summarization_model_input.installEventFilter(self)
 
         return widget
 
@@ -315,8 +315,8 @@ class SettingsDialog(QDialog):
             if obj == self.model_input:
                 self._show_model_picker()
                 return True
-            elif obj == self.commit_model_input:
-                self._show_commit_model_picker()
+            elif obj == self.summarization_model_input:
+                self._show_summarization_model_picker()
                 return True
         return super().eventFilter(obj, event)
 
@@ -353,14 +353,16 @@ class SettingsDialog(QDialog):
 
         # Enable clicking on model inputs
         self._model_picker_enabled = True
-        self._commit_model_picker_enabled = True
+        self._summarization_model_picker_enabled = True
 
         # Set saved values
         saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
-        saved_commit_model = getattr(self, "_saved_commit_model", "anthropic/claude-3-haiku")
+        saved_summarization_model = getattr(
+            self, "_saved_summarization_model", "anthropic/claude-3-haiku"
+        )
 
         self.model_input.setText(saved_model)
-        self.commit_model_input.setText(saved_commit_model)
+        self.summarization_model_input.setText(saved_summarization_model)
 
     def _on_models_error(self, error_msg: str) -> None:
         """Handle model fetch error"""
@@ -387,14 +389,16 @@ class SettingsDialog(QDialog):
 
         # Enable clicking on model inputs
         self._model_picker_enabled = True
-        self._commit_model_picker_enabled = True
+        self._summarization_model_picker_enabled = True
 
         # Set saved values
         saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
-        saved_commit_model = getattr(self, "_saved_commit_model", "anthropic/claude-3-haiku")
+        saved_summarization_model = getattr(
+            self, "_saved_summarization_model", "anthropic/claude-3-haiku"
+        )
 
         self.model_input.setText(saved_model)
-        self.commit_model_input.setText(saved_commit_model)
+        self.summarization_model_input.setText(saved_summarization_model)
 
     def _show_model_picker(self) -> None:
         """Show the model picker popup"""
@@ -414,23 +418,25 @@ class SettingsDialog(QDialog):
         """Handle model selection from picker"""
         self.model_input.setText(model)
 
-    def _show_commit_model_picker(self) -> None:
-        """Show the commit model picker popup"""
-        if not getattr(self, "_commit_model_picker_enabled", False):
+    def _show_summarization_model_picker(self) -> None:
+        """Show the summarization model picker popup"""
+        if not getattr(self, "_summarization_model_picker_enabled", False):
             return
 
         models = getattr(self, "_available_models", [])
 
-        picker = ModelPickerPopup(models, self.commit_model_input.text(), self)
-        picker.model_selected.connect(self._on_commit_model_selected)
+        picker = ModelPickerPopup(models, self.summarization_model_input.text(), self)
+        picker.model_selected.connect(self._on_summarization_model_selected)
 
         # Position below and aligned to left of the input field
-        input_pos = self.commit_model_input.mapToGlobal(self.commit_model_input.rect().bottomLeft())
+        input_pos = self.summarization_model_input.mapToGlobal(
+            self.summarization_model_input.rect().bottomLeft()
+        )
         picker.show_at(input_pos)
 
-    def _on_commit_model_selected(self, model: str) -> None:
-        """Handle commit model selection from picker"""
-        self.commit_model_input.setText(model)
+    def _on_summarization_model_selected(self, model: str) -> None:
+        """Handle summarization model selection from picker"""
+        self.summarization_model_input.setText(model)
 
     def _toggle_api_key_visibility(self) -> None:
         """Toggle API key visibility between hidden and visible"""
@@ -498,8 +504,8 @@ class SettingsDialog(QDialog):
         self.api_key_input.setText(self.settings.get("llm.api_key", ""))
         # Store model values - they'll be applied when models are loaded
         self._saved_model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        self._saved_commit_model = self.settings.get(
-            "git.commit_message_model", "anthropic/claude-3-haiku"
+        self._saved_summarization_model = self.settings.get(
+            "llm.summarization_model", "anthropic/claude-3-haiku"
         )
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
@@ -514,7 +520,7 @@ class SettingsDialog(QDialog):
 
         # Git settings
         self.auto_commit_input.setChecked(self.settings.get("git.auto_commit", False))
-        self.commit_model_input.setText(self._saved_commit_model)
+        self.summarization_model_input.setText(self._saved_summarization_model)
 
     def _save_and_close(self) -> None:
         """Save settings and close dialog"""
@@ -531,7 +537,7 @@ class SettingsDialog(QDialog):
 
         # Git settings
         self.settings.set("git.auto_commit", self.auto_commit_input.isChecked())
-        self.settings.set("git.commit_message_model", self.commit_model_input.text())
+        self.settings.set("llm.summarization_model", self.summarization_model_input.text())
 
         # Keybindings - collect custom shortcuts
         keybindings: dict[str, str] = {}

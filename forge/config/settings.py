@@ -27,7 +27,7 @@ class Settings:
             "theme": "light",
             "editor_ai_split": [2, 1],  # Ratio for splitter
         },
-        "git": {"auto_commit": False, "commit_message_model": "anthropic/claude-3-haiku"},
+        "git": {"auto_commit": False},
     }
 
     def __init__(self, config_path: Path | None = None) -> None:
@@ -99,3 +99,12 @@ class Settings:
         if not api_key:
             api_key = os.environ.get("OPENROUTER_API_KEY", "")
         return api_key
+
+    def get_summarization_model(self) -> str:
+        """Get the model to use for summarization, commits, asks, and completions.
+
+        This is the 'cheap/fast' model used for everything except the main agentic flow.
+        Falls back to haiku if not configured.
+        """
+        model: str = str(self.get("llm.summarization_model", "anthropic/claude-3-haiku"))
+        return model

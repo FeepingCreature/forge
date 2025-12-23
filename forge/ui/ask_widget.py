@@ -1,6 +1,7 @@
 """
-Ask Repo Dialog - Query the codebase using the summary model.
+Ask Widget - Query the codebase using the summary model.
 
+Embeddable version of AskRepoDialog for use in side panel.
 Uses file summaries to answer architecture and code questions quickly and cheaply.
 """
 
@@ -9,12 +10,12 @@ from typing import TYPE_CHECKING
 import httpx
 from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import (
-    QDialog,
     QLabel,
     QLineEdit,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 if TYPE_CHECKING:
@@ -109,34 +110,32 @@ If you're not sure, say so.
             self.error.emit(str(e))
 
 
-class AskRepoDialog(QDialog):
-    """Dialog for asking questions about the codebase."""
+class AskWidget(QWidget):
+    """Widget for asking questions about the codebase."""
 
-    def __init__(self, workspace: "BranchWorkspace", api_key: str, parent: object = None) -> None:
-        super().__init__(parent)  # type: ignore[arg-type]
+    def __init__(
+        self, workspace: "BranchWorkspace", api_key: str, parent: QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
         self.workspace = workspace
         self._api_key = api_key
-        self.setWindowTitle("Ask About Repo")
-        self.setMinimumSize(600, 400)
-        self.resize(700, 500)
 
         self._setup_ui()
         self._setup_worker()
 
     def _setup_ui(self) -> None:
-        """Setup the dialog UI."""
+        """Setup the widget UI."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
 
         # Instructions
-        layout.addWidget(
-            QLabel("Ask a question about the codebase (uses Haiku for fast, cheap answers):")
-        )
+        label = QLabel("Ask about the codebase (uses Haiku):")
+        label.setStyleSheet("font-size: 11px; color: #666;")
+        layout.addWidget(label)
 
         # Question input
         self.question_input = QLineEdit()
-        self.question_input.setPlaceholderText(
-            "e.g., How does the VFS system work? Where is the tool approval logic?"
-        )
+        self.question_input.setPlaceholderText("How does X work?")
         self.question_input.returnPressed.connect(self._ask)
         layout.addWidget(self.question_input)
 
@@ -146,13 +145,10 @@ class AskRepoDialog(QDialog):
         layout.addWidget(self.ask_button)
 
         # Response area
-        layout.addWidget(QLabel("Answer:"))
         self.response_area = QTextEdit()
         self.response_area.setReadOnly(True)
         self.response_area.setPlaceholderText("Response will appear here...")
         layout.addWidget(self.response_area)
-
-        self.question_input.setFocus()
 
     def _setup_worker(self) -> None:
         """Setup the background worker."""
@@ -163,6 +159,11 @@ class AskRepoDialog(QDialog):
         self._worker.response_ready.connect(self._on_response)
         self._worker.error.connect(self._on_error)
         self._worker_thread.started.connect(self._worker.run)
+
+    def focus_input(self) -> None:
+        """Focus the question input"""
+        self.question_input.setFocus()
+        self.question_input.selectAll()
 
     def _ask(self) -> None:
         """Submit the question."""
@@ -192,12 +193,10 @@ class AskRepoDialog(QDialog):
 
     def _get_summaries(self) -> str:
         """Get file summaries from the workspace."""
-        # Use the VFS to get file list, then build summaries
         vfs = self.workspace.vfs
         files = vfs.list_files()
 
         # Build a simple summary string
-        # In a real implementation, we'd use the cached summaries from SessionManager
         lines = []
         for filepath in sorted(files):
             # Skip binary/non-code files
@@ -232,10 +231,3 @@ class AskRepoDialog(QDialog):
         self.question_input.setEnabled(True)
         self.ask_button.setEnabled(True)
         self._worker_thread.quit()
-
-    def closeEvent(self, event: object) -> None:  # noqa: N802
-        """Clean up worker thread on close."""
-        if self._worker_thread.isRunning():
-            self._worker_thread.quit()
-            self._worker_thread.wait()
-        super().closeEvent(event)  # type: ignore[arg-type]

@@ -11,9 +11,9 @@ from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
-from forge.ui.file_explorer_widget import FileExplorerWidget
 from forge.ui.open_files_cache import get_open_files, save_open_files
 from forge.ui.quick_open import QuickOpenWidget
+from forge.ui.side_panel import SidePanelWidget
 
 if TYPE_CHECKING:
     from forge.config.settings import Settings
@@ -63,26 +63,28 @@ class BranchTabWidget(QWidget):
         # Track if AI is currently working
         self._ai_working: bool = False
 
-        # File explorer widget
-        self._file_explorer: FileExplorerWidget | None = None
+        # Side panel widget (contains explorer, search, ask)
+        self._side_panel: SidePanelWidget | None = None
 
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-        """Setup the tab widget UI with file explorer sidebar"""
+        """Setup the tab widget UI with side panel"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # Main splitter: file explorer | file tabs
+        # Main splitter: side panel | file tabs
         self.splitter = QSplitter()
 
-        # File explorer (left side)
-        self._file_explorer = FileExplorerWidget(self.workspace)
-        self._file_explorer.file_open_requested.connect(self.open_file)
-        self._file_explorer.context_toggle_requested.connect(self._on_context_toggle)
-        self._file_explorer.setMinimumWidth(150)
-        self._file_explorer.setMaximumWidth(400)
-        self.splitter.addWidget(self._file_explorer)
+        # Side panel (left side) - contains explorer, search, ask tabs
+        api_key = self.settings.get_api_key()
+        self._side_panel = SidePanelWidget(self.workspace, api_key)
+        self._side_panel.file_open_requested.connect(self.open_file)
+        self._side_panel.context_toggle_requested.connect(self._on_context_toggle)
+        self._side_panel.search_file_selected.connect(self._on_search_file_selected)
+        self._side_panel.setMinimumWidth(150)
+        self._side_panel.setMaximumWidth(400)
+        self.splitter.addWidget(self._side_panel)
 
         # File tabs (right side - AI chat will be first tab, added by parent)
         self.file_tabs = QTabWidget()
@@ -163,10 +165,10 @@ class BranchTabWidget(QWidget):
 
     def _on_mid_turn_commit(self, commit_oid: str) -> None:
         """Handle mid-turn commit from AI - refresh UI without unlocking editors"""
-        # Refresh VFS and file explorer to show new/removed files
+        # Refresh VFS and side panel to show new/removed files
         self.workspace.refresh_vfs()
-        if self._file_explorer:
-            self._file_explorer.refresh()
+        if self._side_panel:
+            self._side_panel.refresh()
 
         # Refresh any open files that may have changed
         for filepath in list(self._editors.keys()):
@@ -359,9 +361,9 @@ class BranchTabWidget(QWidget):
         for filepath in list(self._editors.keys()):
             self.refresh_file(filepath)
 
-        # Also refresh the file explorer (AI may have added/removed files)
-        if self._file_explorer:
-            self._file_explorer.refresh()
+        # Also refresh the side panel (AI may have added/removed files)
+        if self._side_panel:
+            self._side_panel.refresh()
 
     def set_read_only(self, read_only: bool) -> None:
         """
@@ -425,10 +427,15 @@ class BranchTabWidget(QWidget):
         else:
             self.context_file_removed.emit(filepath)
 
+    def _on_search_file_selected(self, filepath: str, line_num: int) -> None:
+        """Handle file selection from search widget"""
+        self.open_file(filepath)
+        # TODO: Scroll to line_num in the editor
+
     def update_context_display(self, active_files: set[str]) -> None:
-        """Update file explorer to show which files are in context"""
-        if self._file_explorer:
-            self._file_explorer.set_context_files(active_files)
+        """Update side panel to show which files are in context"""
+        if self._side_panel:
+            self._side_panel.set_context_files(active_files)
 
     def _on_tab_changed(self, index: int) -> None:
         """Handle tab change"""

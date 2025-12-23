@@ -245,9 +245,13 @@ class QuickOpenWidget(QWidget):
         self._load_files()  # Refresh file list
 
     def focusOutEvent(self, event: QFocusEvent) -> None:  # noqa: N802
-        """Hide when focus is lost"""
-        # Don't hide if focus went to our child widgets
+        """Hide when focus is lost (but not to our child widgets)"""
+        # For Popup windows, Qt auto-hides on focus loss, but we need to handle
+        # the case where focus moves to our own child widgets (like the list)
         focus_widget = QApplication.focusWidget()
         if focus_widget and self.isAncestorOf(focus_widget):
+            # Focus went to a child - don't hide
+            event.accept()
             return
+        # Focus truly lost - let Qt handle it (will hide the popup)
         super().focusOutEvent(event)

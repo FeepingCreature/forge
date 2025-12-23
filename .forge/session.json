@@ -4,12 +4,10 @@
     "forge/ui/side_panel.py",
     "forge/ui/global_search.py",
     "forge/ui/ask_repo_dialog.py",
-    "forge/ui/file_explorer_widget.py",
-    "forge/ui/search_widget.py",
+    "forge/ui/ai_chat_widget.py",
     "forge/ui/main_window.py",
     "forge/ui/branch_tab_widget.py",
-    "CLAUDE.md",
-    "forge/llm/client.py"
+    "CLAUDE.md"
   ],
   "messages": [
     {
@@ -876,6 +874,129 @@
     {
       "role": "assistant",
       "content": "Done! Here's a summary of the changes:\n\n1. **Removed standalone dialogs**: Deleted `GlobalSearchDialog` and `AskRepoDialog` - everything now goes through the side panel.\n\n2. **Updated keyboard shortcuts**:\n   - `Ctrl+Shift+F` now focuses the Search tab in the side panel\n   - `Ctrl+Shift+A` now focuses the Ask tab in the side panel\n\n3. **Enhanced Ask widget with clickable file links**:\n   - File summaries now include line counts (e.g., `forge/ui/main.py (450 lines)`)\n   - The model is prompted to use `filepath:line` format when referencing files\n   - After the response completes, file references are converted to clickable links\n   - Clicking a link opens the file (or focuses it if already open) at that line"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: df98e6d0",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Also the queued messages break the streaming display of assistant responses in the webview."
+    },
+    {
+      "role": "assistant",
+      "content": "I need to look at the AI chat widget to understand how the streaming display works and how queued messages might be breaking it.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"forge/ui/file_explorer_widget.py\",\"forge/ui/search_widget.py\",\"forge/llm/client.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01WuqtVPULH8evnMLRTYWv9w",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WuqtVPULH8evnMLRTYWv9w",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 3 files from context\", \"remove\": [\"forge/ui/file_explorer_widget.py\", \"forge/ui/search_widget.py\", \"forge/llm/client.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the issue. When a message is queued, it calls `_add_system_message()` which then calls `_update_chat_display(scroll_to_bottom=True)`. This full re-render of the chat display overwrites the streaming content.\n\nThe problem is in `_send_message()`:\n\n```python\n# If processing, queue the message instead of sending\nif self.is_processing:\n    self._queued_message = text\n    self.input_field.clear()\n    self._add_system_message(\n        f\"\ud83d\udcdd Message queued (will be sent after current turn): \"\n        f'\"{text[:50]}{\"...\" if len(text) > 50 else \"\"}\"'\n    )\n    return\n```\n\nThe `_add_system_message` calls `_update_chat_display` which rebuilds all the HTML including the streaming message. But since we're in the middle of streaming, the accumulated raw text in `content.dataset.rawText` gets lost.\n\nThe fix is to append the queued message via JavaScript instead of doing a full re-render, similar to how `_append_streaming_chunk` works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # If processing, queue the message instead of sending\\n        if self.is_processing:\\n            self._queued_message = text\\n            self.input_field.clear()\\n            self._add_system_message(\\n                f\\\"\ud83d\udcdd Message queued (will be sent after current turn): \\\"\\n                f'\\\"{text[:50]}{\\\"...\\\" if len(text) > 50 else \\\"\\\"}\\\"'\\n            )\\n            return\", \"replace\": \"        # If processing, queue the message instead of sending\\n        if self.is_processing:\\n            self._queued_message = text\\n            self.input_field.clear()\\n            # Add queued message indicator via JavaScript to avoid disrupting streaming\\n            self._append_queued_message_indicator(text)\\n            return\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_014PjRyHcR96ZKEMx2NUxW1S",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014PjRyHcR96ZKEMx2NUxW1S",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `_append_queued_message_indicator` method:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _append_streaming_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Append a raw text chunk to the streaming message (no markdown re-render)\\\"\\\"\\\"\", \"replace\": \"    def _append_queued_message_indicator(self, text: str) -> None:\\n        \\\"\\\"\\\"Append a queued message indicator via JavaScript without disrupting streaming\\\"\\\"\\\"\\n        preview = text[:50] + \\\"...\\\" if len(text) > 50 else text\\n        # Escape for JavaScript\\n        escaped_preview = (\\n            preview.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\")\\n            .replace(\\\"`\\\", \\\"\\\\\\\\`\\\")\\n            .replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n            .replace(\\\"\\\\n\\\", \\\" \\\")\\n            .replace(\\\"\\\\r\\\", \\\"\\\")\\n        )\\n\\n        js_code = f\\\"\\\"\\\"\\n        (function() {{\\n            // Check if we already have a queued indicator\\n            var existing = document.getElementById('queued-message-indicator');\\n            if (existing) {{\\n                existing.remove();\\n            }}\\n\\n            // Create the indicator element\\n            var indicator = document.createElement('div');\\n            indicator.id = 'queued-message-indicator';\\n            indicator.className = 'message system';\\n            indicator.style.cssText = 'background: #e8f5e9; border: 2px solid #4caf50; margin: 0 10%;';\\n            indicator.innerHTML = '<div class=\\\"role\\\">Queued</div><div class=\\\"content\\\">\ud83d\udcdd Message queued (will be sent after current turn):<br><em>\\\"{escaped_preview}\\\"</em></div>';\\n\\n            // Append to messages container\\n            var container = document.getElementById('messages-container');\\n            if (container) {{\\n                container.appendChild(indicator);\\n                window.scrollTo(0, document.body.scrollHeight);\\n            }}\\n        }})();\\n        \\\"\\\"\\\"\\n        self.chat_view.page().runJavaScript(js_code)\\n\\n    def _append_streaming_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Append a raw text chunk to the streaming message (no markdown re-render)\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01P4zfp4QFTTr3jyhomxP9Lv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01P4zfp4QFTTr3jyhomxP9Lv",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything compiles:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01TAPWXRL3Wmq55UM7o8pGw9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TAPWXRL3Wmq55UM7o8pGw9",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit this fix:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix queued messages breaking streaming display\\n\\nWhen user queues a message during AI processing, append the indicator\\nvia JavaScript instead of calling _add_system_message() which would\\ntrigger a full re-render and lose the streaming content.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_0197CMbe8GX4TJqPCmLhD4tj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0197CMbe8GX4TJqPCmLhD4tj",
+      "content": "{\"commit\": \"c4179d0b72d4\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Fix queued messages breaking streaming display\\n\\nWhen user queues a message during AI processing, append the indicator\\nvia JavaScript instead of calling _add_system_message() which would\\ntrigger a full re-render and lose the streaming content.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"c4179d0b72d4\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's a summary of all the changes made:\n\n1. **Removed standalone dialogs**: Deleted `GlobalSearchDialog` and `AskRepoDialog` - all functionality now goes through the side panel.\n\n2. **Updated keyboard shortcuts**:\n   - `Ctrl+Shift+F` now focuses the Search tab in the side panel\n   - `Ctrl+Shift+A` now focuses the Ask tab in the side panel\n\n3. **Enhanced Ask widget with clickable file links**:\n   - File summaries now include line counts\n   - The model is prompted to use `filepath:line` format when referencing files\n   - After the response completes, file references are converted to clickable links\n   - Clicking a link opens the file (or focuses it if already open)\n\n4. **Fixed queued messages breaking streaming display**: When a user queues a message during AI processing, the indicator is now appended via JavaScript (`_append_queued_message_indicator`) instead of calling `_add_system_message()` which would trigger a full re-render and lose the accumulated streaming content in `content.dataset.rawText`."
     }
   ]
 }

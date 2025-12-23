@@ -484,6 +484,8 @@ class BranchTabWidget(QWidget):
         self._quick_open.move(popup_x, popup_y)
         self._quick_open.show()
         self._quick_open.raise_()
+        self._quick_open.activateWindow()
+        self._quick_open.search_input.setFocus()
 
     def get_open_file_paths(self) -> list[str]:
         """Get list of currently open file paths (for persistence)"""

@@ -1107,6 +1107,7 @@ class AIChatWidget(QWidget):
             "update_context",
             "grep_open",
             "get_lines",
+            "compact",
         }
 
         if tool_name in builtin_tools_with_native_rendering and result.get("success"):
@@ -1142,7 +1143,7 @@ class AIChatWidget(QWidget):
             self._add_system_message("\n".join(tool_display_parts))
 
     def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
-        """Handle all tools completed - continue conversation"""
+        """Handle all tools completed - continue conversation or send queued message"""
         # Clean up thread
         if self.tool_thread:
             self.tool_thread.quit()
@@ -1158,9 +1159,22 @@ class AIChatWidget(QWidget):
                 self.session_manager.file_was_modified(filepath, tool_call_id)
             self._pending_file_updates = []
 
-        # Continue conversation with tool results
-        tools = getattr(self, "_pending_tools", [])
-        self._continue_after_tools(tools)
+        # Check if user queued a message - if so, inject it now instead of continuing
+        if self._queued_message:
+            queued = self._queued_message
+            self._queued_message = None
+
+            # Add the queued message to conversation
+            self.add_message("user", queued)
+            self.session_manager.append_user_message(queued)
+
+            # Continue with the queued message (AI will see tool results + new message)
+            tools = getattr(self, "_pending_tools", [])
+            self._continue_after_tools(tools)
+        else:
+            # No queued message - continue conversation with tool results
+            tools = getattr(self, "_pending_tools", [])
+            self._continue_after_tools(tools)
 
     def _on_tool_error(self, error_msg: str) -> None:
         """Handle tool execution error"""
@@ -1297,13 +1311,13 @@ class AIChatWidget(QWidget):
 
     def _append_queued_message_indicator(self, text: str) -> None:
         """Append a queued message indicator via JavaScript without disrupting streaming"""
-        preview = text[:50] + "..." if len(text) > 50 else text
+        # Don't truncate - show full message (escaped for display)
         # Escape for JavaScript
         escaped_preview = (
-            preview.replace("\\", "\\\\")
+            text.replace("\\", "\\\\")
             .replace("`", "\\`")
             .replace("$", "\\$")
-            .replace("\n", " ")
+            .replace("\n", "<br>")
             .replace("\r", "")
         )
 

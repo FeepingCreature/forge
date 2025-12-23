@@ -80,6 +80,23 @@ class SessionManager:
         cache_file = self.cache_dir / cache_key
         cache_file.write_text(summary)
 
+    def _build_summary_prompt(self, filepath: str, content: str) -> str:
+        """Build the prompt for generating a file summary"""
+        return f"""Summarize this file's public interfaces for codebase navigation.
+
+File: {filepath}
+
+```
+{content}
+```
+
+First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
+
+If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
+If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
+
+Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
+
     # Binary/non-summarizable file extensions
     _SKIP_EXTENSIONS = {
         # Images
@@ -463,21 +480,7 @@ Keep it under 72 characters."""
             if len(content) > max_chars:
                 content = content[:max_chars] + "\n... (truncated)"
 
-            prompt = f"""Summarize this file's public interfaces for codebase navigation.
-
-File: {filepath}
-
-```
-{content}
-```
-
-First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
-
-If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
-If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
-
-Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
-
+            prompt = self._build_summary_prompt(filepath, content)
             messages = [{"role": "user", "content": prompt}]
             response = client.chat(messages)
 
@@ -540,21 +543,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         if len(content) > max_chars:
             content = content[:max_chars] + "\n... (truncated)"
 
-        prompt = f"""Summarize this file's public interfaces for codebase navigation.
-
-File: {filepath}
-
-```
-{content}
-```
-
-First, decide: is this CODE (Python, JS, etc. with importable classes/functions) or DATA (config, docs, markdown, licenses, etc)?
-
-If CODE: list public classes/functions/constants as terse bullets (skip _ prefixed, under 80 chars each).
-If DATA (including .md files): just output "—" (the filename alone is enough context for navigation).
-
-Think about what category this file is, then put ONLY the final bullets or "—" inside <summary></summary> tags. Nothing else inside the tags."""
-
+        prompt = self._build_summary_prompt(filepath, content)
         messages = [{"role": "user", "content": prompt}]
         response = client.chat(messages)
 

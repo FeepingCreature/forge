@@ -17,36 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from forge.ui.actions import Action, ActionRegistry
-
-
-def fuzzy_match(pattern: str, text: str) -> tuple[bool, int]:
-    """
-    Check if pattern fuzzy-matches text.
-    Returns (matched, score) where lower score is better.
-    """
-    pattern = pattern.lower()
-    text_lower = text.lower()
-
-    # Exact substring match gets best score
-    if pattern in text_lower:
-        return True, text_lower.index(pattern)
-
-    # Fuzzy match: all pattern chars must appear in order
-    pattern_idx = 0
-    score = 0
-    last_match = -1
-
-    for i, char in enumerate(text_lower):
-        if pattern_idx < len(pattern) and char == pattern[pattern_idx]:
-            # Penalize gaps between matches
-            if last_match >= 0:
-                score += (i - last_match - 1) * 2
-            last_match = i
-            pattern_idx += 1
-
-    if pattern_idx == len(pattern):
-        return True, score
-    return False, 999999
+from forge.ui.fuzzy import fuzzy_match
 
 
 class CommandPaletteItem(QWidget):

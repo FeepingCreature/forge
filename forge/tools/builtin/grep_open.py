@@ -5,6 +5,8 @@ Grep for a pattern and add matching files to context
 import re
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.builtin.grep_utils import DEFAULT_EXCLUDE_DIRS, get_files_to_search
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -59,9 +61,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """Search for pattern and add matching files to context"""
     pattern = args.get("pattern")
     include_extensions = args.get("include_extensions", [])
-    exclude_dirs = args.get(
-        "exclude_dirs", [".git", "__pycache__", "node_modules", ".venv", "venv"]
-    )
+    exclude_dirs = args.get("exclude_dirs", DEFAULT_EXCLUDE_DIRS)
 
     if not isinstance(pattern, str):
         return {"success": False, "error": "pattern must be a string"}
@@ -72,33 +72,14 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     except re.error as e:
         return {"success": False, "error": f"Invalid regex pattern: {e}"}
 
-    # Get all files
-    all_files = vfs.list_files()
+    # Get filtered file list
+    files_to_search = get_files_to_search(vfs, exclude_dirs, include_extensions)
 
-    # Filter and search
+    # Search files
     matches: list[dict[str, Any]] = []
     files_to_add: list[str] = []
 
-    for filepath in all_files:
-        # Check exclusions
-        skip = False
-        for exclude_dir in exclude_dirs:
-            if f"/{exclude_dir}/" in f"/{filepath}" or filepath.startswith(f"{exclude_dir}/"):
-                skip = True
-                break
-        if skip:
-            continue
-
-        # Check extensions
-        if include_extensions:
-            ext_match = False
-            for ext in include_extensions:
-                if filepath.endswith(ext):
-                    ext_match = True
-                    break
-            if not ext_match:
-                continue
-
+    for filepath in files_to_search:
         # Read and search
         try:
             content = vfs.read_file(filepath)

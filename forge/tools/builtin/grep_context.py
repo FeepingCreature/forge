@@ -6,6 +6,8 @@ Useful for peeking at matches to decide if you need the full file.
 import re
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.builtin.grep_utils import DEFAULT_EXCLUDE_DIRS, get_files_to_search
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -80,9 +82,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     single_file = args.get("file")
     max_matches = args.get("max_matches", 10)
     include_extensions = args.get("include_extensions", [])
-    exclude_dirs = args.get(
-        "exclude_dirs", [".git", "__pycache__", "node_modules", ".venv", "venv"]
-    )
+    exclude_dirs = args.get("exclude_dirs", DEFAULT_EXCLUDE_DIRS)
 
     if not isinstance(pattern, str):
         return {"success": False, "error": "pattern must be a string"}
@@ -103,29 +103,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     if single_file:
         files_to_search = [single_file]
     else:
-        all_files = vfs.list_files()
-        files_to_search = []
-        for filepath in all_files:
-            # Check exclusions
-            skip = False
-            for exclude_dir in exclude_dirs:
-                if f"/{exclude_dir}/" in f"/{filepath}" or filepath.startswith(f"{exclude_dir}/"):
-                    skip = True
-                    break
-            if skip:
-                continue
-
-            # Check extensions
-            if include_extensions:
-                ext_match = False
-                for ext in include_extensions:
-                    if filepath.endswith(ext):
-                        ext_match = True
-                        break
-                if not ext_match:
-                    continue
-
-            files_to_search.append(filepath)
+        files_to_search = get_files_to_search(vfs, exclude_dirs, include_extensions)
 
     # Search and collect snippets
     snippets: list[dict[str, Any]] = []

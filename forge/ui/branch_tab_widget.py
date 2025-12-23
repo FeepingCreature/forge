@@ -82,6 +82,7 @@ class BranchTabWidget(QWidget):
         self._side_panel.file_open_requested.connect(self.open_file)
         self._side_panel.context_toggle_requested.connect(self._on_context_toggle)
         self._side_panel.search_file_selected.connect(self._on_search_file_selected)
+        self._side_panel.ask_file_selected.connect(self._on_search_file_selected)
         self._side_panel.setMinimumWidth(150)
         self._side_panel.setMaximumWidth(400)
         self.splitter.addWidget(self._side_panel)
@@ -436,6 +437,16 @@ class BranchTabWidget(QWidget):
         """Update side panel to show which files are in context"""
         if self._side_panel:
             self._side_panel.set_context_files(active_files)
+
+    def focus_search(self) -> None:
+        """Switch to search tab and focus the input"""
+        if self._side_panel:
+            self._side_panel.focus_search()
+
+    def focus_ask(self) -> None:
+        """Switch to ask tab and focus the input"""
+        if self._side_panel:
+            self._side_panel.focus_ask()
 
     def _on_tab_changed(self, index: int) -> None:
         """Handle tab change"""

@@ -5,15 +5,16 @@ Embeddable version of AskRepoDialog for use in side panel.
 Uses file summaries to answer architecture and code questions quickly and cheaply.
 """
 
+import re
 from typing import TYPE_CHECKING
 
 import httpx
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, QUrl, Signal
 from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
-    QTextEdit,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -45,7 +46,7 @@ class AskWorker(QObject):
         """Execute the query."""
         prompt = f"""You are a code assistant. Answer the user's question about this codebase based on the file summaries below.
 
-Be concise but helpful. If you can identify specific files that are relevant, mention them.
+Be concise but helpful. When referencing files, use the format `filepath:line` or just `filepath` so users can click to open them.
 If you're not sure, say so.
 
 ## File Summaries
@@ -113,12 +114,17 @@ If you're not sure, say so.
 class AskWidget(QWidget):
     """Widget for asking questions about the codebase."""
 
+    # Emitted when user clicks a file link (filepath, line_number)
+    file_selected = Signal(str, int)
+
     def __init__(
         self, workspace: "BranchWorkspace", api_key: str, parent: QWidget | None = None
     ) -> None:
         super().__init__(parent)
         self.workspace = workspace
         self._api_key = api_key
+        self._raw_response = ""  # Store raw response for link conversion
+        self._all_files: set[str] = set()  # Cache of all files for link detection
 
         self._setup_ui()
         self._setup_worker()
@@ -144,9 +150,11 @@ class AskWidget(QWidget):
         self.ask_button.clicked.connect(self._ask)
         layout.addWidget(self.ask_button)
 
-        # Response area
-        self.response_area = QTextEdit()
+        # Response area - use QTextBrowser for clickable links
+        self.response_area = QTextBrowser()
         self.response_area.setReadOnly(True)
+        self.response_area.setOpenLinks(False)  # Handle links ourselves
+        self.response_area.anchorClicked.connect(self._on_link_clicked)
         self.response_area.setPlaceholderText("Response will appear here...")
         layout.addWidget(self.response_area)
 
@@ -175,7 +183,10 @@ class AskWidget(QWidget):
         self.question_input.setEnabled(False)
         self.ask_button.setEnabled(False)
         self.response_area.clear()
-        self.response_area.setPlaceholderText("Thinking...")
+        self._raw_response = ""
+
+        # Cache file list for link detection
+        self._all_files = set(self.workspace.vfs.list_files())
 
         # Get file summaries from workspace
         summaries = self._get_summaries()
@@ -192,11 +203,11 @@ class AskWidget(QWidget):
         self._worker_thread.start()
 
     def _get_summaries(self) -> str:
-        """Get file summaries from the workspace."""
+        """Get file summaries from the workspace with line numbers."""
         vfs = self.workspace.vfs
         files = vfs.list_files()
 
-        # Build a simple summary string
+        # Build summary with line counts
         lines = []
         for filepath in sorted(files):
             # Skip binary/non-code files
@@ -208,22 +219,90 @@ class AskWidget(QWidget):
             if filepath.startswith(".git/"):
                 continue
 
-            lines.append(f"- {filepath}")
+            # Get line count
+            try:
+                content = vfs.read_file(filepath)
+                line_count = len(content.split("\n"))
+                lines.append(f"- {filepath} ({line_count} lines)")
+            except Exception:
+                lines.append(f"- {filepath}")
 
         return "\n".join(lines)
 
     def _on_chunk(self, chunk: str) -> None:
         """Handle streaming chunk."""
-        cursor = self.response_area.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        cursor.insertText(chunk)
-        self.response_area.setTextCursor(cursor)
+        self._raw_response += chunk
+        # During streaming, just show plain text
+        self.response_area.setPlainText(self._raw_response)
+        # Scroll to bottom
+        scrollbar = self.response_area.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
     def _on_response(self, response: str) -> None:
         """Handle complete response."""
+        self._raw_response = response
+        # Convert file references to clickable links
+        html = self._convert_to_linked_html(response)
+        self.response_area.setHtml(html)
+
         self.question_input.setEnabled(True)
         self.ask_button.setEnabled(True)
         self._worker_thread.quit()
+
+    def _convert_to_linked_html(self, text: str) -> str:
+        """Convert file references in text to clickable HTML links."""
+        import html
+
+        # Escape HTML first
+        escaped = html.escape(text)
+
+        # Pattern to match file paths with optional line numbers
+        # Matches: `filepath:line`, `filepath`, or backtick-wrapped versions
+        # Sort files by length (longest first) to avoid partial matches
+        sorted_files = sorted(self._all_files, key=len, reverse=True)
+
+        for filepath in sorted_files:
+            escaped_path = html.escape(filepath)
+            # Match filepath:line or just filepath (with optional backticks)
+            # Pattern: `filepath:123` or `filepath` or filepath:123 or filepath
+            pattern = re.compile(r"`?" + re.escape(escaped_path) + r"(?::(\d+))?`?", re.IGNORECASE)
+
+            # Capture filepath in closure properly
+            def make_link(match: re.Match[str], fp: str = filepath) -> str:
+                line = match.group(1) or "1"
+                display = f"{fp}:{line}" if match.group(1) else fp
+                return f'<a href="file://{fp}:{line}" style="color: #0066cc;">{display}</a>'
+
+            escaped = pattern.sub(make_link, escaped)
+
+        # Convert newlines to <br> and wrap in basic styling
+        escaped = escaped.replace("\n", "<br>")
+        return f'<div style="font-family: sans-serif; font-size: 13px; line-height: 1.4;">{escaped}</div>'
+
+    def _on_link_clicked(self, url: QUrl) -> None:
+        """Handle click on a file link."""
+        if url.scheme() == "file":
+            # Parse filepath:line from URL
+            path = url.path()
+            # URL path includes the line as part of the path after the last colon
+            if ":" in path:
+                # Find the last colon (for line number)
+                last_colon = path.rfind(":")
+                filepath = path[:last_colon]
+                try:
+                    line = int(path[last_colon + 1 :])
+                except ValueError:
+                    filepath = path
+                    line = 1
+            else:
+                filepath = path
+                line = 1
+
+            # Remove leading slash if present (file:// URLs have it)
+            if filepath.startswith("/"):
+                filepath = filepath[1:]
+
+            self.file_selected.emit(filepath, line)
 
     def _on_error(self, error: str) -> None:
         """Handle error."""

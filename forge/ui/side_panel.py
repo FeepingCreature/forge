@@ -24,8 +24,9 @@ class SidePanelWidget(QWidget):
     file_open_requested = Signal(str)  # filepath
     context_toggle_requested = Signal(str, bool)  # filepath, add_to_context
 
-    # Forward signals from search
+    # Forward signals from search and ask
     search_file_selected = Signal(str, int)  # filepath, line_number
+    ask_file_selected = Signal(str, int)  # filepath, line_number
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class SidePanelWidget(QWidget):
         from forge.ui.ask_widget import AskWidget
 
         self._ask = AskWidget(self.workspace, self._api_key)
+        self._ask.file_selected.connect(self.ask_file_selected.emit)
         self.tabs.addTab(self._ask, "💬 Ask")
 
         layout.addWidget(self.tabs)

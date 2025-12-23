@@ -29,7 +29,6 @@ from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.git_graph_widget import GitGraphScrollArea
-from forge.ui.global_search import GlobalSearchDialog
 from forge.ui.settings_dialog import SettingsDialog
 
 
@@ -751,14 +750,14 @@ class MainWindow(QMainWindow):
         self.action_registry.register(
             "search.global",
             "Search in Files",
-            self._show_global_search,
+            self._focus_search,
             shortcut="Ctrl+Shift+F",
             category="Search",
         )
         self.action_registry.register(
             "search.ask_repo",
             "Ask About Repo",
-            self._show_ask_repo,
+            self._focus_ask,
             shortcut="Ctrl+Shift+A",
             category="Search",
         )
@@ -788,29 +787,21 @@ class MainWindow(QMainWindow):
         if isinstance(current_widget, BranchTabWidget):
             current_widget.show_quick_open()
 
-    def _show_global_search(self) -> None:
-        """Show global search dialog"""
-        workspace = self._get_current_workspace()
-        if not workspace:
+    def _focus_search(self) -> None:
+        """Focus the search tab in the side panel"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            current_widget.focus_search()
+        else:
             self.status_bar.showMessage("No branch open for search")
-            return
 
-        dialog = GlobalSearchDialog(workspace, self)
-        dialog.file_selected.connect(self._on_search_file_selected)
-        dialog.exec()
-
-    def _show_ask_repo(self) -> None:
-        """Show 'Ask About Repo' dialog"""
-        workspace = self._get_current_workspace()
-        if not workspace:
+    def _focus_ask(self) -> None:
+        """Focus the ask tab in the side panel"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            current_widget.focus_ask()
+        else:
             self.status_bar.showMessage("No branch open")
-            return
-
-        from forge.ui.ask_repo_dialog import AskRepoDialog
-
-        api_key = self.settings.get_api_key()
-        dialog = AskRepoDialog(workspace, api_key, self)
-        dialog.exec()
 
     def _on_search_file_selected(self, filepath: str, line_num: int) -> None:
         """Handle file selection from global search"""

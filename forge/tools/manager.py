@@ -29,6 +29,7 @@ class ToolManager:
         "grep_open",
         "grep_context",
         "get_lines",
+        "get_skill",
         "rename_file",
         "set_license",
         "compact",

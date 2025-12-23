@@ -24,8 +24,8 @@ from forge.vfs.base import VFS
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
 
-# Model used for ask queries (fast and cheap)
-ASK_MODEL = "anthropic/claude-3-haiku"
+# Default model for ask queries (fast and cheap)
+DEFAULT_ASK_MODEL = "anthropic/claude-3-haiku"
 
 
 class AskWorker(QObject):
@@ -45,27 +45,29 @@ class AskWorker(QObject):
         self._question = ""
         self._summaries = ""
         self._api_key = ""
+        self._model = DEFAULT_ASK_MODEL
         self._vfs: VFS | None = None
 
     def set_query(
-        self, question: str, summaries: str, api_key: str, vfs: VFS | None = None
+        self, question: str, summaries: str, api_key: str, model: str, vfs: VFS | None = None
     ) -> None:
         """Set the query to execute."""
         self._question = question
         self._summaries = summaries
         self._api_key = api_key
+        self._model = model
         self._vfs = vfs
 
     def _call_llm(self, prompt: str) -> str:
         """Make a non-streaming LLM call."""
-        client = LLMClient(self._api_key, model=ASK_MODEL)
+        client = LLMClient(self._api_key, model=self._model)
         messages = [{"role": "user", "content": prompt}]
         response = client.chat(messages)
         return str(response["choices"][0]["message"]["content"])
 
     def _stream_llm(self, prompt: str) -> None:
         """Make a streaming LLM call, emitting chunks."""
-        client = LLMClient(self._api_key, model=ASK_MODEL)
+        client = LLMClient(self._api_key, model=self._model)
         messages = [{"role": "user", "content": prompt}]
 
         full_response = ""
@@ -277,8 +279,11 @@ class AskWidget(QWidget):
         # Get file summaries from workspace
         summaries = self._get_summaries()
 
+        # Get model from settings (same as summarization model)
+        model = self.workspace._settings.get("llm.summarization_model", DEFAULT_ASK_MODEL)
+
         # Setup and start worker (pass VFS for file content fetching)
-        self._worker.set_query(question, summaries, self._api_key, self.workspace.vfs)
+        self._worker.set_query(question, summaries, self._api_key, model, self.workspace.vfs)
 
         # Need to recreate thread if it was already run
         if self._worker_thread.isFinished():

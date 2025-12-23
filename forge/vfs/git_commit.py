@@ -21,7 +21,7 @@ class GitCommitVFS(VFS):
             entry = self.tree[path]
             blob = self.repo[entry.id]
             assert isinstance(blob, pygit2.Blob), f"Expected Blob, got {type(blob)}"
-            return blob.data.decode("utf-8")
+            return blob.data.decode("utf-8", errors="replace")
         except KeyError as err:
             raise FileNotFoundError(f"File not found: {path}") from err
 

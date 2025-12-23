@@ -182,6 +182,6 @@ class WorkInProgressVFS(VFS):
             full_path.parent.mkdir(parents=True, exist_ok=True)
 
             content = self.read_file(filepath)
-            full_path.write_text(content)
+            full_path.write_text(content, encoding="utf-8")
 
         return tmpdir

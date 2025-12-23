@@ -1095,11 +1095,13 @@ class AIChatWidget(QWidget):
 
                 # Track newly created files for summary generation
                 # write_file on a file that doesn't exist in repo summaries = new file
-                if tool_name == "write_file":
-                    if filepath not in self.session_manager.repo_summaries:
-                        if not hasattr(self, "_newly_created_files"):
-                            self._newly_created_files = set()
-                        self._newly_created_files.add(filepath)
+                if (
+                    tool_name == "write_file"
+                    and filepath not in self.session_manager.repo_summaries
+                ):
+                    if not hasattr(self, "_newly_created_files"):
+                        self._newly_created_files = set()
+                    self._newly_created_files.add(filepath)
 
         # Handle compact tool specially - it modifies the prompt manager
         if result.get("compact") and result.get("success"):

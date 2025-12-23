@@ -1,0 +1,818 @@
+{
+  "active_files": [
+    "forge/tools/manager.py",
+    "CLAUDE.md"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi, some pieces of code use haiku even if the summarization model is set to something else. Can you grep/check for that? The only place that haiku is mentioned should be the settings menu default. You should expand the settings class to return a summarization model and then use it for both git commits and asks- in fact everything except the full agentic flow."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll search for hardcoded haiku references in the codebase.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"haiku\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01CBDR4WPCdpUeFmaZzN4SDX",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CBDR4WPCdpUeFmaZzN4SDX",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/config/settings.py:30 \\u2500\\u2500\\n      27 |             \\\"theme\\\": \\\"light\\\",\\n      28 |             \\\"editor_ai_split\\\": [2, 1],  # Ratio for splitter\\n      29 |         },\\n>>>   30 |         \\\"git\\\": {\\\"auto_commit\\\": False, \\\"commit_message_model\\\": \\\"anthropic/claude-3-haiku\\\"},\\n      31 |     }\\n      32 | \\n      33 |     def __init__(self, config_path: Path | None = None) -> None:\\n\\n\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     390 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n     391 |         # Get commit message model\\n>>>  392 |         model = self.settings.get(\\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:439 \\u2500\\u2500\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n     438 |         # Use summarization model (typically a cheap/fast model)\\n>>>  439 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     440 |         api_key = self.settings.get_api_key()\\n     441 |         client = LLMClient(api_key, model)\\n     442 | \\n\\n\\u2500\\u2500 forge/session/manager.py:537 \\u2500\\u2500\\n     534 |             return cached_summary\\n     535 | \\n     536 |         # Generate summary with cheap LLM\\n>>>  537 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     538 |         api_key = self.settings.get_api_key()\\n     539 |         client = LLMClient(api_key, model)\\n     540 | \\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:28 \\u2500\\u2500\\n      25 |     from forge.ui.branch_workspace import BranchWorkspace\\n      26 | \\n      27 | # Default model for ask queries (fast and cheap)\\n>>>   28 | DEFAULT_ASK_MODEL = \\\"anthropic/claude-3-haiku\\\"\\n      29 | \\n      30 | \\n      31 | class AskWorker(QObject):\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:84 \\u2500\\u2500\\n      81 |                     \\\"HTTP-Referer\\\": \\\"https://github.com/forge-editor/forge\\\",\\n      82 |                 },\\n      83 |                 json={\\n>>>   84 |                     \\\"model\\\": \\\"anthropic/claude-3-haiku\\\",\\n      85 |                     \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}],\\n      86 |                     \\\"max_tokens\\\": 150,\\n      87 |                     \\\"temperature\\\": 0,\\n\\n\\u2500\\u2500 forge/ui/main_window.py:938 \\u2500\\u2500\\n     935 |             \\\"anthropic/claude-3.5-sonnet\\\": 200000,\\n     936 |             \\\"anthropic/claude-3-sonnet\\\": 200000,\\n     937 |             \\\"anthropic/claude-3-opus\\\": 200000,\\n>>>  938 |             \\\"anthropic/claude-3-haiku\\\": 200000,\\n     939 |             \\\"openai/gpt-4-turbo\\\": 128000,\\n     940 |             \\\"openai/gpt-4\\\": 8192,\\n     941 |             \\\"openai/gpt-3.5-turbo\\\": 16385,\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:360 \\u2500\\u2500\\n     357 | \\n     358 |         # Set saved values\\n     359 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n>>>  360 |         saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     361 | \\n     362 |         self.model_input.setText(saved_model)\\n     363 |         self.commit_model_input.setText(saved_commit_model)\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:382 \\u2500\\u2500\\n     379 |         self._available_models = [\\n     380 |             \\\"anthropic/claude-3.5-sonnet\\\",\\n     381 |             \\\"anthropic/claude-3-opus\\\",\\n>>>  382 |             \\\"anthropic/claude-3-haiku\\\",\\n     383 |             \\\"openai/gpt-4-turbo\\\",\\n     384 |             \\\"openai/gpt-4\\\",\\n     385 |             \\\"openai/gpt-3.5-turbo\\\",\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:394 \\u2500\\u2500\\n     391 | \\n     392 |         # Set saved values\\n     393 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n>>>  394 |         saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     395 | \\n     396 |         self.model_input.setText(saved_model)\\n     397 |         self.commit_model_input.setText(saved_commit_model)\", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"haiku\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/config/settings.py:30 \\u2500\\u2500\\n      27 |             \\\"theme\\\": \\\"light\\\",\\n      28 |             \\\"editor_ai_split\\\": [2, 1],  # Ratio for splitter\\n      29 |         },\\n>>>   30 |         \\\"git\\\": {\\\"auto_commit\\\": False, \\\"commit_message_model\\\": \\\"anthropic/claude-3-haiku\\\"},\\n      31 |     }\\n      32 | \\n      33 |     def __init__(self, config_path: Path | None = None) -> None:\\n\\n\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     390 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n     391 |         # Get commit message model\\n>>>  392 |         model = self.settings.get(\\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:439 \\u2500\\u2500\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n     438 |         # Use summarization model (typically a cheap/fast model)\\n>>>  439 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     440 |         api_key = self.settings.get_api_key()\\n     441 |         client = LLMClient(api_key, model)\\n     442 | \\n\\n\\u2500\\u2500 forge/session/manager.py:537 \\u2500\\u2500\\n     534 |             return cached_summary\\n     535 | \\n     536 |         # Generate summary with cheap LLM\\n>>>  537 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     538 |         api_key = self.settings.get_api_key()\\n     539 |         client = LLMClient(api_key, model)\\n     540 | \\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:28 \\u2500\\u2500\\n      25 |     from forge.ui.branch_workspace import BranchWorkspace\\n      26 | \\n      27 | # Default model for ask queries (fast and cheap)\\n>>>   28 | DEFAULT_ASK_MODEL = \\\"anthropic/claude-3-haiku\\\"\\n      29 | \\n      30 | \\n      31 | class AskWorker(QObject):\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:84 \\u2500\\u2500\\n      81 |                     \\\"HTTP-Referer\\\": \\\"https://github.com/forge-editor/forge\\\",\\n      82 |                 },\\n      83 |                 json={\\n>>>   84 |                     \\\"model\\\": \\\"anthropic/claude-3-haiku\\\",\\n      85 |                     \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}],\\n      86 |                     \\\"max_tokens\\\": 150,\\n      87 |                     \\\"temperature\\\": 0,\\n\\n\\u2500\\u2500 forge/ui/main_window.py:938 \\u2500\\u2500\\n     935 |             \\\"anthropic/claude-3.5-sonnet\\\": 200000,\\n     936 |             \\\"anthropic/claude-3-sonnet\\\": 200000,\\n     937 |             \\\"anthropic/claude-3-opus\\\": 200000,\\n>>>  938 |             \\\"anthropic/claude-3-haiku\\\": 200000,\\n     939 |             \\\"openai/gpt-4-turbo\\\": 128000,\\n     940 |             \\\"openai/gpt-4\\\": 8192,\\n     941 |             \\\"openai/gpt-3.5-turbo\\\": 16385,\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:360 \\u2500\\u2500\\n     357 | \\n     358 |         # Set saved values\\n     359 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n>>>  360 |         saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     361 | \\n     362 |         self.model_input.setText(saved_model)\\n     363 |         self.commit_model_input.setText(saved_commit_model)\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:382 \\u2500\\u2500\\n     379 |         self._available_models = [\\n     380 |             \\\"anthropic/claude-3.5-sonnet\\\",\\n     381 |             \\\"anthropic/claude-3-opus\\\",\\n>>>  382 |             \\\"anthropic/claude-3-haiku\\\",\\n     383 |             \\\"openai/gpt-4-turbo\\\",\\n     384 |             \\\"openai/gpt-4\\\",\\n     385 |             \\\"openai/gpt-3.5-turbo\\\",\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:394 \\u2500\\u2500\\n     391 | \\n     392 |         # Set saved values\\n     393 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n>>>  394 |         saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     395 | \\n     396 |         self.model_input.setText(saved_model)\\n     397 |         self.commit_model_input.setText(saved_commit_model)\",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the issue. There are several places using hardcoded haiku:\n\n1. **`forge/config/settings.py:30`** - Default for `git.commit_message_model` (this is fine as a default)\n2. **`forge/session/manager.py:392`** - Uses `git.commit_message_model` with haiku fallback\n3. **`forge/session/manager.py:439, 537`** - Uses `llm.summarization_model` with haiku fallback\n4. **`forge/ui/ask_widget.py:28`** - Hardcoded `DEFAULT_ASK_MODEL = \"anthropic/claude-3-haiku\"`\n5. **`forge/ui/code_completion.py:84`** - Hardcoded haiku for code completion\n6. **`forge/ui/settings_dialog.py`** - UI defaults (these are fine)\n7. **`forge/ui/main_window.py:938`** - Just a context window lookup table (fine)\n\nThe problem is that `ask_widget.py` and `code_completion.py` don't respect the settings. Let me load the relevant files to fix this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/config/settings.py\",\"forge/ui/ask_widget.py\",\"forge/ui/code_completion.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_018NidpfY2oK7K2BfbqUb8KZ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018NidpfY2oK7K2BfbqUb8KZ",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/config/settings.py\", \"forge/ui/ask_widget.py\", \"forge/ui/code_completion.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I understand the full picture. Let me:\n\n1. Add a `get_summarization_model()` method to Settings that provides a single source of truth\n2. Update `ask_widget.py` to use settings instead of hardcoded model\n3. Update `code_completion.py` to use settings instead of hardcoded model\n4. Update the UI label in ask_widget to not say \"Haiku\" specifically",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/config/settings.py\", \"search\": \"    def get_api_key(self) -> str:\\n        \\\"\\\"\\\"Get API key from settings or environment\\\"\\\"\\\"\\n        api_key: str = str(self.get(\\\"llm.api_key\\\", \\\"\\\"))\\n        if not api_key:\\n            api_key = os.environ.get(\\\"OPENROUTER_API_KEY\\\", \\\"\\\")\\n        return api_key\", \"replace\": \"    def get_api_key(self) -> str:\\n        \\\"\\\"\\\"Get API key from settings or environment\\\"\\\"\\\"\\n        api_key: str = str(self.get(\\\"llm.api_key\\\", \\\"\\\"))\\n        if not api_key:\\n            api_key = os.environ.get(\\\"OPENROUTER_API_KEY\\\", \\\"\\\")\\n        return api_key\\n\\n    def get_summarization_model(self) -> str:\\n        \\\"\\\"\\\"Get the model to use for summarization, commits, asks, and completions.\\n\\n        This is the 'cheap/fast' model used for everything except the main agentic flow.\\n        Falls back to haiku if not configured.\\n        \\\"\\\"\\\"\\n        model: str = str(self.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"))\\n        return model\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01DtejDd9RJwP4nhwgAubaVx",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"# Default model for ask queries (fast and cheap)\\nDEFAULT_ASK_MODEL = \\\"anthropic/claude-3-haiku\\\"\", \"replace\": \"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01FNTnnAaq5hUxbGUFwib4vw",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"    def __init__(self) -> None:\\n        super().__init__()\\n        self._question = \\\"\\\"\\n        self._summaries = \\\"\\\"\\n        self._api_key = \\\"\\\"\\n        self._model = DEFAULT_ASK_MODEL\\n        self._vfs: VFS | None = None\", \"replace\": \"    def __init__(self) -> None:\\n        super().__init__()\\n        self._question = \\\"\\\"\\n        self._summaries = \\\"\\\"\\n        self._api_key = \\\"\\\"\\n        self._model = \\\"\\\"\\n        self._vfs: VFS | None = None\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012H52irxyH7idUCBZhM9TjQ",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"        # Instructions\\n        label = QLabel(\\\"Ask about the codebase (uses Haiku):\\\")\\n        label.setStyleSheet(\\\"font-size: 11px; color: #666;\\\")\\n        layout.addWidget(label)\", \"replace\": \"        # Instructions\\n        label = QLabel(\\\"Ask about the codebase:\\\")\\n        label.setStyleSheet(\\\"font-size: 11px; color: #666;\\\")\\n        layout.addWidget(label)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KFmY6MstFR5fJzi68zMyqb",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"        # Get model from settings (same as summarization model)\\n        model = self.workspace._settings.get(\\\"llm.summarization_model\\\", DEFAULT_ASK_MODEL)\", \"replace\": \"        # Get model from settings (same as summarization model)\\n        model = self.workspace._settings.get_summarization_model()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01E7WefPH3oKPAJ96whi5bSE",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"\\\"\\\"\\\"\\nCode completion using a small, fast LLM model.\\n\\nUses Haiku or similar cheap model for inline completions.\\n\\\"\\\"\\\"\\n\\nimport os\\nfrom typing import Any\\n\\nimport httpx\\nfrom PySide6.QtCore import QObject, QThread, QTimer, Signal\", \"replace\": \"\\\"\\\"\\\"\\nCode completion using a small, fast LLM model.\\n\\nUses the configured summarization model for inline completions.\\n\\\"\\\"\\\"\\n\\nimport os\\nfrom typing import TYPE_CHECKING, Any\\n\\nimport httpx\\nfrom PySide6.QtCore import QObject, QThread, QTimer, Signal\\n\\nif TYPE_CHECKING:\\n    from forge.config.settings import Settings\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01KXyFogEvxBpRb9yAzCygTq",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"    def request_completion(\\n        self,\\n        prefix: str,\\n        suffix: str,\\n        cursor_pos: int,\\n        filepath: str,\\n    ) -> None:\\n        \\\"\\\"\\\"Queue a completion request.\\\"\\\"\\\"\\n        self._pending_request = {\\n            \\\"prefix\\\": prefix,\\n            \\\"suffix\\\": suffix,\\n            \\\"cursor_pos\\\": cursor_pos,\\n            \\\"filepath\\\": filepath,\\n        }\\n        self._process_request()\", \"replace\": \"    def request_completion(\\n        self,\\n        prefix: str,\\n        suffix: str,\\n        cursor_pos: int,\\n        filepath: str,\\n        model: str,\\n    ) -> None:\\n        \\\"\\\"\\\"Queue a completion request.\\\"\\\"\\\"\\n        self._pending_request = {\\n            \\\"prefix\\\": prefix,\\n            \\\"suffix\\\": suffix,\\n            \\\"cursor_pos\\\": cursor_pos,\\n            \\\"filepath\\\": filepath,\\n            \\\"model\\\": model,\\n        }\\n        self._process_request()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01RygBircT4WHV9RRR7p6sQd",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"        prefix = req[\\\"prefix\\\"]\\n        suffix = req[\\\"suffix\\\"]\\n        cursor_pos = req[\\\"cursor_pos\\\"]\\n        filepath = req[\\\"filepath\\\"]\", \"replace\": \"        prefix = req[\\\"prefix\\\"]\\n        suffix = req[\\\"suffix\\\"]\\n        cursor_pos = req[\\\"cursor_pos\\\"]\\n        filepath = req[\\\"filepath\\\"]\\n        model = req[\\\"model\\\"]\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WtWad7fRfJRmBsTejRQ5YQ",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"            # Use a fast, cheap model for completions\\n            response = httpx.post(\\n                \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n                headers={\\n                    \\\"Authorization\\\": f\\\"Bearer {api_key}\\\",\\n                    \\\"HTTP-Referer\\\": \\\"https://github.com/forge-editor/forge\\\",\\n                },\\n                json={\\n                    \\\"model\\\": \\\"anthropic/claude-3-haiku\\\",\\n                    \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}],\\n                    \\\"max_tokens\\\": 150,\\n                    \\\"temperature\\\": 0,\\n                },\\n                timeout=5.0,\\n            )\", \"replace\": \"            # Use the configured summarization model for completions\\n            response = httpx.post(\\n                \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n                headers={\\n                    \\\"Authorization\\\": f\\\"Bearer {api_key}\\\",\\n                    \\\"HTTP-Referer\\\": \\\"https://github.com/forge-editor/forge\\\",\\n                },\\n                json={\\n                    \\\"model\\\": model,\\n                    \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}],\\n                    \\\"max_tokens\\\": 150,\\n                    \\\"temperature\\\": 0,\\n                },\\n                timeout=5.0,\\n            )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01ApovD8Qrk1qBCtNEdeX2p3",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"    def __init__(self, editor: Any, filepath: str) -> None:\\n        super().__init__()\\n        self.editor = editor\\n        self.filepath = filepath\\n        self._enabled = True\", \"replace\": \"    def __init__(self, editor: Any, filepath: str, settings: \\\"Settings\\\") -> None:\\n        super().__init__()\\n        self.editor = editor\\n        self.filepath = filepath\\n        self._settings = settings\\n        self._enabled = True\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NL8QgDetSfLMZLux7ndJ8a",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/code_completion.py\", \"search\": \"        self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath)\", \"replace\": \"        model = self._settings.get_summarization_model()\\n        self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath, model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018N7WfzcU9oUaUDDRsHbdjK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DtejDd9RJwP4nhwgAubaVx",
+      "content": "{\"message\": \"Replaced in forge/config/settings.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FNTnnAaq5hUxbGUFwib4vw",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012H52irxyH7idUCBZhM9TjQ",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KFmY6MstFR5fJzi68zMyqb",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01E7WefPH3oKPAJ96whi5bSE",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KXyFogEvxBpRb9yAzCygTq",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RygBircT4WHV9RRR7p6sQd",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WtWad7fRfJRmBsTejRQ5YQ",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01ApovD8Qrk1qBCtNEdeX2p3",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NL8QgDetSfLMZLux7ndJ8a",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018N7WfzcU9oUaUDDRsHbdjK",
+      "content": "{\"message\": \"Replaced in forge/ui/code_completion.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to find where `CompletionManager` is instantiated to pass the settings. Let me search for that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"CompletionManager\\\\(\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_018xvrwDfhVhMRYSXsWC7RE8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018xvrwDfhVhMRYSXsWC7RE8",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/ui/code_completion.py:174 \\u2500\\u2500\\n     171 |         return completion\\n     172 | \\n     173 | \\n>>>  174 | class CompletionManager(QObject):\\n     175 |     \\\"\\\"\\\"\\n     176 |     Manages code completion for an editor.\\n     177 | \\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:584 \\u2500\\u2500\\n     581 | \\n     582 |         from forge.ui.code_completion import CompletionManager\\n     583 | \\n>>>  584 |         self._completion_manager = CompletionManager(self.editor, self.filepath)\\n     585 | \\n     586 |         # Install event filter to intercept Tab key\\n     587 |         self.editor.installEventFilter(self)\", \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"CompletionManager\\\\(\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/code_completion.py:174 \\u2500\\u2500\\n     171 |         return completion\\n     172 | \\n     173 | \\n>>>  174 | class CompletionManager(QObject):\\n     175 |     \\\"\\\"\\\"\\n     176 |     Manages code completion for an editor.\\n     177 | \\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:584 \\u2500\\u2500\\n     581 | \\n     582 |         from forge.ui.code_completion import CompletionManager\\n     583 | \\n>>>  584 |         self._completion_manager = CompletionManager(self.editor, self.filepath)\\n     585 | \\n     586 |         # Install event filter to intercept Tab key\\n     587 |         self.editor.installEventFilter(self)\",\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to fix `editor_widget.py` to pass settings. Let me get more context around that line:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"line\": 584, \"context\": 30}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01WoTkSiZED4cyKFQXNBW2qi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WoTkSiZED4cyKFQXNBW2qi",
+      "content": "{\"content\": \"     554 |         # Highlight all matches\\n     555 |         for i, pos in enumerate(self._match_positions):\\n     556 |             selection = QTextEdit.ExtraSelection()\\n     557 |             if i == self._current_match_index:\\n     558 |                 # Current match - orange background\\n     559 |                 selection.format.setBackground(QColor(\\\"#ff9632\\\"))\\n     560 |             else:\\n     561 |                 # Other matches - yellow background\\n     562 |                 selection.format.setBackground(QColor(\\\"#ffff00\\\"))\\n     563 |             cursor = self.editor.textCursor()\\n     564 |             cursor.setPosition(pos)\\n     565 |             cursor.setPosition(pos + len(text), cursor.MoveMode.KeepAnchor)\\n     566 |             selection.cursor = cursor\\n     567 |             extra_selections.append(selection)\\n     568 | \\n     569 |         self.editor.setExtraSelections(extra_selections)\\n     570 | \\n     571 |     def _clear_search_highlights(self) -> None:\\n     572 |         \\\"\\\"\\\"Clear search highlights, keeping only the current line highlight\\\"\\\"\\\"\\n     573 |         self._match_positions = []\\n     574 |         self._current_match_index = -1\\n     575 |         self.editor.highlight_current_line()\\n     576 | \\n     577 |     def _setup_completion(self) -> None:\\n     578 |         \\\"\\\"\\\"Setup code completion if filepath is set.\\\"\\\"\\\"\\n     579 |         if not self.filepath:\\n     580 |             return\\n     581 | \\n     582 |         from forge.ui.code_completion import CompletionManager\\n     583 | \\n>>>  584 |         self._completion_manager = CompletionManager(self.editor, self.filepath)\\n     585 | \\n     586 |         # Install event filter to intercept Tab key\\n     587 |         self.editor.installEventFilter(self)\\n     588 | \\n     589 |     def eventFilter(self, obj: Any, event: Any) -> bool:  # noqa: N802\\n     590 |         \\\"\\\"\\\"Filter events to intercept Tab key for completions.\\\"\\\"\\\"\\n     591 |         from PySide6.QtCore import QEvent\\n     592 | \\n     593 |         if obj == self.editor and event.type() == QEvent.Type.KeyPress:\\n     594 |             key = event.key()\\n     595 |             if (\\n     596 |                 key == Qt.Key.Key_Tab\\n     597 |                 and self._completion_manager\\n     598 |                 and self._completion_manager.accept_completion()\\n     599 |             ):\\n     600 |                 return True  # Completion accepted, consume event\\n     601 | \\n     602 |             if key == Qt.Key.Key_Escape and self._completion_manager:\\n     603 |                 self._completion_manager.dismiss_completion()\\n     604 | \\n     605 |         return super().eventFilter(obj, event)\\n     606 | \\n     607 |     def set_completion_enabled(self, enabled: bool) -> None:\\n     608 |         \\\"\\\"\\\"Enable or disable code completion.\\\"\\\"\\\"\\n     609 |         if self._completion_manager:\\n     610 |             self._completion_manager.set_enabled(enabled)\\n     611 | \\n     612 |     def cleanup(self) -> None:\\n     613 |         \\\"\\\"\\\"Clean up resources.\\\"\\\"\\\"\\n     614 |         if self._completion_manager:\", \"filepath\": \"forge/ui/editor_widget.py\", \"range\": \"554-614\", \"success\": true, \"target_line\": 584, \"total_lines\": 687}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"14\",\"15\"], \"summary\": \"Found hardcoded haiku in multiple places:\\n- `forge/config/settings.py:30` - Default for git.commit_message_model (fine)\\n- `forge/session/manager.py:392,439,537` - Uses settings with haiku fallback (fine)\\n- `forge/ui/ask_widget.py:28` - Hardcoded DEFAULT_ASK_MODEL (fixed)\\n- `forge/ui/code_completion.py:84` - Hardcoded model (fixed)\\n- `forge/ui/settings_dialog.py` - UI defaults (fine)\\n- `forge/ui/main_window.py:938` - Context window lookup (fine)\\n\\nCompletionManager is instantiated at forge/ui/editor_widget.py:584 in `_setup_completion()` method. Currently only passes `(self.editor, self.filepath)`, needs settings added.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01Tgw5noWRTQwcRpYhr6z1Ca",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Tgw5noWRTQwcRpYhr6z1Ca",
+      "content": "{\"compact\": true, \"message\": \"Compacted 4 tool result(s)\", \"success\": true, \"summary\": \"Found hardcoded haiku in multiple places:\\n- `forge/config/settings.py:30` - Default for git.commit_message_model (fine)\\n- `forge/session/manager.py:392,439,537` - Uses settings with haiku fallback (fine)\\n- `forge/ui/ask_widget.py:28` - Hardcoded DEFAULT_ASK_MODEL (fixed)\\n- `forge/ui/code_completion.py:84` - Hardcoded model (fixed)\\n- `forge/ui/settings_dialog.py` - UI defaults (fine)\\n- `forge/ui/main_window.py:938` - Context window lookup (fine)\\n\\nCompletionManager is instantiated at forge/ui/editor_widget.py:584 in `_setup_completion()` method. Currently only passes `(self.editor, self.filepath)`, needs settings added.\", \"tool_call_ids\": [\"1\", \"2\", \"14\", \"15\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"line\": 584, \"context\": 20}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01GRz4ittqxF5FwfwSRUJYpo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GRz4ittqxF5FwfwSRUJYpo",
+      "content": "{\"content\": \"     564 |             cursor.setPosition(pos)\\n     565 |             cursor.setPosition(pos + len(text), cursor.MoveMode.KeepAnchor)\\n     566 |             selection.cursor = cursor\\n     567 |             extra_selections.append(selection)\\n     568 | \\n     569 |         self.editor.setExtraSelections(extra_selections)\\n     570 | \\n     571 |     def _clear_search_highlights(self) -> None:\\n     572 |         \\\"\\\"\\\"Clear search highlights, keeping only the current line highlight\\\"\\\"\\\"\\n     573 |         self._match_positions = []\\n     574 |         self._current_match_index = -1\\n     575 |         self.editor.highlight_current_line()\\n     576 | \\n     577 |     def _setup_completion(self) -> None:\\n     578 |         \\\"\\\"\\\"Setup code completion if filepath is set.\\\"\\\"\\\"\\n     579 |         if not self.filepath:\\n     580 |             return\\n     581 | \\n     582 |         from forge.ui.code_completion import CompletionManager\\n     583 | \\n>>>  584 |         self._completion_manager = CompletionManager(self.editor, self.filepath)\\n     585 | \\n     586 |         # Install event filter to intercept Tab key\\n     587 |         self.editor.installEventFilter(self)\\n     588 | \\n     589 |     def eventFilter(self, obj: Any, event: Any) -> bool:  # noqa: N802\\n     590 |         \\\"\\\"\\\"Filter events to intercept Tab key for completions.\\\"\\\"\\\"\\n     591 |         from PySide6.QtCore import QEvent\\n     592 | \\n     593 |         if obj == self.editor and event.type() == QEvent.Type.KeyPress:\\n     594 |             key = event.key()\\n     595 |             if (\\n     596 |                 key == Qt.Key.Key_Tab\\n     597 |                 and self._completion_manager\\n     598 |                 and self._completion_manager.accept_completion()\\n     599 |             ):\\n     600 |                 return True  # Completion accepted, consume event\\n     601 | \\n     602 |             if key == Qt.Key.Key_Escape and self._completion_manager:\\n     603 |                 self._completion_manager.dismiss_completion()\\n     604 | \", \"filepath\": \"forge/ui/editor_widget.py\", \"range\": \"564-604\", \"success\": true, \"target_line\": 584, \"total_lines\": 687}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to see how `EditorWidget` gets instantiated to understand where settings come from. Let me check if there's already a settings reference:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"line\": 1, \"context\": 80}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01FcWcuiGzdqqznVbtoTpXbr",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FcWcuiGzdqqznVbtoTpXbr",
+      "content": "{\"content\": \">>>    1 | \\\"\\\"\\\"\\n       2 | Code editor widget with custom syntax highlighting\\n       3 | \\\"\\\"\\\"\\n       4 | \\n       5 | import re\\n       6 | from typing import TYPE_CHECKING, Any\\n       7 | \\n       8 | if TYPE_CHECKING:\\n       9 |     from forge.ui.code_completion import CompletionManager\\n      10 | \\n      11 | from PySide6.QtCore import QRect, QSize, Qt, Signal\\n      12 | from PySide6.QtGui import (\\n      13 |     QColor,\\n      14 |     QFont,\\n      15 |     QKeySequence,\\n      16 |     QPainter,\\n      17 |     QShortcut,\\n      18 |     QSyntaxHighlighter,\\n      19 |     QTextCharFormat,\\n      20 |     QTextFormat,\\n      21 | )\\n      22 | from PySide6.QtWidgets import (\\n      23 |     QHBoxLayout,\\n      24 |     QLabel,\\n      25 |     QLineEdit,\\n      26 |     QPlainTextEdit,\\n      27 |     QPushButton,\\n      28 |     QTextEdit,\\n      29 |     QVBoxLayout,\\n      30 |     QWidget,\\n      31 | )\\n      32 | \\n      33 | \\n      34 | class LineNumberArea(QWidget):\\n      35 |     \\\"\\\"\\\"Widget for displaying line numbers\\\"\\\"\\\"\\n      36 | \\n      37 |     def __init__(self, editor: \\\"CodeEditor\\\") -> None:\\n      38 |         super().__init__(editor)\\n      39 |         self.editor = editor\\n      40 | \\n      41 |     def sizeHint(self) -> QSize:\\n      42 |         return QSize(self.editor.line_number_area_width(), 0)\\n      43 | \\n      44 |     def paintEvent(self, event: Any) -> None:\\n      45 |         self.editor.line_number_area_paint_event(event)\\n      46 | \\n      47 | \\n      48 | class PythonHighlighter(QSyntaxHighlighter):\\n      49 |     \\\"\\\"\\\"Syntax highlighter for Python code\\\"\\\"\\\"\\n      50 | \\n      51 |     def __init__(self, document: Any) -> None:\\n      52 |         super().__init__(document)\\n      53 | \\n      54 |         # Define formats\\n      55 |         keyword_format = QTextCharFormat()\\n      56 |         keyword_format.setForeground(QColor(\\\"#0000FF\\\"))\\n      57 |         keyword_format.setFontWeight(QFont.Weight.Bold)\\n      58 | \\n      59 |         string_format = QTextCharFormat()\\n      60 |         string_format.setForeground(QColor(\\\"#008000\\\"))\\n      61 | \\n      62 |         comment_format = QTextCharFormat()\\n      63 |         comment_format.setForeground(QColor(\\\"#808080\\\"))\\n      64 |         comment_format.setFontItalic(True)\\n      65 | \\n      66 |         function_format = QTextCharFormat()\\n      67 |         function_format.setForeground(QColor(\\\"#795E26\\\"))\\n      68 | \\n      69 |         number_format = QTextCharFormat()\\n      70 |         number_format.setForeground(QColor(\\\"#098658\\\"))\\n      71 | \\n      72 |         # Define rules\\n      73 |         self.highlighting_rules = []\\n      74 | \\n      75 |         # Keywords\\n      76 |         keywords = [\\n      77 |             \\\"and\\\",\\n      78 |             \\\"as\\\",\\n      79 |             \\\"assert\\\",\\n      80 |             \\\"break\\\",\\n      81 |             \\\"class\\\",\", \"filepath\": \"forge/ui/editor_widget.py\", \"range\": \"1-81\", \"success\": true, \"target_line\": 1, \"total_lines\": 687}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me find the EditorWidget class definition and its constructor:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"class EditorWidget\", \"file\": \"forge/ui/editor_widget.py\", \"context_before\": 2, \"context_after\": 40}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_018HbKH3s2TMVYRWAWVcUtPG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018HbKH3s2TMVYRWAWVcUtPG",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/ui/editor_widget.py:366 \\u2500\\u2500\\n     364 | \\n     365 | \\n>>>  366 | class EditorWidget(QWidget):\\n     367 |     \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n     368 | \\n     369 |     def __init__(self, filepath: str | None = None) -> None:\\n     370 |         super().__init__()\\n     371 |         self.filepath = filepath\\n     372 |         self._match_positions: list[int] = []\\n     373 |         self._current_match_index = -1\\n     374 |         self._completion_manager: CompletionManager | None = None\\n     375 |         self._setup_ui()\\n     376 |         self._setup_completion()\\n     377 | \\n     378 |     def _setup_ui(self) -> None:\\n     379 |         \\\"\\\"\\\"Setup the editor\\\"\\\"\\\"\\n     380 |         layout = QVBoxLayout(self)\\n     381 |         layout.setContentsMargins(0, 0, 0, 0)\\n     382 |         layout.setSpacing(0)\\n     383 | \\n     384 |         # Create custom code editor\\n     385 |         self.editor = CodeEditor()\\n     386 |         layout.addWidget(self.editor)\\n     387 | \\n     388 |         # Search bar (hidden by default, at bottom)\\n     389 |         self.search_bar = SearchBar()\\n     390 |         self.search_bar.hide()\\n     391 |         self.search_bar.closed.connect(self._close_search)\\n     392 |         self.search_bar.find_next.connect(self._find_next)\\n     393 |         self.search_bar.find_prev.connect(self._find_prev)\\n     394 |         self.search_bar.search_changed.connect(self._on_search_changed)\\n     395 |         layout.addWidget(self.search_bar)\\n     396 | \\n     397 |         # Keyboard shortcuts\\n     398 |         self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)\\n     399 |         self._find_shortcut.activated.connect(self._show_search)\\n     400 | \\n     401 |     def _show_search(self) -> None:\\n     402 |         \\\"\\\"\\\"Show the search bar\\\"\\\"\\\"\\n     403 |         self.search_bar.show()\\n     404 |         self.search_bar.focus_input()\\n     405 |         # If there's selected text, use it as the search term\\n     406 |         cursor = self.editor.textCursor()\", \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 40,\n  \"context_before\": 2,\n  \"file\": \"forge/ui/editor_widget.py\",\n  \"pattern\": \"class EditorWidget\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/editor_widget.py:366 \\u2500\\u2500\\n     364 | \\n     365 | \\n>>>  366 | class EditorWidget(QWidget):\\n     367 |     \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n     368 | \\n     369 |     def __init__(self, filepath: str | None = None) -> None:\\n     370 |         super().__init__()\\n     371 |         self.filepath = filepath\\n     372 |         self._match_positions: list[int] = []\\n     373 |         self._current_match_index = -1\\n     374 |         self._completion_manager: CompletionManager | None = None\\n     375 |         self._setup_ui()\\n     376 |         self._setup_completion()\\n     377 | \\n     378 |     def _setup_ui(self) -> None:\\n     379 |         \\\"\\\"\\\"Setup the editor\\\"\\\"\\\"\\n     380 |         layout = QVBoxLayout(self)\\n     381 |         layout.setContentsMargins(0, 0, 0, 0)\\n     382 |         layout.setSpacing(0)\\n     383 | \\n     384 |         # Create custom code editor\\n     385 |         self.editor = CodeEditor()\\n     386 |         layout.addWidget(self.editor)\\n     387 | \\n     388 |         # Search bar (hidden by default, at bottom)\\n     389 |         self.search_bar = SearchBar()\\n     390 |         self.search_bar.hide()\\n     391 |         self.search_bar.closed.connect(self._close_search)\\n     392 |         self.search_bar.find_next.connect(self._find_next)\\n     393 |         self.search_bar.find_prev.connect(self._find_prev)\\n     394 |         self.search_bar.search_changed.connect(self._on_search_changed)\\n     395 |         layout.addWidget(self.search_bar)\\n     396 | \\n     397 |         # Keyboard shortcuts\\n     398 |         self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)\\n     399 |         self._find_shortcut.activated.connect(self._show_search)\\n     400 | \\n     401 |     def _show_search(self) -> None:\\n     402 |         \\\"\\\"\\\"Show the search bar\\\"\\\"\\\"\\n     403 |         self.search_bar.show()\\n     404 |         self.search_bar.focus_input()\\n     405 |         # If there's selected text, use it as the search term\\n     406 |         cursor = self.editor.textCursor()\",\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update `EditorWidget` to accept settings and pass it to `CompletionManager`. Let me also check where EditorWidget is instantiated:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"EditorWidget\\\\(\", \"include_extensions\": [\".py\"], \"context_before\": 2, \"context_after\": 2}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01MDnvd9gZW9xUf7Yhc93dYo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MDnvd9gZW9xUf7Yhc93dYo",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/ui/branch_tab_widget.py:193 \\u2500\\u2500\\n     191 | \\n     192 |         # Create new editor\\n>>>  193 |         editor = EditorWidget(filepath=filepath)\\n     194 | \\n     195 |         # Load content from VFS\\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:366 \\u2500\\u2500\\n     364 | \\n     365 | \\n>>>  366 | class EditorWidget(QWidget):\\n     367 |     \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n     368 | \", \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 2,\n  \"context_before\": 2,\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"EditorWidget\\\\(\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/branch_tab_widget.py:193 \\u2500\\u2500\\n     191 | \\n     192 |         # Create new editor\\n>>>  193 |         editor = EditorWidget(filepath=filepath)\\n     194 | \\n     195 |         # Load content from VFS\\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:366 \\u2500\\u2500\\n     364 | \\n     365 | \\n>>>  366 | class EditorWidget(QWidget):\\n     367 |     \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n     368 | \",\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"17\",\"18\",\"19\",\"20\"], \"summary\": \"EditorWidget in forge/ui/editor_widget.py:\\n- Line 369: `__init__(self, filepath: str | None = None)` - needs settings param added\\n- Line 577-584: `_setup_completion()` creates `CompletionManager(self.editor, self.filepath)` - needs settings passed\\n\\nEditorWidget is instantiated at forge/ui/branch_tab_widget.py:193 as `EditorWidget(filepath=filepath)` - needs settings passed\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01JDoELRBsS7cWxY2EDt9o9K",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JDoELRBsS7cWxY2EDt9o9K",
+      "content": "{\"compact\": true, \"message\": \"Compacted 4 tool result(s)\", \"success\": true, \"summary\": \"EditorWidget in forge/ui/editor_widget.py:\\n- Line 369: `__init__(self, filepath: str | None = None)` - needs settings param added\\n- Line 577-584: `_setup_completion()` creates `CompletionManager(self.editor, self.filepath)` - needs settings passed\\n\\nEditorWidget is instantiated at forge/ui/branch_tab_widget.py:193 as `EditorWidget(filepath=filepath)` - needs settings passed\", \"tool_call_ids\": [\"17\", \"18\", \"19\", \"20\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me load the files I need to edit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/editor_widget.py\",\"forge/ui/branch_tab_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GN2hmQVrHT58cSNzbfVRZc",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GN2hmQVrHT58cSNzbfVRZc",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/editor_widget.py\", \"forge/ui/branch_tab_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the issue now. Looking at `editor_widget.py`:\n\n1. Line 369: `__init__(self, filepath: str | None = None)` - needs settings param\n2. Line 584: `_setup_completion()` creates `CompletionManager(self.editor, self.filepath)` - needs settings\n\nAnd in `branch_tab_widget.py` line 193: `EditorWidget(filepath=filepath)` - needs to pass settings.\n\nLet me make the fixes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"search\": \"from typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.ui.code_completion import CompletionManager\", \"replace\": \"from typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.config.settings import Settings\\n    from forge.ui.code_completion import CompletionManager\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017ciJGRzwHVCVciyjyArqgf",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"search\": \"class EditorWidget(QWidget):\\n    \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n\\n    def __init__(self, filepath: str | None = None) -> None:\\n        super().__init__()\\n        self.filepath = filepath\\n        self._match_positions: list[int] = []\\n        self._current_match_index = -1\\n        self._completion_manager: CompletionManager | None = None\\n        self._setup_ui()\\n        self._setup_completion()\", \"replace\": \"class EditorWidget(QWidget):\\n    \\\"\\\"\\\"Code editor widget with syntax highlighting and AI integration hooks\\\"\\\"\\\"\\n\\n    def __init__(self, filepath: str | None = None, settings: \\\"Settings | None\\\" = None) -> None:\\n        super().__init__()\\n        self.filepath = filepath\\n        self._settings = settings\\n        self._match_positions: list[int] = []\\n        self._current_match_index = -1\\n        self._completion_manager: CompletionManager | None = None\\n        self._setup_ui()\\n        self._setup_completion()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01VbVG1XWxYqSSsi2k6apABK",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/editor_widget.py\", \"search\": \"    def _setup_completion(self) -> None:\\n        \\\"\\\"\\\"Setup code completion if filepath is set.\\\"\\\"\\\"\\n        if not self.filepath:\\n            return\\n\\n        from forge.ui.code_completion import CompletionManager\\n\\n        self._completion_manager = CompletionManager(self.editor, self.filepath)\", \"replace\": \"    def _setup_completion(self) -> None:\\n        \\\"\\\"\\\"Setup code completion if filepath and settings are available.\\\"\\\"\\\"\\n        if not self.filepath or not self._settings:\\n            return\\n\\n        from forge.ui.code_completion import CompletionManager\\n\\n        self._completion_manager = CompletionManager(self.editor, self.filepath, self._settings)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Lv15YieHfFP2GDb4Di3Y1S",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/branch_tab_widget.py\", \"search\": \"        # Create new editor\\n        editor = EditorWidget(filepath=filepath)\", \"replace\": \"        # Create new editor\\n        editor = EditorWidget(filepath=filepath, settings=self.settings)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Bc9egzTEKojfhHWG4bYx35",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017ciJGRzwHVCVciyjyArqgf",
+      "content": "{\"message\": \"Replaced in forge/ui/editor_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VbVG1XWxYqSSsi2k6apABK",
+      "content": "{\"message\": \"Replaced in forge/ui/editor_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Lv15YieHfFP2GDb4Di3Y1S",
+      "content": "{\"message\": \"Replaced in forge/ui/editor_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Bc9egzTEKojfhHWG4bYx35",
+      "content": "{\"message\": \"Replaced in forge/ui/branch_tab_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me also update `session/manager.py` to use the new `get_summarization_model()` method for consistency:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"git.commit_message_model|llm.summarization_model\", \"file\": \"forge/session/manager.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01Hc9mrhhuY4Y8GUp7H1A4xt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Hc9mrhhuY4Y8GUp7H1A4xt",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     390 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n     391 |         # Get commit message model\\n>>>  392 |         model = self.settings.get(\\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:439 \\u2500\\u2500\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n     438 |         # Use summarization model (typically a cheap/fast model)\\n>>>  439 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     440 |         api_key = self.settings.get_api_key()\\n     441 |         client = LLMClient(api_key, model)\\n     442 | \\n\\n\\u2500\\u2500 forge/session/manager.py:537 \\u2500\\u2500\\n     534 |             return cached_summary\\n     535 | \\n     536 |         # Generate summary with cheap LLM\\n>>>  537 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     538 |         api_key = self.settings.get_api_key()\\n     539 |         client = LLMClient(api_key, model)\\n     540 | \", \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/session/manager.py\",\n  \"pattern\": \"git.commit_message_model|llm.summarization_model\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     390 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n     391 |         # Get commit message model\\n>>>  392 |         model = self.settings.get(\\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:439 \\u2500\\u2500\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n     438 |         # Use summarization model (typically a cheap/fast model)\\n>>>  439 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     440 |         api_key = self.settings.get_api_key()\\n     441 |         client = LLMClient(api_key, model)\\n     442 | \\n\\n\\u2500\\u2500 forge/session/manager.py:537 \\u2500\\u2500\\n     534 |             return cached_summary\\n     535 | \\n     536 |         # Generate summary with cheap LLM\\n>>>  537 |         model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n     538 |         api_key = self.settings.get_api_key()\\n     539 |         client = LLMClient(api_key, model)\\n     540 | \",\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue - `session/manager.py` uses both `git.commit_message_model` (for commits) and `llm.summarization_model` (for summaries). These should all use the new centralized method. Let me update those:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/manager.py\"], \"remove\": [\"forge/ui/editor_widget.py\",\"forge/ui/branch_tab_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01836WavirHgxB3xDcV1bM2N",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01836WavirHgxB3xDcV1bM2N",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/manager.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/ui/editor_widget.py\", \"forge/ui/branch_tab_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the three places in `session/manager.py` that need to use `get_summarization_model()`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"    def generate_commit_message(self, changes: dict[str, str]) -> str:\\n        \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n        # Get commit message model\\n        model = self.settings.get(\\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n        api_key = self.settings.get_api_key()\", \"replace\": \"    def generate_commit_message(self, changes: dict[str, str]) -> str:\\n        \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n        model = self.settings.get_summarization_model()\\n        api_key = self.settings.get_api_key()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GdVV6w2bR7uvYr186zpL5h",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        # Use summarization model (typically a cheap/fast model)\\n        model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n        api_key = self.settings.get_api_key()\\n        client = LLMClient(api_key, model)\", \"replace\": \"        model = self.settings.get_summarization_model()\\n        api_key = self.settings.get_api_key()\\n        client = LLMClient(api_key, model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NqTB8eycWFsfpqQaK3TsPT",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        # Generate summary with cheap LLM\\n        model = self.settings.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n        api_key = self.settings.get_api_key()\\n        client = LLMClient(api_key, model)\", \"replace\": \"        model = self.settings.get_summarization_model()\\n        api_key = self.settings.get_api_key()\\n        client = LLMClient(api_key, model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Pkbu9FW9EFTd9jrANo3HTC",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GdVV6w2bR7uvYr186zpL5h",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NqTB8eycWFsfpqQaK3TsPT",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Pkbu9FW9EFTd9jrANo3HTC",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me also clean up the settings - since we now have `get_summarization_model()` which uses `llm.summarization_model`, we should remove the separate `git.commit_message_model` setting since they should be the same:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/settings_dialog.py\"], \"remove\": [\"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GdB8Ja5j9iqPsVaZqC4tta",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GdB8Ja5j9iqPsVaZqC4tta",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/settings_dialog.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"forge/session/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the settings dialog, I see it uses `git.commit_message_model` as a separate setting. Since we want to unify this with `llm.summarization_model`, I need to:\n\n1. Update the settings dialog to use `llm.summarization_model` instead of `git.commit_message_model`\n2. Update the label to reflect that this is for all \"fast\" operations (commits, asks, completions, summaries)\n3. Remove the old `git.commit_message_model` from DEFAULT_SETTINGS",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Commit message model with popup picker (click to open)\\n        self.commit_model_input = QLineEdit()\\n        self.commit_model_input.setReadOnly(True)\\n        self.commit_model_input.setPlaceholderText(\\\"Loading models...\\\")\\n        self.commit_model_input.setCursor(Qt.CursorShape.PointingHandCursor)\\n        self._commit_model_picker_enabled = False\\n\\n        layout.addRow(\\\"Commit Message Model:\\\", self.commit_model_input)\\n\\n        # Info\\n        info = QLabel(\\n            \\\"The commit message model is used to generate commit messages\\\\n\\\"\\n            \\\"for AI changes. A smaller/cheaper model is recommended.\\\"\\n        )\\n        info.setWordWrap(True)\\n        info.setStyleSheet(\\\"color: #666; font-size: 10px;\\\")\\n        layout.addRow(\\\"\\\", info)\", \"replace\": \"        # Summarization model with popup picker (click to open)\\n        self.summarization_model_input = QLineEdit()\\n        self.summarization_model_input.setReadOnly(True)\\n        self.summarization_model_input.setPlaceholderText(\\\"Loading models...\\\")\\n        self.summarization_model_input.setCursor(Qt.CursorShape.PointingHandCursor)\\n        self._summarization_model_picker_enabled = False\\n\\n        layout.addRow(\\\"Summarization Model:\\\", self.summarization_model_input)\\n\\n        # Info\\n        info = QLabel(\\n            \\\"Used for commit messages, file summaries, code completion,\\\\n\\\"\\n            \\\"and 'Ask' queries. A smaller/cheaper model is recommended.\\\"\\n        )\\n        info.setWordWrap(True)\\n        info.setStyleSheet(\\\"color: #666; font-size: 10px;\\\")\\n        layout.addRow(\\\"\\\", info)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0151fNgf8uY4rk3LbQGAMNjM",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Connect click events using event filter\\n        self.commit_model_input.installEventFilter(self)\", \"replace\": \"        # Connect click events using event filter\\n        self.summarization_model_input.installEventFilter(self)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017EGNQe3s5hqjxddNQJrjWr",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"            elif obj == self.commit_model_input:\\n                self._show_commit_model_picker()\", \"replace\": \"            elif obj == self.summarization_model_input:\\n                self._show_summarization_model_picker()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018phWSbgKKDHUR6Dbsia1Jo",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Enable clicking on model inputs\\n        self._model_picker_enabled = True\\n        self._commit_model_picker_enabled = True\\n\\n        # Set saved values\\n        saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n\\n        self.model_input.setText(saved_model)\\n        self.commit_model_input.setText(saved_commit_model)\", \"replace\": \"        # Enable clicking on model inputs\\n        self._model_picker_enabled = True\\n        self._summarization_model_picker_enabled = True\\n\\n        # Set saved values\\n        saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n\\n        self.model_input.setText(saved_model)\\n        self.summarization_model_input.setText(saved_summarization_model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_013KzvgFzkBzRRaotuaontnn",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"    def _show_commit_model_picker(self) -> None:\\n        \\\"\\\"\\\"Show the commit model picker popup\\\"\\\"\\\"\\n        if not getattr(self, \\\"_commit_model_picker_enabled\\\", False):\\n            return\\n\\n        models = getattr(self, \\\"_available_models\\\", [])\\n\\n        picker = ModelPickerPopup(models, self.commit_model_input.text(), self)\\n        picker.model_selected.connect(self._on_commit_model_selected)\\n\\n        # Position below and aligned to left of the input field\\n        input_pos = self.commit_model_input.mapToGlobal(self.commit_model_input.rect().bottomLeft())\\n        picker.show_at(input_pos)\\n\\n    def _on_commit_model_selected(self, model: str) -> None:\\n        \\\"\\\"\\\"Handle commit model selection from picker\\\"\\\"\\\"\\n        self.commit_model_input.setText(model)\", \"replace\": \"    def _show_summarization_model_picker(self) -> None:\\n        \\\"\\\"\\\"Show the summarization model picker popup\\\"\\\"\\\"\\n        if not getattr(self, \\\"_summarization_model_picker_enabled\\\", False):\\n            return\\n\\n        models = getattr(self, \\\"_available_models\\\", [])\\n\\n        picker = ModelPickerPopup(models, self.summarization_model_input.text(), self)\\n        picker.model_selected.connect(self._on_summarization_model_selected)\\n\\n        # Position below and aligned to left of the input field\\n        input_pos = self.summarization_model_input.mapToGlobal(self.summarization_model_input.rect().bottomLeft())\\n        picker.show_at(input_pos)\\n\\n    def _on_summarization_model_selected(self, model: str) -> None:\\n        \\\"\\\"\\\"Handle summarization model selection from picker\\\"\\\"\\\"\\n        self.summarization_model_input.setText(model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017BgCFxFaLJVEvC8su65NGk",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Store model values - they'll be applied when models are loaded\\n        self._saved_model = self.settings.get(\\\"llm.model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        self._saved_commit_model = self.settings.get(\\n            \\\"git.commit_message_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n        )\\n        self.model_input.setText(self._saved_model)\\n        self.base_url_input.setText(self.settings.get(\\\"llm.base_url\\\", \\\"\\\"))\", \"replace\": \"        # Store model values - they'll be applied when models are loaded\\n        self._saved_model = self.settings.get(\\\"llm.model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        self._saved_summarization_model = self.settings.get(\\n            \\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n        )\\n        self.model_input.setText(self._saved_model)\\n        self.base_url_input.setText(self.settings.get(\\\"llm.base_url\\\", \\\"\\\"))\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01AnLqfveSMeN38SciYHCBvS",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Git settings\\n        self.auto_commit_input.setChecked(self.settings.get(\\\"git.auto_commit\\\", False))\\n        self.commit_model_input.setText(self._saved_commit_model)\", \"replace\": \"        # Git settings\\n        self.auto_commit_input.setChecked(self.settings.get(\\\"git.auto_commit\\\", False))\\n        self.summarization_model_input.setText(self._saved_summarization_model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01VieDjEVHMAp2rMrEumg7Ap",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"        # Git settings\\n        self.settings.set(\\\"git.auto_commit\\\", self.auto_commit_input.isChecked())\\n        self.settings.set(\\\"git.commit_message_model\\\", self.commit_model_input.text())\", \"replace\": \"        # Git settings\\n        self.settings.set(\\\"git.auto_commit\\\", self.auto_commit_input.isChecked())\\n        self.settings.set(\\\"llm.summarization_model\\\", self.summarization_model_input.text())\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018WzTc5NxdXKKXkik7uTy8n",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0151fNgf8uY4rk3LbQGAMNjM",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017EGNQe3s5hqjxddNQJrjWr",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018phWSbgKKDHUR6Dbsia1Jo",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013KzvgFzkBzRRaotuaontnn",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017BgCFxFaLJVEvC8su65NGk",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01AnLqfveSMeN38SciYHCBvS",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VieDjEVHMAp2rMrEumg7Ap",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018WzTc5NxdXKKXkik7uTy8n",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I notice there's still a reference to the old `commit_model_input` in `_populate_fallback_models`. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/settings_dialog.py\", \"search\": \"    def _populate_fallback_models(self) -> None:\\n        \\\"\\\"\\\"Populate with fallback model list when API is unavailable\\\"\\\"\\\"\\n        self._available_models = [\\n            \\\"anthropic/claude-3.5-sonnet\\\",\\n            \\\"anthropic/claude-3-opus\\\",\\n            \\\"anthropic/claude-3-haiku\\\",\\n            \\\"openai/gpt-4-turbo\\\",\\n            \\\"openai/gpt-4\\\",\\n            \\\"openai/gpt-3.5-turbo\\\",\\n        ]\\n\\n        # Enable clicking on model inputs\\n        self._model_picker_enabled = True\\n        self._commit_model_picker_enabled = True\\n\\n        # Set saved values\\n        saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        saved_commit_model = getattr(self, \\\"_saved_commit_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n\\n        self.model_input.setText(saved_model)\\n        self.commit_model_input.setText(saved_commit_model)\", \"replace\": \"    def _populate_fallback_models(self) -> None:\\n        \\\"\\\"\\\"Populate with fallback model list when API is unavailable\\\"\\\"\\\"\\n        self._available_models = [\\n            \\\"anthropic/claude-3.5-sonnet\\\",\\n            \\\"anthropic/claude-3-opus\\\",\\n            \\\"anthropic/claude-3-haiku\\\",\\n            \\\"openai/gpt-4-turbo\\\",\\n            \\\"openai/gpt-4\\\",\\n            \\\"openai/gpt-3.5-turbo\\\",\\n        ]\\n\\n        # Enable clicking on model inputs\\n        self._model_picker_enabled = True\\n        self._summarization_model_picker_enabled = True\\n\\n        # Set saved values\\n        saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n\\n        self.model_input.setText(saved_model)\\n        self.summarization_model_input.setText(saved_summarization_model)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01PhJmQxg1Je3uKnc2R5Xwbq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PhJmQxg1Je3uKnc2R5Xwbq",
+      "content": "{\"message\": \"Replaced in forge/ui/settings_dialog.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me also remove the old `git.commit_message_model` from the DEFAULT_SETTINGS in settings.py since we're now using `llm.summarization_model` for everything:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/config/settings.py\", \"search\": \"        \\\"git\\\": {\\\"auto_commit\\\": False, \\\"commit_message_model\\\": \\\"anthropic/claude-3-haiku\\\"},\", \"replace\": \"        \\\"git\\\": {\\\"auto_commit\\\": False},\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01TNVXK3Q1eM4Jqo5nnHhMwD",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TNVXK3Q1eM4Jqo5nnHhMwD",
+      "content": "{\"message\": \"Replaced in forge/config/settings.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure everything is correct:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01HRhN3QpzBcU74tUBjn7zyJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HRhN3QpzBcU74tUBjn7zyJ",
+      "content": "{\"format_diffs\": {\"forge/ui/ask_widget.py\": \"--- before+++ after@@ -23,8 +23,6 @@ \\n if TYPE_CHECKING:\\n     from forge.ui.branch_workspace import BranchWorkspace\\n-\\n-\\n \\n \\n class AskWorker(QObject):\\n\", \"forge/ui/settings_dialog.py\": \"--- before+++ after@@ -357,7 +357,9 @@ \\n         # Set saved values\\n         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n-        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n+        saved_summarization_model = getattr(\\n+            self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n+        )\\n \\n         self.model_input.setText(saved_model)\\n         self.summarization_model_input.setText(saved_summarization_model)\\n@@ -391,7 +393,9 @@ \\n         # Set saved values\\n         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n-        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n+        saved_summarization_model = getattr(\\n+            self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n+        )\\n \\n         self.model_input.setText(saved_model)\\n         self.summarization_model_input.setText(saved_summarization_model)\\n@@ -425,7 +429,9 @@         picker.model_selected.connect(self._on_summarization_model_selected)\\n \\n         # Position below and aligned to left of the input field\\n-        input_pos = self.summarization_model_input.mapToGlobal(self.summarization_model_input.rect().bottomLeft())\\n+        input_pos = self.summarization_model_input.mapToGlobal(\\n+            self.summarization_model_input.rect().bottomLeft()\\n+        )\\n         picker.show_at(input_pos)\\n \\n     def _on_summarization_model_selected(self, model: str) -> None:\\n\"}, \"formatted_files\": [\"forge/ui/settings_dialog.py\", \"forge/ui/ask_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 2 files: forge/ui/settings_dialog.py, forge/ui/ask_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 61 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ask_widget.py\": \"--- before+++ after@@ -23,8 +23,6 @@ \\n if TYPE_CHECKING:\\n     from forge.ui.branch_workspace import BranchWorkspace\\n-\\n-\\n \\n \\n class AskWorker(QObject):\\n\",\n    \"forge/ui/settings_dialog.py\": \"--- before+++ after@@ -357,7 +357,9 @@ \\n         # Set saved values\\n         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n-        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n+        saved_summarization_model = getattr(\\n+            self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n+        )\\n \\n         self.model_input.setText(saved_model)\\n         self.summarization_model_input.setText(saved_summarization_model)\\n@@ -391,7 +393,9 @@ \\n         # Set saved values\\n         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n-        saved_summarization_model = getattr(self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\")\\n+        saved_summarization_model = getattr(\\n+            self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n+        )\\n \\n         self.model_input.setText(saved_model)\\n         self.summarization_model_input.setText(saved_summarization_model)\\n@@ -425,7 +429,9 @@         picker.model_selected.connect(self._on_summarization_model_selected)\\n \\n         # Position below and aligned to left of the input field\\n-        input_pos = self.summarization_model_input.mapToGlobal(self.summarization_model_input.rect().bottomLeft())\\n+        input_pos = self.summarization_model_input.mapToGlobal(\\n+            self.summarization_model_input.rect().bottomLeft()\\n+        )\\n         picker.show_at(input_pos)\\n \\n     def _on_summarization_model_selected(self, model: str) -> None:\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/settings_dialog.py\",\n    \"forge/ui/ask_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 2 files: forge/ui/settings_dialog.py, forge/ui/ask_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 61 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me also remove the files from context that I no longer need:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/settings_dialog.py\",\"forge/ui/ask_widget.py\",\"forge/ui/code_completion.py\",\"forge/config/settings.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Divji6KHacAUvk9mkDkP93",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Centralize summarization model setting for all non-agentic LLM calls\\n\\n- Add Settings.get_summarization_model() as single source of truth\\n- Update ask_widget.py to use settings instead of hardcoded haiku\\n- Update code_completion.py to use settings instead of hardcoded haiku\\n- Update session/manager.py to use get_summarization_model() for commits and summaries\\n- Rename settings UI from \\\"Commit Message Model\\\" to \\\"Summarization Model\\\"\\n- Remove deprecated git.commit_message_model setting (now uses llm.summarization_model)\\n- Pass settings to EditorWidget -> CompletionManager for model access\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01VSYzH5tBpetdrf8KXRRL5w",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Divji6KHacAUvk9mkDkP93",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 4 files from context\", \"remove\": [\"forge/ui/settings_dialog.py\", \"forge/ui/ask_widget.py\", \"forge/ui/code_completion.py\", \"forge/config/settings.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VSYzH5tBpetdrf8KXRRL5w",
+      "content": "{\"commit\": \"0910e703d0fa\", \"message\": \"Committed: 7 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Centralize summarization model setting for all non-agentic LLM calls\\n\\n- Add Settings.get_summarization_model() as single source of truth\\n- Update ask_widget.py to use settings instead of hardcoded haiku\\n- Update code_completion.py to use settings instead of hardcoded haiku\\n- Update session/manager.py to use get_summarization_model() for commits and summaries\\n- Rename settings UI from \\\"Commit Message Model\\\" to \\\"Summarization Model\\\"\\n- Remove deprecated git.commit_message_model setting (now uses llm.summarization_model)\\n- Pass settings to EditorWidget -> CompletionManager for model access\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"0910e703d0fa\",\n  \"message\": \"Committed: 7 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's a summary of the changes:\n\n## Summary\n\nI found and fixed hardcoded haiku references in the codebase. The changes:\n\n1. **Added `Settings.get_summarization_model()`** - A centralized method that returns the model to use for all \"cheap/fast\" operations (commits, summaries, asks, completions). Falls back to haiku if not configured.\n\n2. **Fixed `forge/ui/ask_widget.py`** - Removed hardcoded `DEFAULT_ASK_MODEL` and now uses `settings.get_summarization_model()`. Also updated the label to just say \"Ask about the codebase:\" instead of mentioning Haiku specifically.\n\n3. **Fixed `forge/ui/code_completion.py`** - Now takes a `Settings` parameter and uses `get_summarization_model()` instead of hardcoded haiku.\n\n4. **Fixed `forge/session/manager.py`** - All three places that used `git.commit_message_model` or `llm.summarization_model` with haiku fallbacks now use `settings.get_summarization_model()`.\n\n5. **Updated `forge/ui/settings_dialog.py`** - Renamed \"Commit Message Model\" to \"Summarization Model\" with a clearer description: \"Used for commit messages, file summaries, code completion, and 'Ask' queries.\"\n\n6. **Updated `forge/ui/editor_widget.py`** - Now accepts `settings` parameter and passes it to `CompletionManager`.\n\n7. **Updated `forge/ui/branch_tab_widget.py`** - Passes `settings` when creating `EditorWidget`.\n\n8. **Removed deprecated `git.commit_message_model`** from default settings - everything now uses `llm.summarization_model`."
+    }
+  ]
+}

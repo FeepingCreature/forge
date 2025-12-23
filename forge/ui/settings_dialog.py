@@ -5,7 +5,7 @@ Settings dialog for Forge
 from typing import TYPE_CHECKING  # noqa: I001
 
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -116,22 +116,23 @@ class SettingsDialog(QDialog):
         widget = QWidget()
         layout = QFormLayout(widget)
 
-        # API Key
-        api_key_layout = QHBoxLayout()
+        # API Key with inline eye toggle
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText(
             "Enter OpenRouter API key or set OPENROUTER_API_KEY env var"
         )
-        api_key_layout.addWidget(self.api_key_input)
 
-        self.api_key_reveal_btn = QPushButton("Reveal")
-        self.api_key_reveal_btn.setCheckable(True)
-        self.api_key_reveal_btn.setFixedWidth(60)
-        self.api_key_reveal_btn.clicked.connect(self._toggle_api_key_visibility)
-        api_key_layout.addWidget(self.api_key_reveal_btn)
+        # Add eye icon as inline action
+        self._api_key_visible = False
+        self.api_key_eye_action = self.api_key_input.addAction(
+            self.style().standardIcon(self.style().StandardPixmap.SP_TitleBarContextHelpButton),
+            QLineEdit.ActionPosition.TrailingPosition,
+        )
+        self._update_eye_icon()
+        self.api_key_eye_action.triggered.connect(self._toggle_api_key_visibility)
 
-        layout.addRow("API Key:", api_key_layout)
+        layout.addRow("API Key:", self.api_key_input)
 
         # Model selection with popup picker (click to open)
         self.model_input = QLineEdit()
@@ -433,12 +434,63 @@ class SettingsDialog(QDialog):
 
     def _toggle_api_key_visibility(self) -> None:
         """Toggle API key visibility between hidden and visible"""
-        if self.api_key_reveal_btn.isChecked():
+        self._api_key_visible = not self._api_key_visible
+        if self._api_key_visible:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.api_key_reveal_btn.setText("Hide")
         else:
             self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self.api_key_reveal_btn.setText("Reveal")
+        self._update_eye_icon()
+
+    def _create_eye_icon(self, crossed: bool = False) -> QIcon:
+        """Create an eye icon for visibility toggle"""
+        size = 16
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Gray color for the icon
+        gray = QColor(128, 128, 128)
+        pen = QPen(gray, 1.5)
+        painter.setPen(pen)
+
+        # Draw eye shape (almond/lens shape)
+        cx, cy = size // 2, size // 2
+        # Eye outline using arcs
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QPainterPath
+
+        path = QPainterPath()
+        # Left point, curve up to right, curve down back to left
+        path.moveTo(2, cy)
+        path.quadTo(cx, cy - 5, size - 2, cy)  # Top curve
+        path.quadTo(cx, cy + 5, 2, cy)  # Bottom curve
+        painter.drawPath(path)
+
+        # Draw pupil (circle in center)
+        painter.setBrush(gray)
+        painter.drawEllipse(QPointF(cx, cy), 2.5, 2.5)
+
+        # Draw crossed line if hidden
+        if crossed:
+            pen = QPen(gray, 1.5)
+            painter.setPen(pen)
+            painter.drawLine(3, size - 3, size - 3, 3)
+
+        painter.end()
+        return QIcon(pixmap)
+
+    def _update_eye_icon(self) -> None:
+        """Update the eye icon based on visibility state"""
+        if self._api_key_visible:
+            # Eye with slash - click to hide
+            self.api_key_eye_action.setIcon(self._create_eye_icon(crossed=True))
+            self.api_key_eye_action.setToolTip("Hide API key")
+        else:
+            # Open eye - click to reveal
+            self.api_key_eye_action.setIcon(self._create_eye_icon(crossed=False))
+            self.api_key_eye_action.setToolTip("Reveal API key")
 
     def _load_settings(self) -> None:
         """Load current settings into UI"""

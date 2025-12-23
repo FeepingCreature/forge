@@ -169,7 +169,7 @@ If no files seem relevant, output an empty array: []"""
             if relevant_files and self._vfs:
                 self.status_update.emit(f"📂 Loading {len(relevant_files)} file(s)...")
 
-                for filepath in relevant_files[:10]:  # Limit to 10 files
+                for filepath in relevant_files:
                     try:
                         content = self._vfs.read_file(filepath)
                         lines = content.split("\n")

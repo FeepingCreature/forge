@@ -1,17 +1,18 @@
 {
   "active_files": [
-    "forge/ui/branch_tab_widget.py",
-    "forge/ui/ask_widget.py",
-    "forge/tools/builtin/commit.py",
-    "forge/ui/side_panel.py",
     "tools/manager.py",
-    "CLAUDE.md",
     "tools/builtin/compact.py",
-    "forge/ui/branch_workspace.py",
     "forge/session/manager.py",
-    "forge/ui/main_window.py",
+    "forge/ui/branch_tab_widget.py",
+    "tools/builtin/commit.py",
+    "forge/tools/manager.py",
+    "CLAUDE.md",
     "forge/ui/ai_chat_widget.py",
-    "tools/builtin/commit.py"
+    "forge/ui/ask_widget.py",
+    "forge/ui/branch_workspace.py",
+    "forge/ui/main_window.py",
+    "forge/ui/side_panel.py",
+    "forge/tools/builtin/commit.py"
   ],
   "messages": [
     {
@@ -1460,6 +1461,134 @@
     {
       "role": "assistant",
       "content": "Fixed. The issue was that `file://forge/tools/manager.py` was being parsed as:\n- Host: `forge`\n- Path: `/tools/manager.py`\n\nBecause in `file://` URLs, the first path component after `//` is treated as the hostname. Now we use `forge:filepath?line=N` which avoids this parsing ambiguity entirely."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 81 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Can you prompt the ask model to link a line number range instead of quoting code? You may need to inject line numbers into the file contents so that it knows where it is."
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea! I'll modify the Ask widget to include line numbers in the file contents and update the prompt to encourage linking to line ranges instead of quoting code.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"            # Step 2: Fetch file contents and answer\\n            file_contents = \\\"\\\"\\n            if relevant_files and self._vfs:\\n                self.status_update.emit(f\\\"\ud83d\udcc2 Loading {len(relevant_files)} file(s)...\\\")\\n\\n                for filepath in relevant_files[:5]:  # Limit to 5 files to avoid token explosion\\n                    try:\\n                        content = self._vfs.read_file(filepath)\\n                        # Truncate very long files\\n                        if len(content) > 5000:\\n                            content = content[:5000] + \\\"\\\\n... (truncated)\\\"\\n                        file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{content}\\\\n```\\\\n\\\"\\n                    except Exception:\\n                        pass  # File doesn't exist or can't be read\", \"replace\": \"            # Step 2: Fetch file contents and answer\\n            file_contents = \\\"\\\"\\n            if relevant_files and self._vfs:\\n                self.status_update.emit(f\\\"\ud83d\udcc2 Loading {len(relevant_files)} file(s)...\\\")\\n\\n                for filepath in relevant_files[:5]:  # Limit to 5 files to avoid token explosion\\n                    try:\\n                        content = self._vfs.read_file(filepath)\\n                        lines = content.split(\\\"\\\\n\\\")\\n                        # Truncate very long files (by line count)\\n                        if len(lines) > 200:\\n                            lines = lines[:200]\\n                            lines.append(\\\"... (truncated)\\\")\\n                        # Add line numbers\\n                        numbered_lines = [\\n                            f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)\\n                        ]\\n                        numbered_content = \\\"\\\\n\\\".join(numbered_lines)\\n                        file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{numbered_content}\\\\n```\\\\n\\\"\\n                    except Exception:\\n                        pass  # File doesn't exist or can't be read\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01GVQWiWR5PASv1zWs71TBgH",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GVQWiWR5PASv1zWs71TBgH",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update the prompt to encourage linking to line ranges instead of quoting code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"            # Step 3: Answer with full context\\n            if file_contents:\\n                step2_prompt = f\\\"\\\"\\\"You are a code assistant. Answer the user's question using the file contents below.\\n\\nBe concise but helpful. When referencing files, use the EXACT full path (e.g., `forge/ui/main_window.py` not just `main_window.py`). These paths become clickable links.\\n\\n## Relevant Files\\n\\n{file_contents}\\n\\n## Question\\n\\n{self._question}\\n\\n## Answer\\\"\\\"\\\"\", \"replace\": \"            # Step 3: Answer with full context\\n            if file_contents:\\n                step2_prompt = f\\\"\\\"\\\"You are a code assistant. Answer the user's question using the file contents below.\\n\\nGuidelines:\\n- Be concise. Don't quote code - instead link to specific lines.\\n- Use EXACT file paths with line numbers: `filepath:LINE` or `filepath:START-END` for ranges.\\n- Example: See `forge/ui/main_window.py:42-58` for the implementation.\\n- These paths become clickable links that open the file at that location.\\n\\n## Relevant Files (with line numbers)\\n\\n{file_contents}\\n\\n## Question\\n\\n{self._question}\\n\\n## Answer\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Nwfj1RmBFYt3CigKGLq9WV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Nwfj1RmBFYt3CigKGLq9WV",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "user",
+      "content": "no don't truncate. the model is cheap",
+      "_mid_turn": true
+    },
+    {
+      "role": "assistant",
+      "content": "Got it, let me remove the truncation:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"                for filepath in relevant_files[:5]:  # Limit to 5 files to avoid token explosion\\n                    try:\\n                        content = self._vfs.read_file(filepath)\\n                        lines = content.split(\\\"\\\\n\\\")\\n                        # Truncate very long files (by line count)\\n                        if len(lines) > 200:\\n                            lines = lines[:200]\\n                            lines.append(\\\"... (truncated)\\\")\\n                        # Add line numbers\\n                        numbered_lines = [\\n                            f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)\\n                        ]\\n                        numbered_content = \\\"\\\\n\\\".join(numbered_lines)\\n                        file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{numbered_content}\\\\n```\\\\n\\\"\\n                    except Exception:\\n                        pass  # File doesn't exist or can't be read\", \"replace\": \"                for filepath in relevant_files[:10]:  # Limit to 10 files\\n                    try:\\n                        content = self._vfs.read_file(filepath)\\n                        lines = content.split(\\\"\\\\n\\\")\\n                        # Add line numbers\\n                        numbered_lines = [\\n                            f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)\\n                        ]\\n                        numbered_content = \\\"\\\\n\\\".join(numbered_lines)\\n                        file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{numbered_content}\\\\n```\\\\n\\\"\\n                    except Exception:\\n                        pass  # File doesn't exist or can't be read\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01BzFABvgYHfbD9MoVwhEaZu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BzFABvgYHfbD9MoVwhEaZu",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01ECszyDUvJUYDZh3rns7fzR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01ECszyDUvJUYDZh3rns7fzR",
+      "content": "{\"format_diffs\": {\"forge/ui/ask_widget.py\": \"--- before+++ after@@ -174,9 +174,7 @@                         content = self._vfs.read_file(filepath)\\n                         lines = content.split(\\\"\\\\n\\\")\\n                         # Add line numbers\\n-                        numbered_lines = [\\n-                            f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)\\n-                        ]\\n+                        numbered_lines = [f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)]\\n                         numbered_content = \\\"\\\\n\\\".join(numbered_lines)\\n                         file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{numbered_content}\\\\n```\\\\n\\\"\\n                     except Exception:\\n\"}, \"formatted_files\": [\"forge/ui/ask_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ask_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ask_widget.py\": \"--- before+++ after@@ -174,9 +174,7 @@                         content = self._vfs.read_file(filepath)\\n                         lines = content.split(\\\"\\\\n\\\")\\n                         # Add line numbers\\n-                        numbered_lines = [\\n-                            f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)\\n-                        ]\\n+                        numbered_lines = [f\\\"{i + 1:4d} | {line}\\\" for i, line in enumerate(lines)]\\n                         numbered_content = \\\"\\\\n\\\".join(numbered_lines)\\n                         file_contents += f\\\"\\\\n## {filepath}\\\\n```\\\\n{numbered_content}\\\\n```\\\\n\\\"\\n                     except Exception:\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ask_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ask_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 58 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Ask widget: add line numbers to file contents and encourage line range links\\n\\n- File contents now include line numbers (e.g., \\\"   42 | def foo():\\\")\\n- Updated prompt to encourage linking to line ranges instead of quoting code\\n- Example format: `forge/ui/main_window.py:42-58`\\n- Increased file limit from 5 to 10 (model is cheap, no truncation needed)\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01Fvzp4v5MtYxiR7eXJqit2R",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Fvzp4v5MtYxiR7eXJqit2R",
+      "content": "{\"commit\": \"dc23cd35e978\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Ask widget: add line numbers to file contents and encourage line range links\\n\\n- File contents now include line numbers (e.g., \\\"   42 | def foo():\\\")\\n- Updated prompt to encourage linking to line ranges instead of quoting code\\n- Example format: `forge/ui/main_window.py:42-58`\\n- Increased file limit from 5 to 10 (model is cheap, no truncation needed)\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"dc23cd35e978\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done. The Ask widget now:\n\n1. **Includes line numbers** in file contents (format: `  42 | code here`)\n2. **Prompts the model to link to line ranges** instead of quoting code (e.g., `forge/ui/main_window.py:42-58`)\n3. **No truncation** - loads up to 10 full files since Haiku is cheap"
     }
   ]
 }

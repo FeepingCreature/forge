@@ -6,38 +6,33 @@ A comprehensive audit of code duplication, design smells, and style inconsistenc
 
 ## 1. Code Duplication
 
-### 1.1 Summary Generation Prompt (HIGH)
+### 1.1 ~~Summary Generation Prompt~~ ✅ FIXED
 
-**Files:** `forge/session/manager.py` (lines ~280-300 and ~380-400)
+**Files:** `forge/session/manager.py`
 
-The exact same LLM prompt for generating file summaries appears twice:
-- In `generate_repo_summaries()`
-- In `generate_summary_for_file()`
+~~The exact same LLM prompt for generating file summaries appears twice.~~
 
-**Fix:** Extract to a private method `_build_summary_prompt(filepath, content)`.
+**Fixed:** Extracted to `_build_summary_prompt(filepath, content)`.
 
 ---
 
-### 1.2 Fuzzy Match Implementation (MEDIUM)
+### 1.2 ~~Fuzzy Match Implementation~~ ✅ FIXED
 
 **Files:** `forge/ui/command_palette.py`, `forge/ui/quick_open.py`
 
-Both files implement nearly identical `fuzzy_match(pattern, text) -> tuple[bool, int]` functions with the same logic (character-by-character matching, gap penalties, etc.).
+~~Both files implement nearly identical `fuzzy_match` functions.~~
 
-**Fix:** Extract to `forge/ui/utils.py` or similar shared module.
+**Fixed:** Extracted to `forge/ui/fuzzy.py`.
 
 ---
 
-### 1.3 Grep Exclusion Logic (MEDIUM)
+### 1.3 ~~Grep Exclusion Logic~~ ✅ FIXED
 
 **Files:** `forge/tools/builtin/grep_open.py`, `forge/tools/builtin/grep_context.py`
 
-Both tools have identical code for:
-- Excluding directories (`.git`, `__pycache__`, `node_modules`, etc.)
-- Filtering by file extension
-- Compiling regex patterns
+~~Both tools have identical code for exclusions and filtering.~~
 
-**Fix:** Extract to a shared helper in `forge/tools/builtin/` or create a base grep module.
+**Fixed:** Extracted to `forge/tools/builtin/grep_utils.py`.
 
 ---
 
@@ -335,10 +330,10 @@ Settings are a loose dict with magic string paths. No validation, no defaults in
 
 These can be fixed immediately with minimal risk:
 
-1. **Extract `fuzzy_match`** to shared module (2 files affected)
-2. **Extract grep helpers** (2 files affected)
+1. ~~**Extract `fuzzy_match`** to shared module (2 files affected)~~ ✅ Done - `forge/ui/fuzzy.py`
+2. ~~**Extract grep helpers** (2 files affected)~~ ✅ Done - `forge/tools/builtin/grep_utils.py`
 3. **Add constants module** for magic strings
-4. **Consolidate summary prompt** (1 file, 2 locations)
+4. ~~**Consolidate summary prompt** (1 file, 2 locations)~~ ✅ Done - `_build_summary_prompt()`
 5. **Fix `ask_widget.py`** to use `LLMClient` instead of raw httpx
 
 ---

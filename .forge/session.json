@@ -1589,6 +1589,64 @@
     {
       "role": "assistant",
       "content": "Done. The Ask widget now:\n\n1. **Includes line numbers** in file contents (format: `  42 | code here`)\n2. **Prompts the model to link to line ranges** instead of quoting code (e.g., `forge/ui/main_window.py:42-58`)\n3. **No truncation** - loads up to 10 full files since Haiku is cheap"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 0a59eb1c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "also remove the 10 file limit? just feed it however much it asks for"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ask_widget.py\", \"search\": \"                for filepath in relevant_files[:10]:  # Limit to 10 files\", \"replace\": \"                for filepath in relevant_files:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01QRDV1oB5b8RXPLx1PwByHB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QRDV1oB5b8RXPLx1PwByHB",
+      "content": "{\"message\": \"Replaced in forge/ui/ask_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Ask widget: remove file limit, load all requested files\\n\\nThe model is cheap - no need to limit how many files it can request.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_016oN6JAUyyyUzPYmDnHyUhb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016oN6JAUyyyUzPYmDnHyUhb",
+      "content": "{\"commit\": \"10ec70084da0\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Ask widget: remove file limit, load all requested files\\n\\nThe model is cheap - no need to limit how many files it can request.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"10ec70084da0\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done. The Ask widget now loads all files the model requests, with no limit."
     }
   ]
 }

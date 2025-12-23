@@ -187,10 +187,10 @@ If no files seem relevant, output an empty array: []"""
                 step2_prompt = f"""You are a code assistant. Answer the user's question using the file contents below.
 
 Guidelines:
-- Be concise. Don't quote code - instead link to specific lines.
-- Use EXACT file paths with line numbers: `filepath:LINE` or `filepath:START-END` for ranges.
-- Example: See `forge/ui/main_window.py:42-58` for the implementation.
-- These paths become clickable links that open the file at that location.
+- Be concise. Reference code by linking to line numbers instead of quoting it.
+- In your prose (NOT in code blocks), use: `filepath:LINE` or `filepath:START-END`
+- Example: "The main loop is in `forge/ui/main_window.py:42-58`"
+- These become clickable links. Never put links inside code blocks.
 
 ## Relevant Files (with line numbers)
 
@@ -369,17 +369,29 @@ class AskWidget(QWidget):
 
         for filepath in sorted_files:
             escaped_path = html.escape(filepath)
-            # Match filepath:line or just filepath (with optional backticks)
-            # Pattern: `filepath:123` or `filepath` or filepath:123 or filepath
-            pattern = re.compile(r"`?" + re.escape(escaped_path) + r"(?::(\d+))?`?", re.IGNORECASE)
+            # Match filepath with optional line or range (with optional backticks)
+            # Patterns: `filepath:42`, `filepath:42-58`, `filepath`, or without backticks
+            pattern = re.compile(
+                r"`?" + re.escape(escaped_path) + r"(?::(\d+)(?:-(\d+))?)?`?", re.IGNORECASE
+            )
 
             # Capture filepath in closure properly
             def make_link(match: re.Match[str], fp: str = filepath) -> str:
-                line = match.group(1) or "1"
-                display = f"{fp}:{line}" if match.group(1) else fp
-                # Use forge: scheme with path (no //) to avoid URL host parsing
-                # Format: forge:filepath?line=N
-                return f'<a href="forge:{fp}?line={line}" style="color: #0066cc;">{display}</a>'
+                start_line = match.group(1) or "1"
+                end_line = match.group(2)  # May be None
+                if end_line:
+                    display = f"{fp}:{start_line}-{end_line}"
+                elif match.group(1):
+                    display = f"{fp}:{start_line}"
+                else:
+                    display = fp
+                # Use forge: scheme with query params for line range
+                # Format: forge:filepath?line=N or forge:filepath?line=N&end=M
+                if end_line:
+                    url = f"forge:{fp}?line={start_line}&end={end_line}"
+                else:
+                    url = f"forge:{fp}?line={start_line}"
+                return f'<a href="{url}" style="color: #0066cc;">{display}</a>'
 
             escaped = pattern.sub(make_link, escaped)
 

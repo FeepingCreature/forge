@@ -259,8 +259,8 @@ class FileExplorerWidget(QWidget):
             ContextState.PARTIAL: ICON_PARTIAL,
             ContextState.FULL: ICON_FULL,
         }[state]
-        # Add warning icon for large files that are in context
-        if is_large and state == ContextState.FULL:
+        # Add warning icon for large files in context (for files: FULL only, for folders: FULL or PARTIAL)
+        if is_large and state != ContextState.NONE:
             icon = f"{icon}{ICON_WARNING}"
         item.setText(COL_CONTEXT, icon)
 

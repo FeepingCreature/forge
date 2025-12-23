@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from forge.ui.branch_workspace import BranchWorkspace
@@ -104,9 +103,6 @@ class BranchTabWidget(QWidget):
         self._quick_open: QuickOpenWidget | None = None
 
         # Note: Ctrl+E is handled by ActionRegistry in main_window
-        # but we keep a local shortcut for when focus is in this widget
-        quick_open_shortcut = QShortcut(QKeySequence("Ctrl+E"), self)
-        quick_open_shortcut.activated.connect(self.show_quick_open)
 
     def add_ai_chat_tab(self, chat_widget: QWidget) -> int:
         """

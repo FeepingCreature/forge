@@ -26,7 +26,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/anthropics/forge",
+            "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             "X-Title": "Forge",
         }
 
@@ -49,7 +49,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/anthropics/forge",
+            "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             "X-Title": "Forge",
         }
 
@@ -127,7 +127,7 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/anthropics/forge",
+            "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             "X-Title": "Forge",
         }
 

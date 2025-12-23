@@ -59,7 +59,7 @@ class AskWorker(QObject):
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {self._api_key}",
-                "HTTP-Referer": "https://github.com/anthropics/forge",
+                "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             },
             json={
                 "model": "anthropic/claude-3-haiku",
@@ -82,7 +82,7 @@ class AskWorker(QObject):
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {self._api_key}",
-                "HTTP-Referer": "https://github.com/anthropics/forge",
+                "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             },
             json={
                 "model": "anthropic/claude-3-haiku",

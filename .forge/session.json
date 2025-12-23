@@ -1,0 +1,140 @@
+{
+  "active_files": [
+    "CLAUDE.md",
+    "forge/tools/manager.py",
+    "forge/llm/client.py"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 81 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! If I look at the openrouter stats, the \"Ask\" queries are shown for \"Forge AI Workflow Orchestration\", but the main model queries are shown for \"http://localhost'\". Can you check what's up with that?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at this, I need to find where the OpenRouter API calls are made and check how the `HTTP-Referer` or app name is being set. Let me search for the relevant code.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"HTTP-Referer|X-Title|openrouter\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_bdrk_01PT3QfpFUWQkxQ7tDUJtQEG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01PT3QfpFUWQkxQ7tDUJtQEG",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/config/settings.py:18 \\u2500\\u2500\\n      15 |         \\\"llm\\\": {\\n      16 |             \\\"api_key\\\": \\\"\\\",\\n      17 |             \\\"model\\\": \\\"anthropic/claude-3.5-sonnet\\\",\\n>>>   18 |             \\\"base_url\\\": \\\"https://openrouter.ai/api/v1\\\",\\n      19 |         },\\n      20 |         \\\"editor\\\": {\\n      21 |             \\\"font_size\\\": 10,\\n\\n\\u2500\\u2500 forge/llm/client.py:22 \\u2500\\u2500\\n      19 |     def __init__(self, api_key: str, model: str = \\\"anthropic/claude-3.5-sonnet\\\") -> None:\\n      20 |         self.api_key = api_key\\n      21 |         self.model = model\\n>>>   22 |         self.base_url = \\\"https://openrouter.ai/api/v1\\\"\\n      23 | \\n      24 |     def get_available_models(self) -> list[dict[str, Any]]:\\n      25 |         \\\"\\\"\\\"Fetch list of available models from OpenRouter\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/llm/client.py:29 \\u2500\\u2500\\n      26 |         headers = {\\n      27 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      28 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>   29 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n      30 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      31 |         }\\n      32 | \\n\\n\\u2500\\u2500 forge/llm/client.py:30 \\u2500\\u2500\\n      27 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      28 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n      29 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>   30 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      31 |         }\\n      32 | \\n      33 |         response = requests.get(f\\\"{self.base_url}/models\\\", headers=headers)\\n\\n\\u2500\\u2500 forge/llm/client.py:52 \\u2500\\u2500\\n      49 |         headers = {\\n      50 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      51 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>   52 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n      53 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      54 |         }\\n      55 | \\n\\n\\u2500\\u2500 forge/llm/client.py:53 \\u2500\\u2500\\n      50 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      51 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n      52 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>   53 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      54 |         }\\n      55 | \\n      56 |         payload = {\\n\\n\\u2500\\u2500 forge/llm/client.py:130 \\u2500\\u2500\\n     127 |         headers = {\\n     128 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n     129 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>  130 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n     131 |             \\\"X-Title\\\": \\\"Forge\\\",\\n     132 |         }\\n     133 | \\n\\n\\u2500\\u2500 forge/llm/client.py:131 \\u2500\\u2500\\n     128 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n     129 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n     130 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>  131 |             \\\"X-Title\\\": \\\"Forge\\\",\\n     132 |         }\\n     133 | \\n     134 |         payload = {\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:59 \\u2500\\u2500\\n      56 |     def _call_llm(self, prompt: str, stream: bool = False) -> str:\\n      57 |         \\\"\\\"\\\"Make a non-streaming LLM call.\\\"\\\"\\\"\\n      58 |         response = httpx.post(\\n>>>   59 |             \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n      60 |             headers={\\n      61 |                 \\\"Authorization\\\": f\\\"Bearer {self._api_key}\\\",\\n      62 |                 \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:62 \\u2500\\u2500\\n      59 |             \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n      60 |             headers={\\n      61 |                 \\\"Authorization\\\": f\\\"Bearer {self._api_key}\\\",\\n>>>   62 |                 \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n      63 |             },\\n      64 |             json={\\n      65 |                 \\\"model\\\": \\\"anthropic/claude-3-haiku\\\",\", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"HTTP-Referer|X-Title|openrouter\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/config/settings.py:18 \\u2500\\u2500\\n      15 |         \\\"llm\\\": {\\n      16 |             \\\"api_key\\\": \\\"\\\",\\n      17 |             \\\"model\\\": \\\"anthropic/claude-3.5-sonnet\\\",\\n>>>   18 |             \\\"base_url\\\": \\\"https://openrouter.ai/api/v1\\\",\\n      19 |         },\\n      20 |         \\\"editor\\\": {\\n      21 |             \\\"font_size\\\": 10,\\n\\n\\u2500\\u2500 forge/llm/client.py:22 \\u2500\\u2500\\n      19 |     def __init__(self, api_key: str, model: str = \\\"anthropic/claude-3.5-sonnet\\\") -> None:\\n      20 |         self.api_key = api_key\\n      21 |         self.model = model\\n>>>   22 |         self.base_url = \\\"https://openrouter.ai/api/v1\\\"\\n      23 | \\n      24 |     def get_available_models(self) -> list[dict[str, Any]]:\\n      25 |         \\\"\\\"\\\"Fetch list of available models from OpenRouter\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/llm/client.py:29 \\u2500\\u2500\\n      26 |         headers = {\\n      27 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      28 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>   29 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n      30 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      31 |         }\\n      32 | \\n\\n\\u2500\\u2500 forge/llm/client.py:30 \\u2500\\u2500\\n      27 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      28 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n      29 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>   30 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      31 |         }\\n      32 | \\n      33 |         response = requests.get(f\\\"{self.base_url}/models\\\", headers=headers)\\n\\n\\u2500\\u2500 forge/llm/client.py:52 \\u2500\\u2500\\n      49 |         headers = {\\n      50 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      51 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>   52 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n      53 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      54 |         }\\n      55 | \\n\\n\\u2500\\u2500 forge/llm/client.py:53 \\u2500\\u2500\\n      50 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n      51 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n      52 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>   53 |             \\\"X-Title\\\": \\\"Forge\\\",\\n      54 |         }\\n      55 | \\n      56 |         payload = {\\n\\n\\u2500\\u2500 forge/llm/client.py:130 \\u2500\\u2500\\n     127 |         headers = {\\n     128 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n     129 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n>>>  130 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n     131 |             \\\"X-Title\\\": \\\"Forge\\\",\\n     132 |         }\\n     133 | \\n\\n\\u2500\\u2500 forge/llm/client.py:131 \\u2500\\u2500\\n     128 |             \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n     129 |             \\\"Content-Type\\\": \\\"application/json\\\",\\n     130 |             \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n>>>  131 |             \\\"X-Title\\\": \\\"Forge\\\",\\n     132 |         }\\n     133 | \\n     134 |         payload = {\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:59 \\u2500\\u2500\\n      56 |     def _call_llm(self, prompt: str, stream: bool = False) -> str:\\n      57 |         \\\"\\\"\\\"Make a non-streaming LLM call.\\\"\\\"\\\"\\n      58 |         response = httpx.post(\\n>>>   59 |             \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n      60 |             headers={\\n      61 |                 \\\"Authorization\\\": f\\\"Bearer {self._api_key}\\\",\\n      62 |                 \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:62 \\u2500\\u2500\\n      59 |             \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n      60 |             headers={\\n      61 |                 \\\"Authorization\\\": f\\\"Bearer {self._api_key}\\\",\\n>>>   62 |                 \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n      63 |             },\\n      64 |             json={\\n      65 |                 \\\"model\\\": \\\"anthropic/claude-3-haiku\\\",\",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found it! The issue is clear:\n\n1. **Ask widget** (`forge/ui/ask_widget.py:62`) uses `\"HTTP-Referer\": \"https://github.com/anthropics/forge\"` - this shows as \"Forge AI Workflow Orchestration\" (likely the title from that GitHub page or a registered app)\n\n2. **Main LLM client** (`forge/llm/client.py`) uses `\"HTTP-Referer\": \"http://localhost\"` in multiple places - this shows as \"http://localhost\"\n\nThe fix is to update `forge/llm/client.py` to use a consistent, meaningful referer. Let me load that file and fix all occurrences:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/llm/client.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01M2NkxJLeJrc8Fkp6mwUWFe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01M2NkxJLeJrc8Fkp6mwUWFe",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/llm/client.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the issue clearly. The `LLMClient` class uses `\"HTTP-Referer\": \"http://localhost\"` in three places. I'll update all of them to match what the Ask widget uses:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/llm/client.py\", \"search\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        response = requests.get(f\\\"{self.base_url}/models\\\", headers=headers)\", \"replace\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        response = requests.get(f\\\"{self.base_url}/models\\\", headers=headers)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01PSCydg3GPNMGEJ2NRpAhFr",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/llm/client.py\", \"search\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        payload = {\\n            \\\"model\\\": self.model,\\n            \\\"messages\\\": messages,\\n        }\", \"replace\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        payload = {\\n            \\\"model\\\": self.model,\\n            \\\"messages\\\": messages,\\n        }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0141W6fyYqx4vvhwjafmQVLA",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/llm/client.py\", \"search\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"http://localhost\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        payload = {\\n            \\\"model\\\": self.model,\\n            \\\"messages\\\": messages,\\n            \\\"stream\\\": True,\\n        }\", \"replace\": \"        headers = {\\n            \\\"Authorization\\\": f\\\"Bearer {self.api_key}\\\",\\n            \\\"Content-Type\\\": \\\"application/json\\\",\\n            \\\"HTTP-Referer\\\": \\\"https://github.com/anthropics/forge\\\",\\n            \\\"X-Title\\\": \\\"Forge\\\",\\n        }\\n\\n        payload = {\\n            \\\"model\\\": self.model,\\n            \\\"messages\\\": messages,\\n            \\\"stream\\\": True,\\n        }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01P4oQAPRKjXVBq8keqRMxZp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PSCydg3GPNMGEJ2NRpAhFr",
+      "content": "{\"message\": \"Replaced in forge/llm/client.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0141W6fyYqx4vvhwjafmQVLA",
+      "content": "{\"message\": \"Replaced in forge/llm/client.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01P4oQAPRKjXVBq8keqRMxZp",
+      "content": "{\"message\": \"Replaced in forge/llm/client.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "All three occurrences have been updated. Now all OpenRouter API calls will show as \"Forge AI Workflow Orchestration\" (or whatever OpenRouter's registered name is for that GitHub referer) instead of \"http://localhost\".",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix OpenRouter HTTP-Referer to use consistent app identifier\\n\\nChanged from \\\"http://localhost\\\" to \\\"https://github.com/anthropics/forge\\\"\\nto match the Ask widget, so all API calls show under the same app name\\nin OpenRouter stats.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01PzrCSYfyeT55gxCc3yPnV3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PzrCSYfyeT55gxCc3yPnV3",
+      "content": "{\"commit\": \"282c16b2ae5f\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Fix OpenRouter HTTP-Referer to use consistent app identifier\\n\\nChanged from \\\"http://localhost\\\" to \\\"https://github.com/anthropics/forge\\\"\\nto match the Ask widget, so all API calls show under the same app name\\nin OpenRouter stats.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"282c16b2ae5f\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The fix updates all three places in `forge/llm/client.py` where `HTTP-Referer` was set to `\"http://localhost\"` to now use `\"https://github.com/anthropics/forge\"`, matching what the Ask widget uses. Your OpenRouter stats should now show all Forge queries under the same app name."
+    }
+  ]
+}

@@ -29,21 +29,37 @@ Forge is a Qt-based IDE where AI agents work through git. Every AI session is a 
 
 ## Installation
 
-Requires Python 3.10+ and libgit2.
+Installation requires Python 3.10+ and libgit2.
+
+1. Install libgit2 (required for pygit2):
 
 ```bash
-# Install libgit2 (required for pygit2)
 # macOS
 brew install libgit2
 
 # Ubuntu/Debian
 sudo apt-get install libgit2-dev
-
-# Install Forge
-pip install -e .
 ```
 
-Set your [OpenRouter](https://openrouter.ai/) API key:
+2. Install Forge. You can do this manually by cloning the repository or use uv or pipx:
+
+```bash
+# Manual installation
+git clone https://github.com/FeepingCreature/forge
+cd forge
+python3 -m venv .venv
+# Change to `source .venv/bin/activate.fish` for the fish shell
+source .venv/bin/activate
+pip install -e .
+
+# uv
+uv tool install git+https://github.com/FeepingCreature/forge@master
+
+# pipx
+pipx install git+https://github.com/FeepingCreature/forge@master
+```
+
+3. Set your [OpenRouter](https://openrouter.ai/) API key:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...

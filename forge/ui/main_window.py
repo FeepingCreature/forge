@@ -704,17 +704,31 @@ class MainWindow(QMainWindow):
 
         # Navigation actions
         self.action_registry.register(
-            "nav.next_tab",
-            "Next Branch Tab",
-            self._next_branch_tab,
+            "nav.next_file_tab",
+            "Next File Tab",
+            self._next_file_tab,
             shortcut="Ctrl+Tab",
             category="Navigation",
         )
         self.action_registry.register(
-            "nav.prev_tab",
-            "Previous Branch Tab",
-            self._prev_branch_tab,
+            "nav.prev_file_tab",
+            "Previous File Tab",
+            self._prev_file_tab,
             shortcut="Ctrl+Shift+Tab",
+            category="Navigation",
+        )
+        self.action_registry.register(
+            "nav.next_branch",
+            "Next Branch",
+            self._next_branch_tab,
+            shortcut="Ctrl+Shift+]",
+            category="Navigation",
+        )
+        self.action_registry.register(
+            "nav.prev_branch",
+            "Previous Branch",
+            self._prev_branch_tab,
+            shortcut="Ctrl+Shift+[",
             category="Navigation",
         )
         self.action_registry.register(
@@ -823,6 +837,26 @@ class MainWindow(QMainWindow):
         if count > 1:
             current = self.branch_tabs.currentIndex()
             self.branch_tabs.setCurrentIndex((current - 1) % count)
+
+    def _next_file_tab(self) -> None:
+        """Switch to next file tab within current branch"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            file_tabs = current_widget.file_tabs
+            count = file_tabs.count()
+            if count > 1:
+                current = file_tabs.currentIndex()
+                file_tabs.setCurrentIndex((current + 1) % count)
+
+    def _prev_file_tab(self) -> None:
+        """Switch to previous file tab within current branch"""
+        current_widget = self.branch_tabs.currentWidget()
+        if isinstance(current_widget, BranchTabWidget):
+            file_tabs = current_widget.file_tabs
+            count = file_tabs.count()
+            if count > 1:
+                current = file_tabs.currentIndex()
+                file_tabs.setCurrentIndex((current - 1) % count)
 
     def _close_current_file_tab(self) -> None:
         """Close the current file tab in the active branch"""

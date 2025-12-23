@@ -117,12 +117,21 @@ class SettingsDialog(QDialog):
         layout = QFormLayout(widget)
 
         # API Key
+        api_key_layout = QHBoxLayout()
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setPlaceholderText(
             "Enter OpenRouter API key or set OPENROUTER_API_KEY env var"
         )
-        layout.addRow("API Key:", self.api_key_input)
+        api_key_layout.addWidget(self.api_key_input)
+
+        self.api_key_reveal_btn = QPushButton("Reveal")
+        self.api_key_reveal_btn.setCheckable(True)
+        self.api_key_reveal_btn.setFixedWidth(60)
+        self.api_key_reveal_btn.clicked.connect(self._toggle_api_key_visibility)
+        api_key_layout.addWidget(self.api_key_reveal_btn)
+
+        layout.addRow("API Key:", api_key_layout)
 
         # Model selection with popup picker (click to open)
         self.model_input = QLineEdit()
@@ -421,6 +430,15 @@ class SettingsDialog(QDialog):
     def _on_commit_model_selected(self, model: str) -> None:
         """Handle commit model selection from picker"""
         self.commit_model_input.setText(model)
+
+    def _toggle_api_key_visibility(self) -> None:
+        """Toggle API key visibility between hidden and visible"""
+        if self.api_key_reveal_btn.isChecked():
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Normal)
+            self.api_key_reveal_btn.setText("Hide")
+        else:
+            self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+            self.api_key_reveal_btn.setText("Reveal")
 
     def _load_settings(self) -> None:
         """Load current settings into UI"""

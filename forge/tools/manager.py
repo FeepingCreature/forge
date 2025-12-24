@@ -17,26 +17,21 @@ if TYPE_CHECKING:
     from forge.git_backend.repository import ForgeRepository
 
 
+def _discover_builtin_tools() -> set[str]:
+    """Discover all built-in tools from the builtin directory"""
+    builtin_dir = Path(__file__).parent / "builtin"
+    tools = set()
+    for tool_file in builtin_dir.iterdir():
+        if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
+            tools.add(tool_file.stem)
+    return tools
+
+
 class ToolManager:
     """Manages tools available to the LLM"""
 
-    # Built-in tools that are always approved
-    BUILTIN_TOOLS = {
-        "write_file",
-        "delete_file",
-        "search_replace",
-        "update_context",
-        "grep_open",
-        "grep_context",
-        "get_lines",
-        "get_skill",
-        "rename_file",
-        "set_license",
-        "compact",
-        "undo_edit",
-        "commit",
-        "run_tests",
-    }
+    # Built-in tools that are always approved (auto-discovered from builtin/)
+    BUILTIN_TOOLS = _discover_builtin_tools()
 
     def __init__(
         self,

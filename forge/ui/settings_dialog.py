@@ -205,7 +205,7 @@ class SettingsDialog(QDialog):
 
         layout.addRow("Summarization Model:", self.summarization_model_input)
 
-        # Info
+        # Info for summarization model
         info = QLabel(
             "Used for commit messages, file summaries, code completion,\n"
             "and 'Ask' queries. A smaller/cheaper model is recommended."
@@ -213,6 +213,22 @@ class SettingsDialog(QDialog):
         info.setWordWrap(True)
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
+
+        # Parallel summarization requests
+        self.parallel_summarization_input = QSpinBox()
+        self.parallel_summarization_input.setRange(1, 32)
+        self.parallel_summarization_input.setToolTip(
+            "Number of parallel LLM requests when generating file summaries"
+        )
+        layout.addRow("Parallel Requests:", self.parallel_summarization_input)
+
+        # Info for parallel requests
+        parallel_info = QLabel(
+            "Higher values speed up initial summarization but use more API quota."
+        )
+        parallel_info.setWordWrap(True)
+        parallel_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", parallel_info)
 
         # Connect click events using event filter
         self.summarization_model_input.installEventFilter(self)
@@ -521,6 +537,9 @@ class SettingsDialog(QDialog):
         # Git settings
         self.auto_commit_input.setChecked(self.settings.get("git.auto_commit", False))
         self.summarization_model_input.setText(self._saved_summarization_model)
+        self.parallel_summarization_input.setValue(
+            self.settings.get("llm.parallel_summarization", 8)
+        )
 
     def _save_and_close(self) -> None:
         """Save settings and close dialog"""
@@ -538,6 +557,7 @@ class SettingsDialog(QDialog):
         # Git settings
         self.settings.set("git.auto_commit", self.auto_commit_input.isChecked())
         self.settings.set("llm.summarization_model", self.summarization_model_input.text())
+        self.settings.set("llm.parallel_summarization", self.parallel_summarization_input.value())
 
         # Keybindings - collect custom shortcuts
         keybindings: dict[str, str] = {}

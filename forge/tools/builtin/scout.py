@@ -37,6 +37,8 @@ Example uses:
 - "Which of these files handle authentication?"
 - "What error handling patterns are used across these files?"
 - "Find the files that define or use the User class"
+- "What patterns do these files use so I can match the style?"
+- "Do a quick code review of these files for obvious issues"
 """,
             "parameters": {
                 "type": "object",

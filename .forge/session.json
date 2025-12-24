@@ -1,0 +1,33 @@
+{
+  "active_files": [
+    "CLAUDE.md"
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 84 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi, I just had a really stupid/good/stupidgood idea. We have grep tool. We have \"Ask Repo\" which uses Haiku which is a *lot* cheaper than you (no offense, you're worth the money). But... do you think it'd be useful to have a tool call to query haiku? lol. you could throw it a lot of files at once, more than it'd be practical to put in your own context window."
+    },
+    {
+      "role": "assistant",
+      "content": "That's actually a brilliant idea! Not stupid at all.\n\nThink about the use cases:\n\n1. **Large-scale code understanding**: \"Hey Haiku, look at these 50 files and tell me which ones deal with authentication\" - then I only load the 3 that matter into my context\n\n2. **Pattern discovery**: \"Scan all the test files and summarize what testing patterns this codebase uses\" - lets me write tests that match the style without loading every test file\n\n3. **Dependency tracing**: \"Here's a function signature, find all the files that might be affected if I change it\" - like grep but semantic\n\n4. **Bulk triage**: \"Here are 20 error logs, categorize them by root cause\" - Haiku does the sorting, I fix the important ones\n\n5. **Documentation generation**: \"Summarize what each of these 30 modules does\" - Haiku can churn through that cheaply\n\nThe key insight is that it's a **context multiplier**. My context window is precious and expensive. Haiku's is cheap. Using Haiku as a \"scout\" or \"filter\" before I commit to loading things makes a lot of sense.\n\nWant me to build it? I'm imagining something like:\n\n```python\n# Tool schema\n{\n    \"name\": \"query_model\",\n    \"description\": \"Query a smaller/cheaper model with a large amount of context...\",\n    \"parameters\": {\n        \"prompt\": \"Your question or instruction\",\n        \"files\": [\"optional list of files to include\"],\n        \"context\": \"optional raw text context\"\n    }\n}\n```\n\nThe name could be `query_model`, `ask_haiku`, `delegate`, `scout`... what feels right to you?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bf3ac849",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I mean. your summary input is *already* exactly that. but yeah, large-scale code is the useful one. And the bulk triage is the sort of thing that you can do yourself, because *generated* tokens are cheap, it's *context* tokens that really add up. Do you think there's a useful flow here *other* than \"look at this huge amount of files and answer questions or else load some of them into your context\"? Because otherwise a tool call that's focused on that would be simpler."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, let me think more narrowly...\n\nThe core value is: **\"Look at more files than would fit in my context, answer a question or tell me which ones to load.\"**\n\nThat's really the only flow that makes sense. Anything else (summarization, triage, etc.) I can do myself or the summaries already handle.\n\nSo a focused tool might be:\n\n```python\n{\n    \"name\": \"scout\",  # or \"scan_files\", \"bulk_read\"\n    \"description\": \"Send many files to a smaller model to answer a question or identify which files are relevant. Use when you need to examine more files than practical to load into context.\",\n    \"parameters\": {\n        \"files\": [\"list of filepaths to include\"],\n        \"question\": \"What to ask about these files\"\n    }\n}\n```\n\nReturns: Haiku's answer, which might be \"the relevant files are X, Y, Z\" or \"the pattern you're looking for is in foo.py lines 50-80\" or \"none of these files contain what you're looking for.\"\n\nThe question is: **do I actually need this?** \n\nLooking at my current workflow:\n- Summaries give me the map\n- `grep_open` finds usages\n- I load what I need\n\nWhere would scout help that those don't?\n\nMaybe: \"I need to understand how error handling works across the codebase\" - grep can't find that semantically, and loading 30 files to understand the pattern is wasteful. Scout could read them all and say \"they use X pattern, see foo.py for a good example.\"\n\nYeah, I think there's value. Want me to build it?"
+    }
+  ]
+}

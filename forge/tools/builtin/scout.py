@@ -6,6 +6,7 @@ The scout model (Haiku) can answer questions about the files or tell you
 which ones are relevant to load into your own context.
 """
 
+import fnmatch
 from typing import TYPE_CHECKING, Any
 
 from forge.config.settings import Settings
@@ -40,17 +41,21 @@ Example uses:
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob pattern to match files (e.g., 'src/**/*.py' for all Python files under src/). Use **/ for recursive matching.",
+                    },
                     "files": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "List of file paths to send to the scout model",
+                        "description": "Explicit list of file paths (alternative to pattern)",
                     },
                     "question": {
                         "type": "string",
                         "description": "The question to ask about these files",
                     },
                 },
-                "required": ["files", "question"],
+                "required": ["question"],
             },
         },
     }
@@ -58,14 +63,31 @@ Example uses:
 
 def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """Query the scout model with files and a question"""
+    pattern = args.get("pattern", "")
     files = args.get("files", [])
     question = args.get("question", "")
 
-    if not files:
-        return {"success": False, "error": "No files specified"}
-
     if not question:
         return {"success": False, "error": "No question specified"}
+
+    # Resolve files from pattern if provided
+    if pattern:
+        all_files = vfs.list_files()
+        # fnmatch doesn't handle ** well, so we do it manually
+        if "**" in pattern:
+            # Convert ** glob to work with fnmatch
+            # e.g., "src/**/*.py" should match "src/foo/bar/baz.py"
+            parts = pattern.split("**/")
+            prefix = parts[0]  # e.g., "src/"
+            suffix = parts[1] if len(parts) > 1 else "*"  # e.g., "*.py"
+            for f in all_files:
+                if f.startswith(prefix) and fnmatch.fnmatch(f, f"*{suffix}"):
+                    files.append(f)
+        else:
+            files = [f for f in all_files if fnmatch.fnmatch(f, pattern)]
+
+    if not files:
+        return {"success": False, "error": "No files specified or matched pattern"}
 
     # Read all the files
     file_contents: list[tuple[str, str]] = []

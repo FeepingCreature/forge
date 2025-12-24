@@ -1,5 +1,12 @@
 {
   "active_files": [
+    "tools/check.py",
+    "forge/tools/builtin/grep_open.py",
+    "forge/tools/builtin/run_tests.py",
+    "forge/config/settings.py",
+    "forge/tools/builtin/scout.py",
+    "forge/tools/builtin/get_skill.py",
+    "forge/llm/client.py",
     "CLAUDE.md"
   ],
   "messages": [
@@ -28,6 +35,264 @@
     {
       "role": "assistant",
       "content": "You're right, let me think more narrowly...\n\nThe core value is: **\"Look at more files than would fit in my context, answer a question or tell me which ones to load.\"**\n\nThat's really the only flow that makes sense. Anything else (summarization, triage, etc.) I can do myself or the summaries already handle.\n\nSo a focused tool might be:\n\n```python\n{\n    \"name\": \"scout\",  # or \"scan_files\", \"bulk_read\"\n    \"description\": \"Send many files to a smaller model to answer a question or identify which files are relevant. Use when you need to examine more files than practical to load into context.\",\n    \"parameters\": {\n        \"files\": [\"list of filepaths to include\"],\n        \"question\": \"What to ask about these files\"\n    }\n}\n```\n\nReturns: Haiku's answer, which might be \"the relevant files are X, Y, Z\" or \"the pattern you're looking for is in foo.py lines 50-80\" or \"none of these files contain what you're looking for.\"\n\nThe question is: **do I actually need this?** \n\nLooking at my current workflow:\n- Summaries give me the map\n- `grep_open` finds usages\n- I load what I need\n\nWhere would scout help that those don't?\n\nMaybe: \"I need to understand how error handling works across the codebase\" - grep can't find that semantically, and loading 30 files to understand the pattern is wasteful. Scout could read them all and say \"they use X pattern, see foo.py for a good example.\"\n\nYeah, I think there's value. Want me to build it?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f439fe5a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah let's do it. haiku is so cheap this could straight up replace grep for you lol. But no reason to remove a useful tool, let's just add 'scout' as a new builtin tool. remember to note that haiku won't have memory across queries and can't make its own tool calls."
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at how the existing tools are structured and how the LLM client works.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/grep_open.py\",\"forge/llm/client.py\",\"forge/tools/builtin/get_skill.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_01JQTyohpGCxSsbt46M1Acyj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01JQTyohpGCxSsbt46M1Acyj",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/grep_open.py\", \"forge/llm/client.py\", \"forge/tools/builtin/get_skill.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I have a good picture. I need to:\n\n1. Create a new tool `scout.py` that:\n   - Takes a list of files and a question\n   - Reads all those files from VFS\n   - Calls Haiku via the LLM client\n   - Returns Haiku's answer\n\nLet me also check how the config gets the summarization model (which is Haiku):",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"get_summarization_model|haiku\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01GoJiLRS6Fknzux1FQdRUB7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GoJiLRS6Fknzux1FQdRUB7",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/config/settings.py:104 \\u2500\\u2500\\n     101 |             api_key = os.environ.get(\\\"OPENROUTER_API_KEY\\\", \\\"\\\")\\n     102 |         return api_key\\n     103 | \\n>>>  104 |     def get_summarization_model(self) -> str:\\n     105 |         \\\"\\\"\\\"Get the model to use for summarization, commits, asks, and completions.\\n     106 | \\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n\\n\\u2500\\u2500 forge/config/settings.py:108 \\u2500\\u2500\\n     105 |         \\\"\\\"\\\"Get the model to use for summarization, commits, asks, and completions.\\n     106 | \\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n>>>  108 |         Falls back to haiku if not configured.\\n     109 |         \\\"\\\"\\\"\\n     110 |         model: str = str(self.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"))\\n     111 |         return model\\n\\n\\u2500\\u2500 forge/config/settings.py:110 \\u2500\\u2500\\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n     108 |         Falls back to haiku if not configured.\\n     109 |         \\\"\\\"\\\"\\n>>>  110 |         model: str = str(self.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"))\\n     111 |         return model\\n     112 | \\n     113 |     def get_parallel_summarization(self) -> int:\\n\\n\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 | \\n     390 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     391 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n>>>  392 |         model = self.settings.get_summarization_model()\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:438 \\u2500\\u2500\\n     435 |             force_refresh: If True, regenerate all summaries even if cached\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n>>>  438 |         model = self.settings.get_summarization_model()\\n     439 |         api_key = self.settings.get_api_key()\\n     440 |         client = LLMClient(api_key, model)\\n     441 | \\n\\n\\u2500\\u2500 forge/session/manager.py:571 \\u2500\\u2500\\n     568 |             self.repo_summaries[filepath] = cached_summary\\n     569 |             return cached_summary\\n     570 | \\n>>>  571 |         model = self.settings.get_summarization_model()\\n     572 |         api_key = self.settings.get_api_key()\\n     573 |         client = LLMClient(api_key, model)\\n     574 | \\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:280 \\u2500\\u2500\\n     277 |         summaries = self._get_summaries()\\n     278 | \\n     279 |         # Get model from settings (same as summarization model)\\n>>>  280 |         model = self.workspace._settings.get_summarization_model()\\n     281 | \\n     282 |         # Setup and start worker (pass VFS for file content fetching)\\n     283 |         self._worker.set_query(question, summaries, self._api_key, model, self.workspace.vfs)\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:263 \\u2500\\u2500\\n     260 |         if not prefix or prefix.endswith(\\\"\\\\n\\\\n\\\"):\\n     261 |             return\\n     262 | \\n>>>  263 |         model = self._settings.get_summarization_model()\\n     264 |         self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath, model)\\n     265 | \\n     266 |     def _on_completion_ready(self, completion: str, cursor_pos: int) -> None:\\n\\n\\u2500\\u2500 forge/ui/main_window.py:938 \\u2500\\u2500\\n     935 |             \\\"anthropic/claude-3.5-sonnet\\\": 200000,\\n     936 |             \\\"anthropic/claude-3-sonnet\\\": 200000,\\n     937 |             \\\"anthropic/claude-3-opus\\\": 200000,\\n>>>  938 |             \\\"anthropic/claude-3-haiku\\\": 200000,\\n     939 |             \\\"openai/gpt-4-turbo\\\": 128000,\\n     940 |             \\\"openai/gpt-4\\\": 8192,\\n     941 |             \\\"openai/gpt-3.5-turbo\\\": 16385,\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:377 \\u2500\\u2500\\n     374 |         # Set saved values\\n     375 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n     376 |         saved_summarization_model = getattr(\\n>>>  377 |             self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n     378 |         )\\n     379 | \\n     380 |         self.model_input.setText(saved_model)\", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"get_summarization_model|haiku\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/config/settings.py:104 \\u2500\\u2500\\n     101 |             api_key = os.environ.get(\\\"OPENROUTER_API_KEY\\\", \\\"\\\")\\n     102 |         return api_key\\n     103 | \\n>>>  104 |     def get_summarization_model(self) -> str:\\n     105 |         \\\"\\\"\\\"Get the model to use for summarization, commits, asks, and completions.\\n     106 | \\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n\\n\\u2500\\u2500 forge/config/settings.py:108 \\u2500\\u2500\\n     105 |         \\\"\\\"\\\"Get the model to use for summarization, commits, asks, and completions.\\n     106 | \\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n>>>  108 |         Falls back to haiku if not configured.\\n     109 |         \\\"\\\"\\\"\\n     110 |         model: str = str(self.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"))\\n     111 |         return model\\n\\n\\u2500\\u2500 forge/config/settings.py:110 \\u2500\\u2500\\n     107 |         This is the 'cheap/fast' model used for everything except the main agentic flow.\\n     108 |         Falls back to haiku if not configured.\\n     109 |         \\\"\\\"\\\"\\n>>>  110 |         model: str = str(self.get(\\\"llm.summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"))\\n     111 |         return model\\n     112 | \\n     113 |     def get_parallel_summarization(self) -> int:\\n\\n\\u2500\\u2500 forge/session/manager.py:392 \\u2500\\u2500\\n     389 | \\n     390 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n     391 |         \\\"\\\"\\\"Generate commit message using cheap LLM\\\"\\\"\\\"\\n>>>  392 |         model = self.settings.get_summarization_model()\\n     393 |         api_key = self.settings.get_api_key()\\n     394 | \\n     395 |         client = LLMClient(api_key, model)\\n\\n\\u2500\\u2500 forge/session/manager.py:438 \\u2500\\u2500\\n     435 |             force_refresh: If True, regenerate all summaries even if cached\\n     436 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     437 |         \\\"\\\"\\\"\\n>>>  438 |         model = self.settings.get_summarization_model()\\n     439 |         api_key = self.settings.get_api_key()\\n     440 |         client = LLMClient(api_key, model)\\n     441 | \\n\\n\\u2500\\u2500 forge/session/manager.py:571 \\u2500\\u2500\\n     568 |             self.repo_summaries[filepath] = cached_summary\\n     569 |             return cached_summary\\n     570 | \\n>>>  571 |         model = self.settings.get_summarization_model()\\n     572 |         api_key = self.settings.get_api_key()\\n     573 |         client = LLMClient(api_key, model)\\n     574 | \\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:280 \\u2500\\u2500\\n     277 |         summaries = self._get_summaries()\\n     278 | \\n     279 |         # Get model from settings (same as summarization model)\\n>>>  280 |         model = self.workspace._settings.get_summarization_model()\\n     281 | \\n     282 |         # Setup and start worker (pass VFS for file content fetching)\\n     283 |         self._worker.set_query(question, summaries, self._api_key, model, self.workspace.vfs)\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:263 \\u2500\\u2500\\n     260 |         if not prefix or prefix.endswith(\\\"\\\\n\\\\n\\\"):\\n     261 |             return\\n     262 | \\n>>>  263 |         model = self._settings.get_summarization_model()\\n     264 |         self._worker.request_completion(prefix, suffix, cursor_pos, self.filepath, model)\\n     265 | \\n     266 |     def _on_completion_ready(self, completion: str, cursor_pos: int) -> None:\\n\\n\\u2500\\u2500 forge/ui/main_window.py:938 \\u2500\\u2500\\n     935 |             \\\"anthropic/claude-3.5-sonnet\\\": 200000,\\n     936 |             \\\"anthropic/claude-3-sonnet\\\": 200000,\\n     937 |             \\\"anthropic/claude-3-opus\\\": 200000,\\n>>>  938 |             \\\"anthropic/claude-3-haiku\\\": 200000,\\n     939 |             \\\"openai/gpt-4-turbo\\\": 128000,\\n     940 |             \\\"openai/gpt-4\\\": 8192,\\n     941 |             \\\"openai/gpt-3.5-turbo\\\": 16385,\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:377 \\u2500\\u2500\\n     374 |         # Set saved values\\n     375 |         saved_model = getattr(self, \\\"_saved_model\\\", \\\"anthropic/claude-3.5-sonnet\\\")\\n     376 |         saved_summarization_model = getattr(\\n>>>  377 |             self, \\\"_saved_summarization_model\\\", \\\"anthropic/claude-3-haiku\\\"\\n     378 |         )\\n     379 | \\n     380 |         self.model_input.setText(saved_model)\",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the pattern. Now let me check how tools get access to settings - I need to see if VFS has access to settings or if I need to import it directly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"from forge.config|Settings\\\\.load\", \"include_extensions\": [\".py\"], \"max_matches\": 5}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_017uMta9rXsa6bCpuEYXe9R5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017uMta9rXsa6bCpuEYXe9R5",
+      "content": "{\"message\": \"Found 5 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:15 \\u2500\\u2500\\n      12 | if TYPE_CHECKING:\\n      13 |     from collections.abc import Callable\\n      14 | \\n>>>   15 |     from forge.config.settings import Settings\\n      16 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n      17 | \\n      18 | from forge.git_backend.commit_types import CommitType\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:18 \\u2500\\u2500\\n      15 | from forge.ui.side_panel import SidePanelWidget\\n      16 | \\n      17 | if TYPE_CHECKING:\\n>>>   18 |     from forge.config.settings import Settings\\n      19 | \\n      20 | \\n      21 | class BranchTabWidget(QWidget):\\n\\n\\u2500\\u2500 forge/ui/branch_workspace.py:8 \\u2500\\u2500\\n       5 | from typing import TYPE_CHECKING, Any\\n       6 | \\n       7 | if TYPE_CHECKING:\\n>>>    8 |     from forge.config.settings import Settings\\n       9 |     from forge.git_backend.repository import ForgeRepository\\n      10 |     from forge.session.manager import SessionManager\\n      11 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:14 \\u2500\\u2500\\n      11 | from PySide6.QtCore import QObject, QThread, QTimer, Signal\\n      12 | \\n      13 | if TYPE_CHECKING:\\n>>>   14 |     from forge.config.settings import Settings\\n      15 | \\n      16 | \\n      17 | class CompletionWorker(QObject):\\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:9 \\u2500\\u2500\\n       6 | from typing import TYPE_CHECKING, Any\\n       7 | \\n       8 | if TYPE_CHECKING:\\n>>>    9 |     from forge.config.settings import Settings\\n      10 |     from forge.ui.code_completion import CompletionManager\\n      11 | \\n      12 | from PySide6.QtCore import QRect, QSize, Qt, Signal\", \"success\": true, \"total_matches\": 5}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 5,\n  \"pattern\": \"from forge.config|Settings\\\\.load\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 5 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:15 \\u2500\\u2500\\n      12 | if TYPE_CHECKING:\\n      13 |     from collections.abc import Callable\\n      14 | \\n>>>   15 |     from forge.config.settings import Settings\\n      16 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n      17 | \\n      18 | from forge.git_backend.commit_types import CommitType\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:18 \\u2500\\u2500\\n      15 | from forge.ui.side_panel import SidePanelWidget\\n      16 | \\n      17 | if TYPE_CHECKING:\\n>>>   18 |     from forge.config.settings import Settings\\n      19 | \\n      20 | \\n      21 | class BranchTabWidget(QWidget):\\n\\n\\u2500\\u2500 forge/ui/branch_workspace.py:8 \\u2500\\u2500\\n       5 | from typing import TYPE_CHECKING, Any\\n       6 | \\n       7 | if TYPE_CHECKING:\\n>>>    8 |     from forge.config.settings import Settings\\n       9 |     from forge.git_backend.repository import ForgeRepository\\n      10 |     from forge.session.manager import SessionManager\\n      11 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/ui/code_completion.py:14 \\u2500\\u2500\\n      11 | from PySide6.QtCore import QObject, QThread, QTimer, Signal\\n      12 | \\n      13 | if TYPE_CHECKING:\\n>>>   14 |     from forge.config.settings import Settings\\n      15 | \\n      16 | \\n      17 | class CompletionWorker(QObject):\\n\\n\\u2500\\u2500 forge/ui/editor_widget.py:9 \\u2500\\u2500\\n       6 | from typing import TYPE_CHECKING, Any\\n       7 | \\n       8 | if TYPE_CHECKING:\\n>>>    9 |     from forge.config.settings import Settings\\n      10 |     from forge.ui.code_completion import CompletionManager\\n      11 | \\n      12 | from PySide6.QtCore import QRect, QSize, Qt, Signal\",\n  \"success\": true,\n  \"total_matches\": 5\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check how the run_tests tool (which also needs settings) handles this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/run_tests.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GApgdkPk2KyqNHh9tTEuP2",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GApgdkPk2KyqNHh9tTEuP2",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/run_tests.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see - `run_tests` doesn't need settings because it doesn't call LLM. Let me look at how `check.py` does it since that one also runs external processes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"tools/check.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01TLQMWzwYrNwmxFjc6VXf27",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TLQMWzwYrNwmxFjc6VXf27",
+      "content": "{\"action\": \"update_context\", \"add\": [\"tools/check.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I have all the patterns I need. Now I'll create the scout tool. It needs to:\n\n1. Import Settings to get the API key and summarization model\n2. Read files from VFS\n3. Call Haiku with the files and question\n4. Return the response",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/scout.py\", \"content\": \"\\\"\\\"\\\"\\nScout tool - query a smaller/cheaper model with many files.\\n\\nUse this to examine more files than would fit in your context window.\\nThe scout model (Haiku) can answer questions about the files or tell you\\nwhich ones are relevant to load into your own context.\\n\\\"\\\"\\\"\\n\\nfrom typing import TYPE_CHECKING, Any\\n\\nfrom forge.config.settings import Settings\\nfrom forge.llm.client import LLMClient\\n\\nif TYPE_CHECKING:\\n    from forge.vfs.base import VFS\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"scout\\\",\\n            \\\"description\\\": \\\"\\\"\\\"Send many files to a smaller/cheaper model (Haiku) to answer a question or identify relevant files.\\n\\nUse this when you need to examine more files than would be practical to load into your own context.\\nThe scout model can:\\n- Answer questions about patterns across many files\\n- Identify which files are relevant for a task\\n- Summarize how something works across the codebase\\n\\nNote: The scout model has no memory between calls and cannot make tool calls.\\nIt only sees the files you explicitly pass to it.\\n\\nExample uses:\\n- \\\"Which of these files handle authentication?\\\"\\n- \\\"What error handling patterns are used across these files?\\\"\\n- \\\"Find the files that define or use the User class\\\"\\n\\\"\\\"\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"files\\\": {\\n                        \\\"type\\\": \\\"array\\\",\\n                        \\\"items\\\": {\\\"type\\\": \\\"string\\\"},\\n                        \\\"description\\\": \\\"List of file paths to send to the scout model\\\",\\n                    },\\n                    \\\"question\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"The question to ask about these files\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"files\\\", \\\"question\\\"],\\n            },\\n        },\\n    }\\n\\n\\ndef execute(vfs: \\\"VFS\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Query the scout model with files and a question\\\"\\\"\\\"\\n    files = args.get(\\\"files\\\", [])\\n    question = args.get(\\\"question\\\", \\\"\\\")\\n\\n    if not files:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No files specified\\\"}\\n\\n    if not question:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No question specified\\\"}\\n\\n    # Read all the files\\n    file_contents: list[tuple[str, str]] = []\\n    errors: list[str] = []\\n\\n    for filepath in files:\\n        try:\\n            content = vfs.read_file(filepath)\\n            file_contents.append((filepath, content))\\n        except FileNotFoundError:\\n            errors.append(f\\\"File not found: {filepath}\\\")\\n        except UnicodeDecodeError:\\n            errors.append(f\\\"Binary file skipped: {filepath}\\\")\\n\\n    if not file_contents:\\n        return {\\n            \\\"success\\\": False,\\n            \\\"error\\\": \\\"Could not read any files\\\",\\n            \\\"details\\\": errors,\\n        }\\n\\n    # Build the prompt with all file contents\\n    file_sections = []\\n    for filepath, content in file_contents:\\n        file_sections.append(f\\\"=== {filepath} ===\\\\n{content}\\\")\\n\\n    files_text = \\\"\\\\n\\\\n\\\".join(file_sections)\\n\\n    prompt = f\\\"\\\"\\\"You are a code analysis assistant. You have been given the contents of several files and a question about them.\\n\\nAnswer the question based on the file contents. Be specific - reference file names and line numbers when relevant.\\nIf asked to identify relevant files, list them clearly.\\n\\nFILES:\\n{files_text}\\n\\nQUESTION: {question}\\\"\\\"\\\"\\n\\n    # Get settings and create client\\n    settings = Settings.load()\\n    api_key = settings.get_api_key()\\n    model = settings.get_summarization_model()\\n\\n    if not api_key:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No API key configured\\\"}\\n\\n    client = LLMClient(api_key, model)\\n\\n    # Call the model\\n    messages = [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}]\\n\\n    response = client.chat(messages)\\n\\n    # Extract the response\\n    choices = response.get(\\\"choices\\\", [])\\n    if not choices:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No response from model\\\"}\\n\\n    answer = choices[0].get(\\\"message\\\", {}).get(\\\"content\\\", \\\"\\\")\\n\\n    result: dict[str, Any] = {\\n        \\\"success\\\": True,\\n        \\\"answer\\\": answer,\\n        \\\"files_examined\\\": len(file_contents),\\n        \\\"model\\\": model,\\n    }\\n\\n    if errors:\\n        result[\\\"file_errors\\\"] = errors\\n\\n    return result\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_01VCirtVVdx5LL3mb41Kv5ZP",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VCirtVVdx5LL3mb41Kv5ZP",
+      "content": "{\"message\": \"Wrote 4321 bytes to forge/tools/builtin/scout.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the checks to make sure it passes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_018XcbSPgrLy5vVoy9iXwz6C",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018XcbSPgrLy5vVoy9iXwz6C",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": false, \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/tools/builtin/scout.py:108: error: Missing positional argument \\\"self\\\" in call to \\\"load\\\" of \\\"Settings\\\"  [call-arg]\\nforge/tools/builtin/scout.py:108: error: \\\"load\\\" of \\\"Settings\\\" does not return a value (it only ever returns None)  [func-returns-value]\\nFound 2 errors in 1 file (checked 62 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/tools/builtin/scout.py:108: error: Missing positional argument \\\"self\\\" in call to \\\"load\\\" of \\\"Settings\\\"  [call-arg]\\nforge/tools/builtin/scout.py:108: error: \\\"load\\\" of \\\"Settings\\\" does not return a value (it only ever returns None)  [func-returns-value]\\nFound 2 errors in 1 file (checked 62 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check how Settings.load() works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/config/settings.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01SDYntUyqgmrcvHETpeEin6",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SDYntUyqgmrcvHETpeEin6",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/config/settings.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, I see - `load()` is an instance method that loads settings in-place, not a class method that returns a new instance. I just need to instantiate `Settings()` directly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/scout.py\", \"search\": \"    # Get settings and create client\\n    settings = Settings.load()\\n    api_key = settings.get_api_key()\", \"replace\": \"    # Get settings and create client\\n    settings = Settings()\\n    api_key = settings.get_api_key()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012hd2D24ipvyRzcnXxkq1aN",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012hd2D24ipvyRzcnXxkq1aN",
+      "content": "{\"message\": \"Replaced in forge/tools/builtin/scout.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01CMQfWRpRHq4or5F2mW3VfR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CMQfWRpRHq4or5F2mW3VfR",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 62 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 62 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Now let me commit this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add scout tool for querying Haiku with many files\\n\\nNew builtin tool that sends multiple files to the summarization model\\n(Haiku) to answer questions or identify relevant files. Useful when\\nyou need to examine more files than would fit in the main context.\\n\\nThe scout model has no memory between calls and cannot make tool calls -\\nit just sees the files passed to it and answers the question.\\n\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01J8TyxRAj4eMqAP3B78YDDy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01J8TyxRAj4eMqAP3B78YDDy",
+      "content": "{\"commit\": \"634299231410\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Add scout tool for querying Haiku with many files\\n\\nNew builtin tool that sends multiple files to the summarization model\\n(Haiku) to answer questions or identify relevant files. Useful when\\nyou need to examine more files than would fit in the main context.\\n\\nThe scout model has no memory between calls and cannot make tool calls -\\nit just sees the files passed to it and answers the question.\\n\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"634299231410\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! The scout tool is now available. Here's a summary:\n\n**What it does:**\n- Takes a list of files and a question\n- Reads all the files from VFS\n- Sends them to Haiku (the summarization model) with your question\n- Returns Haiku's answer\n\n**Example usage:**\n```\nscout(\n  files=[\"forge/ui/*.py\"],  # Well, you'd list them explicitly\n  question=\"Which of these files handle keyboard shortcuts?\"\n)\n```\n\n**Key limitations noted in the description:**\n- No memory between calls (each call is independent)\n- Can't make tool calls (just answers questions)\n- Only sees files you explicitly pass\n\nThis is basically grep but semantic - you can ask \"which files deal with X concept\" rather than searching for literal strings. And since Haiku is cheap, you can throw a lot of files at it without worrying about cost."
     }
   ]
 }

@@ -5,6 +5,7 @@ Session manager for coordinating AI turns and git commits
 import hashlib
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -468,25 +469,22 @@ Keep it under 72 characters."""
 
         total_to_generate = len(files_needing_generation)
         total_cached = len(files) - total_to_generate
-        print(f"📚 Generating summaries: {total_to_generate} to generate, {total_cached} cached")
+        parallel_count = self.settings.get_parallel_summarization()
+        print(
+            f"📚 Generating summaries: {total_to_generate} to generate, "
+            f"{total_cached} cached (parallel={parallel_count})"
+        )
 
-        # Second pass: load cached summaries and generate missing ones
-        generated_count = 0
-        for filepath, blob_oid, cached_summary in files_with_cache_info:
+        # Load cached summaries first
+        for filepath, _blob_oid, cached_summary in files_with_cache_info:
             if cached_summary is not None:
-                # Use cached summary
                 self.repo_summaries[filepath] = cached_summary
                 print(f"   ✓ {filepath} (cached)")
-                continue
 
-            # Report progress for files being generated
-            if progress_callback:
-                progress_callback(generated_count, total_to_generate, filepath)
-
-            # Generate summary with cheap LLM
-            print(f"   📝 {filepath} (generating...)")
+        # Define worker function for parallel generation
+        def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str]:
+            """Generate summary for one file. Returns (filepath, blob_oid, summary)."""
             content = self.vfs.read_file(filepath)
-            generated_count += 1
 
             # Truncate very large files for summary generation
             max_chars = 10000
@@ -505,9 +503,33 @@ Keep it under 72 characters."""
             if match:
                 summary = match.group(1).strip()
 
-            # Cache the summary
-            self._cache_summary(filepath, blob_oid, summary)
-            self.repo_summaries[filepath] = summary
+            return (filepath, blob_oid, summary)
+
+        # Generate summaries in parallel
+        if files_needing_generation:
+            generated_count = 0
+            with ThreadPoolExecutor(max_workers=parallel_count) as executor:
+                # Submit all tasks
+                future_to_file = {
+                    executor.submit(generate_one, filepath, blob_oid): filepath
+                    for filepath, blob_oid in files_needing_generation
+                }
+
+                # Process results as they complete
+                for future in as_completed(future_to_file):
+                    filepath = future_to_file[future]
+                    generated_count += 1
+
+                    # Report progress
+                    if progress_callback:
+                        progress_callback(generated_count, total_to_generate, filepath)
+                    print(f"   📝 {filepath} ({generated_count}/{total_to_generate})")
+
+                    filepath, blob_oid, summary = future.result()
+
+                    # Cache and store the summary
+                    self._cache_summary(filepath, blob_oid, summary)
+                    self.repo_summaries[filepath] = summary
 
         # Final progress update (signal completion)
         if progress_callback and total_to_generate > 0:

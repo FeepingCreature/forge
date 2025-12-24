@@ -16,6 +16,7 @@ class Settings:
             "api_key": "",
             "model": "anthropic/claude-3.5-sonnet",
             "base_url": "https://openrouter.ai/api/v1",
+            "parallel_summarization": 8,  # Number of parallel requests for summarization
         },
         "editor": {
             "font_size": 10,
@@ -108,3 +109,12 @@ class Settings:
         """
         model: str = str(self.get("llm.summarization_model", "anthropic/claude-3-haiku"))
         return model
+
+    def get_parallel_summarization(self) -> int:
+        """Get the number of parallel requests to use for summarization.
+
+        Controls how many LLM requests run concurrently when generating file summaries.
+        Higher values speed up initial summarization but use more API quota.
+        """
+        parallel: int = int(self.get("llm.parallel_summarization", 8))
+        return max(1, parallel)  # At least 1

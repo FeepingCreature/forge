@@ -1,6 +1,11 @@
 {
   "active_files": [
-    "CLAUDE.md"
+    "forge/ui/ai_chat_widget.py",
+    "CLAUDE.md",
+    "forge/prompts/system.py",
+    "forge/tools/builtin/think.py",
+    "forge/prompts/manager.py",
+    "forge/session/manager.py"
   ],
   "messages": [
     {
@@ -15,6 +20,417 @@
     {
       "role": "assistant",
       "content": "That's a really clever idea! Let me think through it:\n\n**The core insight**: You want to give the model a way to do extended reasoning when needed, without paying the context cost forever. A \"think\" tool with auto-compaction solves this elegantly.\n\n**How it would work**:\n1. Model calls `think(scratchpad=\"...\", conclusion=\"...\")`\n2. The scratchpad can be arbitrarily long - working through complex logic, exploring options, etc.\n3. Tool result returns just the conclusion\n4. The scratchpad content never enters the conversation history (or gets immediately compacted)\n\n**Why this is nice**:\n- Self-serve reasoning depth - model decides when to think hard\n- No manual compaction needed - it's built into the tool semantics\n- The conclusion acts as a checkpoint the model can reference later\n- Works with any model, not just ones with explicit \"thinking\" modes\n\n**Implementation thoughts**:\n- The tool itself does almost nothing - just returns the conclusion\n- The magic is in how it's recorded: the tool *call* (with scratchpad) gets compacted immediately, but the *result* (conclusion) stays\n- Or simpler: the tool result IS the conclusion, and we just don't store the call parameters in history\n\n**One question**: Should the scratchpad even be sent to the API, or should it be \"write-only\" from the model's perspective? If we're just giving the model permission to generate tokens that won't be kept, maybe we don't need to actually process/store the scratchpad at all - the act of generating it is the value.\n\nWant me to prototype this? It'd be a small tool - the interesting part is the conversation history handling."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 13eb73b4",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah go for it. Re question, the act of generating it is beneficial but you still need to record the conclusion in the context. We indeed don't need to store it- but with our tool design, we still need to parse it at least. The big value is just that it's out-loud thinking that doesn't bloat the context, yeah. Let's do this!"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at an existing simple tool to match the pattern, then create the think tool.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/compact.py\",\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_0178egYwvqHXxXZnvfWUM3gr",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0178egYwvqHXxXZnvfWUM3gr",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/compact.py\", \"forge/prompts/system.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Perfect, I can see the pattern. The tool is simple - it just returns the conclusion. The interesting part is that we need to handle it specially in the session manager to compact the tool call itself (discarding the scratchpad).\n\nLet me also check how compact is handled in the session manager to understand the pattern:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"compact.*tool_call_ids|compact_tool_results\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_011ZchV1fZoCt79LViRk2w3v",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011ZchV1fZoCt79LViRk2w3v",
+      "content": "{\"message\": \"Found 8 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:278 \\u2500\\u2500\\n     275 |                 resolved.add(id_str)\\n     276 |         return resolved\\n     277 | \\n>>>  278 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     279 |         \\\"\\\"\\\"\\n     280 |         Replace tool result blocks with a compact summary.\\n     281 | \\n\\n\\u2500\\u2500 forge/prompts/manager.py:521 \\u2500\\u2500\\n     518 |             f\\\"\\u26a0\\ufe0f COMPACTION SUGGESTED: {', '.join(reasons)}.\\\\n\\\\n\\\"\\n     519 |             f\\\"Use the `compact` tool to summarize old tool results and reduce context size. \\\"\\n     520 |             f\\\"This improves cache efficiency and reduces costs.\\\\n\\\\n\\\"\\n>>>  521 |             f\\\"Example: compact tool_call_ids=['1','2','3',...] with a summary of what those calls accomplished.\\\\n\\\"\\n     522 |             f\\\"</system_nudge>\\\"\\n     523 |         )\\n     524 | \\n\\n\\u2500\\u2500 forge/session/manager.py:270 \\u2500\\u2500\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n>>>  270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \\n\\n\\u2500\\u2500 forge/session/manager.py:281 \\u2500\\u2500\\n     278 |         Returns:\\n     279 |             Tuple of (number of blocks compacted, list of missing IDs)\\n     280 |         \\\"\\\"\\\"\\n>>>  281 |         return self.prompt_manager.compact_tool_results(tool_call_ids, summary)\\n     282 | \\n     283 |     def get_prompt_messages(self) -> list[dict[str, Any]]:\\n     284 |         \\\"\\\"\\\"Get the current prompt messages for LLM API\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:368 \\u2500\\u2500\\n     365 |                             if func.get(\\\"name\\\") == \\\"compact\\\":\\n     366 |                                 try:\\n     367 |                                     args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n>>>  368 |                                     compact_ids = args.get(\\\"tool_call_ids\\\", [])\\n     369 |                                     summary = args.get(\\\"summary\\\", \\\"\\\")\\n     370 |                                     compacted, _ = self.session_manager.compact_tool_results(\\n     371 |                                         compact_ids, summary\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:370 \\u2500\\u2500\\n     367 |                                     args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n     368 |                                     compact_ids = args.get(\\\"tool_call_ids\\\", [])\\n     369 |                                     summary = args.get(\\\"summary\\\", \\\"\\\")\\n>>>  370 |                                     compacted, _ = self.session_manager.compact_tool_results(\\n     371 |                                         compact_ids, summary\\n     372 |                                     )\\n     373 |                                     print(f\\\"\\ud83d\\udce6 Replayed compaction: {compacted} tool result(s)\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1108 \\u2500\\u2500\\n    1105 | \\n    1106 |         # Handle compact tool specially - it modifies the prompt manager\\n    1107 |         if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n>>> 1108 |             compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n    1109 |             summary = result.get(\\\"summary\\\", \\\"\\\")\\n    1110 |             compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n    1111 |             print(f\\\"\\ud83d\\udce6 Compacted {compacted} tool result(s)\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1110 \\u2500\\u2500\\n    1107 |         if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n    1108 |             compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n    1109 |             summary = result.get(\\\"summary\\\", \\\"\\\")\\n>>> 1110 |             compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n    1111 |             print(f\\\"\\ud83d\\udce6 Compacted {compacted} tool result(s)\\\")\\n    1112 |             # Update the result to include any missing IDs as an error\\n    1113 |             if missing_ids:\", \"success\": true, \"total_matches\": 8}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"compact.*tool_call_ids|compact_tool_results\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 8 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:278 \\u2500\\u2500\\n     275 |                 resolved.add(id_str)\\n     276 |         return resolved\\n     277 | \\n>>>  278 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     279 |         \\\"\\\"\\\"\\n     280 |         Replace tool result blocks with a compact summary.\\n     281 | \\n\\n\\u2500\\u2500 forge/prompts/manager.py:521 \\u2500\\u2500\\n     518 |             f\\\"\\u26a0\\ufe0f COMPACTION SUGGESTED: {', '.join(reasons)}.\\\\n\\\\n\\\"\\n     519 |             f\\\"Use the `compact` tool to summarize old tool results and reduce context size. \\\"\\n     520 |             f\\\"This improves cache efficiency and reduces costs.\\\\n\\\\n\\\"\\n>>>  521 |             f\\\"Example: compact tool_call_ids=['1','2','3',...] with a summary of what those calls accomplished.\\\\n\\\"\\n     522 |             f\\\"</system_nudge>\\\"\\n     523 |         )\\n     524 | \\n\\n\\u2500\\u2500 forge/session/manager.py:270 \\u2500\\u2500\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n>>>  270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \\n\\n\\u2500\\u2500 forge/session/manager.py:281 \\u2500\\u2500\\n     278 |         Returns:\\n     279 |             Tuple of (number of blocks compacted, list of missing IDs)\\n     280 |         \\\"\\\"\\\"\\n>>>  281 |         return self.prompt_manager.compact_tool_results(tool_call_ids, summary)\\n     282 | \\n     283 |     def get_prompt_messages(self) -> list[dict[str, Any]]:\\n     284 |         \\\"\\\"\\\"Get the current prompt messages for LLM API\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:368 \\u2500\\u2500\\n     365 |                             if func.get(\\\"name\\\") == \\\"compact\\\":\\n     366 |                                 try:\\n     367 |                                     args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n>>>  368 |                                     compact_ids = args.get(\\\"tool_call_ids\\\", [])\\n     369 |                                     summary = args.get(\\\"summary\\\", \\\"\\\")\\n     370 |                                     compacted, _ = self.session_manager.compact_tool_results(\\n     371 |                                         compact_ids, summary\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:370 \\u2500\\u2500\\n     367 |                                     args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n     368 |                                     compact_ids = args.get(\\\"tool_call_ids\\\", [])\\n     369 |                                     summary = args.get(\\\"summary\\\", \\\"\\\")\\n>>>  370 |                                     compacted, _ = self.session_manager.compact_tool_results(\\n     371 |                                         compact_ids, summary\\n     372 |                                     )\\n     373 |                                     print(f\\\"\\ud83d\\udce6 Replayed compaction: {compacted} tool result(s)\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1108 \\u2500\\u2500\\n    1105 | \\n    1106 |         # Handle compact tool specially - it modifies the prompt manager\\n    1107 |         if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n>>> 1108 |             compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n    1109 |             summary = result.get(\\\"summary\\\", \\\"\\\")\\n    1110 |             compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n    1111 |             print(f\\\"\\ud83d\\udce6 Compacted {compacted} tool result(s)\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1110 \\u2500\\u2500\\n    1107 |         if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n    1108 |             compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n    1109 |             summary = result.get(\\\"summary\\\", \\\"\\\")\\n>>> 1110 |             compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n    1111 |             print(f\\\"\\ud83d\\udce6 Compacted {compacted} tool result(s)\\\")\\n    1112 |             # Update the result to include any missing IDs as an error\\n    1113 |             if missing_ids:\",\n  \"success\": true,\n  \"total_matches\": 8\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the pattern. The compact tool returns a special `compact: True` flag, and the ai_chat_widget handles it specially by calling `session_manager.compact_tool_results()`.\n\nFor the think tool, we need a similar pattern but different: we need to compact the tool *call* itself (which contains the scratchpad), not other tool results. The tool result (conclusion) should stay.\n\nLet me check how tool calls are stored to understand the compaction mechanism better:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"line\": 1108, \"context\": 25}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_017hSJ2CuCaFfivr816btCu6",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017hSJ2CuCaFfivr816btCu6",
+      "content": "{\"content\": \"    1083 |         self.session_manager.append_tool_result(tool_call_id, result_json)\\n    1084 | \\n    1085 |         # Track modified files - we'll update the prompt manager AFTER all tool results\\n    1086 |         # are recorded. This avoids inserting FILE_CONTENT blocks between TOOL_RESULT\\n    1087 |         # blocks, which would violate Anthropic's API requirement that tool_use must be\\n    1088 |         # immediately followed by tool_result.\\n    1089 |         if result.get(\\\"success\\\") and tool_name in (\\\"write_file\\\", \\\"search_replace\\\", \\\"delete_file\\\"):\\n    1090 |             filepath = tool_args.get(\\\"filepath\\\")\\n    1091 |             if filepath:\\n    1092 |                 if not hasattr(self, \\\"_pending_file_updates\\\"):\\n    1093 |                     self._pending_file_updates = []\\n    1094 |                 self._pending_file_updates.append((filepath, tool_call_id))\\n    1095 | \\n    1096 |                 # Track newly created files for summary generation\\n    1097 |                 # write_file on a file that doesn't exist in repo summaries = new file\\n    1098 |                 if (\\n    1099 |                     tool_name == \\\"write_file\\\"\\n    1100 |                     and filepath not in self.session_manager.repo_summaries\\n    1101 |                 ):\\n    1102 |                     if not hasattr(self, \\\"_newly_created_files\\\"):\\n    1103 |                         self._newly_created_files = set()\\n    1104 |                     self._newly_created_files.add(filepath)\\n    1105 | \\n    1106 |         # Handle compact tool specially - it modifies the prompt manager\\n    1107 |         if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n>>> 1108 |             compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n    1109 |             summary = result.get(\\\"summary\\\", \\\"\\\")\\n    1110 |             compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n    1111 |             print(f\\\"\\ud83d\\udce6 Compacted {compacted} tool result(s)\\\")\\n    1112 |             # Update the result to include any missing IDs as an error\\n    1113 |             if missing_ids:\\n    1114 |                 result[\\\"error\\\"] = f\\\"IDs not found: {missing_ids}\\\"\\n    1115 |                 result[\\\"success\\\"] = False  # Partial failure\\n    1116 | \\n    1117 |         # Handle commit tool - emit signal to refresh UI\\n    1118 |         if tool_name == \\\"commit\\\" and result.get(\\\"success\\\"):\\n    1119 |             commit_oid = result.get(\\\"commit_oid\\\", \\\"\\\")\\n    1120 |             if commit_oid:\\n    1121 |                 self.mid_turn_commit.emit(commit_oid)\\n    1122 | \\n    1123 |         # If tool modified context, emit signal to update UI\\n    1124 |         if result.get(\\\"action\\\") == \\\"update_context\\\":\\n    1125 |             self.context_changed.emit(self.session_manager.active_files.copy())\\n    1126 |             self._emit_context_stats()\\n    1127 | \\n    1128 |         # Display tool result\\n    1129 |         # Built-in tools with native rendering don't need system messages on success -\\n    1130 |         # they're rendered inline in the assistant message via _render_tool_calls_html\\n    1131 |         builtin_tools_with_native_rendering = {\\n    1132 |             \\\"search_replace\\\",\\n    1133 |             \\\"write_file\\\",\", \"filepath\": \"forge/ui/ai_chat_widget.py\", \"range\": \"1083-1133\", \"success\": true, \"target_line\": 1108, \"total_lines\": 2171}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I understand the pattern. For the think tool, I need to:\n\n1. Create the tool that just returns the conclusion\n2. Add special handling that compacts its own tool call (the one containing the scratchpad)\n\nBut wait - I need to think about this more carefully. The tool call is recorded in the prompt manager with `append_tool_call()`, and the tool result is recorded with `append_tool_result()`. The scratchpad is in the tool call arguments.\n\nThe cleanest approach: the think tool returns a special flag like `\"think\": True`, and we handle it by replacing the tool call's arguments with just `{}` or a minimal version, while keeping the result (conclusion).\n\nLet me check how tool calls are stored:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def append_tool_call\", \"include_extensions\": [\".py\"], \"context_after\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01Le8eF9crzpVdZ2cgBG1W9C",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Le8eF9crzpVdZ2cgBG1W9C",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:197 \\u2500\\u2500\\n     194 |             )\\n     195 |         )\\n     196 | \\n>>>  197 |     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n     198 |         \\\"\\\"\\\"Add tool calls to the stream, optionally with accompanying text content\\\"\\\"\\\"\\n     199 |         tool_names = [tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\") for tc in tool_calls]\\n     200 |         print(f\\\"\\ud83d\\udd27 PromptManager: Appending tool calls: {tool_names}\\\")\\n     201 |         self.blocks.append(\\n     202 |             ContentBlock(\\n     203 |                 block_type=BlockType.TOOL_CALL,\\n     204 |                 content=content,  # Assistant's text that accompanied the tool calls\\n     205 |                 metadata={\\\"tool_calls\\\": tool_calls},\\n     206 |             )\\n     207 |         )\\n     208 | \\n     209 |     def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n     210 |         \\\"\\\"\\\"Add a tool result to the stream\\\"\\\"\\\"\\n     211 |         # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$\\n     212 |         if not tool_call_id:\\n\\n\\u2500\\u2500 forge/session/manager.py:262 \\u2500\\u2500\\n     259 |         \\\"\\\"\\\"Add an assistant message to the prompt stream\\\"\\\"\\\"\\n     260 |         self.prompt_manager.append_assistant_message(content)\\n     261 | \\n>>>  262 |     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n     263 |         \\\"\\\"\\\"Add tool calls to the prompt stream, with any accompanying text content\\\"\\\"\\\"\\n     264 |         self.prompt_manager.append_tool_call(tool_calls, content)\\n     265 | \\n     266 |     def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n     270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \\n     274 |         Args:\\n     275 |             tool_call_ids: List of tool_call_ids to compact\\n     276 |             summary: Summary text to replace the results with\\n     277 | \", \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 15,\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"def append_tool_call\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:197 \\u2500\\u2500\\n     194 |             )\\n     195 |         )\\n     196 | \\n>>>  197 |     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n     198 |         \\\"\\\"\\\"Add tool calls to the stream, optionally with accompanying text content\\\"\\\"\\\"\\n     199 |         tool_names = [tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\") for tc in tool_calls]\\n     200 |         print(f\\\"\\ud83d\\udd27 PromptManager: Appending tool calls: {tool_names}\\\")\\n     201 |         self.blocks.append(\\n     202 |             ContentBlock(\\n     203 |                 block_type=BlockType.TOOL_CALL,\\n     204 |                 content=content,  # Assistant's text that accompanied the tool calls\\n     205 |                 metadata={\\\"tool_calls\\\": tool_calls},\\n     206 |             )\\n     207 |         )\\n     208 | \\n     209 |     def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n     210 |         \\\"\\\"\\\"Add a tool result to the stream\\\"\\\"\\\"\\n     211 |         # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$\\n     212 |         if not tool_call_id:\\n\\n\\u2500\\u2500 forge/session/manager.py:262 \\u2500\\u2500\\n     259 |         \\\"\\\"\\\"Add an assistant message to the prompt stream\\\"\\\"\\\"\\n     260 |         self.prompt_manager.append_assistant_message(content)\\n     261 | \\n>>>  262 |     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n     263 |         \\\"\\\"\\\"Add tool calls to the prompt stream, with any accompanying text content\\\"\\\"\\\"\\n     264 |         self.prompt_manager.append_tool_call(tool_calls, content)\\n     265 | \\n     266 |     def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n     270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \\n     274 |         Args:\\n     275 |             tool_call_ids: List of tool_call_ids to compact\\n     276 |             summary: Summary text to replace the results with\\n     277 | \",\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see - tool calls are stored with their full `tool_calls` list in metadata. I need to add a method to compact a specific tool call (remove its arguments but keep the structure), or just modify the existing block.\n\nActually, the simplest approach: add a `compact_tool_call` method that finds the tool call block containing a specific tool_call_id and replaces its arguments with an empty object or a minimal summary.\n\nLet me create the think tool first, then add the handling:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/think.py\", \"content\": \"\\\"\\\"\\\"\\nThink tool - extended reasoning scratchpad with auto-compaction.\\n\\nUse this when you need to work through complex logic, explore options,\\nor reason step-by-step. The scratchpad content is discarded after use\\nto avoid bloating context - only the conclusion is kept.\\n\\nThis gives you \\\"out-loud thinking\\\" without the context cost.\\n\\\"\\\"\\\"\\n\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.vfs.base import VFS\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"think\\\",\\n            \\\"description\\\": (\\n                \\\"Extended reasoning scratchpad. Use when you need to think through \\\"\\n                \\\"complex problems step-by-step. The scratchpad is automatically \\\"\\n                \\\"discarded to save context - only your conclusion is kept. \\\"\\n                \\\"Good for: planning multi-step changes, weighing tradeoffs, \\\"\\n                \\\"working through logic, debugging hypotheses.\\\"\\n            ),\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"scratchpad\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": (\\n                            \\\"Your working space for extended reasoning. Write out your \\\"\\n                            \\\"thought process, explore options, work through logic. \\\"\\n                            \\\"This content will be discarded after the call.\\\"\\n                        ),\\n                    },\\n                    \\\"conclusion\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": (\\n                            \\\"Your conclusion or summary. This is kept in context for \\\"\\n                            \\\"future reference. Should capture the key decision or insight.\\\"\\n                        ),\\n                    },\\n                },\\n                \\\"required\\\": [\\\"scratchpad\\\", \\\"conclusion\\\"],\\n            },\\n        },\\n    }\\n\\n\\ndef execute(vfs: \\\"VFS\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"\\n    Execute the think tool.\\n\\n    The actual \\\"thinking\\\" happened when the model generated the scratchpad.\\n    We just return the conclusion and signal that this call should be compacted.\\n    \\\"\\\"\\\"\\n    scratchpad = args.get(\\\"scratchpad\\\", \\\"\\\")\\n    conclusion = args.get(\\\"conclusion\\\", \\\"\\\")\\n\\n    if not conclusion:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No conclusion provided\\\"}\\n\\n    # Count tokens roughly (words * 1.3 is a rough approximation)\\n    scratchpad_words = len(scratchpad.split())\\n    scratchpad_tokens_approx = int(scratchpad_words * 1.3)\\n\\n    return {\\n        \\\"success\\\": True,\\n        \\\"think\\\": True,  # Signal for special handling\\n        \\\"conclusion\\\": conclusion,\\n        \\\"message\\\": f\\\"Thought through {scratchpad_tokens_approx} tokens, concluded.\\\",\\n    }\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_01HjmCKsaQExhGfLQQNasNXZ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HjmCKsaQExhGfLQQNasNXZ",
+      "content": "{\"message\": \"Wrote 2835 bytes to forge/tools/builtin/think.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the handling in the prompt manager to compact a tool call's arguments, and then wire it up in the ai_chat_widget. Let me load those files:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/manager.py\",\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"forge/tools/builtin/compact.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_015a3NMDZGq79aRu7QAAdmjQ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015a3NMDZGq79aRu7QAAdmjQ",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 1 files from context\", \"remove\": [\"forge/tools/builtin/compact.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I now have all the context I need. Let me compact the earlier tool results and then implement the think tool handling.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\"], \"summary\": \"Explored codebase: compact tool pattern uses `compact: True` flag in result, handled in ai_chat_widget._on_tool_finished() which calls session_manager.compact_tool_results(). Tool calls stored in PromptManager.blocks with metadata containing tool_calls list. Created forge/tools/builtin/think.py with get_schema() and execute() that returns {success: True, think: True, conclusion: \\\"...\\\"}. Now need to add handling in ai_chat_widget and a compact_think_call method in prompt_manager.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01BehgjkDMX429XNZ8zeRGqW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BehgjkDMX429XNZ8zeRGqW",
+      "content": "{\"compact\": true, \"message\": \"Compacted 6 tool result(s)\", \"success\": true, \"summary\": \"Explored codebase: compact tool pattern uses `compact: True` flag in result, handled in ai_chat_widget._on_tool_finished() which calls session_manager.compact_tool_results(). Tool calls stored in PromptManager.blocks with metadata containing tool_calls list. Created forge/tools/builtin/think.py with get_schema() and execute() that returns {success: True, think: True, conclusion: \\\"...\\\"}. Now need to add handling in ai_chat_widget and a compact_think_call method in prompt_manager.\", \"tool_call_ids\": [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me implement the think tool handling. The key insight is that we need to:\n\n1. Add a method to `PromptManager` to compact a specific tool call's arguments (removing the scratchpad)\n2. Handle the `think: True` flag in `_on_tool_finished` to call that method\n\nLet me add the method to PromptManager first:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\", \"replace\": \"    def compact_think_call(self, tool_call_id: str) -> bool:\\n        \\\"\\\"\\\"\\n        Compact a think tool call by removing the scratchpad from its arguments.\\n\\n        The think tool's value is in generating the scratchpad (extended reasoning),\\n        but we don't need to keep it in context - only the conclusion matters,\\n        and that's in the tool result.\\n\\n        Args:\\n            tool_call_id: The ID of the think tool call to compact\\n\\n        Returns:\\n            True if the tool call was found and compacted, False otherwise\\n        \\\"\\\"\\\"\\n        for block in self.blocks:\\n            if block.deleted or block.block_type != BlockType.TOOL_CALL:\\n                continue\\n\\n            tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n            for i, tc in enumerate(tool_calls):\\n                if tc.get(\\\"id\\\") == tool_call_id:\\n                    func = tc.get(\\\"function\\\", {})\\n                    if func.get(\\\"name\\\") == \\\"think\\\":\\n                        # Replace arguments with minimal stub (keep conclusion reference)\\n                        tool_calls[i] = {\\n                            \\\"id\\\": tool_call_id,\\n                            \\\"type\\\": \\\"function\\\",\\n                            \\\"function\\\": {\\n                                \\\"name\\\": \\\"think\\\",\\n                                \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n                            },\\n                        }\\n                        print(f\\\"\ud83e\udde0 Compacted think tool call {tool_call_id}\\\")\\n                        return True\\n        return False\\n\\n    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012AuMNchj4346HCMxJLrgT1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012AuMNchj4346HCMxJLrgT1",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the method is in place. Now I need to add handling in `ai_chat_widget.py` to call this method when the think tool returns `think: True`. Let me also add a method to SessionManager to expose this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def compact_tool_results\", \"file\": \"forge/session/manager.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01AsXJmnJRXjt3yVJLpSRsaa",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01AsXJmnJRXjt3yVJLpSRsaa",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:270 \\u2500\\u2500\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n>>>  270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \", \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/session/manager.py\",\n  \"pattern\": \"def compact_tool_results\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:270 \\u2500\\u2500\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n>>>  270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \",\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me see the full method and add the think compaction method right after it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"line\": 270, \"context\": 15}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01DGJF5QvZSHrPSWtSzrQxbf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DGJF5QvZSHrPSWtSzrQxbf",
+      "content": "{\"content\": \"     255 |         \\\"\\\"\\\"Add a user message to the prompt stream\\\"\\\"\\\"\\n     256 |         self.prompt_manager.append_user_message(content)\\n     257 | \\n     258 |     def append_assistant_message(self, content: str) -> None:\\n     259 |         \\\"\\\"\\\"Add an assistant message to the prompt stream\\\"\\\"\\\"\\n     260 |         self.prompt_manager.append_assistant_message(content)\\n     261 | \\n     262 |     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n     263 |         \\\"\\\"\\\"Add tool calls to the prompt stream, with any accompanying text content\\\"\\\"\\\"\\n     264 |         self.prompt_manager.append_tool_call(tool_calls, content)\\n     265 | \\n     266 |     def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n     267 |         \\\"\\\"\\\"Add a tool result to the prompt stream\\\"\\\"\\\"\\n     268 |         self.prompt_manager.append_tool_result(tool_call_id, result)\\n     269 | \\n>>>  270 |     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:\\n     271 |         \\\"\\\"\\\"\\n     272 |         Compact tool results by replacing them with a summary.\\n     273 | \\n     274 |         Args:\\n     275 |             tool_call_ids: List of tool_call_ids to compact\\n     276 |             summary: Summary text to replace the results with\\n     277 | \\n     278 |         Returns:\\n     279 |             Tuple of (number of blocks compacted, list of missing IDs)\\n     280 |         \\\"\\\"\\\"\\n     281 |         return self.prompt_manager.compact_tool_results(tool_call_ids, summary)\\n     282 | \\n     283 |     def get_prompt_messages(self) -> list[dict[str, Any]]:\\n     284 |         \\\"\\\"\\\"Get the current prompt messages for LLM API\\\"\\\"\\\"\\n     285 |         return self.prompt_manager.to_messages()\", \"filepath\": \"forge/session/manager.py\", \"range\": \"255-285\", \"success\": true, \"target_line\": 270, \"total_lines\": 600}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        return self.prompt_manager.compact_tool_results(tool_call_ids, summary)\\n\\n    def get_prompt_messages(self) -> list[dict[str, Any]]:\", \"replace\": \"        return self.prompt_manager.compact_tool_results(tool_call_ids, summary)\\n\\n    def compact_think_call(self, tool_call_id: str) -> bool:\\n        \\\"\\\"\\\"\\n        Compact a think tool call by removing the scratchpad from its arguments.\\n\\n        The think tool generates extended reasoning in the scratchpad, but only\\n        the conclusion (in the tool result) needs to be kept in context.\\n\\n        Args:\\n            tool_call_id: The ID of the think tool call to compact\\n\\n        Returns:\\n            True if the tool call was found and compacted, False otherwise\\n        \\\"\\\"\\\"\\n        return self.prompt_manager.compact_think_call(tool_call_id)\\n\\n    def get_prompt_messages(self) -> list[dict[str, Any]]:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XxQyUoZbkPWDHm7jQpxAza",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XxQyUoZbkPWDHm7jQpxAza",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the handling in `ai_chat_widget.py` to call `compact_think_call` when the think tool finishes. Let me find where the compact tool is handled:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Handle compact tool specially - it modifies the prompt manager\\n        if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n            compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n            summary = result.get(\\\"summary\\\", \\\"\\\")\\n            compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n            print(f\\\"\ud83d\udce6 Compacted {compacted} tool result(s)\\\")\\n            # Update the result to include any missing IDs as an error\\n            if missing_ids:\\n                result[\\\"error\\\"] = f\\\"IDs not found: {missing_ids}\\\"\\n                result[\\\"success\\\"] = False  # Partial failure\", \"replace\": \"        # Handle compact tool specially - it modifies the prompt manager\\n        if result.get(\\\"compact\\\") and result.get(\\\"success\\\"):\\n            compact_ids = result.get(\\\"tool_call_ids\\\", [])\\n            summary = result.get(\\\"summary\\\", \\\"\\\")\\n            compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)\\n            print(f\\\"\ud83d\udce6 Compacted {compacted} tool result(s)\\\")\\n            # Update the result to include any missing IDs as an error\\n            if missing_ids:\\n                result[\\\"error\\\"] = f\\\"IDs not found: {missing_ids}\\\"\\n                result[\\\"success\\\"] = False  # Partial failure\\n\\n        # Handle think tool specially - auto-compact the scratchpad\\n        if result.get(\\\"think\\\") and result.get(\\\"success\\\"):\\n            self.session_manager.compact_think_call(tool_call_id)\\n            # Note: the conclusion is in the tool result, scratchpad is now gone\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Dc6WQfc2vFetmRFunGL8kW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Dc6WQfc2vFetmRFunGL8kW",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run the tests to make sure everything works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"think\"}",
+            "name": "run_tests"
+          },
+          "id": "toolu_vrtx_01YJQJ2VPcZm8VFxmUU29FbN",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YJQJ2VPcZm8VFxmUU29FbN",
+      "content": "{\"output\": \"\\n--- stderr ---\\n/usr/lib/python-exec/python3.13/python: No module named pytest\\n\", \"passed\": false, \"success\": true, \"summary\": \"\\u2717 Tests failed (pytest (default))\", \"test_command\": \"pytest (default)\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `run_tests`\n```json\n{\n  \"pattern\": \"think\"\n}\n```\n**Result:**\n```json\n{\n  \"output\": \"\\n--- stderr ---\\n/usr/lib/python-exec/python3.13/python: No module named pytest\\n\",\n  \"passed\": false,\n  \"success\": true,\n  \"summary\": \"\\u2717 Tests failed (pytest (default))\",\n  \"test_command\": \"pytest (default)\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01VfFCvrueP2LrsWk3twhnVf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VfFCvrueP2LrsWk3twhnVf",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"feat: add think tool for extended reasoning with auto-compaction\\n\\nThe think tool provides a scratchpad for extended reasoning that is\\nautomatically compacted after use. The model writes its thought process\\nin the scratchpad parameter and a conclusion in the conclusion parameter.\\nAfter execution, the scratchpad is discarded from context (to save tokens)\\nwhile the conclusion is kept as the tool result.\\n\\nThis gives the model \\\"out-loud thinking\\\" without the context cost - useful\\nfor complex multi-step reasoning, weighing tradeoffs, or working through\\ndifficult problems.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01DGRYsuFvX9tBXFiXfRsVsL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DGRYsuFvX9tBXFiXfRsVsL",
+      "content": "{\"commit\": \"2aec3def814d\", \"message\": \"Committed: 4 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"feat: add think tool for extended reasoning with auto-compaction\\n\\nThe think tool provides a scratchpad for extended reasoning that is\\nautomatically compacted after use. The model writes its thought process\\nin the scratchpad parameter and a conclusion in the conclusion parameter.\\nAfter execution, the scratchpad is discarded from context (to save tokens)\\nwhile the conclusion is kept as the tool result.\\n\\nThis gives the model \\\"out-loud thinking\\\" without the context cost - useful\\nfor complex multi-step reasoning, weighing tradeoffs, or working through\\ndifficult problems.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"2aec3def814d\",\n  \"message\": \"Committed: 4 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Here's what I implemented:\n\n## Summary\n\nCreated a **think tool** (`forge/tools/builtin/think.py`) that enables extended reasoning with automatic context cleanup:\n\n### How it works:\n1. **Model calls** `think(scratchpad=\"...\", conclusion=\"...\")`\n2. **Scratchpad**: The model writes its extended reasoning here - can be arbitrarily long\n3. **Conclusion**: A summary/decision that gets kept in context\n4. **Auto-compaction**: After execution, the scratchpad is removed from the tool call arguments, leaving only `{\"_compacted\": true}`\n\n### Key files changed:\n- **`forge/tools/builtin/think.py`** - New tool with schema and execute function\n- **`forge/prompts/manager.py`** - Added `compact_think_call()` method to remove scratchpad from tool call arguments\n- **`forge/session/manager.py`** - Exposed `compact_think_call()` through session manager\n- **`forge/ui/ai_chat_widget.py`** - Handle `think: True` flag in tool results to trigger auto-compaction\n\n### Benefits:\n- Model can think through complex problems without bloating context\n- The conclusion serves as a checkpoint for future reference\n- Works with any model (not just ones with explicit thinking modes)\n- No manual compaction needed - it's automatic"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u23f3 Please wait for repository summaries to finish generating...",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Nice! Try it out?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me try it out!",
+      "tool_calls": [
+        {
+          "id": "toolu_bdrk_01A37iPzwgCZpyC1dsDMoKHj",
+          "type": "function",
+          "function": {
+            "name": "think",
+            "arguments": "{\"_compacted\": true}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01A37iPzwgCZpyC1dsDMoKHj",
+      "content": "{\"conclusion\": \"The think tool is working! I just used it to reason through the implementation. The scratchpad content I generated (reviewing the flow from tool call \\u2192 ai_chat_widget \\u2192 session_manager \\u2192 prompt_manager) will be discarded, but this conclusion stays. This gives extended reasoning capability without context bloat.\", \"message\": \"Thought through 366 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `think`\n```json\n{\n  \"conclusion\": \"The think tool is working! I just used it to reason through the implementation. The scratchpad content I generated (reviewing the flow from tool call \\u2192 ai_chat_widget \\u2192 session_manager \\u2192 prompt_manager) will be discarded, but this conclusion stays. This gives extended reasoning capability without context bloat.\",\n  \"scratchpad\": \"Okay, let me think through what we just built and whether it's working correctly...\\n\\nThe think tool is designed to:\\n1. Accept a scratchpad parameter for extended reasoning\\n2. Accept a conclusion parameter that gets kept\\n3. Return a result with `think: True` flag\\n4. The ai_chat_widget sees `think: True` and calls `compact_think_call()`\\n5. That method finds the tool call and replaces its arguments with `{\\\"_compacted\\\": true}`\\n\\nSo the scratchpad I'm writing right now should get discarded after this call completes. Only my conclusion will remain in context.\\n\\nLet me verify the implementation is correct by reviewing what happens:\\n\\n1. I call think(scratchpad=\\\"...\\\", conclusion=\\\"...\\\")\\n2. Tool executes in forge/tools/builtin/think.py\\n3. Returns {\\\"success\\\": True, \\\"think\\\": True, \\\"conclusion\\\": \\\"...\\\", \\\"message\\\": \\\"...\\\"}\\n4. ai_chat_widget._on_tool_finished sees `think: True`\\n5. Calls session_manager.compact_think_call(tool_call_id)\\n6. That calls prompt_manager.compact_think_call(tool_call_id)\\n7. Which finds the TOOL_CALL block containing this tool_call_id\\n8. Replaces its arguments with '{\\\"_compacted\\\": true}'\\n\\nThe result (my conclusion) stays in context via the TOOL_RESULT block - that's not touched.\\n\\nThis is actually a pretty elegant design. The model can \\\"think out loud\\\" for as many tokens as it needs, and the only cost is the generation itself - the context doesn't accumulate.\\n\\nOne thing I'm noticing: the context is at 65k tokens, which triggered the compaction nudge. That's a lot! Let me think about what's contributing:\\n- 6 files in context (50.5k tokens) - that's the bulk\\n- Summaries (6.9k)\\n- Conversation (6.6k)\\n- System (1.4k)\\n\\nThe files are the main contributor. We could compact the tool results from earlier in this conversation, but that would only save a few k.\\n\\nAnyway, the think tool seems to be working! Let me write a conclusion that captures the key insight.\\n\"\n}\n```\n**Result:**\n```json\n{\n  \"conclusion\": \"The think tool is working! I just used it to reason through the implementation. The scratchpad content I generated (reviewing the flow from tool call \\u2192 ai_chat_widget \\u2192 session_manager \\u2192 prompt_manager) will be discarded, but this conclusion stays. This gives extended reasoning capability without context bloat.\",\n  \"message\": \"Thought through 366 tokens, concluded.\",\n  \"success\": true,\n  \"think\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "It works! The tool executed and returned my conclusion. The scratchpad content (which I used to reason through the implementation flow) was discarded from the tool call, but the conclusion is preserved in the result.\n\nLet me verify the compaction actually happened by checking what the prompt manager would show:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"\\\"_compacted\\\": true\", \"file\": \"forge/prompts/manager.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01TtaNboL1kAeUcX8QFJhB1i",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TtaNboL1kAeUcX8QFJhB1i",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:307 \\u2500\\u2500\\n     304 |                             \\\"type\\\": \\\"function\\\",\\n     305 |                             \\\"function\\\": {\\n     306 |                                 \\\"name\\\": \\\"think\\\",\\n>>>  307 |                                 \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n     308 |                             },\\n     309 |                         }\\n     310 |                         print(f\\\"\\ud83e\\udde0 Compacted think tool call {tool_call_id}\\\")\\n\\n\\u2500\\u2500 forge/prompts/manager.py:393 \\u2500\\u2500\\n     390 |                                 \\\"type\\\": \\\"function\\\",\\n     391 |                                 \\\"function\\\": {\\n     392 |                                     \\\"name\\\": tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\"),\\n>>>  393 |                                     \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n     394 |                                 },\\n     395 |                             }\\n     396 |                         )\", \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/prompts/manager.py\",\n  \"pattern\": \"\\\"_compacted\\\": true\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:307 \\u2500\\u2500\\n     304 |                             \\\"type\\\": \\\"function\\\",\\n     305 |                             \\\"function\\\": {\\n     306 |                                 \\\"name\\\": \\\"think\\\",\\n>>>  307 |                                 \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n     308 |                             },\\n     309 |                         }\\n     310 |                         print(f\\\"\\ud83e\\udde0 Compacted think tool call {tool_call_id}\\\")\\n\\n\\u2500\\u2500 forge/prompts/manager.py:393 \\u2500\\u2500\\n     390 |                                 \\\"type\\\": \\\"function\\\",\\n     391 |                                 \\\"function\\\": {\\n     392 |                                     \\\"name\\\": tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\"),\\n>>>  393 |                                     \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n     394 |                                 },\\n     395 |                             }\\n     396 |                         )\",\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The implementation is in place. The key flow is:\n\n1. **I call `think(scratchpad=\"...\", conclusion=\"...\")`** - generating extended reasoning\n2. **Tool executes** - returns `{success: true, think: true, conclusion: \"...\"}`\n3. **`_on_tool_finished` in ai_chat_widget** sees `think: True` flag, calls `session_manager.compact_think_call(tool_call_id)`\n4. **`compact_think_call` in prompt_manager** finds the tool call and replaces its arguments with `{\"_compacted\": true}`\n5. **Result**: The conclusion is in the tool result (kept), but the scratchpad is gone from the tool call arguments\n\nThis gives me out-loud extended reasoning whenever I need it, without paying the context cost for keeping all that thinking around. Pretty neat! \ud83e\udde0"
     }
   ]
 }

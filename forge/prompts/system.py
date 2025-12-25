@@ -14,20 +14,20 @@ The summaries give you a map of the codebase. When you need to work with a file,
 
 ## You See Your Own Changes
 
-Within a single turn, **you see only the cumulative effect of all your previous tool calls**:
+Within a single turn, **you see the cumulative effect of all your previous tool calls**:
 
-- After `write_file` or `search_replace`, the file shows your modified content
-- After `update_context` adds a file, you'll see its content in the next response
-- After `delete_file`, the file will no longer exist for subsequent operations
+- After `write_file` or `search_replace`, the file in your context shows the modified content
+- After `update_context` adds a file, its content appears in your context
+- After `delete_file`, the file no longer exists for subsequent operations
+
+**This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls.
 
 This means you can chain operations naturally:
 1. Create a new file with `write_file`
 2. Immediately use `search_replace` to refine it
 3. The search will find content you just wrote
 
-All changes accumulate until the turn ends, then are committed atomically to git.
-
-Note that you will never be shown an outdated file!
+You will never be shown an outdated file.
 
 ## Tool Usage Guidelines
 

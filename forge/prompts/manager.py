@@ -73,7 +73,7 @@ class PromptManager:
 
     def set_summaries(self, summaries: dict[str, str]) -> None:
         """
-        Set repository summaries. Should only be called once at session start.
+        Set repository summaries. Can be called multiple times (replaces existing).
 
         This is a snapshot that won't update mid-session, enabling prompt caching.
         The AI will see actual file content for any files in active context,
@@ -86,6 +86,13 @@ class PromptManager:
             return
 
         print(f"📋 PromptManager: Setting summaries for {len(summaries)} files")
+
+        # Delete any existing summaries block first (avoid duplication)
+        for block in self.blocks:
+            if block.block_type == BlockType.SUMMARIES and not block.deleted:
+                block.deleted = True
+                print("   ↳ Deleted old summaries block")
+                break
 
         # Format summaries with note about being a snapshot
         lines = [

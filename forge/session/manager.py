@@ -280,6 +280,21 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """
         return self.prompt_manager.compact_tool_results(tool_call_ids, summary)
 
+    def compact_think_call(self, tool_call_id: str) -> bool:
+        """
+        Compact a think tool call by removing the scratchpad from its arguments.
+
+        The think tool generates extended reasoning in the scratchpad, but only
+        the conclusion (in the tool result) needs to be kept in context.
+
+        Args:
+            tool_call_id: The ID of the think tool call to compact
+
+        Returns:
+            True if the tool call was found and compacted, False otherwise
+        """
+        return self.prompt_manager.compact_think_call(tool_call_id)
+
     def get_prompt_messages(self) -> list[dict[str, Any]]:
         """Get the current prompt messages for LLM API"""
         return self.prompt_manager.to_messages()

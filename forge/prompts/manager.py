@@ -275,6 +275,42 @@ class PromptManager:
                 resolved.add(id_str)
         return resolved
 
+    def compact_think_call(self, tool_call_id: str) -> bool:
+        """
+        Compact a think tool call by removing the scratchpad from its arguments.
+
+        The think tool's value is in generating the scratchpad (extended reasoning),
+        but we don't need to keep it in context - only the conclusion matters,
+        and that's in the tool result.
+
+        Args:
+            tool_call_id: The ID of the think tool call to compact
+
+        Returns:
+            True if the tool call was found and compacted, False otherwise
+        """
+        for block in self.blocks:
+            if block.deleted or block.block_type != BlockType.TOOL_CALL:
+                continue
+
+            tool_calls = block.metadata.get("tool_calls", [])
+            for i, tc in enumerate(tool_calls):
+                if tc.get("id") == tool_call_id:
+                    func = tc.get("function", {})
+                    if func.get("name") == "think":
+                        # Replace arguments with minimal stub (keep conclusion reference)
+                        tool_calls[i] = {
+                            "id": tool_call_id,
+                            "type": "function",
+                            "function": {
+                                "name": "think",
+                                "arguments": '{"_compacted": true}',
+                            },
+                        }
+                        print(f"🧠 Compacted think tool call {tool_call_id}")
+                        return True
+        return False
+
     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
         """
         Replace tool result blocks with a compact summary.

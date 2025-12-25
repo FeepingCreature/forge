@@ -1114,6 +1114,11 @@ class AIChatWidget(QWidget):
                 result["error"] = f"IDs not found: {missing_ids}"
                 result["success"] = False  # Partial failure
 
+        # Handle think tool specially - auto-compact the scratchpad
+        if result.get("think") and result.get("success"):
+            self.session_manager.compact_think_call(tool_call_id)
+            # Note: the conclusion is in the tool result, scratchpad is now gone
+
         # Handle commit tool - emit signal to refresh UI
         if tool_name == "commit" and result.get("success"):
             commit_oid = result.get("commit_oid", "")

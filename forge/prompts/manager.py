@@ -635,7 +635,7 @@ class PromptManager:
                 return f"{name}({first_key}={first_val!r})"
             return f"{name}()"
 
-    def format_conversation_recap(self) -> str:
+    def format_conversation_recap(self, max_messages: int = 20) -> str:
         """
         Format a brief recap of the conversation for injection at the end.
 
@@ -644,13 +644,41 @@ class PromptManager:
         - Full user messages (they're short and important)
         - Condensed tool call summaries with IDs
         - Brief assistant text (truncated if long)
+
+        Capped to last `max_messages` messages OR from the last user message,
+        whichever includes more. This ensures the current turn is always complete.
         """
+        # Collect conversation blocks (skip system, summaries, file content)
+        conv_types = {
+            BlockType.USER_MESSAGE,
+            BlockType.ASSISTANT_MESSAGE,
+            BlockType.TOOL_CALL,
+            BlockType.TOOL_RESULT,
+        }
+        conv_blocks = [b for b in self.blocks if not b.deleted and b.block_type in conv_types]
+
+        # Find the last user message index
+        last_user_idx = -1
+        for i, block in enumerate(conv_blocks):
+            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(
+                "is_system_nudge"
+            ):
+                last_user_idx = i
+
+        # Calculate start index: either last N messages or from last user message
+        start_from_limit = max(0, len(conv_blocks) - max_messages)
+        start_from_user = last_user_idx if last_user_idx >= 0 else 0
+        start_idx = min(start_from_limit, start_from_user)
+
+        # Slice to the blocks we'll show
+        blocks_to_show = conv_blocks[start_idx:]
+
+        # Add indicator if we truncated
         lines = ["## Conversation Recap\n"]
+        if start_idx > 0:
+            lines.append(f"*[{start_idx} earlier messages omitted]*\n")
 
-        for block in self.blocks:
-            if block.deleted:
-                continue
-
+        for block in blocks_to_show:
             if block.block_type == BlockType.USER_MESSAGE:
                 # Skip system nudges in recap
                 if block.metadata.get("is_system_nudge"):

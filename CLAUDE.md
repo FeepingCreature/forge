@@ -1,3 +1,8 @@
+# Glossary
+
+- **Turn**: Everything from the last user message to the stop token. A turn may include many tool calls.
+- **Step**: A single [input, AI response] pair. Either [user message, AI response] or [tool results, AI response].
+
 # No fallbacks
 
 No fallbacks! No try/except, no fallback codepaths, no "kept for compatibility.

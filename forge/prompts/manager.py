@@ -700,6 +700,10 @@ class PromptManager:
         """
         stats = self.get_context_stats()
 
+        # Also measure the recap size
+        recap = self.format_conversation_recap()
+        recap_tokens = len(recap) // 3
+
         # Format session cost
         session_cost = stats["session_cost"]
         daily_cost = stats["daily_cost"]
@@ -733,6 +737,7 @@ class PromptManager:
             f"files {format_k(stats['files_tokens'])} ({stats['file_count']} files), "
             f"conversation {format_k(stats['conversation_tokens'])}"
             f"</breakdown>\n"
+            f"  <recap_tokens>{format_k(recap_tokens)}</recap_tokens>\n"
             f"  <session_cost>{cost_str}</session_cost>\n"
             f"</context_stats>"
         )

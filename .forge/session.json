@@ -1,6 +1,7 @@
 {
   "active_files": [
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/prompts/manager.py"
   ],
   "messages": [
     {
@@ -351,6 +352,122 @@
     {
       "role": "assistant",
       "content": "Good, context is much cleaner now - down from 62k to ~13k tokens. The recap is still visible at the bottom showing our conversation flow.\n\nSo to summarize where we are: the conversation recap feature is working and seems helpful for maintaining orientation. Open question is whether to simplify the tool result preview lines or keep them as-is."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 708fc269",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yeah, that should just have success or failure maybe"
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea - the result lines are noisy. Let me simplify them to just show success/failure:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_011YzBEgzDArdR4QsQ6bsbQG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011YzBEgzDArdR4QsQ6bsbQG",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the code. Let me find the tool result formatting in `format_conversation_recap` and simplify it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"            elif block.block_type == BlockType.TOOL_RESULT:\\n                user_id = block.metadata.get(\\\"user_id\\\", \\\"?\\\")\\n                # Just note the result exists with its ID\\n                content = block.content\\n                if content.startswith(\\\"[COMPACTED]\\\"):\\n                    lines.append(f\\\"  \u2190 Result #{user_id}: [compacted]\\\\n\\\")\\n                else:\\n                    # Show first 80 chars of result\\n                    preview = content[:80].replace(\\\"\\\\n\\\", \\\" \\\")\\n                    if len(content) > 80:\\n                        preview += \\\"...\\\"\\n                    lines.append(f\\\"  \u2190 Result #{user_id}: {preview}\\\\n\\\")\", \"replace\": \"            elif block.block_type == BlockType.TOOL_RESULT:\\n                user_id = block.metadata.get(\\\"user_id\\\", \\\"?\\\")\\n                content = block.content\\n                # Just show success/failure, not the full content\\n                if content.startswith(\\\"[COMPACTED]\\\"):\\n                    lines.append(f\\\"  \u2190 Result #{user_id}: [compacted]\\\\n\\\")\\n                elif '\\\"success\\\": false' in content or '\\\"error\\\"' in content:\\n                    lines.append(f\\\"  \u2190 Result #{user_id}: \u2717 (error)\\\\n\\\")\\n                else:\\n                    lines.append(f\\\"  \u2190 Result #{user_id}: \u2713\\\\n\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01J85KnUPe1hb4JMuw8gUo9h",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01J85KnUPe1hb4JMuw8gUo9h",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me run checks and commit this improvement:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01UgdxsB33Vu65zaFyHaNKDN",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UgdxsB33Vu65zaFyHaNKDN",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Simplify conversation recap: show \u2713/\u2717 for tool results instead of content preview\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_011iWWgh9jhNQRn9syGdQcDs",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011iWWgh9jhNQRn9syGdQcDs",
+      "content": "{\"commit\": \"3f483f6d90a9\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Simplify conversation recap: show \\u2713/\\u2717 for tool results instead of content preview\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"3f483f6d90a9\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Now the recap will show cleaner results like:\n- `\u2190 Result #14: \u2713` for success\n- `\u2190 Result #X: \u2717 (error)` for failures\n- `\u2190 Result #X: [compacted]` for compacted results\n\nMuch less noisy than the content previews."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Restarted and test- this work for you?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yes! The recap is working well. I can see the full conversation flow at the bottom:\n\n1. **Full user messages** - All your questions and feedback in full\n2. **Condensed tool calls** - Things like `search_replace(forge/prompts/manager.py)`, `compact(11 tool results)`, `update_context(+1 files)`\n3. **Simple result indicators** - `\u2713` for success, which is much cleaner than the content previews\n\nEven with `forge/prompts/manager.py` (750+ lines) in context, I can still see clearly:\n- We started by clarifying the \"You See Your Own Changes\" prompt section\n- You suggested a conversation recap feature to help with orientation\n- I implemented it with `_summarize_tool_call()` and `format_conversation_recap()`\n- We iterated to simplify the tool result lines to just `\u2713`/`\u2717`\n\nThe recap gives me exactly the \"episodic anchor\" you were describing - I know what we've been doing and where we are, even after a wall of file content.\n\nOne small thing I notice: the recap is getting long now (17+ entries). We might eventually want to consider summarizing older turns or only showing the last N exchanges. But for now it's working well as-is."
     }
   ]
 }

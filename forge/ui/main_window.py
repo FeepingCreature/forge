@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from forge.config.settings import Settings
+from forge.constants import DEFAULT_MODEL, SESSION_FILE
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
 from forge.llm.cost_tracker import COST_TRACKER
@@ -206,7 +207,7 @@ class MainWindow(QMainWindow):
         if session_data and "active_files" in session_data:
             for filepath in session_data["active_files"]:
                 # Never restore session.json to context - it contains conversation history
-                if filepath == ".forge/session.json":
+                if filepath == SESSION_FILE:
                     continue
                 # Just add to context, don't open tab
                 with contextlib.suppress(FileNotFoundError):
@@ -897,7 +898,7 @@ class MainWindow(QMainWindow):
         file_count = stats.get("file_count", 0)
 
         # Get model context limit from settings for warning
-        model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        model = self.settings.get("llm.model", DEFAULT_MODEL)
         context_limit = self._get_model_context_limit(model)
 
         # Build display with breakdown: files | summaries | convo

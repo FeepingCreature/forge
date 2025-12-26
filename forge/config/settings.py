@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from forge.constants import DEFAULT_SUMMARIZATION_MODEL
+
 
 class Settings:
     """Manages application settings"""
@@ -107,7 +109,7 @@ class Settings:
         This is the 'cheap/fast' model used for everything except the main agentic flow.
         Falls back to haiku if not configured.
         """
-        model: str = str(self.get("llm.summarization_model", "anthropic/claude-3-haiku"))
+        model: str = str(self.get("llm.summarization_model", DEFAULT_SUMMARIZATION_MODEL))
         return model
 
     def get_parallel_summarization(self) -> int:

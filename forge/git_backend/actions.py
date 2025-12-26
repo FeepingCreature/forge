@@ -11,6 +11,7 @@ from datetime import datetime
 
 import pygit2
 
+from forge.constants import SESSION_FILE
 from forge.git_backend.repository import ForgeRepository
 
 
@@ -59,7 +60,7 @@ class MergeAction(GitAction):
         if not isinstance(source_commit, pygit2.Commit):
             raise ValueError(f"Source {self.source_oid} is not a commit")
 
-        # Remove .forge/session.json from the SOURCE tree only before merging
+        # Remove SESSION_FILE from the SOURCE tree only before merging
         # The target branch's session persists; the source branch session is concluded by merge
         target_tree = target_commit.tree
         source_tree = self._remove_session_from_tree_if_present(source_commit.tree)
@@ -222,7 +223,7 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
     # Check if the only conflicts are in .forge/session.json (which we ignore)
     for conflict in merge_result.conflicts:
         for entry in conflict:
-            if entry is not None and entry.path != ".forge/session.json":
+            if entry is not None and entry.path != SESSION_FILE:
                 # Found a real conflict
                 return False
 

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.constants import SESSION_BRANCH_PREFIX
 from forge.git_backend.repository import ForgeRepository
 
 
@@ -276,7 +277,7 @@ class WelcomeWidget(QWidget):
         # Get session branches from git
         try:
             session_branches = [
-                name for name in self.repo.repo.branches if name.startswith("forge/session/")
+                name for name in self.repo.repo.branches if name.startswith(SESSION_BRANCH_PREFIX)
             ]
 
             if session_branches:
@@ -285,7 +286,7 @@ class WelcomeWidget(QWidget):
 
                 for branch_name in sorted(session_branches):
                     # Extract session ID from branch name
-                    session_id = branch_name.replace("forge/session/", "")
+                    session_id = branch_name.replace(SESSION_BRANCH_PREFIX, "")
 
                     # Create button for session
                     session_btn = QPushButton(f"📋 {session_id[:8]}... ({branch_name})")

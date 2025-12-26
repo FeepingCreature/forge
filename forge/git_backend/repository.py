@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pygit2
 
+from forge.constants import SESSION_BRANCH_PREFIX
 from forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type
 
 
@@ -68,7 +69,7 @@ class ForgeRepository:
         head = self.repo.head
 
         # Create new branch
-        branch_name = f"forge/session/{session_name}"
+        branch_name = f"{SESSION_BRANCH_PREFIX}{session_name}"
 
         # Check if branch already exists
         if branch_name in self.repo.branches:

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
 from forge.ui.diff_view import (
@@ -658,7 +659,7 @@ class AIChatWidget(QWidget):
         """Add a file to the AI context"""
         # Never add session.json to context - it contains the conversation history
         # which would duplicate context and waste tokens
-        if filepath == ".forge/session.json":
+        if filepath == SESSION_FILE:
             return
         self.session_manager.add_active_file(filepath)
         self.context_changed.emit(self.session_manager.active_files.copy())

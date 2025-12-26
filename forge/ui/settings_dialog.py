@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.constants import DEFAULT_MODEL, DEFAULT_SUMMARIZATION_MODEL
 from forge.llm.client import LLMClient
 from forge.ui.model_picker_dialog import ModelPickerPopup
 
@@ -372,9 +373,9 @@ class SettingsDialog(QDialog):
         self._summarization_model_picker_enabled = True
 
         # Set saved values
-        saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
+        saved_model = getattr(self, "_saved_model", DEFAULT_MODEL)
         saved_summarization_model = getattr(
-            self, "_saved_summarization_model", "anthropic/claude-3-haiku"
+            self, "_saved_summarization_model", DEFAULT_SUMMARIZATION_MODEL
         )
 
         self.model_input.setText(saved_model)
@@ -395,9 +396,9 @@ class SettingsDialog(QDialog):
     def _populate_fallback_models(self) -> None:
         """Populate with fallback model list when API is unavailable"""
         self._available_models = [
-            "anthropic/claude-3.5-sonnet",
+            DEFAULT_MODEL,
             "anthropic/claude-3-opus",
-            "anthropic/claude-3-haiku",
+            DEFAULT_SUMMARIZATION_MODEL,
             "openai/gpt-4-turbo",
             "openai/gpt-4",
             "openai/gpt-3.5-turbo",
@@ -408,9 +409,9 @@ class SettingsDialog(QDialog):
         self._summarization_model_picker_enabled = True
 
         # Set saved values
-        saved_model = getattr(self, "_saved_model", "anthropic/claude-3.5-sonnet")
+        saved_model = getattr(self, "_saved_model", DEFAULT_MODEL)
         saved_summarization_model = getattr(
-            self, "_saved_summarization_model", "anthropic/claude-3-haiku"
+            self, "_saved_summarization_model", DEFAULT_SUMMARIZATION_MODEL
         )
 
         self.model_input.setText(saved_model)
@@ -519,9 +520,9 @@ class SettingsDialog(QDialog):
         # LLM settings
         self.api_key_input.setText(self.settings.get("llm.api_key", ""))
         # Store model values - they'll be applied when models are loaded
-        self._saved_model = self.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        self._saved_model = self.settings.get("llm.model", DEFAULT_MODEL)
         self._saved_summarization_model = self.settings.get(
-            "llm.summarization_model", "anthropic/claude-3-haiku"
+            "llm.summarization_model", DEFAULT_SUMMARIZATION_MODEL
         )
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))

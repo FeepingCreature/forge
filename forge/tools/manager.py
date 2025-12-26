@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygit2
 
+from forge.constants import APPROVED_TOOLS_FILE
 from forge.git_backend.commit_types import CommitType
 
 if TYPE_CHECKING:
@@ -63,7 +64,7 @@ class ToolManager:
         self._tool_modules: dict[str, Any] = {}
 
         # Approved tools tracking
-        self.approved_tools_path = ".forge/approved_tools.json"
+        self.approved_tools_path = APPROVED_TOOLS_FILE
         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash
         self._pending_approvals: dict[str, str] = {}  # Changes to amend onto last commit
         self._load_approved_tools()

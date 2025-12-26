@@ -4,6 +4,8 @@ BranchWorkspace - manages per-branch state for the branch-first architecture
 
 from typing import TYPE_CHECKING, Any
 
+from forge.constants import SESSION_FILE
+
 if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
@@ -63,7 +65,7 @@ class BranchWorkspace:
     @property
     def has_session(self) -> bool:
         """Check if this branch has a session file"""
-        return self.vfs.file_exists(".forge/session.json")
+        return self.vfs.file_exists(SESSION_FILE)
 
     @property
     def display_name(self) -> str:

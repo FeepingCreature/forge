@@ -1,6 +1,5 @@
 {
   "active_files": [
-    "forge/prompts/manager.py",
     "CLAUDE.md"
   ],
   "messages": [
@@ -589,6 +588,270 @@
     {
       "role": "assistant",
       "content": "Yes, this is very helpful! I can see:\n\n- **Recap is 2.3k tokens** - that's a reasonable size for 21 tool calls and all the user messages\n- **Total context is 28.4k** (moderate) - and I can still follow the conversation clearly\n- The recap at the bottom gives me full orientation on what we've been doing\n\n**Where we're at:**\n1. \u2705 Added conversation recap feature (shows full user messages + condensed tool calls)\n2. \u2705 Simplified tool results to just `\u2713`/`\u2717` instead of content previews\n3. \u2705 Added `recap_tokens` to context stats so we can monitor its size\n\n**The recap is working** - I can see the full arc of our conversation: started with clarifying prompt language about \"seeing changes\", you suggested a recap feature to help with orientation when file content floods the context, I implemented it, we iterated on simplifying the result indicators, and now we're checking if it helps.\n\n**Open questions:**\n1. The recap will keep growing as conversation continues. At some point we might want to summarize older turns or limit it to last N exchanges. But 2.3k for 21 exchanges seems fine for now.\n2. Should the recap be placed differently? Currently it's right before context_stats at the very end, which seems like a good \"anchor\" position.\n\nAnything else you want to tweak, or should we see how it holds up over more usage?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: a6b4b29c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Position is good. Wanna cap it to last 20 messages or from last user message, whichever is longer? If there's 25 tool calls in a turn (it can happen!) then we still want to see the last user message in there."
+    },
+    {
+      "role": "assistant",
+      "content": "Good call - we want the recap to stay bounded but always include the full current turn. Let me implement that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"    def format_conversation_recap(self) -> str:\\n        \\\"\\\"\\\"\\n        Format a brief recap of the conversation for injection at the end.\\n\\n        This helps the model maintain orientation when file contents push\\n        the actual conversation far back in context. Shows:\\n        - Full user messages (they're short and important)\\n        - Condensed tool call summaries with IDs\\n        - Brief assistant text (truncated if long)\\n        \\\"\\\"\\\"\\n        lines = [\\\"## Conversation Recap\\\\n\\\"]\\n\\n        for block in self.blocks:\\n            if block.deleted:\\n                continue\", \"replace\": \"    def format_conversation_recap(self, max_messages: int = 20) -> str:\\n        \\\"\\\"\\\"\\n        Format a brief recap of the conversation for injection at the end.\\n\\n        This helps the model maintain orientation when file contents push\\n        the actual conversation far back in context. Shows:\\n        - Full user messages (they're short and important)\\n        - Condensed tool call summaries with IDs\\n        - Brief assistant text (truncated if long)\\n\\n        Capped to last `max_messages` messages OR from the last user message,\\n        whichever includes more. This ensures the current turn is always complete.\\n        \\\"\\\"\\\"\\n        # Collect conversation blocks (skip system, summaries, file content)\\n        conv_types = {\\n            BlockType.USER_MESSAGE,\\n            BlockType.ASSISTANT_MESSAGE,\\n            BlockType.TOOL_CALL,\\n            BlockType.TOOL_RESULT,\\n        }\\n        conv_blocks = [\\n            b for b in self.blocks\\n            if not b.deleted and b.block_type in conv_types\\n        ]\\n\\n        # Find the last user message index\\n        last_user_idx = -1\\n        for i, block in enumerate(conv_blocks):\\n            if block.block_type == BlockType.USER_MESSAGE:\\n                if not block.metadata.get(\\\"is_system_nudge\\\"):\\n                    last_user_idx = i\\n\\n        # Calculate start index: either last N messages or from last user message\\n        start_from_limit = max(0, len(conv_blocks) - max_messages)\\n        start_from_user = last_user_idx if last_user_idx >= 0 else 0\\n        start_idx = min(start_from_limit, start_from_user)\\n\\n        # Slice to the blocks we'll show\\n        blocks_to_show = conv_blocks[start_idx:]\\n\\n        # Add indicator if we truncated\\n        lines = [\\\"## Conversation Recap\\\\n\\\"]\\n        if start_idx > 0:\\n            lines.append(f\\\"*[{start_idx} earlier messages omitted]*\\\\n\\\")\\n\\n        for block in blocks_to_show:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01EfmphGyfGmt22U2i69eSAW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EfmphGyfGmt22U2i69eSAW",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the file content was injected showing the result of my edit. The change looks good - I can see the new logic that:\n\n1. Collects only conversation blocks\n2. Finds the last real user message (not system nudges)\n3. Takes the minimum of `start_from_limit` and `start_from_user` to ensure we always include the current turn\n4. Shows `*[N earlier messages omitted]*` when truncated\n\nLet me run checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_0164Tfqv7JhRwnDJwFhR8Mgb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0164Tfqv7JhRwnDJwFhR8Mgb",
+      "content": "{\"format_diffs\": {\"forge/prompts/manager.py\": \"--- before+++ after@@ -655,10 +655,7 @@             BlockType.TOOL_CALL,\\n             BlockType.TOOL_RESULT,\\n         }\\n-        conv_blocks = [\\n-            b for b in self.blocks\\n-            if not b.deleted and b.block_type in conv_types\\n-        ]\\n+        conv_blocks = [b for b in self.blocks if not b.deleted and b.block_type in conv_types]\\n \\n         # Find the last user message index\\n         last_user_idx = -1\\n@@ -681,7 +678,6 @@             lines.append(f\\\"*[{start_idx} earlier messages omitted]*\\\\n\\\")\\n \\n         for block in blocks_to_show:\\n-\\n             if block.block_type == BlockType.USER_MESSAGE:\\n                 # Skip system nudges in recap\\n                 if block.metadata.get(\\\"is_system_nudge\\\"):\\n\"}, \"formatted_files\": [\"forge/prompts/manager.py\"], \"lint_output\": \"ruff check forge/ main.py\\nSIM102 Use a single `if` statement instead of nested `if` statements\\n   --> forge/prompts/manager.py:663:13\\n    |\\n661 |           last_user_idx = -1\\n662 |           for i, block in enumerate(conv_blocks):\\n663 | /             if block.block_type == BlockType.USER_MESSAGE:\\n664 | |                 if not block.metadata.get(\\\"is_system_nudge\\\"):\\n    | |_____________________________________________________________^\\n665 |                       last_user_idx = i\\n    |\\nhelp: Combine `if` statements using `and`\\n\\nFound 1 error.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\", \"lint_passed\": false, \"success\": false, \"summary\": \"Formatted 1 files: forge/prompts/manager.py\\n\\u2713 Type check passed\\n\\u2717 Lint failed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/prompts/manager.py\": \"--- before+++ after@@ -655,10 +655,7 @@             BlockType.TOOL_CALL,\\n             BlockType.TOOL_RESULT,\\n         }\\n-        conv_blocks = [\\n-            b for b in self.blocks\\n-            if not b.deleted and b.block_type in conv_types\\n-        ]\\n+        conv_blocks = [b for b in self.blocks if not b.deleted and b.block_type in conv_types]\\n \\n         # Find the last user message index\\n         last_user_idx = -1\\n@@ -681,7 +678,6 @@             lines.append(f\\\"*[{start_idx} earlier messages omitted]*\\\\n\\\")\\n \\n         for block in blocks_to_show:\\n-\\n             if block.block_type == BlockType.USER_MESSAGE:\\n                 # Skip system nudges in recap\\n                 if block.metadata.get(\\\"is_system_nudge\\\"):\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/prompts/manager.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nSIM102 Use a single `if` statement instead of nested `if` statements\\n   --> forge/prompts/manager.py:663:13\\n    |\\n661 |           last_user_idx = -1\\n662 |           for i, block in enumerate(conv_blocks):\\n663 | /             if block.block_type == BlockType.USER_MESSAGE:\\n664 | |                 if not block.metadata.get(\\\"is_system_nudge\\\"):\\n    | |_____________________________________________________________^\\n665 |                       last_user_idx = i\\n    |\\nhelp: Combine `if` statements using `and`\\n\\nFound 1 error.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\",\n  \"lint_passed\": false,\n  \"success\": false,\n  \"summary\": \"Formatted 1 files: forge/prompts/manager.py\\n\\u2713 Type check passed\\n\\u2717 Lint failed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Need to combine those if statements:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"        # Find the last user message index\\n        last_user_idx = -1\\n        for i, block in enumerate(conv_blocks):\\n            if block.block_type == BlockType.USER_MESSAGE:\\n                if not block.metadata.get(\\\"is_system_nudge\\\"):\\n                    last_user_idx = i\", \"replace\": \"        # Find the last user message index\\n        last_user_idx = -1\\n        for i, block in enumerate(conv_blocks):\\n            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(\\\"is_system_nudge\\\"):\\n                last_user_idx = i\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01PBVC9jK6GxHzhK7kwrdNuv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PBVC9jK6GxHzhK7kwrdNuv",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the fix is in. Let me run checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01JZqxUKng1EvNTrMrgyCd5E",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"24\"], \"summary\": \"Added recap_tokens to context stats, then capped recap to last 20 messages OR from last user message (whichever includes more). Fixed lint issue (combined if statements). Ready to commit.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01UEvsrwM7AzavCs1nYQnoHm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JZqxUKng1EvNTrMrgyCd5E",
+      "content": "{\"format_diffs\": {\"forge/prompts/manager.py\": \"--- before+++ after@@ -660,7 +660,9 @@         # Find the last user message index\\n         last_user_idx = -1\\n         for i, block in enumerate(conv_blocks):\\n-            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(\\\"is_system_nudge\\\"):\\n+            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(\\n+                \\\"is_system_nudge\\\"\\n+            ):\\n                 last_user_idx = i\\n \\n         # Calculate start index: either last N messages or from last user message\\n\"}, \"formatted_files\": [\"forge/prompts/manager.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/prompts/manager.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/prompts/manager.py\": \"--- before+++ after@@ -660,7 +660,9 @@         # Find the last user message index\\n         last_user_idx = -1\\n         for i, block in enumerate(conv_blocks):\\n-            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(\\\"is_system_nudge\\\"):\\n+            if block.block_type == BlockType.USER_MESSAGE and not block.metadata.get(\\n+                \\\"is_system_nudge\\\"\\n+            ):\\n                 last_user_idx = i\\n \\n         # Calculate start index: either last N messages or from last user message\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/prompts/manager.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/prompts/manager.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 63 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UEvsrwM7AzavCs1nYQnoHm",
+      "content": "{\"compact\": true, \"message\": \"Compacted 11 tool result(s)\", \"success\": true, \"summary\": \"Added recap_tokens to context stats, then capped recap to last 20 messages OR from last user message (whichever includes more). Fixed lint issue (combined if statements). Ready to commit.\", \"tool_call_ids\": [\"14\", \"15\", \"16\", \"17\", \"18\", \"19\", \"20\", \"21\", \"22\", \"23\", \"24\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Cap conversation recap to last 20 messages or from last user message\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01FCr7zeomfK6BL3r7DgsUTq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FCr7zeomfK6BL3r7DgsUTq",
+      "content": "{\"commit\": \"d110d21b745d\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Cap conversation recap to last 20 messages or from last user message\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"d110d21b745d\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "oh yeah also maybe add a glossary to the claude.md to clarify the phrasing- a TURN is everything from the last user message to the stop token, a STEP is either [user message, AI response] or [tool call results, AI response].",
+      "_mid_turn": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea - having a consistent vocabulary will help. Let me add that glossary to CLAUDE.md:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"CLAUDE.md\", \"search\": \"# No fallbacks\", \"replace\": \"# Glossary\\n\\n- **Turn**: Everything from the last user message to the stop token. A turn may include many tool calls.\\n- **Step**: A single [input, AI response] pair. Either [user message, AI response] or [tool results, AI response].\\n\\n# No fallbacks\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01P8rghGs57DvZw29hvRftuK",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01P8rghGs57DvZw29hvRftuK",
+      "content": "{\"message\": \"Replaced in CLAUDE.md\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looks good! Let me commit that and then also update the system prompt to use the new terminology consistently:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add glossary to CLAUDE.md defining turn and step terminology\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01YcFHaWCzta8pUzP5iXz4Gy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YcFHaWCzta8pUzP5iXz4Gy",
+      "content": "{\"commit\": \"0b2e5d6644e6\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Add glossary to CLAUDE.md defining turn and step terminology\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"0b2e5d6644e6\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me check if the system prompt uses inconsistent terminology that should be updated:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"turn|step|response\", \"file\": \"forge/prompts/system.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01KUKZS8mhuRyY176t1NvnLh",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KUKZS8mhuRyY176t1NvnLh",
+      "content": "{\"message\": \"Found 7 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/system.py:17 \\u2500\\u2500\\n      14 | \\n      15 | ## You See Your Own Changes\\n      16 | \\n>>>   17 | Within a single turn, **you see the cumulative effect of all your previous tool calls**:\\n      18 | \\n      19 | - After `write_file` or `search_replace`, the file in your context shows the modified content\\n      20 | - After `update_context` adds a file, its content appears in your context\\n\\n\\u2500\\u2500 forge/prompts/system.py:23 \\u2500\\u2500\\n      20 | - After `update_context` adds a file, its content appears in your context\\n      21 | - After `delete_file`, the file no longer exists for subsequent operations\\n      22 | \\n>>>   23 | **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls.\\n      24 | \\n      25 | This means you can chain operations naturally:\\n      26 | 1. Create a new file with `write_file`\\n\\n\\u2500\\u2500 forge/prompts/system.py:45 \\u2500\\u2500\\n      42 | Example workflow for renaming `old_function` to `new_function`:\\n      43 | 1. Call `grep_open` with pattern=\\\"old_function\\\" - this adds all files using it to your context\\n      44 | 2. Review the matches to understand the scope of changes\\n>>>   45 | 3. Make all `search_replace` edits in one response\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n\\n\\u2500\\u2500 forge/prompts/system.py:49 \\u2500\\u2500\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n>>>   49 | **Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs.\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n\\n\\u2500\\u2500 forge/prompts/system.py:53 \\u2500\\u2500\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n>>>   53 | - Need to edit multiple files? Return all `search_replace` calls together in one response.\\n      54 | - Need to create several files? Return all `write_file` calls at once.\\n      55 | \\n      56 | **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\\n\\n\\u2500\\u2500 forge/prompts/system.py:54 \\u2500\\u2500\\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n      53 | - Need to edit multiple files? Return all `search_replace` calls together in one response.\\n>>>   54 | - Need to create several files? Return all `write_file` calls at once.\\n      55 | \\n      56 | **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\\n      57 | \\n\\n\\u2500\\u2500 forge/prompts/system.py:60 \\u2500\\u2500\\n      57 | \\n      58 | ### Context Management\\n      59 | \\n>>>   60 | **Load aggressively, clean up proactively.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n      61 | \\n      62 | 1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n      63 | 2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\", \"success\": true, \"total_matches\": 7}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/prompts/system.py\",\n  \"pattern\": \"turn|step|response\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 7 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/system.py:17 \\u2500\\u2500\\n      14 | \\n      15 | ## You See Your Own Changes\\n      16 | \\n>>>   17 | Within a single turn, **you see the cumulative effect of all your previous tool calls**:\\n      18 | \\n      19 | - After `write_file` or `search_replace`, the file in your context shows the modified content\\n      20 | - After `update_context` adds a file, its content appears in your context\\n\\n\\u2500\\u2500 forge/prompts/system.py:23 \\u2500\\u2500\\n      20 | - After `update_context` adds a file, its content appears in your context\\n      21 | - After `delete_file`, the file no longer exists for subsequent operations\\n      22 | \\n>>>   23 | **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls.\\n      24 | \\n      25 | This means you can chain operations naturally:\\n      26 | 1. Create a new file with `write_file`\\n\\n\\u2500\\u2500 forge/prompts/system.py:45 \\u2500\\u2500\\n      42 | Example workflow for renaming `old_function` to `new_function`:\\n      43 | 1. Call `grep_open` with pattern=\\\"old_function\\\" - this adds all files using it to your context\\n      44 | 2. Review the matches to understand the scope of changes\\n>>>   45 | 3. Make all `search_replace` edits in one response\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n\\n\\u2500\\u2500 forge/prompts/system.py:49 \\u2500\\u2500\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n>>>   49 | **Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs.\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n\\n\\u2500\\u2500 forge/prompts/system.py:53 \\u2500\\u2500\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n>>>   53 | - Need to edit multiple files? Return all `search_replace` calls together in one response.\\n      54 | - Need to create several files? Return all `write_file` calls at once.\\n      55 | \\n      56 | **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\\n\\n\\u2500\\u2500 forge/prompts/system.py:54 \\u2500\\u2500\\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n      53 | - Need to edit multiple files? Return all `search_replace` calls together in one response.\\n>>>   54 | - Need to create several files? Return all `write_file` calls at once.\\n      55 | \\n      56 | **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\\n      57 | \\n\\n\\u2500\\u2500 forge/prompts/system.py:60 \\u2500\\u2500\\n      57 | \\n      58 | ### Context Management\\n      59 | \\n>>>   60 | **Load aggressively, clean up proactively.** Prompt caching means you don't pay for files that stay the same between turns, so:\\n      61 | \\n      62 | 1. **Add files generously** - When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.\\n      63 | 2. **Clean up when done** - At the end of a task, remove files you no longer need. This keeps context focused for the next task.\",\n  \"success\": true,\n  \"total_matches\": 7\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The terminology in the system prompt looks good - it's already using \"turn\" correctly. The word \"response\" there is fine since it's talking about a single API response within a turn.\n\nLet me compact and close files since we're in good shape:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"25\",\"26\",\"27\",\"28\",\"29\",\"30\"], \"summary\": \"Committed recap cap to last 20 messages (d110d21b), added glossary to CLAUDE.md defining turn/step terminology (0b2e5d66). Checked system prompt - already uses \\\"turn\\\" correctly.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01WaKiB7CZac9KwvhYEQQKLW",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/prompts/manager.py\",\"CLAUDE.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_013cWaMcnzHF9T796Cox6qaw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WaKiB7CZac9KwvhYEQQKLW",
+      "content": "{\"compact\": true, \"message\": \"Compacted 6 tool result(s)\", \"success\": true, \"summary\": \"Committed recap cap to last 20 messages (d110d21b), added glossary to CLAUDE.md defining turn/step terminology (0b2e5d66). Checked system prompt - already uses \\\"turn\\\" correctly.\", \"tool_call_ids\": [\"25\", \"26\", \"27\", \"28\", \"29\", \"30\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013cWaMcnzHF9T796Cox6qaw",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/prompts/manager.py\", \"CLAUDE.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "All done. Here's where we ended up:\n\n**Summary of changes this session:**\n1. \u2705 Clarified \"You See Your Own Changes\" section in system prompt to emphasize it's within a single turn\n2. \u2705 Added conversation recap feature - shows full user messages + condensed tool calls at end of context\n3. \u2705 Simplified tool result indicators to just `\u2713`/`\u2717`/`[compacted]`\n4. \u2705 Added `recap_tokens` to context stats for monitoring\n5. \u2705 Capped recap to last 20 messages OR from last user message (whichever is longer)\n6. \u2705 Added glossary to CLAUDE.md defining turn/step terminology\n\nThe recap is now at 2.9k tokens and provides good orientation even after lots of tool calls. We'll see how it holds up in practice!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "so now the summary should be shortened, right? Ie. we should only see 20 steps back."
+    },
+    {
+      "role": "assistant",
+      "content": "Yes! The recap is now working with the cap - I can see `*[64 earlier messages omitted]*` at the top, and then it shows just the last 20 messages from our conversation.\n\nThe recap is now only **0.6k tokens** (down from 2.3k before the cap was implemented), which is much more manageable. And critically, it still includes the full context of the current turn - your latest message asking about the shortening is right there at the bottom.\n\nSo to summarize what's working:\n1. \u2705 **Cap to 20 messages** - older messages are omitted with a count\n2. \u2705 **Always includes current turn** - last user message and all subsequent tool calls are preserved\n3. \u2705 **Token count visible** - `<recap_tokens>0.6k</recap_tokens>` lets us monitor it\n4. \u2705 **Orientation maintained** - I can still see what we just did (glossary, grep_context, compact, etc.)\n\nThe recap feature seems to be working as designed! Want to test it with a longer turn with many tool calls to verify the \"whichever is longer\" logic works?"
     }
   ]
 }

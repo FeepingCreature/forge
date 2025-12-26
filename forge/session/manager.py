@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
+from forge.constants import SESSION_FILE
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
@@ -25,9 +26,6 @@ from forge.tools.manager import ToolManager
 
 class SessionManager:
     """Manages AI session lifecycle and git integration"""
-
-    # The single session file path (branch-local, diverges naturally)
-    SESSION_FILE = ".forge/session.json"
 
     def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
         self.branch_name = branch_name
@@ -368,16 +366,14 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         session_state = self.get_session_data(messages)
 
         # Add session state to VFS (single file per branch)
-        self.tool_manager.vfs.write_file(self.SESSION_FILE, json.dumps(session_state, indent=2))
+        self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_state, indent=2))
 
         # Get all changes including session file
         all_changes = self.tool_manager.get_pending_changes()
         deleted_files = self.tool_manager.vfs.get_deleted_files()
 
         # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
-        has_real_changes = (
-            len(all_changes) > 1 or self.SESSION_FILE not in all_changes or deleted_files
-        )
+        has_real_changes = len(all_changes) > 1 or SESSION_FILE not in all_changes or deleted_files
         only_session_changed = not has_real_changes
         commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
 
@@ -411,7 +407,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         # Build prompt - filter out session file for description purposes
         # (it always changes but isn't interesting to mention)
-        interesting_files = [path for path in changes if path != self.SESSION_FILE]
+        interesting_files = [path for path in changes if path != SESSION_FILE]
         file_list = "\n".join(f"- {path}" for path in interesting_files)
 
         # Get the last user message for context about what was requested

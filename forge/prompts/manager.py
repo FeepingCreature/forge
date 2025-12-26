@@ -680,16 +680,14 @@ class PromptManager:
 
             elif block.block_type == BlockType.TOOL_RESULT:
                 user_id = block.metadata.get("user_id", "?")
-                # Just note the result exists with its ID
                 content = block.content
+                # Just show success/failure, not the full content
                 if content.startswith("[COMPACTED]"):
                     lines.append(f"  ← Result #{user_id}: [compacted]\n")
+                elif '"success": false' in content or '"error"' in content:
+                    lines.append(f"  ← Result #{user_id}: ✗ (error)\n")
                 else:
-                    # Show first 80 chars of result
-                    preview = content[:80].replace("\n", " ")
-                    if len(content) > 80:
-                        preview += "..."
-                    lines.append(f"  ← Result #{user_id}: {preview}\n")
+                    lines.append(f"  ← Result #{user_id}: ✓\n")
 
         return "".join(lines)
 

@@ -576,6 +576,123 @@ class PromptManager:
         print(f"📢 Injected compaction nudge: {', '.join(reasons)}")
         return True
 
+    def _summarize_tool_call(self, tc: dict[str, Any]) -> str:
+        """
+        Generate a brief summary of a tool call for the conversation recap.
+
+        Returns something like: "search_replace(filepath='foo.py', ...)"
+        """
+        func = tc.get("function", {})
+        name = func.get("name", "?")
+        args_str = func.get("arguments", "{}")
+
+        # Parse arguments to get key info
+        try:
+            args = json.loads(args_str)
+        except json.JSONDecodeError:
+            return f"{name}(...)"
+
+        # Handle compacted tool calls
+        if args.get("_compacted"):
+            return f"{name}([compacted])"
+
+        # Build a brief summary based on tool type
+        if name in ("search_replace", "write_file"):
+            filepath = args.get("filepath", "?")
+            return f"{name}({filepath})"
+        elif name == "update_context":
+            add = args.get("add", [])
+            remove = args.get("remove", [])
+            parts = []
+            if add:
+                parts.append(f"+{len(add)} files")
+            if remove:
+                parts.append(f"-{len(remove)} files")
+            return f"{name}({', '.join(parts) or 'no changes'})"
+        elif name == "grep_open" or name == "grep_context":
+            pattern = args.get("pattern", "?")
+            # Truncate long patterns
+            if len(pattern) > 30:
+                pattern = pattern[:27] + "..."
+            return f"{name}('{pattern}')"
+        elif name == "think":
+            return "think(...)"
+        elif name == "compact":
+            ids = args.get("tool_call_ids", [])
+            return f"{name}({len(ids)} tool results)"
+        elif name == "commit":
+            msg = args.get("message", "")
+            if len(msg) > 40:
+                msg = msg[:37] + "..."
+            return f"{name}('{msg}')"
+        else:
+            # Generic: show first arg key/value if available
+            if args:
+                first_key = next(iter(args))
+                first_val = args[first_key]
+                if isinstance(first_val, str) and len(first_val) > 30:
+                    first_val = first_val[:27] + "..."
+                return f"{name}({first_key}={first_val!r})"
+            return f"{name}()"
+
+    def format_conversation_recap(self) -> str:
+        """
+        Format a brief recap of the conversation for injection at the end.
+
+        This helps the model maintain orientation when file contents push
+        the actual conversation far back in context. Shows:
+        - Full user messages (they're short and important)
+        - Condensed tool call summaries with IDs
+        - Brief assistant text (truncated if long)
+        """
+        lines = ["## Conversation Recap\n"]
+
+        for block in self.blocks:
+            if block.deleted:
+                continue
+
+            if block.block_type == BlockType.USER_MESSAGE:
+                # Skip system nudges in recap
+                if block.metadata.get("is_system_nudge"):
+                    continue
+                # Show full user message (they're short)
+                content = block.content.strip()
+                lines.append(f"**User**: {content}\n")
+
+            elif block.block_type == BlockType.ASSISTANT_MESSAGE:
+                # Truncate long assistant messages
+                content = block.content.strip()
+                if len(content) > 200:
+                    content = content[:197] + "..."
+                lines.append(f"**Assistant**: {content}\n")
+
+            elif block.block_type == BlockType.TOOL_CALL:
+                tool_calls = block.metadata.get("tool_calls", [])
+                if tool_calls:
+                    summaries = [self._summarize_tool_call(tc) for tc in tool_calls]
+                    # Show accompanying text if present
+                    if block.content.strip():
+                        text = block.content.strip()
+                        if len(text) > 100:
+                            text = text[:97] + "..."
+                        lines.append(f"**Assistant**: {text}\n")
+                    lines.append(f"  → Tool calls: {', '.join(summaries)}\n")
+
+            elif block.block_type == BlockType.TOOL_RESULT:
+                user_id = block.metadata.get("user_id", "?")
+                # Just note the result exists with its ID
+                content = block.content
+                if content.startswith("[COMPACTED]"):
+                    lines.append(f"  ← Result #{user_id}: [compacted]\n")
+                else:
+                    # Show first 80 chars of result
+                    preview = content[:80].replace("\n", " ")
+                    if len(content) > 80:
+                        preview += "..."
+                    lines.append(f"  ← Result #{user_id}: {preview}\n")
+
+        return "".join(lines)
+
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
@@ -693,9 +810,13 @@ class PromptManager:
                     )
                     i += 1
 
-                # Inject context stats at the end of the LAST user group
-                # This gives AI current stats right before it responds
+                # Inject conversation recap and context stats at the end of the LAST user group
+                # This gives AI orientation and current stats right before it responds
                 if group_start == last_user_group_start:
+                    # Recap helps orient when file contents push conversation far back
+                    recap_block = self.format_conversation_recap()
+                    content_blocks.append({"type": "text", "text": recap_block})
+
                     stats_block = self.format_context_stats_block()
                     # Stats go after cache_control block, so not cached (always fresh)
                     content_blocks.append({"type": "text", "text": stats_block})

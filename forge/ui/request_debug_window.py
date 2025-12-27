@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -173,10 +174,13 @@ class RequestDetailWidget(QWidget):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        # Messages view (structured)
+        # Messages view (structured) - wrapped in scroll area
+        self.messages_scroll = QScrollArea()
+        self.messages_scroll.setWidgetResizable(True)
         self.messages_widget = QWidget()
         self.messages_layout = QVBoxLayout(self.messages_widget)
-        self.tabs.addTab(self.messages_widget, "Messages")
+        self.messages_scroll.setWidget(self.messages_widget)
+        self.tabs.addTab(self.messages_scroll, "Messages")
 
         # Raw request JSON
         self.request_text = QPlainTextEdit()
@@ -338,6 +342,7 @@ class RequestDetailWidget(QWidget):
             else:
                 cost_diff = f"<br><span style='color: green;'>✓ Within 20%: {diff_pct:+.1f}%</span>"
 
+        actual_cost_str = f"${actual_cost:.6f}" if actual_cost is not None else "N/A"
         self.cost_info.setText(
             f"<b>Model:</b> {model}<br>"
             f"<b>Pricing Model:</b> {pricing_model}<br><br>"
@@ -346,7 +351,7 @@ class RequestDetailWidget(QWidget):
             f"  • Uncached: ~{uncached_tokens:,} @ ${input_price}/M = ${uncached_cost:.6f}<br>"
             f"<b>Output Tokens:</b> ~{output_tokens:,} @ ${output_price}/M = ${output_cost:.6f}<br><br>"
             f"<b>Predicted Cost:</b> ${predicted_cost:.6f}<br>"
-            f"<b>Actual Cost:</b> ${actual_cost:.6f if actual_cost else 'N/A'}"
+            f"<b>Actual Cost:</b> {actual_cost_str}"
             f"{cost_diff}"
         )
 

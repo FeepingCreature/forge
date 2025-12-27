@@ -49,6 +49,44 @@ class RequestLogEntry:
             generation_id=data.get("generation_id"),
         )
 
+    @classmethod
+    def from_files(cls, request_file: str, response_file: str | None) -> "RequestLogEntry | None":
+        """Reconstruct an entry from saved file paths.
+
+        Returns None if the request file doesn't exist (files may be cleaned up).
+        """
+        request_path = Path(request_file)
+        if not request_path.exists():
+            return None
+
+        # Parse request to get model and streaming info
+        try:
+            request_data = json.loads(request_path.read_text())
+            model = request_data.get("model", "")
+            streaming = request_data.get("stream", False)
+        except (json.JSONDecodeError, OSError):
+            model = ""
+            streaming = False
+
+        # Get timestamp from filename (e.g., request_1234567890123.json)
+        try:
+            timestamp_ms = int(request_path.stem.split("_")[-1])
+            timestamp = timestamp_ms / 1000.0
+        except (ValueError, IndexError):
+            timestamp = request_path.stat().st_mtime
+
+        # Check if response file exists
+        if response_file and not Path(response_file).exists():
+            response_file = None
+
+        return cls(
+            request_file=request_file,
+            response_file=response_file,
+            timestamp=timestamp,
+            model=model,
+            streaming=streaming,
+        )
+
 
 class RequestLog:
     """Tracks all request/response pairs for a session."""

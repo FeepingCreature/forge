@@ -382,6 +382,9 @@ class AIChatWidget(QWidget):
             # Note: active_files are restored by MainWindow opening file tabs
             # The file_opened signals will sync them to SessionManager
 
+            # Restore request log from saved file paths
+            self.session_manager.restore_request_log(session_data)
+
             # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions
             for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
                 if self.session_manager.vfs.file_exists(instructions_file):

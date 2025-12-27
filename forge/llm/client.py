@@ -5,12 +5,12 @@ LLM client for communicating with OpenRouter
 import json
 import time
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 import requests
 
 from forge.llm.cost_tracker import COST_TRACKER
+from forge.llm.request_log import REQUEST_LOG
 
 
 class LLMClient:
@@ -62,12 +62,9 @@ class LLMClient:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
 
-        # Debug: dump full request to file
-        debug_dir = Path("/tmp/forge_debug")
-        debug_dir.mkdir(exist_ok=True)
-        debug_file = debug_dir / f"request_{int(time.time() * 1000)}.json"
-        debug_file.write_text(json.dumps(payload, indent=2))
-        print(f"   📝 Request dumped to: {debug_file}")
+        # Log request
+        log_entry = REQUEST_LOG.log_request(payload, self.model, streaming=False)
+        print(f"   📝 Request dumped to: {log_entry.request_file}")
 
         for attempt in range(max_retries):
             response = requests.post(
@@ -97,10 +94,14 @@ class LLMClient:
             result: dict[str, Any] = response.json()
             print("✅ LLM Response received")
 
-            # Fetch cost info from response
+            # Fetch cost info from response and log it
             generation_id = result.get("id")
+            actual_cost = None
             if generation_id:
-                self._fetch_and_record_cost(generation_id)
+                actual_cost = self._fetch_and_record_cost(generation_id)
+
+            # Log response
+            REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)
 
             return result
 
@@ -141,12 +142,9 @@ class LLMClient:
             payload["tools"] = tools
             print(f"   Tools available: {len(tools)}")
 
-        # Debug: dump full request to file
-        debug_dir = Path("/tmp/forge_debug")
-        debug_dir.mkdir(exist_ok=True)
-        debug_file = debug_dir / f"request_stream_{int(time.time() * 1000)}.json"
-        debug_file.write_text(json.dumps(payload, indent=2))
-        print(f"   📝 Request dumped to: {debug_file}")
+        # Log request
+        log_entry = REQUEST_LOG.log_request(payload, self.model, streaming=True)
+        print(f"   📝 Request dumped to: {log_entry.request_file}")
 
         response = None
         for attempt in range(max_retries):
@@ -190,6 +188,7 @@ class LLMClient:
         print("📡 Streaming response started")
 
         generation_id: str | None = None
+        all_chunks: list[dict[str, Any]] = []
 
         # Parse SSE stream
         for line in response.iter_lines():
@@ -201,6 +200,7 @@ class LLMClient:
                         break
                     try:
                         chunk = json.loads(data)
+                        all_chunks.append(chunk)
                         # Capture generation ID for cost lookup
                         if "id" in chunk and generation_id is None:
                             generation_id = chunk["id"]
@@ -220,12 +220,21 @@ class LLMClient:
                     except json.JSONDecodeError:
                         continue
 
-        # Fetch cost info after streaming completes
+        # Fetch cost info after streaming completes and log response
+        actual_cost = None
         if generation_id:
-            self._fetch_and_record_cost(generation_id)
+            actual_cost = self._fetch_and_record_cost(generation_id)
 
-    def _fetch_and_record_cost(self, generation_id: str) -> None:
-        """Fetch generation cost from OpenRouter and record it."""
+        # Log the accumulated response
+        REQUEST_LOG.log_response(
+            log_entry,
+            {"chunks": all_chunks, "id": generation_id},
+            actual_cost,
+            generation_id,
+        )
+
+    def _fetch_and_record_cost(self, generation_id: str) -> float | None:
+        """Fetch generation cost from OpenRouter and record it. Returns the cost if found."""
         # OpenRouter provides cost info via the generation endpoint
         # We need to poll briefly as the cost may not be immediately available
         headers = {
@@ -245,13 +254,15 @@ class LLMClient:
                     data = response.json().get("data", {})
                     total_cost = data.get("total_cost")
                     if total_cost is not None:
-                        COST_TRACKER.add_cost(float(total_cost))
+                        cost = float(total_cost)
+                        COST_TRACKER.add_cost(cost)
                         print(
-                            f"💰 Request cost: ${total_cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})"
+                            f"💰 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})"
                         )
-                        return
+                        return cost
                 # Cost not ready yet, wait and retry
                 time.sleep(0.5)
             except Exception as e:
                 print(f"⚠️ Failed to fetch cost: {e}")
                 break
+        return None

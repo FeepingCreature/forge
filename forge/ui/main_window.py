@@ -30,6 +30,7 @@ from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.git_graph_widget import GitGraphScrollArea
+from forge.ui.request_debug_window import RequestDebugWindow
 from forge.ui.settings_dialog import SettingsDialog
 
 
@@ -58,6 +59,9 @@ class MainWindow(QMainWindow):
         # Track branch workspaces
         self._workspaces: dict[str, BranchWorkspace] = {}
         self._branch_widgets: dict[str, BranchTabWidget] = {}
+
+        # Debug window (single instance)
+        self._debug_window: RequestDebugWindow | None = None
 
         self._setup_ui()
         self._setup_menus()
@@ -538,6 +542,10 @@ class MainWindow(QMainWindow):
         git_menu.addAction("View Branches")
         git_menu.addAction("Commit History")
 
+        # Debug menu
+        debug_menu = menubar.addMenu("&Debug")
+        debug_menu.addAction("Request &Inspector...", self._open_request_debug)
+
     def _save_current_file(self) -> None:
         """Save the current file (Ctrl+S)"""
         current_widget = self.branch_tabs.currentWidget()
@@ -662,6 +670,19 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             # Settings were saved, could reload/apply them here
             self.status_bar.showMessage("Settings saved")
+
+    def _open_request_debug(self) -> None:
+        """Open the request debug/inspector window"""
+        if self._debug_window is None:
+            self._debug_window = RequestDebugWindow(self)
+            self._debug_window.closed.connect(self._on_debug_window_closed)
+        self._debug_window.show()
+        self._debug_window.raise_()
+        self._debug_window.activateWindow()
+
+    def _on_debug_window_closed(self) -> None:
+        """Handle debug window being closed"""
+        self._debug_window = None
 
     def _get_current_workspace(self) -> BranchWorkspace | None:
         """Get the current branch's workspace"""

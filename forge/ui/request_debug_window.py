@@ -105,14 +105,25 @@ class JsonHighlighter(QSyntaxHighlighter):
 class MessageContentWidget(QWidget):
     """Widget showing a single message with role header and content."""
 
-    def __init__(self, message: dict[str, Any], is_cached: bool = False) -> None:
+    def __init__(
+        self,
+        message: dict[str, Any],
+        is_cached: bool = False,
+        tokens_before: int = 0,
+        message_tokens: int = 0,
+        tokens_after: int = 0,
+    ) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Role header
+        # Header row with role on left and token counts on right
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Role header (left)
         role = message.get("role", "unknown")
-        header = QLabel(f"<b>{role.upper()}</b>")
+        role_label = QLabel(f"<b>{role.upper()}</b>")
 
         # Color code by role
         colors = {
@@ -123,8 +134,21 @@ class MessageContentWidget(QWidget):
         }
         color = colors.get(role, "#000000")
         bg_color = "#f0f8ff" if is_cached else "#ffffff"
-        header.setStyleSheet(f"color: {color}; background-color: {bg_color}; padding: 3px;")
-        layout.addWidget(header)
+        role_label.setStyleSheet(f"color: {color}; background-color: {bg_color}; padding: 3px;")
+        header_layout.addWidget(role_label)
+
+        header_layout.addStretch()
+
+        # Token counts (right): before | message | after
+        token_label = QLabel(
+            f"<span style='color: #6e7781; font-size: 11px;'>"
+            f"{tokens_before:,} | <b>{message_tokens:,}</b> | {tokens_after:,}"
+            f"</span>"
+        )
+        token_label.setToolTip("Tokens: before | this message | after")
+        header_layout.addWidget(token_label)
+
+        layout.addLayout(header_layout)
 
         # Content
         content = message.get("content", "")
@@ -259,10 +283,27 @@ class RequestDetailWidget(QWidget):
             else:
                 break
 
-        # Add message widgets
+        # Calculate token counts for each message
+        # Estimate tokens as chars / 4 (rough approximation)
+        message_token_counts = [len(json.dumps(m)) // 4 for m in messages]
+        total_tokens = sum(message_token_counts)
+
+        # Add message widgets with token info
+        running_total = 0
         for i, msg in enumerate(messages):
             is_cached = i < common_prefix_len
-            widget = MessageContentWidget(msg, is_cached)
+            msg_tokens = message_token_counts[i]
+            tokens_before = running_total
+            tokens_after = total_tokens - running_total - msg_tokens
+            running_total += msg_tokens
+
+            widget = MessageContentWidget(
+                msg,
+                is_cached,
+                tokens_before=tokens_before,
+                message_tokens=msg_tokens,
+                tokens_after=tokens_after,
+            )
             self.messages_layout.addWidget(widget)
 
         self.messages_layout.addStretch()
@@ -407,12 +448,24 @@ class RequestDebugWindow(QMainWindow):
         # Load initial data
         self._refresh_entries()
 
+    def _is_summarization_model(self, model: str) -> bool:
+        """Check if this is a summarization model (cheap, not interesting for debugging)."""
+        # Summarization models are typically haiku or other cheap models
+        return "haiku" in model.lower()
+
     def _refresh_entries(self) -> None:
         """Refresh the list of entries."""
         self.request_list.clear()
         entries = REQUEST_LOG.get_entries()
 
-        for i, entry in enumerate(entries):
+        # Filter out summarization model queries
+        self._filtered_entries = [
+            (i, entry)
+            for i, entry in enumerate(entries)
+            if not self._is_summarization_model(entry.model)
+        ]
+
+        for display_idx, (_original_idx, entry) in enumerate(self._filtered_entries):
             # Format timestamp
             ts = datetime.fromtimestamp(entry.timestamp)
             time_str = ts.strftime("%H:%M:%S")
@@ -426,7 +479,7 @@ class RequestDebugWindow(QMainWindow):
             label = f"{stream_str} {time_str} - {cost_str}"
 
             item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, i)
+            item.setData(Qt.ItemDataRole.UserRole, display_idx)
             self.request_list.addItem(item)
 
         # Select last item
@@ -441,12 +494,15 @@ class RequestDebugWindow(QMainWindow):
             self.detail_widget.clear()
             return
 
-        idx = current.data(Qt.ItemDataRole.UserRole)
-        entries = REQUEST_LOG.get_entries()
+        display_idx = current.data(Qt.ItemDataRole.UserRole)
 
-        if 0 <= idx < len(entries):
-            entry = entries[idx]
-            prev_entry = entries[idx - 1] if idx > 0 else None
+        # Use filtered entries for proper diffing (skips summarization queries)
+        if 0 <= display_idx < len(self._filtered_entries):
+            _original_idx, entry = self._filtered_entries[display_idx]
+            # Get previous filtered entry for diffing
+            prev_entry = None
+            if display_idx > 0:
+                _prev_original_idx, prev_entry = self._filtered_entries[display_idx - 1]
             pricing_model = self.pricing_combo.currentText()
             self.detail_widget.show_entry(entry, prev_entry, pricing_model)
 

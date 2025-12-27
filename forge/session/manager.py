@@ -551,23 +551,34 @@ Keep it under 72 characters."""
         """Get session data for persistence"""
         data: dict[str, Any] = {
             "active_files": list(self.active_files),
-            "request_log_files": [
-                (entry.request_file, entry.response_file) for entry in REQUEST_LOG.get_entries()
-            ],
+            "request_log_entries": [entry.to_dict() for entry in REQUEST_LOG.get_entries()],
         }
         if messages is not None:
             data["messages"] = messages
         return data
 
     def restore_request_log(self, session_data: dict[str, Any]) -> None:
-        """Restore request log entries from session data by reloading from /tmp files"""
+        """Restore request log entries from session data"""
+        # Try new format first (full entry dicts with actual_cost)
+        log_entries = session_data.get("request_log_entries", [])
+        if log_entries:
+            REQUEST_LOG.clear()
+            for entry_dict in log_entries:
+                # Check if files still exist before restoring
+                request_file = entry_dict.get("request_file", "")
+                if Path(request_file).exists():
+                    entry = RequestLogEntry.from_dict(entry_dict)
+                    REQUEST_LOG.entries.append(entry)
+            return
+
+        # Fall back to old format (just file paths, no actual_cost)
         file_pairs = session_data.get("request_log_files", [])
         if file_pairs:
             REQUEST_LOG.clear()
             for request_file, response_file in file_pairs:
-                entry = RequestLogEntry.from_files(request_file, response_file)
-                if entry is not None:
-                    REQUEST_LOG.entries.append(entry)
+                old_entry = RequestLogEntry.from_files(request_file, response_file)
+                if old_entry is not None:
+                    REQUEST_LOG.entries.append(old_entry)
 
     def generate_summary_for_file(self, filepath: str) -> str | None:
         """

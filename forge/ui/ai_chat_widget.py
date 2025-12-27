@@ -1431,7 +1431,7 @@ class AIChatWidget(QWidget):
 
         # Convert markdown to HTML
         content_html = markdown.markdown(
-            self.streaming_content, extensions=["fenced_code", "codehilite"]
+            self.streaming_content, extensions=["fenced_code", "codehilite", "tables"]
         )
 
         # Escape for JavaScript string
@@ -1934,7 +1934,9 @@ class AIChatWidget(QWidget):
                 if role == "assistant" and "tool_calls" in msg:
                     tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
 
-                content = markdown.markdown(content_md, extensions=["fenced_code", "codehilite"])
+                content = markdown.markdown(
+                    content_md, extensions=["fenced_code", "codehilite", "tables"]
+                )
 
                 html_parts.append(f"""
                 <div class="message {role}" {msg_id}>

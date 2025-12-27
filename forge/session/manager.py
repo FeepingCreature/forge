@@ -19,6 +19,7 @@ from forge.constants import SESSION_FILE
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
+from forge.llm.request_log import REQUEST_LOG, RequestLogEntry
 from forge.prompts.manager import PromptManager
 from forge.prompts.system import SYSTEM_PROMPT
 from forge.tools.manager import ToolManager
@@ -550,10 +551,20 @@ Keep it under 72 characters."""
         """Get session data for persistence"""
         data: dict[str, Any] = {
             "active_files": list(self.active_files),
+            "request_log": [entry.to_dict() for entry in REQUEST_LOG.get_entries()],
         }
         if messages is not None:
             data["messages"] = messages
         return data
+
+    def restore_request_log(self, session_data: dict[str, Any]) -> None:
+        """Restore request log entries from session data"""
+        request_log_data = session_data.get("request_log", [])
+        if request_log_data:
+            REQUEST_LOG.clear()
+            for entry_dict in request_log_data:
+                entry = RequestLogEntry.from_dict(entry_dict)
+                REQUEST_LOG.entries.append(entry)
 
     def generate_summary_for_file(self, filepath: str) -> str | None:
         """

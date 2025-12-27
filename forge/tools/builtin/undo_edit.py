@@ -24,7 +24,10 @@ Use this when:
 
 This reverts the file to its state at the start of this turn (the base commit).
 If the file was created this turn, it will be deleted.
-If the file was deleted this turn, it will be restored.""",
+If the file was deleted this turn, it will be restored.
+
+Note: This only works within a single turn. Once changes are committed (at end of turn
+or via the commit tool), they cannot be undone with this tool.""",
             "parameters": {
                 "type": "object",
                 "properties": {

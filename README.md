@@ -117,6 +117,10 @@ forge src/main.py README.md
 | `commit` | Create atomic commits mid-turn |
 | `set_license` | Add a LICENSE file |
 | `check` | Run `make check` (format + typecheck + lint) |
+| `run_tests` | Run the project's test suite (auto-discovers pytest, make test, npm test) |
+| `scout` | Send files to a smaller model to answer questions or find relevant files |
+| `think` | Extended reasoning scratchpad for complex problems |
+| `get_skill` | Get documentation for complex tasks (e.g., creating custom tools) |
 
 ## Custom Tools
 

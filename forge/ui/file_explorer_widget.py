@@ -6,8 +6,10 @@ from enum import Enum
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QAction, QGuiApplication
 from PySide6.QtWidgets import (
+    QMenu,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -92,6 +94,10 @@ class FileExplorerWidget(QWidget):
         self.tree.setToolTip(
             "Double-click to open file\nClick ◯/● to toggle AI context\n\n◯ = not in context\n◐ = some files in context\n● = in context\n⚠️ = large file (10k+ chars)"
         )
+
+        # Enable context menu
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_context_menu)
 
         layout.addWidget(self.tree)
 
@@ -313,3 +319,117 @@ class FileExplorerWidget(QWidget):
         elif item_type == "dir":
             # Toggle expansion
             item.setExpanded(not item.isExpanded())
+
+    def _show_context_menu(self, pos: QPoint) -> None:
+        """Show context menu for right-clicked item"""
+        item: QTreeWidgetItem | None = self.tree.itemAt(pos)
+        if item is None:
+            return
+
+        item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        filepath = item.data(0, Qt.ItemDataRole.UserRole)
+
+        menu = QMenu(self)
+
+        if item_type == "file":
+            # File actions
+            open_action = QAction("Open", self)
+            open_action.triggered.connect(lambda: self.file_open_requested.emit(filepath))
+            menu.addAction(open_action)
+
+            menu.addSeparator()
+
+            # Context toggle
+            is_in_context = filepath in self._context_files
+            if is_in_context:
+                context_action = QAction("Remove from Context", self)
+                context_action.triggered.connect(
+                    lambda: self.context_toggle_requested.emit(filepath, False)
+                )
+            else:
+                context_action = QAction("Add to Context", self)
+                context_action.triggered.connect(
+                    lambda: self.context_toggle_requested.emit(filepath, True)
+                )
+            menu.addAction(context_action)
+
+            menu.addSeparator()
+
+            # Copy actions
+            copy_path_action = QAction("Copy Path", self)
+            copy_path_action.triggered.connect(lambda: self._copy_to_clipboard(filepath))
+            menu.addAction(copy_path_action)
+
+            copy_name_action = QAction("Copy Name", self)
+            filename = PurePosixPath(filepath).name
+            copy_name_action.triggered.connect(lambda: self._copy_to_clipboard(filename))
+            menu.addAction(copy_name_action)
+
+        elif item_type == "dir":
+            # Directory actions
+            folder_path = filepath
+            folder_files = [f for f in self._all_files if f.startswith(folder_path + "/")]
+
+            # Expand/Collapse
+            if item.isExpanded():
+                expand_action = QAction("Collapse", self)
+                expand_action.triggered.connect(lambda: item.setExpanded(False))
+            else:
+                expand_action = QAction("Expand", self)
+                expand_action.triggered.connect(lambda: item.setExpanded(True))
+            menu.addAction(expand_action)
+
+            menu.addSeparator()
+
+            # Context toggle for all files in folder
+            if folder_files:
+                all_in_context = all(f in self._context_files for f in folder_files)
+                if all_in_context:
+                    context_action = QAction("Remove All from Context", self)
+                    context_action.triggered.connect(
+                        lambda: self._toggle_folder_context(folder_files, False)
+                    )
+                else:
+                    context_action = QAction("Add All to Context", self)
+                    context_action.triggered.connect(
+                        lambda: self._toggle_folder_context(folder_files, True)
+                    )
+                menu.addAction(context_action)
+
+            menu.addSeparator()
+
+            # Copy path
+            copy_path_action = QAction("Copy Path", self)
+            copy_path_action.triggered.connect(lambda: self._copy_to_clipboard(folder_path))
+            menu.addAction(copy_path_action)
+
+        elif item_type == "root":
+            # Root actions
+            # Context toggle for all files
+            if self._all_files:
+                all_in_context = all(f in self._context_files for f in self._all_files)
+                if all_in_context:
+                    context_action = QAction("Remove All from Context", self)
+                    context_action.triggered.connect(
+                        lambda: self._toggle_folder_context(self._all_files, False)
+                    )
+                else:
+                    context_action = QAction("Add All to Context", self)
+                    context_action.triggered.connect(
+                        lambda: self._toggle_folder_context(self._all_files, True)
+                    )
+                menu.addAction(context_action)
+
+        # Show menu at cursor position
+        menu.exec(self.tree.viewport().mapToGlobal(pos))
+
+    def _copy_to_clipboard(self, text: str) -> None:
+        """Copy text to system clipboard"""
+        clipboard = QGuiApplication.clipboard()
+        if clipboard:
+            clipboard.setText(text)
+
+    def _toggle_folder_context(self, files: list[str], add: bool) -> None:
+        """Toggle context for a list of files"""
+        for filepath in files:
+            self.context_toggle_requested.emit(filepath, add)

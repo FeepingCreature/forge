@@ -61,6 +61,9 @@ class FileExplorerWidget(QWidget):
     # Emitted when user toggles a file's context status
     context_toggle_requested = Signal(str, bool)  # filepath, add_to_context
 
+    # Emitted when user deletes a file
+    file_deleted = Signal(str)  # filepath
+
     def __init__(self, workspace: "BranchWorkspace", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.workspace = workspace
@@ -365,6 +368,13 @@ class FileExplorerWidget(QWidget):
             copy_name_action.triggered.connect(lambda: self._copy_to_clipboard(filename))
             menu.addAction(copy_name_action)
 
+            menu.addSeparator()
+
+            # Delete action
+            delete_action = QAction("Delete", self)
+            delete_action.triggered.connect(lambda: self._delete_file(filepath))
+            menu.addAction(delete_action)
+
         elif item_type == "dir":
             # Directory actions
             folder_path = filepath
@@ -433,3 +443,10 @@ class FileExplorerWidget(QWidget):
         """Toggle context for a list of files"""
         for filepath in files:
             self.context_toggle_requested.emit(filepath, add)
+
+    def _delete_file(self, filepath: str) -> None:
+        """Delete a file and commit the change"""
+        self.workspace.vfs.delete_file(filepath)
+        self.workspace.commit(f"Delete {filepath}")
+        self.file_deleted.emit(filepath)
+        self.refresh()

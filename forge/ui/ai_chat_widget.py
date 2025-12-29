@@ -1158,6 +1158,13 @@ class AIChatWidget(QWidget):
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
 
+        # Handle say tool - display message as assistant text (not tool result)
+        if result.get("say") and result.get("success"):
+            say_message = result.get("message", "")
+            if say_message:
+                self.add_message("assistant", say_message)
+                self.session_manager.append_assistant_message(say_message)
+
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())

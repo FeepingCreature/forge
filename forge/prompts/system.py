@@ -75,6 +75,15 @@ Guidelines:
 - When modifying a function, load its callers to understand usage
 - After completing a task, remove files you won't need again
 
+### Transparent Tools
+
+Some tools don't require you to see their results to continue. For these, you can chain directly into `say` to keep narrating:
+
+- **`think`** - You already know your conclusion; chain `think(...) → say("Based on my analysis...")` to continue
+- **`compact`** - Just compresses context; no result needed
+
+The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response without waiting for a round-trip.
+
 ### Compacting Tool Results
 
 Use `compact` to replace old tool results with a summary when they become redundant:

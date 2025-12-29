@@ -1158,12 +1158,18 @@ class AIChatWidget(QWidget):
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
 
-        # Handle say tool - display message as assistant text (not tool result)
+        # Handle say tool - display message as assistant text (UI only)
+        # NOTE: We do NOT call append_assistant_message here! That would break
+        # the tool_call → tool_result sequence. The say tool result is recorded
+        # normally by append_tool_result above, but we display it as assistant text.
         if result.get("say") and result.get("success"):
             say_message = result.get("message", "")
             if say_message:
-                self.add_message("assistant", say_message)
-                self.session_manager.append_assistant_message(say_message)
+                # Add to UI messages only (not prompt manager)
+                self.messages.append(
+                    {"role": "assistant", "content": say_message, "_ui_only": True}
+                )
+                self._update_chat_display(scroll_to_bottom=True)
 
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":

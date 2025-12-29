@@ -53,12 +53,12 @@ Examples of batching:
 - Need to edit multiple files? Return all `search_replace` calls together in one response.
 - Need to create several files? Return all `write_file` calls at once.
 
-**The ideal turn**: Chain all your operations together, ending with `done`:
+**The ideal turn**: Chain all your operations together, using `say` to narrate and `done` to finish:
 ```
-search_replace(file1) → search_replace(file2) → check() → done("Refactored X to use Y")
+search_replace(file1) → search_replace(file2) → say("Running checks...") → check() → commit() → say("Cleaning up context...") → update_context() → done("Refactored X to use Y!")
 ```
 
-If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, you get control back to fix it.
+None of these tools return important state on success - you only need control back if something fails. If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, the pipeline aborts and you get control back to fix it.
 
 **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
 

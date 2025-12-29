@@ -70,7 +70,8 @@ class MergeAction(GitAction):
 
         ancestor_commit = self.repo.repo[merge_base_oid]
         assert isinstance(ancestor_commit, pygit2.Commit)
-        ancestor_tree = ancestor_commit.tree
+        # Also strip session.json from ancestor to avoid spurious conflicts
+        ancestor_tree = _remove_session_from_tree_if_present(self.repo, ancestor_commit.tree)
 
         # Do a three-way merge of trees with session.json removed
         merge_result = self.repo.repo.merge_trees(
@@ -203,12 +204,15 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
         # Target is behind source - fast-forward possible
         return True
 
-    # Strip session.json from source tree (same as MergeAction.perform())
+    # Strip session.json from source and ancestor trees (same as MergeAction.perform())
     source_tree = _remove_session_from_tree_if_present(repo, source_commit.tree)
+    ancestor_commit = repo.repo[merge_base]
+    assert isinstance(ancestor_commit, pygit2.Commit)
+    ancestor_tree = _remove_session_from_tree_if_present(repo, ancestor_commit.tree)
 
     # Do a merge tree check
     merge_result = repo.repo.merge_trees(
-        ancestor=merge_base,
+        ancestor=ancestor_tree,
         ours=target_commit.tree,
         theirs=source_tree,
     )

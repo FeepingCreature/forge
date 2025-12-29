@@ -1256,6 +1256,8 @@ class AIChatWidget(QWidget):
             "grep_open",
             "get_lines",
             "compact",
+            "say",
+            "done",
         }
 
         if tool_name in builtin_tools_with_native_rendering and result.get("success"):

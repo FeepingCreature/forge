@@ -129,38 +129,49 @@ class PromptManager:
         """
         print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
 
-        # Scan backward to find the target file, collecting all file blocks we pass
-        # This relocates all files after the target to maintain contiguous file blocks at tail
-        files_to_relocate: list[ContentBlock] = []
-        target_found = False
+        # Scan backward collecting file blocks until we've passed all instances of target.
+        # Example: S Z A B C x x A x x x U -> we want S Z x x x x x B C A U
+        # Cache invalidation happens at earliest A, so B and C (after earliest A) must relocate.
+        # Z (before earliest A) stays put.
+        #
+        # Algorithm: two passes.
+        # Pass 1: find the earliest (first in message order) target block index
+        # Pass 2: collect and delete all file blocks from that index forward
+        earliest_target_idx: int | None = None
+        for i, block in enumerate(self.blocks):
+            if (
+                block.block_type == BlockType.FILE_CONTENT
+                and not block.deleted
+                and block.metadata.get("filepath") == filepath
+            ):
+                earliest_target_idx = i
+                break  # First match is earliest
 
-        for i in range(len(self.blocks) - 1, -1, -1):
-            block = self.blocks[i]
-            if block.block_type == BlockType.FILE_CONTENT and not block.deleted:
-                files_to_relocate.append(block)
-                block.deleted = True
+        if earliest_target_idx is None:
+            # New file, no existing blocks to relocate
+            print(f"   ↳ New file, no existing blocks")
+        else:
+            # Collect all file blocks from earliest_target_idx to end
+            files_to_relocate: list[ContentBlock] = []
+            for i in range(earliest_target_idx, len(self.blocks)):
+                block = self.blocks[i]
+                if block.block_type == BlockType.FILE_CONTENT and not block.deleted:
+                    files_to_relocate.append(block)
+                    block.deleted = True
 
-                if block.metadata.get("filepath") == filepath:
-                    target_found = True
-                    print(f"   ↳ Found target {filepath}, relocating {len(files_to_relocate)} file(s)")
-                    break
+            print(f"   ↳ Relocating {len(files_to_relocate)} file(s) for {filepath} update")
 
-        # Re-append collected files (excluding target) in original order
-        # We collected in reverse order, so reverse to restore original order
-        if target_found and len(files_to_relocate) > 1:
-            # Pop the target (it was added last during backward scan)
-            files_to_relocate.pop()
-            # Reverse to get original order, then append
-            for block in reversed(files_to_relocate):
-                # Re-append with original content (just mark as not deleted and move to end)
-                self.blocks.append(
-                    ContentBlock(
-                        block_type=BlockType.FILE_CONTENT,
-                        content=block.content,
-                        metadata=block.metadata.copy(),
+            # Re-append non-target files in original order (already in order from forward scan)
+            for block in files_to_relocate:
+                if block.metadata.get("filepath") != filepath:
+                    self.blocks.append(
+                        ContentBlock(
+                            block_type=BlockType.FILE_CONTENT,
+                            content=block.content,
+                            metadata=block.metadata.copy(),
+                        )
                     )
-                )
-                print(f"   ↳ Relocated {block.metadata.get('filepath')}")
+                    print(f"   ↳ Relocated {block.metadata.get('filepath')}")
 
         # Format content block with explicit annotation
         # Make it VERY clear this is informative context, not a question

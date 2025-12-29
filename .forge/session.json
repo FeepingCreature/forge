@@ -1,5 +1,6 @@
 {
   "active_files": [
+    "POLISH_TODO.md",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -479,6 +480,51 @@
       "streaming": false,
       "actual_cost": 0.000914,
       "generation_id": "gen-1766979062-1U5G3QfQb8PrsZFrLa5L"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1766980255850.json",
+      "response_file": "/tmp/forge_debug/response_stream_1766980255850.json",
+      "timestamp": 1766980255.85219,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.17612625,
+      "generation_id": "gen-1766980255-izRCBDsuJLgE41fnzDYz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1766980265250.json",
+      "response_file": "/tmp/forge_debug/response_stream_1766980265250.json",
+      "timestamp": 1766980265.2526388,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.18952275,
+      "generation_id": "gen-1766980265-fUkVX5yBTBwqWcQoyzoZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1766980281774.json",
+      "response_file": "/tmp/forge_debug/response_stream_1766980281774.json",
+      "timestamp": 1766980281.7769494,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1784215,
+      "generation_id": "gen-1766980281-gueiGFPt5V7ufrnZuBqi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1766980299343.json",
+      "response_file": "/tmp/forge_debug/response_stream_1766980299343.json",
+      "timestamp": 1766980299.345861,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03836625,
+      "generation_id": "gen-1766980299-wIa2li3YPGKcIi8PEyQR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1766980307842.json",
+      "response_file": "/tmp/forge_debug/response_stream_1766980307842.json",
+      "timestamp": 1766980307.8442962,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0325865,
+      "generation_id": "gen-1766980307-Hp2HkCksq5u2uDrQnA7P"
     }
   ],
   "messages": [
@@ -1426,6 +1472,123 @@
     {
       "role": "assistant",
       "content": "Done! Here's what we built this session:\n\n**1. Cache-optimized file block relocation** (first commit)\n- When updating file A, all file blocks from earliest A forward get relocated to tail\n- Ensures file blocks stay contiguous, so future edits only invalidate file region\n\n**2. Sequential tool execution with abort-on-failure**\n- Tools execute as a pipeline - first failure aborts the rest\n- I get control back to handle errors\n\n**3. `done()` tool**\n- Signals turn completion with a final message\n- Ends turn cleanly without another LLM call roundtrip\n\n**4. `say()` tool**\n- Emits text as regular assistant output (not a tool result block)\n- Lets me continue narrating after transparent tools like `think()`\n\nThe ideal turn now looks like:\n```\nthink(...) \u2192 say(\"Based on my analysis...\") \u2192 search_replace(x3) \u2192 check() \u2192 commit() \u2192 done(\"All fixed!\")\n```\n\nOne glorious message, minimal round-trips, clean error handling."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, I'm running an older version, but do **not** use say rn, there's a critical issue with the 'say' tool. It inserts a user message in the session, but that breaks everything if there's further tool calls after it, because they won't be in the same block and their tool ids won't find their match. The 'say' tool call has to be treated by the UI, but only by the UI, as a streamed AI message."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, got it! The issue is that `say` is currently appending a user message to the prompt manager, which breaks the tool call/result pairing. If I do:\n\n```\nthink \u2192 say \u2192 search_replace\n```\n\nThe `say` injects a user message between the tool calls, so `search_replace`'s result can't find its matching tool call in the same assistant message block.\n\nThe fix: `say` should NOT touch the prompt manager at all. It's purely a UI directive - \"display this text as if I streamed it.\" The session/prompt history should just show the tool call and result like any other tool, but the UI renders the result content as assistant text instead of a tool result block.\n\nLet me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/say.py\",\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01DrYh35LsviqxMwiMnHjUcq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DrYh35LsviqxMwiMnHjUcq",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/say.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the problem. In `_on_tool_finished`, when `say` succeeds:\n\n```python\n# Handle say tool - display message as assistant text (not tool result)\nif result.get(\"say\") and result.get(\"success\"):\n    say_message = result.get(\"message\", \"\")\n    if say_message:\n        self.add_message(\"assistant\", say_message)\n        self.session_manager.append_assistant_message(say_message)  # <-- THIS IS THE BUG\n```\n\nThat `append_assistant_message` call adds an ASSISTANT_MESSAGE block to the prompt manager, which breaks the tool_call \u2192 tool_result sequence. The API expects:\n\n```\nTOOL_CALL(think, say, search_replace)\nTOOL_RESULT(think)\nTOOL_RESULT(say)      <-- should just be a normal tool result\nTOOL_RESULT(search_replace)\n```\n\nBut we're inserting:\n\n```\nTOOL_CALL(think, say, search_replace)\nTOOL_RESULT(think)\nTOOL_RESULT(say)\nASSISTANT_MESSAGE     <-- BREAKS EVERYTHING\nTOOL_RESULT(search_replace)  <-- orphaned, no matching tool call\n```\n\nThe fix: `say` should NOT touch the prompt manager at all. It's purely a UI display directive. The tool result is recorded normally, but the UI renders it as streamed text instead of a tool result block.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Handle say tool - display message as assistant text (not tool result)\\n        if result.get(\\\"say\\\") and result.get(\\\"success\\\"):\\n            say_message = result.get(\\\"message\\\", \\\"\\\")\\n            if say_message:\\n                self.add_message(\\\"assistant\\\", say_message)\\n                self.session_manager.append_assistant_message(say_message)\", \"replace\": \"        # Handle say tool - display message as assistant text (UI only)\\n        # NOTE: We do NOT call append_assistant_message here! That would break\\n        # the tool_call \u2192 tool_result sequence. The say tool result is recorded\\n        # normally by append_tool_result above, but we display it as assistant text.\\n        if result.get(\\\"say\\\") and result.get(\\\"success\\\"):\\n            say_message = result.get(\\\"message\\\", \\\"\\\")\\n            if say_message:\\n                # Add to UI messages only (not prompt manager)\\n                self.messages.append({\\\"role\\\": \\\"assistant\\\", \\\"content\\\": say_message, \\\"_ui_only\\\": True})\\n                self._update_chat_display(scroll_to_bottom=True)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01NNSgrLXZ5Rh373h9FRBT3Z",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NNSgrLXZ5Rh373h9FRBT3Z",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch on the fix. Let me run check to verify and then commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_019WKyK4X8QTY76Xs51meZze",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_019WKyK4X8QTY76Xs51meZze",
+      "content": "{\"format_diffs\": {\"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -1166,7 +1166,9 @@             say_message = result.get(\\\"message\\\", \\\"\\\")\\n             if say_message:\\n                 # Add to UI messages only (not prompt manager)\\n-                self.messages.append({\\\"role\\\": \\\"assistant\\\", \\\"content\\\": say_message, \\\"_ui_only\\\": True})\\n+                self.messages.append(\\n+                    {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": say_message, \\\"_ui_only\\\": True}\\n+                )\\n                 self._update_chat_display(scroll_to_bottom=True)\\n \\n         # If tool modified context, emit signal to update UI\\n\"}, \"formatted_files\": [\"forge/ui/ai_chat_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 68 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -1166,7 +1166,9 @@             say_message = result.get(\\\"message\\\", \\\"\\\")\\n             if say_message:\\n                 # Add to UI messages only (not prompt manager)\\n-                self.messages.append({\\\"role\\\": \\\"assistant\\\", \\\"content\\\": say_message, \\\"_ui_only\\\": True})\\n+                self.messages.append(\\n+                    {\\\"role\\\": \\\"assistant\\\", \\\"content\\\": say_message, \\\"_ui_only\\\": True}\\n+                )\\n                 self._update_chat_display(scroll_to_bottom=True)\\n \\n         # If tool modified context, emit signal to update UI\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 68 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit this fix:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix say() tool to not break tool call sequence\\n\\nThe say tool was calling append_assistant_message() which inserted an\\nASSISTANT_MESSAGE block between TOOL_RESULT blocks, breaking the\\ntool_call \u2192 tool_result pairing that the API requires.\\n\\nFix: say() now only updates UI messages with _ui_only flag. The tool\\nresult is recorded normally, but the message is displayed as assistant\\ntext without touching the prompt manager's conversation state.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_011RULCuEuCcYebHDYkVqZpu",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\",\"forge/tools/builtin/say.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01ACjLHATh21JCSECoL63jVi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011RULCuEuCcYebHDYkVqZpu",
+      "content": "{\"commit\": \"23f23b5fb7d1\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Fix say() tool to not break tool call sequence\\n\\nThe say tool was calling append_assistant_message() which inserted an\\nASSISTANT_MESSAGE block between TOOL_RESULT blocks, breaking the\\ntool_call \\u2192 tool_result pairing that the API requires.\\n\\nFix: say() now only updates UI messages with _ui_only flag. The tool\\nresult is recorded normally, but the message is displayed as assistant\\ntext without touching the prompt manager's conversation state.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"23f23b5fb7d1\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01ACjLHATh21JCSECoL63jVi",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/tools/builtin/say.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed. The `say` tool now:\n1. Records its result normally via `append_tool_result` (so tool_call \u2192 tool_result sequence stays intact)\n2. Adds the message to UI display only with `_ui_only: True` flag\n3. Does NOT touch `append_assistant_message`, which was breaking everything\n\nThe `_ui_only` flag could be useful later if you need to distinguish \"real\" assistant messages from `say` output in the UI layer."
     }
   ]
 }

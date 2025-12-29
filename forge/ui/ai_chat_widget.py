@@ -895,8 +895,77 @@ class AIChatWidget(QWidget):
         # Update the tool call at this index
         self._streaming_tool_calls[index] = tool_call
 
-        # Update the streaming display to show tool call progress
-        self._update_streaming_tool_calls()
+        # Check if this is a 'say' tool - stream its message as assistant text
+        func = tool_call.get("function", {})
+        if func.get("name") == "say":
+            self._update_streaming_say_tool(index, func.get("arguments", ""))
+        else:
+            # Update the streaming display to show tool call progress
+            self._update_streaming_tool_calls()
+
+    def _update_streaming_say_tool(self, index: int, arguments: str) -> None:
+        """Stream a 'say' tool's message as assistant text.
+
+        The say tool is transparent - we don't need to see its result.
+        Instead, we stream its message argument directly as assistant text.
+        """
+        # Try to extract the message from partial JSON
+        # Arguments might be: '{"message": "Hello wor' (incomplete)
+        message = ""
+        try:
+            # Try complete JSON first
+            args = json.loads(arguments)
+            message = args.get("message", "")
+        except json.JSONDecodeError:
+            # Partial JSON - try to extract message value
+            # Look for "message": " or "message":" pattern
+            import re
+
+            match = re.search(r'"message"\s*:\s*"((?:[^"\\]|\\.)*)', arguments)
+            if match:
+                # Unescape basic JSON escapes
+                message = match.group(1)
+                message = message.replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
+
+        if not message:
+            return
+
+        # Escape for JavaScript
+        escaped_message = (
+            message.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        )
+
+        # Update or create the streaming say content
+        js_code = f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                // Check if user is at bottom before modifying content
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                // Find or create say container (separate from tool calls display)
+                var sayContainer = streamingMsg.querySelector('.streaming-say-{index}');
+                if (!sayContainer) {{
+                    sayContainer = document.createElement('div');
+                    sayContainer.className = 'streaming-say-{index} content';
+                    sayContainer.style.cssText = 'white-space: pre-wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;';
+                    streamingMsg.appendChild(sayContainer);
+                }}
+                sayContainer.innerText = `{escaped_message}`;
+
+                // Only scroll if user was already at bottom
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""

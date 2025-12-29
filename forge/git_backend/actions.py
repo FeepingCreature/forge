@@ -11,7 +11,6 @@ from datetime import datetime
 
 import pygit2
 
-from forge.constants import SESSION_FILE
 from forge.git_backend.repository import ForgeRepository
 
 
@@ -63,7 +62,7 @@ class MergeAction(GitAction):
         # Remove SESSION_FILE from the SOURCE tree only before merging
         # The target branch's session persists; the source branch session is concluded by merge
         target_tree = target_commit.tree
-        source_tree = self._remove_session_from_tree_if_present(source_commit.tree)
+        source_tree = _remove_session_from_tree_if_present(self.repo, source_commit.tree)
 
         merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)
         if not merge_base_oid:
@@ -126,41 +125,6 @@ class MergeAction(GitAction):
 
         self.result_oid = str(commit_oid)
 
-    def _remove_session_from_tree_if_present(self, tree: pygit2.Tree) -> pygit2.Tree:
-        """Remove .forge/session.json from a tree if it exists, return tree."""
-        try:
-            forge_entry = tree[".forge"]
-            forge_tree = self.repo.repo.get(forge_entry.id)
-            if isinstance(forge_tree, pygit2.Tree):
-                try:
-                    forge_tree["session.json"]
-                    # session.json exists, need to remove it
-                    new_tree_oid = self._remove_session_from_tree(tree)
-                    new_tree = self.repo.repo.get(new_tree_oid)
-                    assert isinstance(new_tree, pygit2.Tree)
-                    return new_tree
-                except KeyError:
-                    pass
-        except KeyError:
-            pass
-        return tree
-
-    def _remove_session_from_tree(self, tree: pygit2.Tree) -> pygit2.Oid:
-        """Remove .forge/session.json from a tree."""
-        # Build new .forge subtree without session.json
-        forge_entry = tree[".forge"]
-        forge_tree = self.repo.repo.get(forge_entry.id)
-        assert isinstance(forge_tree, pygit2.Tree)
-
-        forge_builder = self.repo.repo.TreeBuilder(forge_tree)
-        forge_builder.remove("session.json")
-        new_forge_oid = forge_builder.write()
-
-        # Build new root tree with updated .forge
-        root_builder = self.repo.repo.TreeBuilder(tree)
-        root_builder.insert(".forge", new_forge_oid, pygit2.GIT_FILEMODE_TREE)
-        return root_builder.write()
-
     def _find_branch_for_commit(self, oid: str) -> str | None:
         """Find a branch name that points to this commit."""
         for branch_name in self.repo.repo.branches.local:
@@ -186,12 +150,41 @@ class MergeAction(GitAction):
         return f"Merge {self.source_oid[:7]} into '{self.target_branch}'"
 
 
+def _remove_session_from_tree_if_present(repo: ForgeRepository, tree: pygit2.Tree) -> pygit2.Tree:
+    """Remove .forge/session.json from a tree if it exists, return tree."""
+    try:
+        forge_entry = tree[".forge"]
+        forge_tree = repo.repo.get(forge_entry.id)
+        if isinstance(forge_tree, pygit2.Tree):
+            try:
+                forge_tree["session.json"]
+                # session.json exists, need to remove it
+                # Build new .forge subtree without session.json
+                forge_builder = repo.repo.TreeBuilder(forge_tree)
+                forge_builder.remove("session.json")
+                new_forge_oid = forge_builder.write()
+
+                # Build new root tree with updated .forge
+                root_builder = repo.repo.TreeBuilder(tree)
+                root_builder.insert(".forge", new_forge_oid, pygit2.GIT_FILEMODE_TREE)
+                new_tree_oid = root_builder.write()
+
+                new_tree = repo.repo.get(new_tree_oid)
+                assert isinstance(new_tree, pygit2.Tree)
+                return new_tree
+            except KeyError:
+                pass
+    except KeyError:
+        pass
+    return tree
+
+
 def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str) -> bool:
     """
     Quick check if a merge would be clean (no conflicts).
 
     Returns True if merge would succeed without conflicts.
-    Note: Ignores .forge/session.json conflicts since we strip that from source.
+    Strips .forge/session.json from source tree before checking (matching MergeAction behavior).
     """
     target_commit = repo.get_branch_head(target_branch)
     source_commit: pygit2.Commit = repo.repo[source_oid]  # type: ignore[assignment]
@@ -210,25 +203,17 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
         # Target is behind source - fast-forward possible
         return True
 
+    # Strip session.json from source tree (same as MergeAction.perform())
+    source_tree = _remove_session_from_tree_if_present(repo, source_commit.tree)
+
     # Do a merge tree check
     merge_result = repo.repo.merge_trees(
         ancestor=merge_base,
         ours=target_commit.tree,
-        theirs=source_commit.tree,
+        theirs=source_tree,
     )
 
-    if not merge_result.conflicts:
-        return True
-
-    # Check if the only conflicts are in .forge/session.json (which we ignore)
-    for conflict in merge_result.conflicts:
-        for entry in conflict:
-            if entry is not None and entry.path != SESSION_FILE:
-                # Found a real conflict
-                return False
-
-    # Only session.json conflicts, which we'll strip
-    return True
+    return not merge_result.conflicts
 
 
 class GitActionLog:

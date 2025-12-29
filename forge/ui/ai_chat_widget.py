@@ -137,6 +137,13 @@ class StreamWorker(QObject):
 class ToolExecutionWorker(QObject):
     """Worker for executing tool calls in a background thread.
 
+    Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),
+    remaining tools are aborted and marked as such. This allows the AI to chain
+    tools like: search_replace → search_replace → check → commit → done
+
+    If all tools succeed, the chain completes. If any fails, the AI gets control
+    back to handle the error.
+
     Claims VFS thread ownership while running, releases when done.
     """
 
@@ -160,22 +167,37 @@ class ToolExecutionWorker(QObject):
         self.results: list[dict[str, Any]] = []
 
     def run(self) -> None:
-        """Execute all tool calls"""
+        """Execute tool calls sequentially, aborting on first failure"""
         # Claim VFS for this thread
         self.session_manager.vfs.claim_thread()
+        aborted = False
+        abort_reason = ""
+
         try:
             for tool_call in self.tool_calls:
                 tool_name = tool_call["function"]["name"]
                 arguments_str = tool_call["function"]["arguments"]
+                tool_call_id = tool_call.get("id", "")
+
+                # If we've aborted, mark remaining tools as aborted
+                if aborted:
+                    result = {"success": False, "aborted": True, "reason": abort_reason}
+                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)
+                    self.results.append(
+                        {
+                            "tool_call": tool_call,
+                            "args": {},
+                            "result": result,
+                            "aborted": True,
+                        }
+                    )
+                    continue
 
                 # Parse arguments
                 try:
                     tool_args = json.loads(arguments_str) if arguments_str else {}
                 except json.JSONDecodeError as e:
-                    result = {"error": f"Invalid JSON arguments: {e}"}
-                    tool_call_id = tool_call.get("id", "")
-                    # Still emit tool_finished so tool_result gets recorded
-                    # (Anthropic requires every tool_use to have a tool_result)
+                    result = {"success": False, "error": f"Invalid JSON arguments: {e}"}
                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)
                     self.results.append(
                         {
@@ -185,6 +207,9 @@ class ToolExecutionWorker(QObject):
                             "parse_error": True,
                         }
                     )
+                    # Abort remaining tools
+                    aborted = True
+                    abort_reason = f"Tool {tool_name} had invalid JSON arguments"
                     continue
 
                 # Emit that we're starting this tool
@@ -192,9 +217,6 @@ class ToolExecutionWorker(QObject):
 
                 # Execute tool
                 result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
-
-                # Get tool_call_id before emitting - it's right here in tool_call
-                tool_call_id = tool_call.get("id", "")
 
                 # Emit result with tool_call_id
                 self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)
@@ -206,6 +228,13 @@ class ToolExecutionWorker(QObject):
                         "result": result,
                     }
                 )
+
+                # Check if this tool failed - abort remaining tools
+                # Tools signal failure by returning success=False
+                if not result.get("success", True):
+                    aborted = True
+                    error_msg = result.get("error", "unknown error")
+                    abort_reason = f"Tool {tool_name} failed: {error_msg}"
 
             self.all_finished.emit(self.results)
 
@@ -866,8 +895,77 @@ class AIChatWidget(QWidget):
         # Update the tool call at this index
         self._streaming_tool_calls[index] = tool_call
 
-        # Update the streaming display to show tool call progress
-        self._update_streaming_tool_calls()
+        # Check if this is a 'say' tool - stream its message as assistant text
+        func = tool_call.get("function", {})
+        if func.get("name") == "say":
+            self._update_streaming_say_tool(index, func.get("arguments", ""))
+        else:
+            # Update the streaming display to show tool call progress
+            self._update_streaming_tool_calls()
+
+    def _update_streaming_say_tool(self, index: int, arguments: str) -> None:
+        """Stream a 'say' tool's message as assistant text.
+
+        The say tool is transparent - we don't need to see its result.
+        Instead, we stream its message argument directly as assistant text.
+        """
+        # Try to extract the message from partial JSON
+        # Arguments might be: '{"message": "Hello wor' (incomplete)
+        message = ""
+        try:
+            # Try complete JSON first
+            args = json.loads(arguments)
+            message = args.get("message", "")
+        except json.JSONDecodeError:
+            # Partial JSON - try to extract message value
+            # Look for "message": " or "message":" pattern
+            import re
+
+            match = re.search(r'"message"\s*:\s*"((?:[^"\\]|\\.)*)', arguments)
+            if match:
+                # Unescape basic JSON escapes
+                message = match.group(1)
+                message = message.replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
+
+        if not message:
+            return
+
+        # Escape for JavaScript
+        escaped_message = (
+            message.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        )
+
+        # Update or create the streaming say content
+        js_code = f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                // Check if user is at bottom before modifying content
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                // Find or create say container (separate from tool calls display)
+                var sayContainer = streamingMsg.querySelector('.streaming-say-{index}');
+                if (!sayContainer) {{
+                    sayContainer = document.createElement('div');
+                    sayContainer.className = 'streaming-say-{index} content';
+                    sayContainer.style.cssText = 'white-space: pre-wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;';
+                    streamingMsg.appendChild(sayContainer);
+                }}
+                sayContainer.innerText = `{escaped_message}`;
+
+                // Only scroll if user was already at bottom
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
+            }}
+        }})();
+        """
+        self.chat_view.page().runJavaScript(js_code)
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
@@ -1129,6 +1227,19 @@ class AIChatWidget(QWidget):
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
 
+        # Handle say tool - display message as assistant text (UI only)
+        # NOTE: We do NOT call append_assistant_message here! That would break
+        # the tool_call → tool_result sequence. The say tool result is recorded
+        # normally by append_tool_result above, but we display it as assistant text.
+        if result.get("say") and result.get("success"):
+            say_message = result.get("message", "")
+            if say_message:
+                # Add to UI messages only (not prompt manager)
+                self.messages.append(
+                    {"role": "assistant", "content": say_message, "_ui_only": True}
+                )
+                self._update_chat_display(scroll_to_bottom=True)
+
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())
@@ -1145,6 +1256,8 @@ class AIChatWidget(QWidget):
             "grep_open",
             "get_lines",
             "compact",
+            "say",
+            "done",
         }
 
         if tool_name in builtin_tools_with_native_rendering and result.get("success"):
@@ -1180,7 +1293,7 @@ class AIChatWidget(QWidget):
             self._add_system_message("\n".join(tool_display_parts))
 
     def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
-        """Handle all tools completed - continue conversation or send queued message"""
+        """Handle all tools completed - continue conversation, end turn, or send queued message"""
         # Clean up thread
         if self.tool_thread:
             self.tool_thread.quit()
@@ -1195,6 +1308,36 @@ class AIChatWidget(QWidget):
             for filepath, tool_call_id in self._pending_file_updates:
                 self.session_manager.file_was_modified(filepath, tool_call_id)
             self._pending_file_updates = []
+
+        # Check if the last tool was `done` and succeeded - end turn cleanly
+        if results:
+            last_result = results[-1].get("result", {})
+            if last_result.get("done") and last_result.get("success"):
+                # AI explicitly signaled completion with done()
+                done_message = last_result.get("message", "")
+
+                # Add the done message as an assistant message
+                if done_message:
+                    self.add_message("assistant", done_message)
+                    self.session_manager.append_assistant_message(done_message)
+
+                # Emit updated context stats
+                self._emit_context_stats()
+
+                # Generate summaries for newly created files
+                if hasattr(self, "_newly_created_files") and self._newly_created_files:
+                    for filepath in self._newly_created_files:
+                        self.session_manager.generate_summary_for_file(filepath)
+                    self.summaries_ready.emit(self.session_manager.repo_summaries)
+                    self._newly_created_files.clear()
+
+                # Commit and finish
+                commit_oid = self.session_manager.commit_ai_turn(self.messages)
+                self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
+                self.ai_turn_finished.emit(commit_oid)
+                self._notify_turn_complete(commit_oid)
+                self._reset_input()
+                return
 
         # Check if user queued a message - if so, inject it now instead of continuing
         if self._queued_message:

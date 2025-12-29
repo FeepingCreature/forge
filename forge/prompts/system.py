@@ -46,12 +46,19 @@ Example workflow for renaming `old_function` to `new_function`:
 
 ### Batch Operations
 
-**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs.
+**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.
 
 Examples of batching:
 - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.
 - Need to edit multiple files? Return all `search_replace` calls together in one response.
 - Need to create several files? Return all `write_file` calls at once.
+
+**The ideal turn**: Chain all your operations together, using `say` to narrate and `done` to finish:
+```
+search_replace(file1) → search_replace(file2) → say("Running checks...") → check() → commit() → say("Cleaning up context...") → update_context() → done("Refactored X to use Y!")
+```
+
+None of these tools return important state on success - you only need control back if something fails. If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, the pipeline aborts and you get control back to fix it.
 
 **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
 
@@ -67,6 +74,15 @@ Guidelines:
 - When creating new code, load examples of similar code to match patterns
 - When modifying a function, load its callers to understand usage
 - After completing a task, remove files you won't need again
+
+### Transparent Tools
+
+Some tools don't require you to see their results to continue. For these, you can chain directly into `say` to keep narrating:
+
+- **`think`** - You already know your conclusion; chain `think(...) → say("Based on my analysis...")` to continue
+- **`compact`** - Just compresses context; no result needed
+
+The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response without waiting for a round-trip.
 
 ### Compacting Tool Results
 

@@ -702,6 +702,9 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         return render_grep_open_html(parsed, is_streaming=True)
     elif name == "get_lines":
         return render_get_lines_html(parsed, is_streaming=True)
+    elif name in ("say", "done"):
+        # These are "in-flow" tools - displayed as assistant text, not tool cards
+        return ""
     else:
         return None  # Unknown tool - use default rendering
 
@@ -742,6 +745,9 @@ def render_completed_tool_html(
         return render_compact_html(args, result)
     elif name == "commit":
         return render_commit_html(args, result)
+    elif name in ("say", "done"):
+        # These are "in-flow" tools - displayed as assistant text, not tool cards
+        return ""
     else:
         return None  # Unknown tool - use default rendering
 

@@ -20,7 +20,7 @@ Within a single turn, **you see the cumulative effect of all your previous tool 
 - After `update_context` adds a file, its content appears in your context
 - After `delete_file`, the file no longer exists for subsequent operations
 
-**This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls.
+**This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls. Your changes are autocommitted when you finish responding - you don't need to explicitly commit unless you want to create multiple atomic commits within a single turn.
 
 This means you can chain operations naturally:
 1. Create a new file with `write_file`

@@ -129,27 +129,32 @@ class PromptManager:
         """
         print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
 
-        # Scan backward collecting file blocks until we've passed all instances of target.
+        # Cache optimization: relocate all file blocks from the earliest target instance forward.
+        #
         # Example: S Z A B C x x A x x x U -> we want S Z x x x x x B C A U
-        # Cache invalidation happens at earliest A, so B and C (after earliest A) must relocate.
-        # Z (before earliest A) stays put.
+        #
+        # Rationale: When we delete all A blocks, cache invalidates from the earliest A forward.
+        # Since B and C are already losing their cache position, we relocate them too.
+        # This keeps all file blocks contiguous at the tail, so future edits only invalidate
+        # from the file block region forward. A goes last to maintain LRU ordering.
         #
         # Algorithm: two passes.
         # Pass 1: find the earliest (first in message order) target block index
         # Pass 2: collect and delete all file blocks from that index forward
-        earliest_target_idx: int | None = None
-        for i, block in enumerate(self.blocks):
-            if (
-                block.block_type == BlockType.FILE_CONTENT
+        earliest_target_idx: int | None = next(
+            (
+                i
+                for i, block in enumerate(self.blocks)
+                if block.block_type == BlockType.FILE_CONTENT
                 and not block.deleted
                 and block.metadata.get("filepath") == filepath
-            ):
-                earliest_target_idx = i
-                break  # First match is earliest
+            ),
+            None,
+        )
 
         if earliest_target_idx is None:
             # New file, no existing blocks to relocate
-            print(f"   ↳ New file, no existing blocks")
+            print("   ↳ New file, no existing blocks")
         else:
             # Collect all file blocks from earliest_target_idx to end
             files_to_relocate: list[ContentBlock] = []

@@ -116,6 +116,11 @@ class PromptManager:
         """
         Add file content to the stream, removing any previous version.
 
+        Cache optimization: When updating a file, we relocate ALL file blocks
+        that appear after it to the end of the stream. This ensures all file
+        blocks remain contiguous at the tail, so future file edits only
+        invalidate from the file block position forward (not the entire context).
+
         Args:
             filepath: Path to the file
             content: Full file content
@@ -124,16 +129,38 @@ class PromptManager:
         """
         print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
 
-        # Delete old version if exists (linear scan is fine for ~200 files max)
-        for block in self.blocks:
-            if (
-                block.block_type == BlockType.FILE_CONTENT
-                and block.metadata.get("filepath") == filepath
-                and not block.deleted
-            ):
+        # Scan backward to find the target file, collecting all file blocks we pass
+        # This relocates all files after the target to maintain contiguous file blocks at tail
+        files_to_relocate: list[ContentBlock] = []
+        target_found = False
+
+        for i in range(len(self.blocks) - 1, -1, -1):
+            block = self.blocks[i]
+            if block.block_type == BlockType.FILE_CONTENT and not block.deleted:
+                files_to_relocate.append(block)
                 block.deleted = True
-                print(f"   ↳ Deleted old version of {filepath}")
-                break
+
+                if block.metadata.get("filepath") == filepath:
+                    target_found = True
+                    print(f"   ↳ Found target {filepath}, relocating {len(files_to_relocate)} file(s)")
+                    break
+
+        # Re-append collected files (excluding target) in original order
+        # We collected in reverse order, so reverse to restore original order
+        if target_found and len(files_to_relocate) > 1:
+            # Pop the target (it was added last during backward scan)
+            files_to_relocate.pop()
+            # Reverse to get original order, then append
+            for block in reversed(files_to_relocate):
+                # Re-append with original content (just mark as not deleted and move to end)
+                self.blocks.append(
+                    ContentBlock(
+                        block_type=BlockType.FILE_CONTENT,
+                        content=block.content,
+                        metadata=block.metadata.copy(),
+                    )
+                )
+                print(f"   ↳ Relocated {block.metadata.get('filepath')}")
 
         # Format content block with explicit annotation
         # Make it VERY clear this is informative context, not a question

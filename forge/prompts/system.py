@@ -46,12 +46,19 @@ Example workflow for renaming `old_function` to `new_function`:
 
 ### Batch Operations
 
-**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs.
+**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.
 
 Examples of batching:
 - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.
 - Need to edit multiple files? Return all `search_replace` calls together in one response.
 - Need to create several files? Return all `write_file` calls at once.
+
+**The ideal turn**: Chain all your operations together, ending with `done`:
+```
+search_replace(file1) → search_replace(file2) → check() → done("Refactored X to use Y")
+```
+
+If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, you get control back to fix it.
 
 **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
 

@@ -137,6 +137,13 @@ class StreamWorker(QObject):
 class ToolExecutionWorker(QObject):
     """Worker for executing tool calls in a background thread.
 
+    Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),
+    remaining tools are aborted and marked as such. This allows the AI to chain
+    tools like: search_replace → search_replace → check → commit → done
+
+    If all tools succeed, the chain completes. If any fails, the AI gets control
+    back to handle the error.
+
     Claims VFS thread ownership while running, releases when done.
     """
 
@@ -160,22 +167,37 @@ class ToolExecutionWorker(QObject):
         self.results: list[dict[str, Any]] = []
 
     def run(self) -> None:
-        """Execute all tool calls"""
+        """Execute tool calls sequentially, aborting on first failure"""
         # Claim VFS for this thread
         self.session_manager.vfs.claim_thread()
+        aborted = False
+        abort_reason = ""
+
         try:
             for tool_call in self.tool_calls:
                 tool_name = tool_call["function"]["name"]
                 arguments_str = tool_call["function"]["arguments"]
+                tool_call_id = tool_call.get("id", "")
+
+                # If we've aborted, mark remaining tools as aborted
+                if aborted:
+                    result = {"success": False, "aborted": True, "reason": abort_reason}
+                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)
+                    self.results.append(
+                        {
+                            "tool_call": tool_call,
+                            "args": {},
+                            "result": result,
+                            "aborted": True,
+                        }
+                    )
+                    continue
 
                 # Parse arguments
                 try:
                     tool_args = json.loads(arguments_str) if arguments_str else {}
                 except json.JSONDecodeError as e:
-                    result = {"error": f"Invalid JSON arguments: {e}"}
-                    tool_call_id = tool_call.get("id", "")
-                    # Still emit tool_finished so tool_result gets recorded
-                    # (Anthropic requires every tool_use to have a tool_result)
+                    result = {"success": False, "error": f"Invalid JSON arguments: {e}"}
                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)
                     self.results.append(
                         {
@@ -185,6 +207,9 @@ class ToolExecutionWorker(QObject):
                             "parse_error": True,
                         }
                     )
+                    # Abort remaining tools
+                    aborted = True
+                    abort_reason = f"Tool {tool_name} had invalid JSON arguments"
                     continue
 
                 # Emit that we're starting this tool
@@ -192,9 +217,6 @@ class ToolExecutionWorker(QObject):
 
                 # Execute tool
                 result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)
-
-                # Get tool_call_id before emitting - it's right here in tool_call
-                tool_call_id = tool_call.get("id", "")
 
                 # Emit result with tool_call_id
                 self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)
@@ -206,6 +228,13 @@ class ToolExecutionWorker(QObject):
                         "result": result,
                     }
                 )
+
+                # Check if this tool failed - abort remaining tools
+                # Tools signal failure by returning success=False
+                if not result.get("success", True):
+                    aborted = True
+                    error_msg = result.get("error", "unknown error")
+                    abort_reason = f"Tool {tool_name} failed: {error_msg}"
 
             self.all_finished.emit(self.results)
 
@@ -1180,7 +1209,7 @@ class AIChatWidget(QWidget):
             self._add_system_message("\n".join(tool_display_parts))
 
     def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
-        """Handle all tools completed - continue conversation or send queued message"""
+        """Handle all tools completed - continue conversation, end turn, or send queued message"""
         # Clean up thread
         if self.tool_thread:
             self.tool_thread.quit()
@@ -1195,6 +1224,36 @@ class AIChatWidget(QWidget):
             for filepath, tool_call_id in self._pending_file_updates:
                 self.session_manager.file_was_modified(filepath, tool_call_id)
             self._pending_file_updates = []
+
+        # Check if the last tool was `done` and succeeded - end turn cleanly
+        if results:
+            last_result = results[-1].get("result", {})
+            if last_result.get("done") and last_result.get("success"):
+                # AI explicitly signaled completion with done()
+                done_message = last_result.get("message", "")
+
+                # Add the done message as an assistant message
+                if done_message:
+                    self.add_message("assistant", done_message)
+                    self.session_manager.append_assistant_message(done_message)
+
+                # Emit updated context stats
+                self._emit_context_stats()
+
+                # Generate summaries for newly created files
+                if hasattr(self, "_newly_created_files") and self._newly_created_files:
+                    for filepath in self._newly_created_files:
+                        self.session_manager.generate_summary_for_file(filepath)
+                    self.summaries_ready.emit(self.session_manager.repo_summaries)
+                    self._newly_created_files.clear()
+
+                # Commit and finish
+                commit_oid = self.session_manager.commit_ai_turn(self.messages)
+                self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
+                self.ai_turn_finished.emit(commit_oid)
+                self._notify_turn_complete(commit_oid)
+                self._reset_input()
+                return
 
         # Check if user queued a message - if so, inject it now instead of continuing
         if self._queued_message:

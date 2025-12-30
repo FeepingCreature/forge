@@ -71,7 +71,18 @@ class PromptManager:
             )
         )
 
-    def set_summaries(self, summaries: dict[str, str]) -> None:
+    def _format_file_size(self, size_bytes: int) -> str:
+        """Format file size in human-readable form"""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+    def set_summaries(
+        self, summaries: dict[str, str], file_sizes: dict[str, int] | None = None
+    ) -> None:
         """
         Set repository summaries. Can be called multiple times (replaces existing).
 
@@ -81,6 +92,7 @@ class PromptManager:
 
         Args:
             summaries: Dict of filepath -> summary text
+            file_sizes: Optional dict of filepath -> size in bytes
         """
         if not summaries:
             return
@@ -101,7 +113,12 @@ class PromptManager:
             "When you work with a file, you'll see its actual current content below.*\n\n",
         ]
         for filepath, summary in sorted(summaries.items()):
-            lines.append(f"## {filepath}\n{summary}\n")
+            # Include file size if available
+            if file_sizes and filepath in file_sizes:
+                size_str = self._format_file_size(file_sizes[filepath])
+                lines.append(f"## {filepath} ({size_str})\n{summary}\n")
+            else:
+                lines.append(f"## {filepath}\n{summary}\n")
 
         self.blocks.append(
             ContentBlock(

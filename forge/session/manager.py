@@ -487,6 +487,15 @@ Keep it under 72 characters."""
             f"{total_cached} cached (parallel={parallel_count})"
         )
 
+        # Collect file sizes for all files
+        file_sizes: dict[str, int] = {}
+        for filepath, _blob_oid, _cached_summary in files_with_cache_info:
+            try:
+                content = self.vfs.read_file(filepath)
+                file_sizes[filepath] = len(content)
+            except (FileNotFoundError, KeyError):
+                file_sizes[filepath] = 0
+
         # Load cached summaries first
         for filepath, _blob_oid, cached_summary in files_with_cache_info:
             if cached_summary is not None:
@@ -546,6 +555,9 @@ Keep it under 72 characters."""
         # Final progress update (signal completion)
         if progress_callback and total_to_generate > 0:
             progress_callback(total_to_generate, total_to_generate, "")
+
+        # Pass file sizes to prompt manager
+        self.prompt_manager.set_summaries(self.repo_summaries, file_sizes)
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""

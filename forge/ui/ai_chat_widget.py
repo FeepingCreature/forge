@@ -1418,9 +1418,11 @@ class AIChatWidget(QWidget):
             self.stream_worker = None
 
         # Clean up tool thread if active
+        # The tool thread claims VFS ownership, so we must wait for it to finish
+        # and release ownership before we can touch the VFS
         if self.tool_thread and self.tool_thread.isRunning():
             self.tool_thread.quit()
-            self.tool_thread.wait(1000)
+            self.tool_thread.wait(3000)  # Wait longer - tool needs to release VFS
             if self.tool_thread.isRunning():
                 self.tool_thread.terminate()
             self.tool_thread = None
@@ -1430,8 +1432,10 @@ class AIChatWidget(QWidget):
         self._is_streaming = False
         self._streaming_tool_calls = []
 
-        # Discard pending VFS changes
-        self.session_manager.vfs.clear_pending_changes()
+        # Discard pending VFS changes by creating a fresh VFS
+        # This is safer than clear_pending_changes() because it doesn't require
+        # the old VFS to be in a valid state (thread ownership, etc.)
+        self.session_manager.tool_manager.vfs = self.session_manager._create_fresh_vfs()
 
         # Remove the incomplete assistant message if present
         if self.messages and self.messages[-1].get("role") == "assistant":

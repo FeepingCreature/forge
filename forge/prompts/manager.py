@@ -817,13 +817,14 @@ class PromptManager:
         """
         Convert the block stream to API message format.
 
-        Skips deleted blocks. Places cache_control on the last content block.
+        Skips deleted blocks. Places cache_control on the last content block
+        BEFORE the stats/recap injection.
 
         Groups consecutive user-role blocks (SUMMARIES, FILE_CONTENT, USER_MESSAGE)
         into single messages to avoid consecutive user messages which break the API.
 
-        Injects context stats at the end of the final user message group, giving
-        the AI awareness of context size and session cost before responding.
+        Injects context stats as a FINAL user message at the very end, ensuring
+        they don't cache-invalidate any conversation content that comes before them.
 
         Also checks if a compaction nudge should be injected into the conversation.
         """
@@ -839,20 +840,11 @@ class PromptManager:
             return messages
 
         # Find the index of the last content block (for cache_control placement)
+        # This is the last block before stats injection - everything up to here is cacheable
         last_content_idx = -1
         for i, block in enumerate(active_blocks):
             if block.block_type not in (BlockType.TOOL_CALL,):
                 last_content_idx = i
-
-        # Find the last user message group (where we'll inject stats)
-        last_user_group_start = -1
-        user_group_types = (BlockType.SUMMARIES, BlockType.FILE_CONTENT, BlockType.USER_MESSAGE)
-        for i, block in enumerate(active_blocks):
-            # Check if this block starts a new user group
-            is_user_block = block.block_type in user_group_types
-            is_new_group = i == 0 or active_blocks[i - 1].block_type not in user_group_types
-            if is_user_block and is_new_group:
-                last_user_group_start = i
 
         i = 0
         while i < len(active_blocks):
@@ -871,7 +863,6 @@ class PromptManager:
                 # Group ALL consecutive user-role content into a single message
                 # This avoids consecutive user messages which break the Anthropic API
                 # FILE_CONTENT blocks are annotated explicitly to clarify they're context
-                group_start = i
                 content_blocks = []
                 while i < len(active_blocks) and active_blocks[i].block_type in (
                     BlockType.SUMMARIES,
@@ -883,17 +874,6 @@ class PromptManager:
                         self._make_content_block(active_blocks[i].content, is_this_last)
                     )
                     i += 1
-
-                # Inject conversation recap and context stats at the end of the LAST user group
-                # This gives AI orientation and current stats right before it responds
-                if group_start == last_user_group_start:
-                    # Recap helps orient when file contents push conversation far back
-                    recap_block = self.format_conversation_recap()
-                    content_blocks.append({"type": "text", "text": recap_block})
-
-                    stats_block = self.format_context_stats_block()
-                    # Stats go after cache_control block, so not cached (always fresh)
-                    content_blocks.append({"type": "text", "text": stats_block})
 
                 messages.append({"role": "user", "content": content_blocks})
 
@@ -911,6 +891,26 @@ class PromptManager:
 
             else:
                 i += 1
+
+        # Inject conversation recap and context stats as a FINAL user message
+        # This ensures they're always at the very end, right before the AI responds,
+        # and don't cache-invalidate any prior content (since they change every turn).
+        #
+        # We need to handle the case where the last message is already a user message
+        # (can't have two consecutive user messages for Anthropic API).
+        recap_block = self.format_conversation_recap()
+        stats_block = self.format_context_stats_block()
+        stats_content = [
+            {"type": "text", "text": recap_block},
+            {"type": "text", "text": stats_block},
+        ]
+
+        if messages and messages[-1].get("role") == "user":
+            # Append to existing user message
+            messages[-1]["content"].extend(stats_content)
+        else:
+            # Add as new user message
+            messages.append({"role": "user", "content": stats_content})
 
         return messages
 

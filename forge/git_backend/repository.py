@@ -529,14 +529,8 @@ class ForgeRepository:
             target_oid: OID of the commit to point the branch to
 
         Raises:
-            ValueError: If trying to move the default branch
             KeyError: If branch or commit doesn't exist
         """
-        # Don't allow moving the default branch
-        default = self.get_default_branch()
-        if branch_name == default:
-            raise ValueError(f"Cannot move default branch: {branch_name}")
-
         # Get the target commit
         target_commit = self.repo.get(target_oid)
         if target_commit is None:

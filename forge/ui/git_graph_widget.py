@@ -1136,19 +1136,6 @@ class GitGraphScene(QGraphicsScene):
         if source_oid not in self.oid_to_panel:
             return
 
-        # Check if this is the default branch (can't move it)
-        try:
-            default_branch = self.repo.get_default_branch()
-            if branch_name == default_branch:
-                QMessageBox.warning(
-                    None,
-                    "Cannot Move Branch",
-                    f"Cannot move the default branch '{branch_name}'.",
-                )
-                return
-        except ValueError:
-            pass
-
         self._branch_drag_active = True
         self._branch_drag_name = branch_name
         self._branch_drag_source_oid = source_oid
@@ -1447,8 +1434,7 @@ class BranchListWidget(QWidget):
 
         try:
             self.repo.delete_branch(branch_name)
-            self._load_branches()  # Refresh list
-            self.branch_deleted.emit(branch_name)
+            self.branch_deleted.emit(branch_name)  # Signal triggers full refresh
         except ValueError as e:
             QMessageBox.warning(self, "Cannot Delete Branch", str(e))
 
@@ -1508,6 +1494,7 @@ class GitGraphView(QGraphicsView):
         # Branch list overlay (top-left corner)
         self._branch_list = BranchListWidget(repo, self)
         self._branch_list.branch_clicked.connect(self._jump_to_branch)
+        self._branch_list.branch_deleted.connect(self._on_branch_deleted)
         self._branch_list.move(8, 8)
 
         # Install event filter on viewport to catch middle mouse before QGraphicsView does
@@ -1710,6 +1697,10 @@ class GitGraphView(QGraphicsView):
         if oid in self._scene.oid_to_panel:
             panel = self._scene.oid_to_panel[oid]
             self.centerOn(panel)
+
+    def _on_branch_deleted(self, branch_name: str) -> None:
+        """Handle branch deletion - refresh the entire view."""
+        self.refresh()
 
     def refresh(self) -> None:
         """Refresh the graph (reload commits and redraw)."""

@@ -158,11 +158,6 @@ class MessageContentWidget(QWidget):
         elif not isinstance(content, str):
             content = json.dumps(content, indent=2)
 
-        # Truncate very long content for display
-        max_len = 5000
-        if len(content) > max_len:
-            content = content[:max_len] + f"\n... ({len(content) - max_len} more chars)"
-
         text_edit = QPlainTextEdit()
         text_edit.setPlainText(content)
         text_edit.setReadOnly(True)

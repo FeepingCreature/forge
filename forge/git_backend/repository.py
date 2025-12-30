@@ -447,6 +447,110 @@ class ForgeRepository:
 
         return new_commit_oid
 
+    def get_default_branch(self) -> str:
+        """
+        Get the default branch name for this repository.
+
+        Priority:
+        1. Remote HEAD (origin/HEAD -> origin/main, etc.)
+        2. init.defaultBranch config
+        3. Hardcoded 'main' or 'master' if they exist
+        4. First local branch found
+
+        Returns:
+            The default branch name (without remote prefix)
+        """
+        # 1. Try remote HEAD (usually origin/HEAD -> origin/main or origin/master)
+        try:
+            # Check if origin/HEAD exists and is a symbolic reference
+            origin_head_ref = self.repo.references.get("refs/remotes/origin/HEAD")
+            if origin_head_ref is not None:
+                # Resolve the symbolic reference to get the target
+                target = origin_head_ref.target
+                if isinstance(target, str) and target.startswith("refs/remotes/origin/"):
+                    return target.replace("refs/remotes/origin/", "")
+        except (KeyError, AttributeError):
+            pass
+
+        # 2. Try init.defaultBranch config
+        try:
+            config = self.repo.config
+            default_branch = config["init.defaultBranch"]
+            if default_branch and default_branch in self.repo.branches.local:
+                return default_branch
+        except KeyError:
+            pass
+
+        # 3. Check for common default branch names
+        for name in ("main", "master"):
+            if name in self.repo.branches.local:
+                return name
+
+        # 4. Fall back to first local branch
+        local_branches = list(self.repo.branches.local)
+        if local_branches:
+            return local_branches[0]
+
+        raise ValueError("No branches found in repository")
+
+    def delete_branch(self, branch_name: str) -> None:
+        """
+        Delete a local branch.
+
+        Args:
+            branch_name: Name of the branch to delete
+
+        Raises:
+            ValueError: If trying to delete the currently checked-out branch
+                        or the default branch
+        """
+        # Don't allow deleting the current branch
+        current = self.get_checked_out_branch()
+        if current == branch_name:
+            raise ValueError(f"Cannot delete currently checked-out branch: {branch_name}")
+
+        # Don't allow deleting the default branch
+        default = self.get_default_branch()
+        if branch_name == default:
+            raise ValueError(f"Cannot delete default branch: {branch_name}")
+
+        # Get the branch reference and delete it
+        branch = self.repo.branches.local[branch_name]
+        branch.delete()
+
+    def move_branch(self, branch_name: str, target_oid: str) -> None:
+        """
+        Move a branch to point to a different commit.
+
+        If this is the currently checked-out branch, also updates the working directory.
+
+        Args:
+            branch_name: Name of the branch to move
+            target_oid: OID of the commit to point the branch to
+
+        Raises:
+            ValueError: If trying to move the default branch
+            KeyError: If branch or commit doesn't exist
+        """
+        # Don't allow moving the default branch
+        default = self.get_default_branch()
+        if branch_name == default:
+            raise ValueError(f"Cannot move default branch: {branch_name}")
+
+        # Get the target commit
+        target_commit = self.repo.get(target_oid)
+        if target_commit is None:
+            raise KeyError(f"Commit not found: {target_oid}")
+
+        # Get and update the branch
+        branch = self.repo.branches.local[branch_name]
+        branch.set_target(pygit2.Oid(hex=target_oid))
+
+        # If this is the current branch, update the working directory
+        current = self.get_checked_out_branch()
+        if current == branch_name:
+            self.checkout_branch_head(branch_name)
+
     def get_file_blob_oid(self, filepath: str, branch_name: str | None = None) -> str:
         """Get the blob OID (content hash) for a file"""
         if branch_name:

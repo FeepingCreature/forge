@@ -88,13 +88,18 @@ class CommitPanel(QGraphicsObject):
 
     Shows: short hash, multiline message, branch labels.
     On hover: fade in Merge (top), Rebase and Squash (bottom) buttons.
+    Branch labels are draggable to move branches to other commits.
     """
 
     # Signals for git operations
     merge_requested = Signal(str)  # oid
     rebase_requested = Signal(str)  # oid
     squash_requested = Signal(str)  # oid
+    diff_requested = Signal(str)  # oid - emitted when Diff button clicked
     merge_drag_started = Signal(str)  # oid - emitted when merge button drag begins
+    branch_drag_started = Signal(
+        str, str
+    )  # (branch_name, source_oid) - emitted when branch label drag begins
 
     # Panel dimensions - bigger to fit multiline messages
     WIDTH = 220
@@ -116,6 +121,9 @@ class CommitPanel(QGraphicsObject):
         self._button_opacity_value = 0.0
         self._grayed_out = False  # For merge drag visual feedback
         self._merge_check_icon: str | None = None  # "clean" or "conflict" when hovering during drag
+
+        # Branch label rects for click/drag detection (populated during paint)
+        self._branch_label_rects: list[tuple[QRectF, str]] = []  # (rect, branch_name)
 
         # Enable hover events
         self.setAcceptHoverEvents(True)
@@ -188,6 +196,7 @@ class CommitPanel(QGraphicsObject):
         # Draw branch labels first if any (at top of panel, above hash)
         fm = QFontMetrics(QFont("sans-serif", 8))
         branch_label_height = 0
+        self._branch_label_rects = []  # Reset for this paint
         if self.node.branch_names:
             label_y = -self.HEIGHT / 2 + 6
             label_x = text_x
@@ -206,6 +215,9 @@ class CommitPanel(QGraphicsObject):
                 font = QFont("sans-serif", 8)
                 painter.setFont(font)
                 painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, label_text)
+
+                # Store rect for click detection
+                self._branch_label_rects.append((label_rect, branch_name))
 
                 label_x += label_width + 4
             branch_label_height = 20  # Space taken by branch labels
@@ -325,7 +337,7 @@ class CommitPanel(QGraphicsObject):
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
         painter.drawText(rebase_rect, Qt.AlignmentFlag.AlignCenter, "Rebase")
 
-        # Squash button (right)
+        # Squash button (center-right)
         squash_rect = QRectF(
             rebase_rect.right() + spacing,
             button_y,
@@ -341,10 +353,28 @@ class CommitPanel(QGraphicsObject):
         painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
         painter.drawText(squash_rect, Qt.AlignmentFlag.AlignCenter, "Squash")
 
+        # Diff button (right)
+        diff_width = 36
+        diff_rect = QRectF(
+            squash_rect.right() + spacing,
+            button_y,
+            diff_width,
+            button_height,
+        )
+        diff_color = QColor(96, 125, 139, int(opacity * 255))  # Blue-gray
+        diff_border = QColor(69, 90, 100, int(opacity * 255))
+        painter.setBrush(diff_color)
+        painter.setPen(QPen(diff_border, 1))
+        painter.drawRoundedRect(diff_rect, 4, 4)
+
+        painter.setPen(QColor(255, 255, 255, int(opacity * 255)))
+        painter.drawText(diff_rect, Qt.AlignmentFlag.AlignCenter, "Diff")
+
         # Store button rects for click detection
         self._merge_rect = merge_rect
         self._rebase_rect = rebase_rect
         self._squash_rect = squash_rect
+        self._diff_rect = diff_rect
 
     def hoverEnterEvent(self, event: object) -> None:  # noqa: N802
         """Handle hover enter - fade in buttons."""
@@ -365,13 +395,21 @@ class CommitPanel(QGraphicsObject):
         self.update()
 
     def mousePressEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse press - check for button clicks or start merge drag."""
+        """Handle mouse press - check for button clicks, branch label drags, or merge drag."""
         from PySide6.QtWidgets import QGraphicsSceneMouseEvent
 
         if not isinstance(event, QGraphicsSceneMouseEvent):
             return
 
         pos = event.pos()
+
+        # Check for branch label click (for drag)
+        for label_rect, branch_name in self._branch_label_rects:
+            if label_rect.contains(pos):
+                self._branch_drag_pending: str | None = branch_name
+                self._branch_drag_start_pos: QPointF | None = pos
+                event.accept()
+                return
 
         if self._button_opacity_value > 0.5:
             if hasattr(self, "_merge_rect") and self._merge_rect.contains(pos):
@@ -387,12 +425,17 @@ class CommitPanel(QGraphicsObject):
                 self.squash_requested.emit(self.node.oid)
                 event.accept()
                 return
+            if hasattr(self, "_diff_rect") and self._diff_rect.contains(pos):
+                self.diff_requested.emit(self.node.oid)
+                event.accept()
+                return
 
         self._merge_drag_pending = False
+        self._branch_drag_pending = None
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse move - start merge drag if pending."""
+        """Handle mouse move - start merge drag or branch drag if pending."""
         from PySide6.QtWidgets import QGraphicsSceneMouseEvent
 
         if not isinstance(event, QGraphicsSceneMouseEvent):
@@ -405,13 +448,29 @@ class CommitPanel(QGraphicsObject):
             event.accept()
             return
 
+        if getattr(self, "_branch_drag_pending", None):
+            # Check if we've moved enough to start a branch drag
+            start_pos = getattr(self, "_branch_drag_start_pos", None)
+            if start_pos:
+                delta = event.pos() - start_pos
+                if delta.manhattanLength() > 5:
+                    pending_branch: str | None = self._branch_drag_pending
+                    self._branch_drag_pending = None
+                    self._branch_drag_start_pos = None
+                    if pending_branch:
+                        self.branch_drag_started.emit(pending_branch, self.node.oid)
+                    event.accept()
+                    return
+
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse release - cancel pending merge drag."""
+        """Handle mouse release - cancel pending drags."""
         from PySide6.QtWidgets import QGraphicsSceneMouseEvent
 
         self._merge_drag_pending = False
+        self._branch_drag_pending = None
+        self._branch_drag_start_pos = None
         if isinstance(event, QGraphicsSceneMouseEvent):
             super().mouseReleaseEvent(event)
 
@@ -590,6 +649,13 @@ class GitGraphScene(QGraphicsScene):
         self._merge_drag_spline: MergeDragSpline | None = None
         self._merge_drag_valid_targets: set[str] = set()  # OIDs of valid drop targets
         self._merge_drag_hover_target: str | None = None  # Currently hovered target
+
+        # Branch drag state
+        self._branch_drag_active = False
+        self._branch_drag_name: str | None = None
+        self._branch_drag_source_oid: str | None = None
+        self._branch_drag_spline: MergeDragSpline | None = None
+        self._branch_drag_hover_target: str | None = None
 
         # Action log for undo
         self._action_log: GitActionLog | None = None
@@ -1063,15 +1129,217 @@ class GitGraphScene(QGraphicsScene):
         self.merge_completed.emit()
         return True
 
+    # --- Branch drag methods ---
+
+    def start_branch_drag(self, branch_name: str, source_oid: str) -> None:
+        """Start a branch drag operation."""
+        if source_oid not in self.oid_to_panel:
+            return
+
+        # Check if this is the default branch (can't move it)
+        try:
+            default_branch = self.repo.get_default_branch()
+            if branch_name == default_branch:
+                QMessageBox.warning(
+                    None,
+                    "Cannot Move Branch",
+                    f"Cannot move the default branch '{branch_name}'.",
+                )
+                return
+        except ValueError:
+            pass
+
+        self._branch_drag_active = True
+        self._branch_drag_name = branch_name
+        self._branch_drag_source_oid = source_oid
+        self._branch_drag_hover_target = None
+
+        # Create spline starting from source panel
+        source_panel = self.oid_to_panel[source_oid]
+        start_pos = source_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)
+
+        # Use orange color for branch drag (different from merge green)
+        self._branch_drag_spline = MergeDragSpline(start_pos)
+        self._branch_drag_spline.setPen(QPen(QColor("#FF9800"), 3, Qt.PenStyle.DashLine))
+        self.addItem(self._branch_drag_spline)
+
+        # Gray out source commit (can't drop on self)
+        source_panel._grayed_out = True
+        source_panel.update()
+
+    def update_branch_drag(self, scene_pos: QPointF) -> None:
+        """Update the branch drag spline endpoint."""
+        if not self._branch_drag_active or self._branch_drag_spline is None:
+            return
+
+        # Check if hovering over any commit (all commits are valid targets except source)
+        old_hover = self._branch_drag_hover_target
+        self._branch_drag_hover_target = None
+
+        for oid, panel in self.oid_to_panel.items():
+            if oid == self._branch_drag_source_oid:
+                continue
+            if panel.sceneBoundingRect().contains(scene_pos):
+                self._branch_drag_hover_target = oid
+                break
+
+        # Update spline endpoint
+        if self._branch_drag_hover_target:
+            target_panel = self.oid_to_panel[self._branch_drag_hover_target]
+            snap_pos = target_panel.scenePos() + QPointF(0, -CommitPanel.HEIGHT / 2)
+            self._branch_drag_spline.update_end(snap_pos)
+        else:
+            self._branch_drag_spline.update_end(scene_pos)
+
+        # Update visual feedback on hover change
+        if self._branch_drag_hover_target != old_hover:
+            if old_hover and old_hover in self.oid_to_panel:
+                self.oid_to_panel[old_hover]._merge_check_icon = None
+                self.oid_to_panel[old_hover].update()
+            if self._branch_drag_hover_target:
+                panel = self.oid_to_panel[self._branch_drag_hover_target]
+                panel._merge_check_icon = "clean"  # Always valid for branch move
+                panel.update()
+
+    def end_branch_drag(self, scene_pos: QPointF) -> bool:
+        """End the branch drag operation. Returns True if branch was moved."""
+        if not self._branch_drag_active:
+            return False
+
+        # Clean up spline
+        if self._branch_drag_spline:
+            self.removeItem(self._branch_drag_spline)
+            self._branch_drag_spline = None
+
+        # Un-gray panels and clear icons
+        for panel in self.oid_to_panel.values():
+            panel._grayed_out = False
+            panel._merge_check_icon = None
+            panel.update()
+
+        branch_name = self._branch_drag_name
+        target_oid = self._branch_drag_hover_target
+
+        # Reset state
+        self._branch_drag_active = False
+        self._branch_drag_name = None
+        self._branch_drag_source_oid = None
+        self._branch_drag_hover_target = None
+
+        # Perform move if we have a valid target
+        if branch_name and target_oid:
+            return self._perform_branch_move(branch_name, target_oid)
+
+        return False
+
+    def cancel_branch_drag(self) -> None:
+        """Cancel the branch drag without performing any action."""
+        if not self._branch_drag_active:
+            return
+
+        if self._branch_drag_spline:
+            self.removeItem(self._branch_drag_spline)
+            self._branch_drag_spline = None
+
+        for panel in self.oid_to_panel.values():
+            panel._grayed_out = False
+            panel._merge_check_icon = None
+            panel.update()
+
+        self._branch_drag_active = False
+        self._branch_drag_name = None
+        self._branch_drag_source_oid = None
+        self._branch_drag_hover_target = None
+
+    def _perform_branch_move(self, branch_name: str, target_oid: str) -> bool:
+        """Move a branch to point to a different commit."""
+        try:
+            self.repo.move_branch(branch_name, target_oid)
+            self.merge_completed.emit()  # Reuse signal to trigger refresh
+            return True
+        except (ValueError, KeyError) as e:
+            QMessageBox.warning(
+                None,
+                "Cannot Move Branch",
+                str(e),
+            )
+            return False
+
+
+class BranchItemWidget(QWidget):
+    """Custom widget for a branch list item with delete button."""
+
+    delete_clicked = Signal(str)  # branch_name
+
+    def __init__(
+        self,
+        branch_name: str,
+        color: QColor,
+        is_current: bool,
+        is_default: bool,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.branch_name = branch_name
+        self._is_current = is_current
+        self._is_default = is_default
+
+        from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(4)
+
+        # Branch name label
+        self._label = QLabel(branch_name)
+        self._label.setStyleSheet(f"color: {color.darker(120).name()}; font-size: 11px;")
+        layout.addWidget(self._label, 1)
+
+        # Current branch indicator
+        if is_current:
+            current_label = QLabel("●")
+            current_label.setStyleSheet("color: #4CAF50; font-size: 10px;")
+            current_label.setToolTip("Current branch")
+            layout.addWidget(current_label)
+
+        # Delete button (hidden for default and current branches)
+        self._delete_btn = QPushButton("×")
+        self._delete_btn.setFixedSize(16, 16)
+        self._delete_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #999;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                color: #F44336;
+                background: #FFEBEE;
+                border-radius: 8px;
+            }
+        """)
+        self._delete_btn.setToolTip("Delete branch")
+        self._delete_btn.clicked.connect(lambda: self.delete_clicked.emit(self.branch_name))
+
+        # Hide delete for current or default branch
+        if is_current or is_default:
+            self._delete_btn.hide()
+
+        layout.addWidget(self._delete_btn)
+
 
 class BranchListWidget(QWidget):
     """Overlay widget listing branches for quick navigation."""
 
     branch_clicked = Signal(str)  # branch name
+    branch_deleted = Signal(str)  # branch name - emitted after deletion
 
     def __init__(self, repo: ForgeRepository, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.repo = repo
+        self._default_branch: str | None = None
+        self._current_branch: str | None = None
 
         # Semi-transparent background
         self.setAutoFillBackground(True)
@@ -1094,7 +1362,7 @@ class BranchListWidget(QWidget):
                 font-size: 11px;
             }
             QListWidget::item {
-                padding: 4px 8px;
+                padding: 0px;
                 border-radius: 3px;
             }
             QListWidget::item:hover {
@@ -1102,19 +1370,25 @@ class BranchListWidget(QWidget):
             }
             QListWidget::item:selected {
                 background: #2196F3;
-                color: white;
             }
         """)
         self._list.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self._list)
 
         self._load_branches()
-        self.setFixedWidth(160)
+        self.setFixedWidth(180)
         self.adjustSize()
 
     def _load_branches(self) -> None:
         """Load branches into the list, ordered by last commit time (newest first)."""
         self._list.clear()
+
+        # Get default and current branch
+        try:
+            self._default_branch = self.repo.get_default_branch()
+        except ValueError:
+            self._default_branch = None
+        self._current_branch = self.repo.get_checked_out_branch()
 
         # Get local branch names with their tip commit times (skip remotes)
         branch_times: list[tuple[str, int]] = []
@@ -1127,14 +1401,24 @@ class BranchListWidget(QWidget):
         branch_times.sort(key=lambda x: -x[1])
 
         for branch_name, _ in branch_times:
-            item = QListWidgetItem(branch_name)
             # Color code by lane
             color = get_lane_color(hash(branch_name) % len(LANE_COLORS))
-            item.setForeground(color.darker(120))
+
+            # Create custom widget for item
+            is_current = branch_name == self._current_branch
+            is_default = branch_name == self._default_branch
+            item_widget = BranchItemWidget(branch_name, color, is_current, is_default)
+            item_widget.delete_clicked.connect(self._on_delete_clicked)
+
+            # Create list item and set widget
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, branch_name)
+            item.setSizeHint(item_widget.sizeHint())
             self._list.addItem(item)
+            self._list.setItemWidget(item, item_widget)
 
         # Adjust height to fit all items up to 10 (no scrolling unless > 10)
-        item_height = 26
+        item_height = 28
         visible_items = min(self._list.count(), 10)
         list_height = max(visible_items * item_height + 10, 50)
         self._list.setFixedHeight(list_height)
@@ -1142,7 +1426,31 @@ class BranchListWidget(QWidget):
 
     def _on_item_clicked(self, item: QListWidgetItem) -> None:
         """Handle branch click."""
-        self.branch_clicked.emit(item.text())
+        branch_name = item.data(Qt.ItemDataRole.UserRole)
+        if branch_name:
+            self.branch_clicked.emit(branch_name)
+
+    def _on_delete_clicked(self, branch_name: str) -> None:
+        """Handle delete button click - show confirmation dialog."""
+        # Safety dialog
+        result = QMessageBox.question(
+            self,
+            "Delete Branch",
+            f"Are you sure you want to delete branch '{branch_name}'?\n\n"
+            "This action cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if result != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self.repo.delete_branch(branch_name)
+            self._load_branches()  # Refresh list
+            self.branch_deleted.emit(branch_name)
+        except ValueError as e:
+            QMessageBox.warning(self, "Cannot Delete Branch", str(e))
 
 
 class GitGraphView(QGraphicsView):
@@ -1293,9 +1601,11 @@ class GitGraphView(QGraphicsView):
             super().wheelEvent(event)
 
     def _connect_panel_signals(self) -> None:
-        """Connect merge_drag_started signals from all panels."""
+        """Connect drag signals from all panels."""
         for panel in self._scene.oid_to_panel.values():
             panel.merge_drag_started.connect(self._on_merge_drag_started)
+            panel.branch_drag_started.connect(self._on_branch_drag_started)
+            panel.diff_requested.connect(self._on_diff_requested)
 
     def _on_merge_drag_started(self, oid: str) -> None:
         """Handle merge drag start from a panel."""
@@ -1305,8 +1615,22 @@ class GitGraphView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setCursor(Qt.CursorShape.CrossCursor)
 
+    def _on_branch_drag_started(self, branch_name: str, source_oid: str) -> None:
+        """Handle branch drag start from a panel's branch label."""
+        self._in_merge_drag = True  # Reuse merge drag tracking
+        self._scene.start_branch_drag(branch_name, source_oid)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def _on_diff_requested(self, oid: str) -> None:
+        """Handle diff button click - open diff window."""
+        from forge.ui.commit_diff_window import CommitDiffWindow
+
+        window = CommitDiffWindow(self.repo, oid, self)
+        window.show()
+
     def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse move - update merge drag if active."""
+        """Handle mouse move - update merge/branch drag if active."""
         from PySide6.QtGui import QMouseEvent
 
         if not isinstance(event, QMouseEvent):
@@ -1314,14 +1638,18 @@ class GitGraphView(QGraphicsView):
 
         if self._in_merge_drag:
             scene_pos = self.mapToScene(event.pos())
-            self._scene.update_merge_drag(scene_pos)
+            # Update whichever drag is active
+            if self._scene._merge_drag_active:
+                self._scene.update_merge_drag(scene_pos)
+            elif self._scene._branch_drag_active:
+                self._scene.update_branch_drag(scene_pos)
             event.accept()
             return
 
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: object) -> None:  # noqa: N802
-        """Handle mouse release - end merge drag if active."""
+        """Handle mouse release - end merge/branch drag if active."""
         from PySide6.QtGui import QMouseEvent
 
         if not isinstance(event, QMouseEvent):
@@ -1329,13 +1657,21 @@ class GitGraphView(QGraphicsView):
 
         if self._in_merge_drag and event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
-            merged = self._scene.end_merge_drag(scene_pos)
+
+            # End whichever drag is active
+            if self._scene._merge_drag_active:
+                success = self._scene.end_merge_drag(scene_pos)
+            elif self._scene._branch_drag_active:
+                success = self._scene.end_branch_drag(scene_pos)
+            else:
+                success = False
+
             self._in_merge_drag = False
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
-            if merged:
-                # Refresh the graph after merge
+            if success:
+                # Refresh the graph after operation
                 self.refresh()
 
             event.accept()

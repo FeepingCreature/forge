@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import markdown
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtGui import QDesktopServices, QKeyEvent
+from PySide6.QtGui import QDesktopServices, QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -29,6 +29,7 @@ from forge.ui.diff_view import (
     render_completed_tool_html,
     render_streaming_tool_html,
 )
+from forge.ui.editor_widget import SearchBar
 
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
@@ -457,6 +458,18 @@ class AIChatWidget(QWidget):
         self._init_chat_shell()
 
         layout.addWidget(self.chat_view)
+
+        # Search bar (hidden by default, at bottom of chat view)
+        self.search_bar = SearchBar()
+        self.search_bar.hide()
+        self.search_bar.closed.connect(self._close_search)
+        self.search_bar.find_next.connect(self._find_next)
+        self.search_bar.find_prev.connect(self._find_prev)
+        layout.addWidget(self.search_bar)
+
+        # Search shortcut (Ctrl+F)
+        self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
+        self._find_shortcut.activated.connect(self._show_search)
 
         # Input area
         input_layout = QHBoxLayout()
@@ -2326,3 +2339,29 @@ class AIChatWidget(QWidget):
 
         # Inject content via JavaScript - scroll position preserved automatically
         self.chat_view.page().runJavaScript(f"updateMessages(`{escaped_html}`, {scroll_js});")
+
+    # -------------------------------------------------------------------------
+    # Search functionality
+    # -------------------------------------------------------------------------
+
+    def _show_search(self) -> None:
+        """Show the search bar"""
+        self.search_bar.show()
+        self.search_bar.focus_input()
+
+    def _close_search(self) -> None:
+        """Hide the search bar and clear highlights"""
+        self.search_bar.hide()
+        # Clear any active search highlighting in the web view
+        self.chat_view.findText("")
+        self.input_field.setFocus()
+
+    def _find_next(self, text: str) -> None:
+        """Find next occurrence of text in chat"""
+        if text:
+            self.chat_view.findText(text)
+
+    def _find_prev(self, text: str) -> None:
+        """Find previous occurrence of text in chat"""
+        if text:
+            self.chat_view.findText(text, QWebEnginePage.FindFlag.FindBackward)

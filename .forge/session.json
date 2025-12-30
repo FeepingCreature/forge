@@ -5,6 +5,7 @@
     "forge/vfs/work_in_progress.py",
     "forge/ui/ai_chat_widget.py",
     "forge/ui/branch_workspace.py",
+    "forge/ui/request_debug_window.py",
     "CLAUDE.md",
     "forge/vfs/base.py"
   ],
@@ -134,6 +135,51 @@
       "streaming": true,
       "actual_cost": 0.04323875,
       "generation_id": "gen-1767082057-dA5XRb7kcWV7VAVnsCVL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767082176243.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767082176243.json",
+      "timestamp": 1767082176.2461655,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0404975,
+      "generation_id": "gen-1767082176-zpiwOjD6hIAjUc8ZPgQZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767082181996.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767082181996.json",
+      "timestamp": 1767082181.9985209,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0367455,
+      "generation_id": "gen-1767082182-o36Mp8YNGuOfpupZPPMB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767082186775.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767082186775.json",
+      "timestamp": 1767082186.7770958,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04805175,
+      "generation_id": "gen-1767082186-ag4UgvbJYXzEctVF4KOd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767082195475.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767082195475.json",
+      "timestamp": 1767082195.4778192,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0790055,
+      "generation_id": "gen-1767082195-3P4dPsnOunSzDBGct8yV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767082211509.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767082211509.json",
+      "timestamp": 1767082211.51135,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04193125,
+      "generation_id": "gen-1767082211-OpfH12ZU6jDVxNAFNdk6"
     }
   ],
   "messages": [
@@ -478,6 +524,148 @@
     {
       "role": "assistant",
       "content": "Fixed the cancel crash! \n\n**The Problem:**\nWhen clicking Cancel during tool execution, the code tried to call `clear_pending_changes()` on the VFS. But the VFS has thread ownership checks, and the ToolExecutionWorker background thread still owned it. This caused an `AssertionError` when the main thread tried to access it.\n\n**The Fix:**\nInstead of clearing pending changes on the old VFS (which requires thread ownership), I replaced it with creating a fresh VFS instance via `_create_fresh_vfs()`. This safely discards all pending changes without needing to interact with the thread-locked old VFS.\n\nI also increased the wait timeout from 1 second to 3 seconds for the tool thread, giving it more time to properly release VFS ownership before we replace it."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 2234164f",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Unrelatedly, can you show the complete messages in the debug view instead of cutting them off?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll look for the debug view to find where messages are being truncated.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"truncat|cutoff|max.*length|\\\\.\\\\.\\\\..*content\", \"file\": \"forge/ui/request_debug_window.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_019CV8brdk5rGgZ7scZ6m9YR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_019CV8brdk5rGgZ7scZ6m9YR",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/ui/request_debug_window.py:164 \\u2500\\u2500\\n     161 |         # Truncate very long content for display\\n     162 |         max_len = 5000\\n     163 |         if len(content) > max_len:\\n>>>  164 |             content = content[:max_len] + f\\\"\\\\n... ({len(content) - max_len} more chars)\\\"\\n     165 | \\n     166 |         text_edit = QPlainTextEdit()\\n     167 |         text_edit.setPlainText(content)\", \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/ui/request_debug_window.py\",\n  \"pattern\": \"truncat|cutoff|max.*length|\\\\.\\\\.\\\\..*content\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/request_debug_window.py:164 \\u2500\\u2500\\n     161 |         # Truncate very long content for display\\n     162 |         max_len = 5000\\n     163 |         if len(content) > max_len:\\n>>>  164 |             content = content[:max_len] + f\\\"\\\\n... ({len(content) - max_len} more chars)\\\"\\n     165 | \\n     166 |         text_edit = QPlainTextEdit()\\n     167 |         text_edit.setPlainText(content)\",\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found it! Let me see more context around that truncation:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/request_debug_window.py\", \"line\": 164, \"context\": 20}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01D9D8air8goXYt94kbSAWu6",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01D9D8air8goXYt94kbSAWu6",
+      "content": "{\"content\": \"     144 |             f\\\"<span style='color: #6e7781; font-size: 11px;'>\\\"\\n     145 |             f\\\"{tokens_before:,} | <b>{message_tokens:,}</b> | {tokens_after:,}\\\"\\n     146 |             f\\\"</span>\\\"\\n     147 |         )\\n     148 |         token_label.setToolTip(\\\"Tokens: before | this message | after\\\")\\n     149 |         header_layout.addWidget(token_label)\\n     150 | \\n     151 |         layout.addLayout(header_layout)\\n     152 | \\n     153 |         # Content\\n     154 |         content = message.get(\\\"content\\\", \\\"\\\")\\n     155 |         if isinstance(content, list):\\n     156 |             # Multi-part content (e.g., tool results)\\n     157 |             content = json.dumps(content, indent=2)\\n     158 |         elif not isinstance(content, str):\\n     159 |             content = json.dumps(content, indent=2)\\n     160 | \\n     161 |         # Truncate very long content for display\\n     162 |         max_len = 5000\\n     163 |         if len(content) > max_len:\\n>>>  164 |             content = content[:max_len] + f\\\"\\\\n... ({len(content) - max_len} more chars)\\\"\\n     165 | \\n     166 |         text_edit = QPlainTextEdit()\\n     167 |         text_edit.setPlainText(content)\\n     168 |         text_edit.setReadOnly(True)\\n     169 |         text_edit.setMaximumHeight(200)\\n     170 | \\n     171 |         if is_cached:\\n     172 |             text_edit.setStyleSheet(\\\"background-color: #f0fff0;\\\")  # Light green for cached\\n     173 | \\n     174 |         layout.addWidget(text_edit)\\n     175 | \\n     176 |         # Tool calls if present\\n     177 |         tool_calls = message.get(\\\"tool_calls\\\", [])\\n     178 |         if tool_calls:\\n     179 |             tools_label = QLabel(f\\\"<b>Tool calls: {len(tool_calls)}</b>\\\")\\n     180 |             layout.addWidget(tools_label)\\n     181 |             for tc in tool_calls[:5]:  # Show max 5\\n     182 |                 func = tc.get(\\\"function\\\", {})\\n     183 |                 name = func.get(\\\"name\\\", \\\"?\\\")\\n     184 |                 args_preview = func.get(\\\"arguments\\\", \\\"\\\")[:100]\", \"filepath\": \"forge/ui/request_debug_window.py\", \"range\": \"144-184\", \"success\": true, \"target_line\": 164, \"total_lines\": 520}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see two truncations here:\n1. Line 162-164: Content truncated to 5000 chars\n2. Line 169: `setMaximumHeight(200)` limits the visible area\n\nLet me remove the truncation and make the text area scrollable without a fixed max height:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/request_debug_window.py\", \"search\": \"        # Truncate very long content for display\\n        max_len = 5000\\n        if len(content) > max_len:\\n            content = content[:max_len] + f\\\"\\\\n... ({len(content) - max_len} more chars)\\\"\\n\\n        text_edit = QPlainTextEdit()\\n        text_edit.setPlainText(content)\\n        text_edit.setReadOnly(True)\\n        text_edit.setMaximumHeight(200)\", \"replace\": \"        text_edit = QPlainTextEdit()\\n        text_edit.setPlainText(content)\\n        text_edit.setReadOnly(True)\\n        # Start collapsed, user can expand by dragging\\n        text_edit.setMinimumHeight(50)\\n        text_edit.setMaximumHeight(400)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01JtzTWvNJ8AH4hLtVtWh77s",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JtzTWvNJ8AH4hLtVtWh77s",
+      "content": "{\"message\": \"Replaced in forge/ui/request_debug_window.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01WnzEF5Ajh5sg4wL2CQV8Cg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WnzEF5Ajh5sg4wL2CQV8Cg",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 68 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 68 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"fix: Show complete messages in debug view instead of truncating\\n\\nRemoved the 5000 character truncation limit on message content in the\\nrequest debug window. Also increased the max height from 200px to 400px\\nso more content is visible without scrolling.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_015yP84ZzmKqCRQaZBdEfnUj",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! Removed the 5000 character truncation from the debug view. Messages now show their complete content. I also increased the max height of each message box from 200px to 400px so you can see more without scrolling.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01PHqgLBPhAc6NEPEEtdcRN3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015yP84ZzmKqCRQaZBdEfnUj",
+      "content": "{\"commit\": \"7276bb390674\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"fix: Show complete messages in debug view instead of truncating\\n\\nRemoved the 5000 character truncation limit on message content in the\\nrequest debug window. Also increased the max height from 200px to 400px\\nso more content is visible without scrolling.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"7276bb390674\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PHqgLBPhAc6NEPEEtdcRN3",
+      "content": "{\"done\": true, \"message\": \"Done! Removed the 5000 character truncation from the debug view. Messages now show their complete content. I also increased the max height of each message box from 200px to 400px so you can see more without scrolling.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Removed the 5000 character truncation from the debug view. Messages now show their complete content. I also increased the max height of each message box from 200px to 400px so you can see more without scrolling."
     }
   ]
 }

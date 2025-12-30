@@ -29,7 +29,7 @@ from forge.ui.actions import ActionRegistry
 from forge.ui.ai_chat_widget import AIChatWidget
 from forge.ui.branch_tab_widget import BranchTabWidget
 from forge.ui.branch_workspace import BranchWorkspace
-from forge.ui.git_graph_widget import GitGraphScrollArea
+from forge.ui.git_graph import GitGraphScrollArea
 from forge.ui.request_debug_window import RequestDebugWindow
 from forge.ui.settings_dialog import SettingsDialog
 

@@ -103,6 +103,9 @@ BINARY_EXTENSIONS: frozenset[str] = frozenset(
         ".msi",
         ".apk",
         ".ipa",
+        # Game engines
+        ".uasset",
+        ".umap",
     }
 )
 

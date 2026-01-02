@@ -7,7 +7,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QAction, QGuiApplication
+from PySide6.QtGui import QAction, QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QMenu,
     QTreeWidget,
@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from forge.vfs import is_binary_file
 
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
@@ -110,12 +112,14 @@ class FileExplorerWidget(QWidget):
         self._large_files.clear()
         self._file_sizes.clear()
 
-        # Get all files from VFS and cache them
-        files = self.workspace.vfs.list_files()
+        # Get all files from VFS (including binary) and cache them
+        files = self.workspace.vfs.list_all_files()
         self._all_files = [f for f in files if not f.startswith(".forge/")]
 
-        # Check file sizes and track large files
+        # Check file sizes and track large files (skip binary files)
         for filepath in self._all_files:
+            if is_binary_file(filepath):
+                continue
             try:
                 content = self.workspace.vfs.read_file(filepath)
                 self._file_sizes[filepath] = len(content)
@@ -164,20 +168,31 @@ class FileExplorerWidget(QWidget):
             filename = parts[-1]
             file_item = QTreeWidgetItem()
             file_item.setText(COL_NAME, f"📄 {filename}")
-            file_item.setText(COL_CONTEXT, ICON_NONE)  # Context icon in separate column
             file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole, filepath)  # Store full path
-            file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
 
-            # Build tooltip with file path and size info
-            tooltip_parts = [filepath]
-            if filepath in self._file_sizes:
-                size = self._file_sizes[filepath]
-                tokens = size // 3  # Rough estimate
-                tooltip_parts.append(f"Size: {size:,} chars (~{tokens:,} tokens)")
-                if filepath in self._large_files:
-                    tooltip_parts.append("⚠️ Large file - may consume significant context")
-            file_item.setToolTip(COL_NAME, "\n".join(tooltip_parts))
-            file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
+            # Check if binary file
+            is_binary = is_binary_file(filepath)
+            if is_binary:
+                file_item.setData(
+                    COL_NAME, Qt.ItemDataRole.UserRole + 1, "binary"
+                )  # Mark as binary
+                file_item.setText(COL_CONTEXT, "")  # No context icon for binary
+                file_item.setForeground(COL_NAME, QColor(128, 128, 128))  # Grey out
+                file_item.setToolTip(COL_NAME, f"{filepath}\n(binary file)")
+            else:
+                file_item.setText(COL_CONTEXT, ICON_NONE)  # Context icon in separate column
+                file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "file")  # Mark as file
+
+                # Build tooltip with file path and size info
+                tooltip_parts = [filepath]
+                if filepath in self._file_sizes:
+                    size = self._file_sizes[filepath]
+                    tokens = size // 3  # Rough estimate
+                    tooltip_parts.append(f"Size: {size:,} chars (~{tokens:,} tokens)")
+                    if filepath in self._large_files:
+                        tooltip_parts.append("⚠️ Large file - may consume significant context")
+                file_item.setToolTip(COL_NAME, "\n".join(tooltip_parts))
+                file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
 
             current_parent.addChild(file_item)
 
@@ -281,6 +296,10 @@ class FileExplorerWidget(QWidget):
 
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
 
+        # Binary files can't be added to context
+        if item_type == "binary":
+            return
+
         if item_type == "file":
             filepath = item.data(0, Qt.ItemDataRole.UserRole)
             # Toggle context for file
@@ -288,9 +307,13 @@ class FileExplorerWidget(QWidget):
             self.context_toggle_requested.emit(filepath, not is_in_context)
 
         elif item_type == "dir":
-            # Toggle context for all files in this folder
+            # Toggle context for all non-binary files in this folder
             folder_path = item.data(0, Qt.ItemDataRole.UserRole)
-            folder_files = [f for f in self._all_files if f.startswith(folder_path + "/")]
+            folder_files = [
+                f
+                for f in self._all_files
+                if f.startswith(folder_path + "/") and not is_binary_file(f)
+            ]
 
             if not folder_files:
                 return
@@ -302,14 +325,15 @@ class FileExplorerWidget(QWidget):
                 self.context_toggle_requested.emit(filepath, not all_in_context)
 
         elif item_type == "root":
-            # Toggle context for ALL files
-            if not self._all_files:
+            # Toggle context for ALL non-binary files
+            text_files = [f for f in self._all_files if not is_binary_file(f)]
+            if not text_files:
                 return
 
             # If any file is NOT in context, add all; otherwise remove all
-            all_in_context = all(f in self._context_files for f in self._all_files)
+            all_in_context = all(f in self._context_files for f in text_files)
 
-            for filepath in self._all_files:
+            for filepath in text_files:
                 self.context_toggle_requested.emit(filepath, not all_in_context)
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
@@ -319,6 +343,9 @@ class FileExplorerWidget(QWidget):
         if item_type == "file":
             filepath = item.data(0, Qt.ItemDataRole.UserRole)
             self.file_open_requested.emit(filepath)
+        elif item_type == "binary":
+            # Binary files can't be opened
+            pass
         elif item_type == "dir":
             # Toggle expansion
             item.setExpanded(not item.isExpanded())
@@ -375,6 +402,24 @@ class FileExplorerWidget(QWidget):
             delete_action.triggered.connect(lambda: self._delete_file(filepath))
             menu.addAction(delete_action)
 
+        elif item_type == "binary":
+            # Binary file - limited actions (no open, no context)
+            copy_path_action = QAction("Copy Path", self)
+            copy_path_action.triggered.connect(lambda: self._copy_to_clipboard(filepath))
+            menu.addAction(copy_path_action)
+
+            copy_name_action = QAction("Copy Name", self)
+            filename = PurePosixPath(filepath).name
+            copy_name_action.triggered.connect(lambda: self._copy_to_clipboard(filename))
+            menu.addAction(copy_name_action)
+
+            menu.addSeparator()
+
+            # Delete action
+            delete_action = QAction("Delete", self)
+            delete_action.triggered.connect(lambda: self._delete_file(filepath))
+            menu.addAction(delete_action)
+
         elif item_type == "dir":
             # Directory actions
             folder_path = filepath
@@ -391,18 +436,19 @@ class FileExplorerWidget(QWidget):
 
             menu.addSeparator()
 
-            # Context toggle for all files in folder
-            if folder_files:
-                all_in_context = all(f in self._context_files for f in folder_files)
+            # Context toggle for all non-binary files in folder
+            text_files = [f for f in folder_files if not is_binary_file(f)]
+            if text_files:
+                all_in_context = all(f in self._context_files for f in text_files)
                 if all_in_context:
                     context_action = QAction("Remove All from Context", self)
                     context_action.triggered.connect(
-                        lambda: self._toggle_folder_context(folder_files, False)
+                        lambda: self._toggle_folder_context(text_files, False)
                     )
                 else:
                     context_action = QAction("Add All to Context", self)
                     context_action.triggered.connect(
-                        lambda: self._toggle_folder_context(folder_files, True)
+                        lambda: self._toggle_folder_context(text_files, True)
                     )
                 menu.addAction(context_action)
 
@@ -415,18 +461,19 @@ class FileExplorerWidget(QWidget):
 
         elif item_type == "root":
             # Root actions
-            # Context toggle for all files
-            if self._all_files:
-                all_in_context = all(f in self._context_files for f in self._all_files)
+            # Context toggle for all non-binary files
+            text_files = [f for f in self._all_files if not is_binary_file(f)]
+            if text_files:
+                all_in_context = all(f in self._context_files for f in text_files)
                 if all_in_context:
                     context_action = QAction("Remove All from Context", self)
                     context_action.triggered.connect(
-                        lambda: self._toggle_folder_context(self._all_files, False)
+                        lambda: self._toggle_folder_context(text_files, False)
                     )
                 else:
                     context_action = QAction("Add All to Context", self)
                     context_action.triggered.connect(
-                        lambda: self._toggle_folder_context(self._all_files, True)
+                        lambda: self._toggle_folder_context(text_files, True)
                     )
                 menu.addAction(context_action)
 

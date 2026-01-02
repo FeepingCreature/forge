@@ -81,7 +81,10 @@ class PromptManager:
             return f"{size_bytes / (1024 * 1024):.1f} MB"
 
     def set_summaries(
-        self, summaries: dict[str, str], file_sizes: dict[str, int] | None = None
+        self,
+        summaries: dict[str, str],
+        file_sizes: dict[str, int] | None = None,
+        files_beyond_budget: list[str] | None = None,
     ) -> None:
         """
         Set repository summaries. Can be called multiple times (replaces existing).
@@ -93,11 +96,15 @@ class PromptManager:
         Args:
             summaries: Dict of filepath -> summary text
             file_sizes: Optional dict of filepath -> size in bytes
+            files_beyond_budget: List of files that exceeded token budget (no summaries)
         """
-        if not summaries:
+        if not summaries and not files_beyond_budget:
             return
 
-        print(f"📋 PromptManager: Setting summaries for {len(summaries)} files")
+        total_files = len(summaries) + len(files_beyond_budget or [])
+        print(
+            f"📋 PromptManager: Setting summaries for {len(summaries)} files ({total_files} total)"
+        )
 
         # Delete any existing summaries block first (avoid duplication)
         for block in self.blocks:
@@ -119,6 +126,20 @@ class PromptManager:
                 lines.append(f"## {filepath} ({size_str})\n{summary}\n")
             else:
                 lines.append(f"## {filepath}\n{summary}\n")
+
+        # Add files beyond budget as a simple list
+        if files_beyond_budget:
+            lines.append("\n# Additional Files (use scout to investigate)\n\n")
+            lines.append(
+                "*These files exceeded the summary token budget. "
+                "Use the `scout` tool with a question to examine them.*\n\n"
+            )
+            for filepath in files_beyond_budget:
+                if file_sizes and filepath in file_sizes:
+                    size_str = self._format_file_size(file_sizes[filepath])
+                    lines.append(f"- {filepath} ({size_str})\n")
+                else:
+                    lines.append(f"- {filepath}\n")
 
         self.blocks.append(
             ContentBlock(

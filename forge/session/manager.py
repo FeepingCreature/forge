@@ -435,13 +435,21 @@ Keep it under 72 characters."""
 
         return message
 
+    def _get_path_depth(self, filepath: str) -> int:
+        """Get the depth of a file path (number of directory components)"""
+        return filepath.count("/")
+
     def generate_repo_summaries(
         self,
         force_refresh: bool = False,
         progress_callback: "Callable[[int, int, str], None] | None" = None,
     ) -> None:
         """
-        Generate summaries for all files in repository (with caching)
+        Generate summaries for files in repository with token budget (breadth-first).
+
+        Files are processed in breadth-first order (by path depth). Summaries are
+        generated until the token budget is reached. Files beyond the budget are
+        listed without summaries, with a note to use scout for investigation.
 
         Args:
             force_refresh: If True, regenerate all summaries even if cached
@@ -450,14 +458,27 @@ Keep it under 72 characters."""
         model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
         client = LLMClient(api_key, model)
+        token_budget = self.settings.get_summary_token_budget()
 
         # List files through VFS (includes any pending new files)
         files = self.vfs.list_files()
         # Filter out forge metadata and binary files
         files = [f for f in files if self._should_summarize(filepath=f)]
 
-        # First pass: determine which files need generation vs cached
-        # Build list of (filepath, blob_oid, cached_summary_or_none)
+        # Sort files breadth-first (by path depth, then alphabetically within each level)
+        files.sort(key=lambda f: (self._get_path_depth(f), f))
+
+        # Collect file sizes for all files
+        file_sizes: dict[str, int] = {}
+        for filepath in files:
+            try:
+                content = self.vfs.read_file(filepath)
+                file_sizes[filepath] = len(content)
+            except (FileNotFoundError, KeyError, UnicodeDecodeError):
+                file_sizes[filepath] = 0
+
+        # First pass: gather cache info and determine which files need generation
+        # Also track running token count to find the cutoff point
         files_with_cache_info: list[tuple[str, str, str | None]] = []
         files_needing_generation: list[tuple[str, str]] = []
 
@@ -484,25 +505,53 @@ Keep it under 72 characters."""
             if cached_summary is None:
                 files_needing_generation.append((filepath, blob_oid))
 
+        # Calculate tokens for cached summaries first, in breadth-first order
+        # This determines how many files we can include within budget
+        current_tokens = 0
+        files_within_budget: list[tuple[str, str, str | None]] = []
+        files_beyond_budget: list[str] = []
+        budget_cutoff_reached = False
+
+        for filepath, blob_oid, cached_summary in files_with_cache_info:
+            if budget_cutoff_reached:
+                files_beyond_budget.append(filepath)
+                continue
+
+            if cached_summary is not None:
+                # Estimate tokens for this summary (filepath header + summary)
+                summary_tokens = self._estimate_tokens(f"## {filepath}\n{cached_summary}\n")
+                if current_tokens + summary_tokens > token_budget:
+                    budget_cutoff_reached = True
+                    files_beyond_budget.append(filepath)
+                    continue
+                current_tokens += summary_tokens
+                files_within_budget.append((filepath, blob_oid, cached_summary))
+            else:
+                # We'll need to generate this one - estimate ~100 tokens as placeholder
+                # (actual token count will be checked after generation)
+                estimated_tokens = 100
+                if current_tokens + estimated_tokens > token_budget:
+                    budget_cutoff_reached = True
+                    files_beyond_budget.append(filepath)
+                    continue
+                files_within_budget.append((filepath, blob_oid, None))
+
+        # Filter files_needing_generation to only those within budget
+        files_within_budget_set = {f for f, _, _ in files_within_budget}
+        files_needing_generation = [
+            (f, oid) for f, oid in files_needing_generation if f in files_within_budget_set
+        ]
+
         total_to_generate = len(files_needing_generation)
-        total_cached = len(files) - total_to_generate
+        total_cached = sum(1 for _, _, cached in files_within_budget if cached is not None)
         parallel_count = self.settings.get_parallel_summarization()
         print(
-            f"📚 Generating summaries: {total_to_generate} to generate, "
-            f"{total_cached} cached (parallel={parallel_count})"
+            f"📚 Summaries: {total_to_generate} to generate, {total_cached} cached, "
+            f"{len(files_beyond_budget)} beyond budget (parallel={parallel_count})"
         )
 
-        # Collect file sizes for all files
-        file_sizes: dict[str, int] = {}
-        for filepath, _blob_oid, _cached_summary in files_with_cache_info:
-            try:
-                content = self.vfs.read_file(filepath)
-                file_sizes[filepath] = len(content)
-            except (FileNotFoundError, KeyError, UnicodeDecodeError):
-                file_sizes[filepath] = 0
-
-        # Load cached summaries first
-        for filepath, _blob_oid, cached_summary in files_with_cache_info:
+        # Load cached summaries first (only for files within budget)
+        for filepath, _blob_oid, cached_summary in files_within_budget:
             if cached_summary is not None:
                 self.repo_summaries[filepath] = cached_summary
                 print(f"   ✓ {filepath} (cached)")
@@ -536,7 +585,7 @@ Keep it under 72 characters."""
 
             return (filepath, blob_oid, summary)
 
-        # Generate summaries in parallel
+        # Generate summaries in parallel (only for files within budget)
         if files_needing_generation:
             generated_count = 0
             with ThreadPoolExecutor(max_workers=parallel_count) as executor:
@@ -563,7 +612,7 @@ Keep it under 72 characters."""
                     filepath, blob_oid, summary = result
                     print(f"   📝 {filepath} ({generated_count}/{total_to_generate})")
 
-                    # Cache and store the summary
+                    # Cache the summary (even if beyond budget, for future use)
                     self._cache_summary(filepath, blob_oid, summary)
                     self.repo_summaries[filepath] = summary
 
@@ -571,8 +620,8 @@ Keep it under 72 characters."""
         if progress_callback and total_to_generate > 0:
             progress_callback(total_to_generate, total_to_generate, "")
 
-        # Pass file sizes to prompt manager
-        self.prompt_manager.set_summaries(self.repo_summaries, file_sizes)
+        # Pass summaries and file info to prompt manager (including beyond-budget files)
+        self.prompt_manager.set_summaries(self.repo_summaries, file_sizes, files_beyond_budget)
 
     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Get session data for persistence"""

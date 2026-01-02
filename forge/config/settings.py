@@ -19,6 +19,7 @@ class Settings:
             "model": "anthropic/claude-3.5-sonnet",
             "base_url": "https://openrouter.ai/api/v1",
             "parallel_summarization": 8,  # Number of parallel requests for summarization
+            "summary_token_budget": 10000,  # Max tokens for file summaries before listing only
         },
         "editor": {
             "font_size": 10,
@@ -120,3 +121,13 @@ class Settings:
         """
         parallel: int = int(self.get("llm.parallel_summarization", 8))
         return max(1, parallel)  # At least 1
+
+    def get_summary_token_budget(self) -> int:
+        """Get the token budget for file summaries.
+
+        Summaries are generated in breadth-first order (by path depth) until
+        this budget is reached. Files beyond the budget are listed without
+        summaries, with a note to use scout for investigation.
+        """
+        budget: int = int(self.get("llm.summary_token_budget", 10000))
+        return max(1000, budget)  # At least 1k

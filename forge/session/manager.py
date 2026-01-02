@@ -467,7 +467,12 @@ Keep it under 72 characters."""
                 blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)
             except KeyError:
                 # File is new (pending), hash the content
-                content = self.vfs.read_file(filepath)
+                try:
+                    content = self.vfs.read_file(filepath)
+                except UnicodeDecodeError:
+                    # Binary file not in extension list, skip it
+                    print(f"   ⚠ {filepath} (binary, skipped)")
+                    continue
                 blob_oid = hashlib.sha256(content.encode()).hexdigest()
 
             # Check cache (unless force refresh)
@@ -493,7 +498,7 @@ Keep it under 72 characters."""
             try:
                 content = self.vfs.read_file(filepath)
                 file_sizes[filepath] = len(content)
-            except (FileNotFoundError, KeyError):
+            except (FileNotFoundError, KeyError, UnicodeDecodeError):
                 file_sizes[filepath] = 0
 
         # Load cached summaries first
@@ -503,9 +508,14 @@ Keep it under 72 characters."""
                 print(f"   ✓ {filepath} (cached)")
 
         # Define worker function for parallel generation
-        def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str]:
-            """Generate summary for one file. Returns (filepath, blob_oid, summary)."""
-            content = self.vfs.read_file(filepath)
+        def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str] | None:
+            """Generate summary for one file. Returns (filepath, blob_oid, summary) or None if binary."""
+            try:
+                content = self.vfs.read_file(filepath)
+            except UnicodeDecodeError:
+                # Binary file not in extension list, skip it
+                print(f"   ⚠ {filepath} (binary, skipped)")
+                return None
 
             # Truncate very large files for summary generation
             max_chars = 10000
@@ -544,9 +554,14 @@ Keep it under 72 characters."""
                     # Report progress
                     if progress_callback:
                         progress_callback(generated_count, total_to_generate, filepath)
-                    print(f"   📝 {filepath} ({generated_count}/{total_to_generate})")
 
-                    filepath, blob_oid, summary = future.result()
+                    result = future.result()
+                    if result is None:
+                        # Binary file, already logged in generate_one
+                        continue
+
+                    filepath, blob_oid, summary = result
+                    print(f"   📝 {filepath} ({generated_count}/{total_to_generate})")
 
                     # Cache and store the summary
                     self._cache_summary(filepath, blob_oid, summary)

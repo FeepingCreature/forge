@@ -34,8 +34,8 @@ class GitCommitVFS(VFS):
         """Write operations not supported on read-only VFS"""
         raise NotImplementedError("GitCommitVFS is read-only")
 
-    def list_files(self) -> list[str]:
-        """List all files in the commit"""
+    def list_all_files(self) -> list[str]:
+        """List all files in the commit (including binary)"""
         files: list[str] = []
 
         def walk_tree(tree: pygit2.Tree, prefix: str = "") -> None:

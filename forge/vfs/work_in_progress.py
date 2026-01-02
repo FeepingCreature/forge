@@ -60,10 +60,10 @@ class WorkInProgressVFS(VFS):
         # Add to pending changes
         self.pending_changes[path] = content
 
-    def list_files(self) -> list[str]:
-        """List all files - base files + new files - deleted files"""
+    def list_all_files(self) -> list[str]:
+        """List all files - base files + new files - deleted files (including binary)"""
         self._assert_owner()
-        files = set(self.base_vfs.list_files())
+        files = set(self.base_vfs.list_all_files())
 
         # Add new files from pending changes
         files.update(self.pending_changes.keys())
@@ -176,8 +176,8 @@ class WorkInProgressVFS(VFS):
         self._assert_owner()
         tmpdir = Path(tempfile.mkdtemp(prefix="forge_vfs_"))
 
-        # Write all files
-        for filepath in self.list_files():
+        # Write all files (including binary)
+        for filepath in self.list_all_files():
             full_path = tmpdir / filepath
             full_path.parent.mkdir(parents=True, exist_ok=True)
 

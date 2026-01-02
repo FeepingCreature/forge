@@ -65,9 +65,15 @@ class VFS(ABC):
         pass
 
     @abstractmethod
-    def list_files(self) -> list[str]:
-        """List all files in the VFS"""
+    def list_all_files(self) -> list[str]:
+        """List all files in the VFS, including binary files"""
         pass
+
+    def list_files(self) -> list[str]:
+        """List text files in the VFS (excludes binary files)"""
+        from forge.vfs.binary import is_binary_file
+
+        return [f for f in self.list_all_files() if not is_binary_file(f)]
 
     @abstractmethod
     def file_exists(self, path: str) -> bool:

@@ -103,9 +103,19 @@ BINARY_EXTENSIONS: frozenset[str] = frozenset(
         ".msi",
         ".apk",
         ".ipa",
-        # Game engines
+        # Game engines (Unreal)
         ".uasset",
         ".umap",
+        ".uexp",
+        ".ubulk",
+        # Debug/build artifacts
+        ".pdb",
+        ".sym",
+        ".debug",
+        ".exp",
+        ".res",
+        ".pch",
+        ".gch",
     }
 )
 

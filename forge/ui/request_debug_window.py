@@ -234,8 +234,9 @@ class RequestDetailWidget(QWidget):
         # Clear messages
         while self.messages_layout.count():
             item = self.messages_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
 
         self.request_text.clear()
         self.response_text.clear()

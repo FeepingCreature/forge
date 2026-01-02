@@ -1,6 +1,5 @@
 {
   "active_files": [
-    "forge/vfs/__init__.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -390,6 +389,69 @@
       "streaming": true,
       "actual_cost": 0.0292535,
       "generation_id": "gen-1767382058-bvHiMmCh7EL0JCgAWLyl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382106193.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382106193.json",
+      "timestamp": 1767382106.1942995,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0290025,
+      "generation_id": "gen-1767382106-jNk3a8mmnGBVPeSGWsHR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382111512.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382111512.json",
+      "timestamp": 1767382111.5126271,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02736625,
+      "generation_id": "gen-1767382111-Trjz1OPtWquL7VhariI5"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382116645.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382116645.json",
+      "timestamp": 1767382116.6464264,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03052225,
+      "generation_id": "gen-1767382116-cZ1uGRPjrzw6nQEWaxav"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382122734.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382122734.json",
+      "timestamp": 1767382122.7348816,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05933625,
+      "generation_id": "gen-1767382122-UdHxna1sJdDYVGzNC5BX"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382142180.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382142180.json",
+      "timestamp": 1767382142.180972,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.08175475,
+      "generation_id": "gen-1767382142-9Dzt5kkmfXZJDXLNhy1x"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382154309.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382154309.json",
+      "timestamp": 1767382154.31016,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.078306,
+      "generation_id": "gen-1767382154-OxhmEwAJvEAc0zDNmc39"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767382165846.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767382165846.json",
+      "timestamp": 1767382165.8469763,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.2226125,
+      "generation_id": "gen-1767382166-ee7y8YDaLeR6kqFo78f8"
     }
   ],
   "messages": [
@@ -1336,6 +1398,244 @@
     {
       "role": "assistant",
       "content": "Added the additional binary extensions from your isutf8 scan:\n\n**Unreal Engine:**\n- `.uexp` (export files)\n- `.ubulk` (bulk data)\n\n**Debug/build artifacts:**\n- `.pdb` (debug symbols - Windows)\n- `.sym` (symbol files)\n- `.debug` (debug files)\n- `.exp` (export files)\n- `.res` (resource files)\n- `.pch` (precompiled headers - MSVC)\n- `.gch` (precompiled headers - GCC)\n\nMost of the others from your grep were already in the list (`.lib`, `.dll`, `.so`, `.o`, `.dylib`, `.uasset`, `.exe`, `.a`, `.bin`, `.umap`, `.png`)."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c88e4b2c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ah hm, still I'm getting \u274c Error generating summaries: 'utf-8' codec can't decode byte 0xee in position 1: invalid continuation byte... we should just detect this and continue"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - there are binary files that don't match our extension list. We should catch UTF-8 decode errors and skip those files gracefully. Let me find where summaries are generated:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"generating summaries|generate.*summar\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01VDoRpiLmzatFCAFx94Psuo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VDoRpiLmzatFCAFx94Psuo",
+      "content": "{\"message\": \"Found 7 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:438 \\u2500\\u2500\\n     435 | \\n     436 |         return message\\n     437 | \\n>>>  438 |     def generate_repo_summaries(\\n     439 |         self,\\n     440 |         force_refresh: bool = False,\\n     441 |         progress_callback: \\\"Callable[[int, int, str], None] | None\\\" = None,\\n\\n\\u2500\\u2500 forge/session/manager.py:447 \\u2500\\u2500\\n     444 |         Generate summaries for all files in repository (with caching)\\n     445 | \\n     446 |         Args:\\n>>>  447 |             force_refresh: If True, regenerate all summaries even if cached\\n     448 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     449 |         \\\"\\\"\\\"\\n     450 |         model = self.settings.get_summarization_model()\\n\\n\\u2500\\u2500 forge/session/manager.py:595 \\u2500\\u2500\\n     592 |                 if old_entry is not None:\\n     593 |                     REQUEST_LOG.entries.append(old_entry)\\n     594 | \\n>>>  595 |     def generate_summary_for_file(self, filepath: str) -> str | None:\\n     596 |         \\\"\\\"\\\"\\n     597 |         Generate a summary for a single file (used for newly created files).\\n     598 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:52 \\u2500\\u2500\\n      49 |     def run(self) -> None:\\n      50 |         \\\"\\\"\\\"Generate summaries\\\"\\\"\\\"\\n      51 |         try:\\n>>>   52 |             self.session_manager.generate_repo_summaries(\\n      53 |                 progress_callback=lambda cur, total, fp: self.progress.emit(cur, total, fp)\\n      54 |             )\\n      55 |             count = len(self.session_manager.repo_summaries)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:595 \\u2500\\u2500\\n     592 |             self.summary_thread = None\\n     593 |             self.summary_worker = None\\n     594 | \\n>>>  595 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     596 | \\n     597 |     def _check_for_unapproved_tools(self) -> None:\\n     598 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1102 \\u2500\\u2500\\n    1099 |         # Generate summaries for any newly created files before committing\\n    1100 |         if hasattr(self, \\\"_newly_created_files\\\") and self._newly_created_files:\\n    1101 |             for filepath in self._newly_created_files:\\n>>> 1102 |                 self.session_manager.generate_summary_for_file(filepath)\\n    1103 |             # Emit updated summaries\\n    1104 |             self.summaries_ready.emit(self.session_manager.repo_summaries)\\n    1105 |             self._newly_created_files.clear()\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1343 \\u2500\\u2500\\n    1340 |                 # Generate summaries for newly created files\\n    1341 |                 if hasattr(self, \\\"_newly_created_files\\\") and self._newly_created_files:\\n    1342 |                     for filepath in self._newly_created_files:\\n>>> 1343 |                         self.session_manager.generate_summary_for_file(filepath)\\n    1344 |                     self.summaries_ready.emit(self.session_manager.repo_summaries)\\n    1345 |                     self._newly_created_files.clear()\\n    1346 | \", \"success\": true, \"total_matches\": 7}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"generating summaries|generate.*summar\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 7 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:438 \\u2500\\u2500\\n     435 | \\n     436 |         return message\\n     437 | \\n>>>  438 |     def generate_repo_summaries(\\n     439 |         self,\\n     440 |         force_refresh: bool = False,\\n     441 |         progress_callback: \\\"Callable[[int, int, str], None] | None\\\" = None,\\n\\n\\u2500\\u2500 forge/session/manager.py:447 \\u2500\\u2500\\n     444 |         Generate summaries for all files in repository (with caching)\\n     445 | \\n     446 |         Args:\\n>>>  447 |             force_refresh: If True, regenerate all summaries even if cached\\n     448 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     449 |         \\\"\\\"\\\"\\n     450 |         model = self.settings.get_summarization_model()\\n\\n\\u2500\\u2500 forge/session/manager.py:595 \\u2500\\u2500\\n     592 |                 if old_entry is not None:\\n     593 |                     REQUEST_LOG.entries.append(old_entry)\\n     594 | \\n>>>  595 |     def generate_summary_for_file(self, filepath: str) -> str | None:\\n     596 |         \\\"\\\"\\\"\\n     597 |         Generate a summary for a single file (used for newly created files).\\n     598 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:52 \\u2500\\u2500\\n      49 |     def run(self) -> None:\\n      50 |         \\\"\\\"\\\"Generate summaries\\\"\\\"\\\"\\n      51 |         try:\\n>>>   52 |             self.session_manager.generate_repo_summaries(\\n      53 |                 progress_callback=lambda cur, total, fp: self.progress.emit(cur, total, fp)\\n      54 |             )\\n      55 |             count = len(self.session_manager.repo_summaries)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:595 \\u2500\\u2500\\n     592 |             self.summary_thread = None\\n     593 |             self.summary_worker = None\\n     594 | \\n>>>  595 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     596 | \\n     597 |     def _check_for_unapproved_tools(self) -> None:\\n     598 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1102 \\u2500\\u2500\\n    1099 |         # Generate summaries for any newly created files before committing\\n    1100 |         if hasattr(self, \\\"_newly_created_files\\\") and self._newly_created_files:\\n    1101 |             for filepath in self._newly_created_files:\\n>>> 1102 |                 self.session_manager.generate_summary_for_file(filepath)\\n    1103 |             # Emit updated summaries\\n    1104 |             self.summaries_ready.emit(self.session_manager.repo_summaries)\\n    1105 |             self._newly_created_files.clear()\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1343 \\u2500\\u2500\\n    1340 |                 # Generate summaries for newly created files\\n    1341 |                 if hasattr(self, \\\"_newly_created_files\\\") and self._newly_created_files:\\n    1342 |                     for filepath in self._newly_created_files:\\n>>> 1343 |                         self.session_manager.generate_summary_for_file(filepath)\\n    1344 |                     self.summaries_ready.emit(self.session_manager.repo_summaries)\\n    1345 |                     self._newly_created_files.clear()\\n    1346 | \",\n  \"success\": true,\n  \"total_matches\": 7\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at where the file reading happens in the summary generation:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"line\": 460, \"context\": 40}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_017SBbunPKxhrbPNxQPntv7b",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017SBbunPKxhrbPNxQPntv7b",
+      "content": "{\"content\": \"     420 |         prompt = f\\\"\\\"\\\"Generate a concise git commit message for these changes.\\n     421 | {user_context}\\n     422 | Files changed:\\n     423 | {file_list}\\n     424 | \\n     425 | Respond with ONLY the commit message, no explanation. Use conventional commit format (e.g., \\\"feat:\\\", \\\"fix:\\\", \\\"refactor:\\\").\\n     426 | Keep it under 72 characters.\\\"\\\"\\\"\\n     427 | \\n     428 |         messages = [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}]\\n     429 |         response = client.chat(messages)\\n     430 | \\n     431 |         content = response[\\\"choices\\\"][0][\\\"message\\\"][\\\"content\\\"]\\n     432 |         message = str(content).strip()\\n     433 |         # Remove quotes if present\\n     434 |         message = message.strip(\\\"\\\\\\\"'\\\")\\n     435 | \\n     436 |         return message\\n     437 | \\n     438 |     def generate_repo_summaries(\\n     439 |         self,\\n     440 |         force_refresh: bool = False,\\n     441 |         progress_callback: \\\"Callable[[int, int, str], None] | None\\\" = None,\\n     442 |     ) -> None:\\n     443 |         \\\"\\\"\\\"\\n     444 |         Generate summaries for all files in repository (with caching)\\n     445 | \\n     446 |         Args:\\n     447 |             force_refresh: If True, regenerate all summaries even if cached\\n     448 |             progress_callback: Optional callback(current, total, filepath) for progress updates\\n     449 |         \\\"\\\"\\\"\\n     450 |         model = self.settings.get_summarization_model()\\n     451 |         api_key = self.settings.get_api_key()\\n     452 |         client = LLMClient(api_key, model)\\n     453 | \\n     454 |         # List files through VFS (includes any pending new files)\\n     455 |         files = self.vfs.list_files()\\n     456 |         # Filter out forge metadata and binary files\\n     457 |         files = [f for f in files if self._should_summarize(filepath=f)]\\n     458 | \\n     459 |         # First pass: determine which files need generation vs cached\\n>>>  460 |         # Build list of (filepath, blob_oid, cached_summary_or_none)\\n     461 |         files_with_cache_info: list[tuple[str, str, str | None]] = []\\n     462 |         files_needing_generation: list[tuple[str, str]] = []\\n     463 | \\n     464 |         for filepath in files:\\n     465 |             # Get blob OID (content hash) for cache key\\n     466 |             try:\\n     467 |                 blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)\\n     468 |             except KeyError:\\n     469 |                 # File is new (pending), hash the content\\n     470 |                 content = self.vfs.read_file(filepath)\\n     471 |                 blob_oid = hashlib.sha256(content.encode()).hexdigest()\\n     472 | \\n     473 |             # Check cache (unless force refresh)\\n     474 |             cached_summary = None\\n     475 |             if not force_refresh:\\n     476 |                 cached_summary = self._get_cached_summary(filepath, blob_oid)\\n     477 | \\n     478 |             files_with_cache_info.append((filepath, blob_oid, cached_summary))\\n     479 |             if cached_summary is None:\\n     480 |                 files_needing_generation.append((filepath, blob_oid))\\n     481 | \\n     482 |         total_to_generate = len(files_needing_generation)\\n     483 |         total_cached = len(files) - total_to_generate\\n     484 |         parallel_count = self.settings.get_parallel_summarization()\\n     485 |         print(\\n     486 |             f\\\"\\ud83d\\udcda Generating summaries: {total_to_generate} to generate, \\\"\\n     487 |             f\\\"{total_cached} cached (parallel={parallel_count})\\\"\\n     488 |         )\\n     489 | \\n     490 |         # Collect file sizes for all files\\n     491 |         file_sizes: dict[str, int] = {}\\n     492 |         for filepath, _blob_oid, _cached_summary in files_with_cache_info:\\n     493 |             try:\\n     494 |                 content = self.vfs.read_file(filepath)\\n     495 |                 file_sizes[filepath] = len(content)\\n     496 |             except (FileNotFoundError, KeyError):\\n     497 |                 file_sizes[filepath] = 0\\n     498 | \\n     499 |         # Load cached summaries first\\n     500 |         for filepath, _blob_oid, cached_summary in files_with_cache_info:\", \"filepath\": \"forge/session/manager.py\", \"range\": \"420-500\", \"success\": true, \"target_line\": 460, \"total_lines\": 648}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The `read_file` calls at lines 470 and 494 can fail with UTF-8 decode errors. Let me look at more of the code and also the VFS read_file to understand where to add the protection:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"line\": 540, \"context\": 50}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01NMqNGUnPKAsvGJVEEbvWMU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NMqNGUnPKAsvGJVEEbvWMU",
+      "content": "{\"content\": \"     490 |         # Collect file sizes for all files\\n     491 |         file_sizes: dict[str, int] = {}\\n     492 |         for filepath, _blob_oid, _cached_summary in files_with_cache_info:\\n     493 |             try:\\n     494 |                 content = self.vfs.read_file(filepath)\\n     495 |                 file_sizes[filepath] = len(content)\\n     496 |             except (FileNotFoundError, KeyError):\\n     497 |                 file_sizes[filepath] = 0\\n     498 | \\n     499 |         # Load cached summaries first\\n     500 |         for filepath, _blob_oid, cached_summary in files_with_cache_info:\\n     501 |             if cached_summary is not None:\\n     502 |                 self.repo_summaries[filepath] = cached_summary\\n     503 |                 print(f\\\"   \\u2713 {filepath} (cached)\\\")\\n     504 | \\n     505 |         # Define worker function for parallel generation\\n     506 |         def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str]:\\n     507 |             \\\"\\\"\\\"Generate summary for one file. Returns (filepath, blob_oid, summary).\\\"\\\"\\\"\\n     508 |             content = self.vfs.read_file(filepath)\\n     509 | \\n     510 |             # Truncate very large files for summary generation\\n     511 |             max_chars = 10000\\n     512 |             if len(content) > max_chars:\\n     513 |                 content = content[:max_chars] + \\\"\\\\n... (truncated)\\\"\\n     514 | \\n     515 |             prompt = self._build_summary_prompt(filepath, content)\\n     516 |             messages = [{\\\"role\\\": \\\"user\\\", \\\"content\\\": prompt}]\\n     517 |             response = client.chat(messages)\\n     518 | \\n     519 |             summary_content = response[\\\"choices\\\"][0][\\\"message\\\"][\\\"content\\\"]\\n     520 |             summary = str(summary_content).strip()\\n     521 | \\n     522 |             # Extract content from <summary> tags if present\\n     523 |             match = re.search(r\\\"<summary>(.*?)</summary>\\\", summary, re.DOTALL)\\n     524 |             if match:\\n     525 |                 summary = match.group(1).strip()\\n     526 | \\n     527 |             return (filepath, blob_oid, summary)\\n     528 | \\n     529 |         # Generate summaries in parallel\\n     530 |         if files_needing_generation:\\n     531 |             generated_count = 0\\n     532 |             with ThreadPoolExecutor(max_workers=parallel_count) as executor:\\n     533 |                 # Submit all tasks\\n     534 |                 future_to_file = {\\n     535 |                     executor.submit(generate_one, filepath, blob_oid): filepath\\n     536 |                     for filepath, blob_oid in files_needing_generation\\n     537 |                 }\\n     538 | \\n     539 |                 # Process results as they complete\\n>>>  540 |                 for future in as_completed(future_to_file):\\n     541 |                     filepath = future_to_file[future]\\n     542 |                     generated_count += 1\\n     543 | \\n     544 |                     # Report progress\\n     545 |                     if progress_callback:\\n     546 |                         progress_callback(generated_count, total_to_generate, filepath)\\n     547 |                     print(f\\\"   \\ud83d\\udcdd {filepath} ({generated_count}/{total_to_generate})\\\")\\n     548 | \\n     549 |                     filepath, blob_oid, summary = future.result()\\n     550 | \\n     551 |                     # Cache and store the summary\\n     552 |                     self._cache_summary(filepath, blob_oid, summary)\\n     553 |                     self.repo_summaries[filepath] = summary\\n     554 | \\n     555 |         # Final progress update (signal completion)\\n     556 |         if progress_callback and total_to_generate > 0:\\n     557 |             progress_callback(total_to_generate, total_to_generate, \\\"\\\")\\n     558 | \\n     559 |         # Pass file sizes to prompt manager\\n     560 |         self.prompt_manager.set_summaries(self.repo_summaries, file_sizes)\\n     561 | \\n     562 |     def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:\\n     563 |         \\\"\\\"\\\"Get session data for persistence\\\"\\\"\\\"\\n     564 |         data: dict[str, Any] = {\\n     565 |             \\\"active_files\\\": list(self.active_files),\\n     566 |             \\\"request_log_entries\\\": [entry.to_dict() for entry in REQUEST_LOG.get_entries()],\\n     567 |         }\\n     568 |         if messages is not None:\\n     569 |             data[\\\"messages\\\"] = messages\\n     570 |         return data\\n     571 | \\n     572 |     def restore_request_log(self, session_data: dict[str, Any]) -> None:\\n     573 |         \\\"\\\"\\\"Restore request log entries from session data\\\"\\\"\\\"\\n     574 |         # Try new format first (full entry dicts with actual_cost)\\n     575 |         log_entries = session_data.get(\\\"request_log_entries\\\", [])\\n     576 |         if log_entries:\\n     577 |             REQUEST_LOG.clear()\\n     578 |             for entry_dict in log_entries:\\n     579 |                 # Check if files still exist before restoring\\n     580 |                 request_file = entry_dict.get(\\\"request_file\\\", \\\"\\\")\\n     581 |                 if Path(request_file).exists():\\n     582 |                     entry = RequestLogEntry.from_dict(entry_dict)\\n     583 |                     REQUEST_LOG.entries.append(entry)\\n     584 |             return\\n     585 | \\n     586 |         # Fall back to old format (just file paths, no actual_cost)\\n     587 |         file_pairs = session_data.get(\\\"request_log_files\\\", [])\\n     588 |         if file_pairs:\\n     589 |             REQUEST_LOG.clear()\\n     590 |             for request_file, response_file in file_pairs:\", \"filepath\": \"forge/session/manager.py\", \"range\": \"490-590\", \"success\": true, \"target_line\": 540, \"total_lines\": 648}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue clearly now. There are multiple places where `read_file` can fail with UTF-8 decode errors. The best approach is to catch these errors and skip the file (treating it as binary). Let me add the protection:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        for filepath in files:\\n            # Get blob OID (content hash) for cache key\\n            try:\\n                blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)\\n            except KeyError:\\n                # File is new (pending), hash the content\\n                content = self.vfs.read_file(filepath)\\n                blob_oid = hashlib.sha256(content.encode()).hexdigest()\\n\\n            # Check cache (unless force refresh)\\n            cached_summary = None\\n            if not force_refresh:\\n                cached_summary = self._get_cached_summary(filepath, blob_oid)\\n\\n            files_with_cache_info.append((filepath, blob_oid, cached_summary))\\n            if cached_summary is None:\\n                files_needing_generation.append((filepath, blob_oid))\", \"replace\": \"        for filepath in files:\\n            # Get blob OID (content hash) for cache key\\n            try:\\n                blob_oid = self._repo.get_file_blob_oid(filepath, self.branch_name)\\n            except KeyError:\\n                # File is new (pending), hash the content\\n                try:\\n                    content = self.vfs.read_file(filepath)\\n                except UnicodeDecodeError:\\n                    # Binary file not in extension list, skip it\\n                    print(f\\\"   \u26a0 {filepath} (binary, skipped)\\\")\\n                    continue\\n                blob_oid = hashlib.sha256(content.encode()).hexdigest()\\n\\n            # Check cache (unless force refresh)\\n            cached_summary = None\\n            if not force_refresh:\\n                cached_summary = self._get_cached_summary(filepath, blob_oid)\\n\\n            files_with_cache_info.append((filepath, blob_oid, cached_summary))\\n            if cached_summary is None:\\n                files_needing_generation.append((filepath, blob_oid))\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01DbBRYzrEYFcqg5gbSpnJoS",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        # Collect file sizes for all files\\n        file_sizes: dict[str, int] = {}\\n        for filepath, _blob_oid, _cached_summary in files_with_cache_info:\\n            try:\\n                content = self.vfs.read_file(filepath)\\n                file_sizes[filepath] = len(content)\\n            except (FileNotFoundError, KeyError):\\n                file_sizes[filepath] = 0\", \"replace\": \"        # Collect file sizes for all files\\n        file_sizes: dict[str, int] = {}\\n        for filepath, _blob_oid, _cached_summary in files_with_cache_info:\\n            try:\\n                content = self.vfs.read_file(filepath)\\n                file_sizes[filepath] = len(content)\\n            except (FileNotFoundError, KeyError, UnicodeDecodeError):\\n                file_sizes[filepath] = 0\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01J6FUAeiAubrmhs8FDBRVTb",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        # Define worker function for parallel generation\\n        def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str]:\\n            \\\"\\\"\\\"Generate summary for one file. Returns (filepath, blob_oid, summary).\\\"\\\"\\\"\\n            content = self.vfs.read_file(filepath)\", \"replace\": \"        # Define worker function for parallel generation\\n        def generate_one(filepath: str, blob_oid: str) -> tuple[str, str, str] | None:\\n            \\\"\\\"\\\"Generate summary for one file. Returns (filepath, blob_oid, summary) or None if binary.\\\"\\\"\\\"\\n            try:\\n                content = self.vfs.read_file(filepath)\\n            except UnicodeDecodeError:\\n                # Binary file not in extension list, skip it\\n                print(f\\\"   \u26a0 {filepath} (binary, skipped)\\\")\\n                return None\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01PkbMFUaAWQVj5APn6Vixpj",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DbBRYzrEYFcqg5gbSpnJoS",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01J6FUAeiAubrmhs8FDBRVTb",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PkbMFUaAWQVj5APn6Vixpj",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the file is in context now. I need to also handle the case where `generate_one` returns `None` in the results processing. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"                # Process results as they complete\\n                for future in as_completed(future_to_file):\\n                    filepath = future_to_file[future]\\n                    generated_count += 1\\n\\n                    # Report progress\\n                    if progress_callback:\\n                        progress_callback(generated_count, total_to_generate, filepath)\\n                    print(f\\\"   \ud83d\udcdd {filepath} ({generated_count}/{total_to_generate})\\\")\\n\\n                    filepath, blob_oid, summary = future.result()\\n\\n                    # Cache and store the summary\\n                    self._cache_summary(filepath, blob_oid, summary)\\n                    self.repo_summaries[filepath] = summary\", \"replace\": \"                # Process results as they complete\\n                for future in as_completed(future_to_file):\\n                    filepath = future_to_file[future]\\n                    generated_count += 1\\n\\n                    # Report progress\\n                    if progress_callback:\\n                        progress_callback(generated_count, total_to_generate, filepath)\\n\\n                    result = future.result()\\n                    if result is None:\\n                        # Binary file, already logged in generate_one\\n                        continue\\n\\n                    filepath, blob_oid, summary = result\\n                    print(f\\\"   \ud83d\udcdd {filepath} ({generated_count}/{total_to_generate})\\\")\\n\\n                    # Cache and store the summary\\n                    self._cache_summary(filepath, blob_oid, summary)\\n                    self.repo_summaries[filepath] = summary\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01LcLLUkeAWh78MpA3xbRB4T",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LcLLUkeAWh78MpA3xbRB4T",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me run checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"48\",\"49\",\"50\",\"51\",\"52\",\"53\",\"54\"], \"summary\": \"Added UnicodeDecodeError handling in forge/session/manager.py for binary files during summary generation:\\n- Line 470: catch decode error when hashing new file content, skip with warning\\n- Line 494: catch decode error when collecting file sizes\\n- generate_one(): return None if file can't be decoded, caller skips it\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_017BVxNcm5VoETQdJvHZLqMF",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01XT1fvQrmXwtwLKZVcMRC84",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017BVxNcm5VoETQdJvHZLqMF",
+      "content": "{\"compact\": true, \"message\": \"Compacted 7 tool result(s)\", \"success\": true, \"summary\": \"Added UnicodeDecodeError handling in forge/session/manager.py for binary files during summary generation:\\n- Line 470: catch decode error when hashing new file content, skip with warning\\n- Line 494: catch decode error when collecting file sizes\\n- generate_one(): return None if file can't be decoded, caller skips it\", \"tool_call_ids\": [\"48\", \"49\", \"50\", \"51\", \"52\", \"53\", \"54\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XT1fvQrmXwtwLKZVcMRC84",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 76 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 76 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Handle UnicodeDecodeError for binary files during summary generation\\n\\nCatch UTF-8 decode errors when reading files for summarization and skip\\nthem gracefully with a warning. This handles binary files that don't\\nmatch any known extension in BINARY_EXTENSIONS.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_011bRoT4uBGQ3XnxJeTedGCq",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/session/manager.py\",\"forge/vfs/__init__.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_014UmNZh1JrXXVEtCuabeg7V",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! Added graceful handling for binary files that don't match any known extension:\\n\\nWhen generating summaries, if a file can't be decoded as UTF-8:\\n1. **When hashing new files** - catches the error, prints a warning, and skips the file\\n2. **When collecting file sizes** - catches the error and sets size to 0\\n3. **In `generate_one()`** - returns `None` which the caller skips\\n\\nNow files with unknown binary extensions won't crash summary generation - they'll just be skipped with a `\u26a0 filename (binary, skipped)` message.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_013p315Kr49xoCNYHARTsb14",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011bRoT4uBGQ3XnxJeTedGCq",
+      "content": "{\"commit\": \"158a9269d271\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Handle UnicodeDecodeError for binary files during summary generation\\n\\nCatch UTF-8 decode errors when reading files for summarization and skip\\nthem gracefully with a warning. This handles binary files that don't\\nmatch any known extension in BINARY_EXTENSIONS.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"158a9269d271\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014UmNZh1JrXXVEtCuabeg7V",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/session/manager.py\", \"forge/vfs/__init__.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013p315Kr49xoCNYHARTsb14",
+      "content": "{\"done\": true, \"message\": \"Done! Added graceful handling for binary files that don't match any known extension:\\n\\nWhen generating summaries, if a file can't be decoded as UTF-8:\\n1. **When hashing new files** - catches the error, prints a warning, and skips the file\\n2. **When collecting file sizes** - catches the error and sets size to 0\\n3. **In `generate_one()`** - returns `None` which the caller skips\\n\\nNow files with unknown binary extensions won't crash summary generation - they'll just be skipped with a `\\u26a0 filename (binary, skipped)` message.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Added graceful handling for binary files that don't match any known extension:\n\nWhen generating summaries, if a file can't be decoded as UTF-8:\n1. **When hashing new files** - catches the error, prints a warning, and skips the file\n2. **When collecting file sizes** - catches the error and sets size to 0\n3. **In `generate_one()`** - returns `None` which the caller skips\n\nNow files with unknown binary extensions won't crash summary generation - they'll just be skipped with a `\u26a0 filename (binary, skipped)` message."
     }
   ]
 }

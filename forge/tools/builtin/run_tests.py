@@ -8,6 +8,7 @@ This tool:
 """
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -86,7 +87,7 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
         has_pytest = True
 
     if has_pytest:
-        return ["python", "-m", "pytest"], "pytest"
+        return [sys.executable, "-m", "pytest"], "pytest"
 
     # Check for package.json with test script
     package_json = tmpdir / "package.json"
@@ -109,7 +110,7 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
         return ["go", "test", "./..."], "go test"
 
     # Default: try pytest anyway
-    return ["python", "-m", "pytest"], "pytest (default)"
+    return [sys.executable, "-m", "pytest"], "pytest (default)"
 
 
 def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:

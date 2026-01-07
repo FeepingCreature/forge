@@ -11,6 +11,8 @@ from typing import Any
 import requests
 
 from forge.llm.cost_tracker import COST_TRACKER
+
+# Test comment 2 to trigger another search_replace
 from forge.llm.request_log import REQUEST_LOG
 
 

@@ -271,7 +271,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
     def mark_mid_turn_commit(self) -> None:
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
-        print(f"[mid-turn-commit] mark_mid_turn_commit() called, setting _had_mid_turn_commit = True")
+        print(f"[mid-turn-commit] mark_mid_turn_commit() called, was={self._had_mid_turn_commit}, setting to True")
         self._had_mid_turn_commit = True
 
     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:

@@ -45,11 +45,6 @@ class PromptManager:
     - to_messages: Convert to API format with cache_control on last block
     """
 
-    # Compaction nudge thresholds
-    TOKEN_THRESHOLD = 30000  # Warn when total tokens exceed this
-    TOOL_CALL_THRESHOLD = 15  # Warn when tool calls since last compaction exceed this
-    HYSTERESIS_FACTOR = 0.7  # Don't re-warn until below threshold * this factor
-
     def __init__(self, system_prompt: str) -> None:
         self.blocks: list[ContentBlock] = []
         self.system_prompt = system_prompt
@@ -58,10 +53,6 @@ class PromptManager:
         self._next_tool_id: int = 1
         # Mapping from user-friendly ID -> actual tool_call_id
         self._tool_id_map: dict[str, str] = {}
-
-        # Compaction nudge state
-        self._last_compaction_tool_id: int = 0  # Tool ID at last compaction
-        self._nudge_suppressed: bool = False  # True = already warned, waiting for hysteresis
 
         # Add system prompt as first block
         self.blocks.append(
@@ -375,8 +366,6 @@ class PromptManager:
         # Reset tool ID tracking
         self._next_tool_id = 1
         self._tool_id_map = {}
-        self._last_compaction_tool_id = 0
-        self._nudge_suppressed = False
 
     def _resolve_tool_ids(self, ids: list[str]) -> set[str]:
         """
@@ -447,10 +436,6 @@ class PromptManager:
         Returns:
             Tuple of (number of blocks compacted, error message or None)
         """
-        # Reset compaction nudge state - they just compacted!
-        self._last_compaction_tool_id = self._next_tool_id - 1
-        self._nudge_suppressed = False
-
         # Resolve user-friendly IDs to indices
         from_idx: int | None = None
         to_idx: int | None = None
@@ -634,68 +619,6 @@ class PromptManager:
             return "very large"
         else:
             return "extremely large - compaction strongly recommended"
-
-    def _check_compaction_nudge(self) -> bool:
-        """
-        Check if we should inject a compaction nudge into the conversation.
-
-        Uses hysteresis to avoid repeated warnings:
-        - Warn when exceeding threshold
-        - Don't re-warn until dropping below threshold * HYSTERESIS_FACTOR
-
-        Returns True if nudge was injected, False otherwise.
-        """
-        stats = self.get_context_stats()
-        total_tokens = stats["total_tokens"]
-        tool_calls_since_compaction = (self._next_tool_id - 1) - self._last_compaction_tool_id
-
-        # Check if we're below hysteresis threshold (reset suppression)
-        token_hysteresis = self.TOKEN_THRESHOLD * self.HYSTERESIS_FACTOR
-        tool_hysteresis = int(self.TOOL_CALL_THRESHOLD * self.HYSTERESIS_FACTOR)
-
-        if total_tokens < token_hysteresis and tool_calls_since_compaction < tool_hysteresis:
-            self._nudge_suppressed = False
-            return False
-
-        # If already warned and still above threshold, don't re-warn
-        if self._nudge_suppressed:
-            return False
-
-        # Check if we exceed thresholds
-        exceeds_tokens = total_tokens > self.TOKEN_THRESHOLD
-        exceeds_tools = tool_calls_since_compaction > self.TOOL_CALL_THRESHOLD
-
-        if not (exceeds_tokens or exceeds_tools):
-            return False
-
-        # Build nudge message and inject it as a system message in the conversation
-        self._nudge_suppressed = True  # Don't warn again until hysteresis reset
-
-        reasons = []
-        if exceeds_tokens:
-            reasons.append(f"context is {total_tokens // 1000}k tokens")
-        if exceeds_tools:
-            reasons.append(f"{tool_calls_since_compaction} tool calls since last compaction")
-
-        nudge_msg = (
-            f"<system_nudge>\n"
-            f"⚠️ COMPACTION SUGGESTED: {', '.join(reasons)}.\n\n"
-            f"Use the `compact` tool to summarize old tool results and reduce context size. "
-            f"This improves cache efficiency and reduces costs.\n\n"
-            f"Example: compact tool_call_ids=['1','2','3',...] with a summary of what those calls accomplished.\n"
-            f"</system_nudge>"
-        )
-
-        # Inject as a user message so it appears in the conversation flow
-        self.blocks.append(
-            ContentBlock(
-                block_type=BlockType.USER_MESSAGE,
-                content=nudge_msg,
-                metadata={"is_system_nudge": True},
-            )
-        )
-        print(f"📢 Injected compaction nudge: {', '.join(reasons)}")
-        return True
 
     def _summarize_tool_call(self, tc: dict[str, Any]) -> str:
         """
@@ -903,12 +826,7 @@ class PromptManager:
 
         Injects context stats as a FINAL user message at the very end, ensuring
         they don't cache-invalidate any conversation content that comes before them.
-
-        Also checks if a compaction nudge should be injected into the conversation.
         """
-        # Check if we should nudge (this may inject a USER_MESSAGE block)
-        self._check_compaction_nudge()
-
         messages: list[dict[str, Any]] = []
 
         # Filter out deleted blocks

@@ -131,7 +131,7 @@ Some tools don't require you to see their results to continue. For these, you ca
 
 The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response without waiting for a round-trip.
 
-### Compacting Tool Results
+### Compacting Context
 
 Use `compact` to replace old tool results with a summary when they become redundant:
 
@@ -139,9 +139,11 @@ Use `compact` to replace old tool results with a summary when they become redund
 - **Debug output once understood** - After you've learned what prints/logs showed, summarize and compact
 - **Failed approaches** - Once you've moved past a failed attempt, you don't need the details
 
-**Don't wait for task completion** - compact proactively when you're confident you won't need the details. The summary preserves your intent and reasoning while reducing token costs.
+**Compact at feature boundaries.** When you finish a logical unit of work (a feature, a refactor, a bug fix), compact the tool results from that work before moving on. This keeps context lean for the next task and improves cache efficiency.
 
-Example: After 15 edits to the same file with debug prints, compact with: "Refactored FooWidget: added X, fixed Y, removed Z. Debug showed the issue was Q."
+**Compact proactively** - don't wait until context is huge. The summary preserves your intent and reasoning while reducing token costs.
+
+Example: After implementing a feature with 10+ edits, compact with: "Implemented FooWidget: added calculate(), render(), and tests. Fixed edge case with empty input."
 
 # Work In Progress
 

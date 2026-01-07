@@ -44,6 +44,9 @@ class SessionManager:
         # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()
 
+        # Track if a mid-turn commit happened (for FOLLOW_UP logic)
+        self._had_mid_turn_commit = False
+
         # Repository summaries cache (in-memory)
         self.repo_summaries: dict[str, str] = {}
 
@@ -266,6 +269,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Add a tool result to the prompt stream"""
         self.prompt_manager.append_tool_result(tool_call_id, result)
 
+    def mark_mid_turn_commit(self) -> None:
+        """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
+        self._had_mid_turn_commit = True
+
     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
         """
         Compact tool results by replacing them with a summary.
@@ -373,10 +380,19 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         all_changes = self.tool_manager.get_pending_changes()
         deleted_files = self.tool_manager.vfs.get_deleted_files()
 
-        # Determine commit type: PREPARE if only session file changed, MAJOR if real changes
+        # Determine commit type:
+        # - MAJOR if real file changes
+        # - FOLLOW_UP if only session changed AND we had a mid-turn commit (suffix to that commit)
+        # - PREPARE if only session changed with no mid-turn commit (prefix to next commit)
         has_real_changes = len(all_changes) > 1 or SESSION_FILE not in all_changes or deleted_files
         only_session_changed = not has_real_changes
-        commit_type = CommitType.PREPARE if only_session_changed else CommitType.MAJOR
+
+        if only_session_changed and self._had_mid_turn_commit:
+            commit_type = CommitType.FOLLOW_UP
+        elif only_session_changed:
+            commit_type = CommitType.PREPARE
+        else:
+            commit_type = CommitType.MAJOR
 
         # Generate commit message if not provided
         if not commit_message:
@@ -387,6 +403,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         # Commit via VFS - handles workdir sync automatically
         commit_oid = self.tool_manager.vfs.commit(commit_message, commit_type=commit_type)
+
+        # Reset mid-turn commit flag for next turn
+        self._had_mid_turn_commit = False
 
         # Refresh VFS to point to new commit (so next turn sees committed state)
         self.tool_manager.vfs = self._create_fresh_vfs()

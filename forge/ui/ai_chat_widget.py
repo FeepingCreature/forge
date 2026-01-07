@@ -1234,11 +1234,14 @@ class AIChatWidget(QWidget):
             self.session_manager.compact_think_call(tool_call_id)
             # Note: the conclusion is in the tool result, scratchpad is now gone
 
-        # Handle commit tool - emit signal to refresh UI
+        # Handle commit tool - emit signal to refresh UI and mark for follow-up logic
         if tool_name == "commit" and result.get("success"):
             commit_oid = result.get("commit_oid", "")
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
+                # Mark that we had a mid-turn commit so end-of-turn session commit
+                # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)
+                self.session_manager.mark_mid_turn_commit()
 
         # Handle say tool - display message as assistant text (UI only)
         # NOTE: We do NOT call append_assistant_message here! That would break

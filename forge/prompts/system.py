@@ -58,11 +58,31 @@ Examples of batching:
 search_replace(file1) → search_replace(file2) → check() → commit() → update_context() → done("Refactored X to use Y!")
 ```
 
-**You don't need to wait for results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. If everything succeeds, your `done` message is shown and the turn ends. So be optimistic: assume `check()` will pass, assume `commit()` will succeed, chain them all together.
+### IMPORTANT: Assume Tools Succeed
+
+**Do NOT wait for tool results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. But you should **assume success** and keep going. Don't stop after `search_replace` to see if it worked. Don't stop after `check()` to see if it passed. Just chain everything together optimistically.
+
+**The pipeline handles failure for you.** If `search_replace` fails to find the text, the chain stops and you get the error. If `check()` finds type errors, the chain stops and you see them. You don't need to babysit each step - that's what the pipeline is for.
+
+❌ **WRONG** - Stopping to check results:
+```
+search_replace(file1)
+← wait for result
+search_replace(file2)  
+← wait for result
+check()
+← wait for result
+done("Done!")
+```
+
+✅ **RIGHT** - Assume success, chain everything:
+```
+search_replace(file1) → search_replace(file2) → check() → commit() → done("Done!")
+```
+
+**Be maximally optimistic.** Assume your search text exists. Assume your edits are correct. Assume checks will pass. Assume commits will succeed. Chain it all together in one response. The rare failure case is handled automatically - you'll get control back with the error.
 
 Use `say()` for mid-chain narration only when the user needs to understand a complex sequence. For routine work, just chain silently to `done()`.
-
-**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another. Don't wait for `check()` results before calling `commit()` - just chain them.
 
 ### CRITICAL: Never End a Response Without `done`
 

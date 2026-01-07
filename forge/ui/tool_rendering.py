@@ -701,7 +701,7 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
 
     name = func.get("name", "")
     args_str = func.get("arguments", "")
-    
+
     # DEBUG: Print streaming chunks for think tool
     if name == "think":
         print(f"[STREAM think] args_str length: {len(args_str)}")

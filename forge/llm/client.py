@@ -5,6 +5,7 @@ LLM client for communicating with OpenRouter
 import json
 import time
 from collections.abc import Iterator
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -186,17 +187,20 @@ class LLMClient:
                 )
 
         print("📡 Streaming response started")
+        stream_start = datetime.now()
 
         generation_id: str | None = None
         all_chunks: list[dict[str, Any]] = []
 
         # Parse SSE stream
         for line in response.iter_lines():
+            ts = (datetime.now() - stream_start).total_seconds()
             if line:
                 line = line.decode("utf-8")
                 if line.startswith("data: "):
                     data = line[6:]  # Remove 'data: ' prefix
                     if data == "[DONE]":
+                        print(f"[{ts:6.2f}s] SSE: [DONE]")
                         break
                     try:
                         chunk = json.loads(data)
@@ -204,6 +208,24 @@ class LLMClient:
                         # Capture generation ID for cost lookup
                         if "id" in chunk and generation_id is None:
                             generation_id = chunk["id"]
+
+                        # Log what we received
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content", "")
+                        tool_calls = delta.get("tool_calls", [])
+                        if content:
+                            print(f"[{ts:6.2f}s] SSE content: {repr(content[:50])}")
+                        if tool_calls:
+                            for tc in tool_calls:
+                                tc_func = tc.get("function", {})
+                                tc_name = tc_func.get("name", "")
+                                tc_args = tc_func.get("arguments", "")
+                                if tc_name:
+                                    print(f"[{ts:6.2f}s] SSE tool_call name: {tc_name}")
+                                if tc_args:
+                                    print(
+                                        f"[{ts:6.2f}s] SSE tool_call args chunk: {repr(tc_args[:80])}"
+                                    )
 
                         # Check for error in the chunk (content filtering, etc.)
                         if "error" in chunk:
@@ -218,6 +240,7 @@ class LLMClient:
 
                         yield chunk
                     except json.JSONDecodeError:
+                        print(f"[{ts:6.2f}s] SSE JSON decode error: {repr(data[:100])}")
                         continue
 
         # Fetch cost info after streaming completes and log response

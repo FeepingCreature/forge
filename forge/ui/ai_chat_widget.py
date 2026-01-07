@@ -1236,12 +1236,12 @@ class AIChatWidget(QWidget):
 
         # Handle commit tool - emit signal to refresh UI and mark for follow-up logic
         if tool_name == "commit" and result.get("success"):
-            commit_oid = result.get("commit_oid", "")
+            commit_oid = result.get("commit", "")  # Note: key is "commit", not "commit_oid"
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
-                # Mark that we had a mid-turn commit so end-of-turn session commit
-                # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)
-                self.session_manager.mark_mid_turn_commit()
+            # Mark that we had a mid-turn commit so end-of-turn session commit
+            # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)
+            self.session_manager.mark_mid_turn_commit()
 
         # Handle say tool - display message as assistant text (UI only)
         # NOTE: We do NOT call append_assistant_message here! That would break

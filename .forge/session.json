@@ -1,8 +1,8 @@
 {
   "active_files": [
-    "CLAUDE.md",
+    "forge/git_backend/commit_types.py",
     "forge/session/manager.py",
-    "forge/git_backend/commit_types.py"
+    "CLAUDE.md"
   ],
   "request_log_entries": [
     {
@@ -49,6 +49,42 @@
       "streaming": true,
       "actual_cost": 0.07839625,
       "generation_id": "gen-1767780889-XaaDHEQCTvA1zhIwZeZf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767780906285.json",
+      "response_file": "/tmp/forge_debug/response_1767780906285.json",
+      "timestamp": 1767780906.2856438,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00431,
+      "generation_id": "gen-1767780906-ufTkKrwO0c9fldg6YLEy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780920450.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780920450.json",
+      "timestamp": 1767780920.451177,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.16907625,
+      "generation_id": "gen-1767780920-9xjqnHzerU6Zsls6xpgz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780926388.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780926388.json",
+      "timestamp": 1767780926.3893743,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.16816375,
+      "generation_id": "gen-1767780926-wurGYAaTFOYiieJ8Nxte"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780930202.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780930202.json",
+      "timestamp": 1767780930.203398,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02442575,
+      "generation_id": "gen-1767780930-L0T3wBEPkVEQLQi164DB"
     }
   ],
   "messages": [
@@ -138,6 +174,84 @@
     {
       "role": "assistant",
       "content": "Added logging for the mid-turn commit logic in `forge/session/manager.py`. The prints will show:\n\n1. **`mark_mid_turn_commit()`** - When it's called and sets the flag to True\n2. **`commit_ai_turn()`** - Full trace including:\n   - Initial state of `_had_mid_turn_commit` flag\n   - List of changed files and deleted files\n   - The logic determining `has_real_changes` vs `only_session_changed`\n   - Which `CommitType` is selected (FOLLOW_UP, PREPARE, or MAJOR) and why\n   - The commit message and type being used\n   - Commit completion and flag reset\n\nAll prints are prefixed with `[mid-turn-commit]` for easy grep filtering."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 99 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright, I've reloaded, try to make a change, commit, then say something else."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll make a small change, commit it mid-turn, then continue talking.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/session/manager.py\", \"search\": \"        print(f\\\"[mid-turn-commit] mark_mid_turn_commit() called, setting _had_mid_turn_commit = True\\\")\", \"replace\": \"        print(f\\\"[mid-turn-commit] mark_mid_turn_commit() called, was={self._had_mid_turn_commit}, setting to True\\\")\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WqH1y6nsgwUgDnAhSjiBoY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WqH1y6nsgwUgDnAhSjiBoY",
+      "content": "{\"message\": \"Replaced in forge/session/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"refactor: improve mid-turn commit log message to show previous flag value\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01VKkdw17CipKDczC4YNZiKt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VKkdw17CipKDczC4YNZiKt",
+      "content": "{\"commit\": \"8d6f59c74775\", \"message\": \"Committed: 1 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"refactor: improve mid-turn commit log message to show previous flag value\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"8d6f59c74775\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Committed! Now I'm continuing the turn after the mid-turn commit.\n\nThis is the key scenario the logging should help debug - I just:\n1. Made a small edit to the logging in `mark_mid_turn_commit()` \n2. Called the `commit` tool mid-turn (which should call `mark_mid_turn_commit()`)\n3. Am now continuing to talk\n\nWhen this turn ends, `commit_ai_turn()` will be called. The logs should show:\n- `_had_mid_turn_commit = True` (because we committed mid-turn)\n- Since only the session file changed (no more pending file edits), it should choose `CommitType.FOLLOW_UP`\n\nCheck your terminal output for the `[mid-turn-commit]` logs to see if the flow is working correctly!",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! I made a small tweak to the logging, committed it mid-turn, and then continued talking. When this turn ends, the end-of-turn commit should be a `[follow-up]` commit since we had a mid-turn commit and only the session file needs updating. Check your terminal for the `[mid-turn-commit]` logs to see the flow.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01BbkjA3TmhfUGKTiovDdN1a",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BbkjA3TmhfUGKTiovDdN1a",
+      "content": "{\"done\": true, \"message\": \"Done! I made a small tweak to the logging, committed it mid-turn, and then continued talking. When this turn ends, the end-of-turn commit should be a `[follow-up]` commit since we had a mid-turn commit and only the session file needs updating. Check your terminal for the `[mid-turn-commit]` logs to see the flow.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I made a small tweak to the logging, committed it mid-turn, and then continued talking. When this turn ends, the end-of-turn commit should be a `[follow-up]` commit since we had a mid-turn commit and only the session file needs updating. Check your terminal for the `[mid-turn-commit]` logs to see the flow."
     }
   ]
 }

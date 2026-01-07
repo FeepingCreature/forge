@@ -1,0 +1,264 @@
+{
+  "active_files": [
+    "forge/ui/diff_view.py",
+    "forge/ui/ai_chat_widget.py",
+    "forge/git_backend/commit_types.py",
+    "CLAUDE.md"
+  ],
+  "request_log_entries": [
+    {
+      "request_file": "/tmp/forge_debug/request_1767788306036.json",
+      "response_file": "/tmp/forge_debug/response_1767788306036.json",
+      "timestamp": 1767788306.036368,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001926,
+      "generation_id": "gen-1767788306-xBc0vKfNYhd94y2kk5zi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788405067.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788405067.json",
+      "timestamp": 1767788405.0675771,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.09819375,
+      "generation_id": "gen-1767788405-mlkmihGJPRQ08DlixNKf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788409523.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788409523.json",
+      "timestamp": 1767788409.5244136,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.17887825,
+      "generation_id": "gen-1767788409-5vR7GvBfZ7jHkXGinOjO"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788420552.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788420552.json",
+      "timestamp": 1767788420.553496,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02704475,
+      "generation_id": "gen-1767788420-dYQXJByxxJJlLCVDeCVE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788426520.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788426520.json",
+      "timestamp": 1767788426.5211031,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.12671525,
+      "generation_id": "gen-1767788426-HmbJqDYOd8a0w6FOtwfZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788465677.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788465677.json",
+      "timestamp": 1767788465.6779146,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.34243125,
+      "generation_id": "gen-1767788465-frpdavQmep4FpbfvfL0u"
+    }
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 99 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! \"commit\" and I think \"think\" have prettyprinting in the AI chat tab but still generate a system block, we should block that. Also we should give run_tests a prettyprint that handles linebreaks in the output, then we can suppress that too."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll look at how the AI chat widget handles tool results and pretty printing to understand the current state.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_017ZPzA8xaVUDdbFyGRxyeLp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017ZPzA8xaVUDdbFyGRxyeLp",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_015JTXuNV1kjrAePDneVJmKA",
+          "type": "function",
+          "function": {
+            "name": "think",
+            "arguments": "{\"_compacted\": true}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015JTXuNV1kjrAePDneVJmKA",
+      "content": "{\"conclusion\": \"Need to: 1) Add \\\"commit\\\" and \\\"think\\\" to builtin_tools_with_native_rendering list, 2) Add \\\"run_tests\\\" with a custom renderer in diff_view.py\", \"message\": \"Thought through 144 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `think`\n```json\n{\n  \"conclusion\": \"Need to: 1) Add \\\"commit\\\" and \\\"think\\\" to builtin_tools_with_native_rendering list, 2) Add \\\"run_tests\\\" with a custom renderer in diff_view.py\",\n  \"scratchpad\": \"Let me understand what's happening:\\n\\n1. In `_on_tool_finished`, there's a list of `builtin_tools_with_native_rendering` that skip system messages on success:\\n```python\\nbuiltin_tools_with_native_rendering = {\\n    \\\"search_replace\\\",\\n    \\\"write_file\\\",\\n    \\\"delete_file\\\",\\n    \\\"update_context\\\",\\n    \\\"grep_open\\\",\\n    \\\"get_lines\\\",\\n    \\\"compact\\\",\\n    \\\"say\\\",\\n    \\\"done\\\",\\n}\\n```\\n\\n2. The user says \\\"commit\\\" and \\\"think\\\" have pretty printing but still generate system blocks. Looking at the code:\\n   - `commit` is NOT in `builtin_tools_with_native_rendering`\\n   - `think` is NOT in `builtin_tools_with_native_rendering`\\n\\n3. Also, `run_tests` needs pretty printing that handles linebreaks.\\n\\nSo I need to:\\n1. Add `commit` and `think` to `builtin_tools_with_native_rendering` \\n2. Add `run_tests` to the list AND create a pretty print renderer for it in diff_view.py\\n\\nLet me check the diff_view.py to understand how rendering works.\"\n}\n```\n**Result:**\n```json\n{\n  \"conclusion\": \"Need to: 1) Add \\\"commit\\\" and \\\"think\\\" to builtin_tools_with_native_rendering list, 2) Add \\\"run_tests\\\" with a custom renderer in diff_view.py\",\n  \"message\": \"Thought through 144 tokens, concluded.\",\n  \"success\": true,\n  \"think\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"I see the issue. Looking at `_on_tool_finished`, there's a list `builtin_tools_with_native_rendering` that suppresses system messages for successful tools. I need to add `commit`, `think`, and `run_tests` to that list, plus create a pretty renderer for `run_tests` in diff_view.py.\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_01MnFtyBYnovpUkWwAt3S55K",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/diff_view.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01NtsYZUivb4u4Ncx6hGnQMc",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MnFtyBYnovpUkWwAt3S55K",
+      "content": "{\"message\": \"I see the issue. Looking at `_on_tool_finished`, there's a list `builtin_tools_with_native_rendering` that suppresses system messages for successful tools. I need to add `commit`, `think`, and `run_tests` to that list, plus create a pretty renderer for `run_tests` in diff_view.py.\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. Looking at `_on_tool_finished`, there's a list `builtin_tools_with_native_rendering` that suppresses system messages for successful tools. I need to add `commit`, `think`, and `run_tests` to that list, plus create a pretty renderer for `run_tests` in diff_view.py.",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01NtsYZUivb4u4Ncx6hGnQMc",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/diff_view.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the code. I need to:\n\n1. Add `commit`, `think`, and `run_tests` to `builtin_tools_with_native_rendering` in `ai_chat_widget.py`\n2. Add a `render_run_tests_html` function in `diff_view.py`\n3. Add `think` to `render_completed_tool_html` and `render_streaming_tool_html`",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Built-in tools with native rendering don't need system messages on success -\\n        # they're rendered inline in the assistant message via _render_tool_calls_html\\n        builtin_tools_with_native_rendering = {\\n            \\\"search_replace\\\",\\n            \\\"write_file\\\",\\n            \\\"delete_file\\\",\\n            \\\"update_context\\\",\\n            \\\"grep_open\\\",\\n            \\\"get_lines\\\",\\n            \\\"compact\\\",\\n            \\\"say\\\",\\n            \\\"done\\\",\\n        }\", \"replace\": \"        # Built-in tools with native rendering don't need system messages on success -\\n        # they're rendered inline in the assistant message via _render_tool_calls_html\\n        builtin_tools_with_native_rendering = {\\n            \\\"search_replace\\\",\\n            \\\"write_file\\\",\\n            \\\"delete_file\\\",\\n            \\\"update_context\\\",\\n            \\\"grep_open\\\",\\n            \\\"get_lines\\\",\\n            \\\"compact\\\",\\n            \\\"commit\\\",\\n            \\\"think\\\",\\n            \\\"run_tests\\\",\\n            \\\"say\\\",\\n            \\\"done\\\",\\n        }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018QcvuFeRhFgfN19NAWAsep",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/diff_view.py\", \"search\": \"def render_commit_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n    \\\"\\\"\\\"Render commit tool call as HTML.\\\"\\\"\\\"\\n    message = args.get(\\\"message\\\", \\\"\\\")\\n\\n    escaped_message = html.escape(str(message)) if message else \\\"...\\\"\\n\\n    status = \\\"\\\"\\n    if result:\\n        if result.get(\\\"success\\\"):\\n            commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n            msg = result.get(\\\"message\\\", \\\"\\\")\\n            status = f'<span class=\\\"success-msg\\\">\u2713 {html.escape(str(msg))} \u2192 {commit_oid}</span>'\\n        else:\\n            error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n            status = f'<span class=\\\"error-msg\\\">\u2717 {html.escape(str(error))}</span>'\\n\\n    return f\\\"\\\"\\\"\\n    <div class=\\\"tool-card\\\">\\n        <div class=\\\"tool-card-header\\\">\\n            <span class=\\\"tool-icon\\\">\ud83d\udcbe</span>\\n            <span class=\\\"tool-name\\\">commit</span>\\n        </div>\\n        <div class=\\\"tool-card-body\\\">\\n            <div><code>{escaped_message}</code></div>\\n            {status}\\n        </div>\\n    </div>\\n    \\\"\\\"\\\"\", \"replace\": \"def render_commit_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n    \\\"\\\"\\\"Render commit tool call as HTML.\\\"\\\"\\\"\\n    message = args.get(\\\"message\\\", \\\"\\\")\\n\\n    escaped_message = html.escape(str(message)) if message else \\\"...\\\"\\n\\n    status = \\\"\\\"\\n    if result:\\n        if result.get(\\\"success\\\"):\\n            commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n            msg = result.get(\\\"message\\\", \\\"\\\")\\n            status = f'<span class=\\\"success-msg\\\">\u2713 {html.escape(str(msg))} \u2192 {commit_oid}</span>'\\n        else:\\n            error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n            status = f'<span class=\\\"error-msg\\\">\u2717 {html.escape(str(error))}</span>'\\n\\n    return f\\\"\\\"\\\"\\n    <div class=\\\"tool-card\\\">\\n        <div class=\\\"tool-card-header\\\">\\n            <span class=\\\"tool-icon\\\">\ud83d\udcbe</span>\\n            <span class=\\\"tool-name\\\">commit</span>\\n        </div>\\n        <div class=\\\"tool-card-body\\\">\\n            <div><code>{escaped_message}</code></div>\\n            {status}\\n        </div>\\n    </div>\\n    \\\"\\\"\\\"\\n\\n\\ndef render_think_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n    \\\"\\\"\\\"Render think tool call as HTML.\\\"\\\"\\\"\\n    conclusion = args.get(\\\"conclusion\\\", \\\"\\\")\\n\\n    escaped_conclusion = html.escape(str(conclusion)) if conclusion else \\\"...\\\"\\n\\n    status = \\\"\\\"\\n    if result:\\n        if result.get(\\\"success\\\"):\\n            status = '<span class=\\\"success-msg\\\">\u2713</span>'\\n        else:\\n            error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n            status = f'<span class=\\\"error-msg\\\">\u2717 {html.escape(str(error))}</span>'\\n\\n    return f\\\"\\\"\\\"\\n    <div class=\\\"tool-card\\\">\\n        <div class=\\\"tool-card-header\\\">\\n            <span class=\\\"tool-icon\\\">\ud83d\udcad</span>\\n            <span class=\\\"tool-name\\\">think</span>\\n        </div>\\n        <div class=\\\"tool-card-body\\\">\\n            <div><strong>Conclusion:</strong> {escaped_conclusion}</div>\\n            {status}\\n        </div>\\n    </div>\\n    \\\"\\\"\\\"\\n\\n\\ndef render_run_tests_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n    \\\"\\\"\\\"Render run_tests tool call as HTML.\\\"\\\"\\\"\\n    pattern = args.get(\\\"pattern\\\", \\\"\\\")\\n    verbose = args.get(\\\"verbose\\\", False)\\n\\n    streaming_class = \\\"\\\"\\n    if result is None:\\n        streaming_class = \\\" streaming\\\"\\n\\n    args_info = \\\"\\\"\\n    if pattern:\\n        args_info += f\\\"<div>Pattern: <code>{html.escape(str(pattern))}</code></div>\\\"\\n    if verbose:\\n        args_info += \\\"<div>Verbose: on</div>\\\"\\n\\n    status = \\\"\\\"\\n    output_html = \\\"\\\"\\n    if result:\\n        if result.get(\\\"success\\\"):\\n            passed = result.get(\\\"passed\\\", 0)\\n            failed = result.get(\\\"failed\\\", 0)\\n            if failed:\\n                status = f'<span class=\\\"error-msg\\\">\u2717 {passed} passed, {failed} failed</span>'\\n            else:\\n                status = f'<span class=\\\"success-msg\\\">\u2713 {passed} passed</span>'\\n        else:\\n            error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n            status = f'<span class=\\\"error-msg\\\">\u2717 {html.escape(str(error))}</span>'\\n\\n        # Show test output (handle linebreaks properly)\\n        output = result.get(\\\"output\\\", \\\"\\\")\\n        if output:\\n            escaped_output = html.escape(str(output))\\n            output_html = f'<pre class=\\\"line-excerpt\\\" style=\\\"max-height: 300px; overflow-y: auto;\\\">{escaped_output}</pre>'\\n\\n    return f\\\"\\\"\\\"\\n    <div class=\\\"tool-card{streaming_class}\\\">\\n        <div class=\\\"tool-card-header\\\">\\n            <span class=\\\"tool-icon\\\">\ud83e\uddea</span>\\n            <span class=\\\"tool-name\\\">run_tests</span>\\n        </div>\\n        <div class=\\\"tool-card-body\\\">\\n            {args_info}\\n            {status}\\n            {output_html}\\n        </div>\\n    </div>\\n    \\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01T5996dDehpYKxAtshVndXR",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/diff_view.py\", \"search\": \"    elif name == \\\"compact\\\":\\n        return render_compact_html(args, result)\\n    elif name == \\\"commit\\\":\\n        return render_commit_html(args, result)\\n    elif name in (\\\"say\\\", \\\"done\\\"):\\n        # These are \\\"in-flow\\\" tools - displayed as assistant text, not tool cards\\n        return \\\"\\\"\\n    else:\\n        return None  # Unknown tool - use default rendering\", \"replace\": \"    elif name == \\\"compact\\\":\\n        return render_compact_html(args, result)\\n    elif name == \\\"commit\\\":\\n        return render_commit_html(args, result)\\n    elif name == \\\"think\\\":\\n        return render_think_html(args, result)\\n    elif name == \\\"run_tests\\\":\\n        return render_run_tests_html(args, result)\\n    elif name in (\\\"say\\\", \\\"done\\\"):\\n        # These are \\\"in-flow\\\" tools - displayed as assistant text, not tool cards\\n        return \\\"\\\"\\n    else:\\n        return None  # Unknown tool - use default rendering\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0195Npb4JCdUym2dJsMGLA6t",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/diff_view.py\", \"search\": \"    elif name in (\\\"say\\\", \\\"done\\\"):\\n        # These are \\\"in-flow\\\" tools - displayed as assistant text, not tool cards\\n        return \\\"\\\"\\n    else:\\n        return None  # Unknown tool - use default rendering\\n\\n\\ndef render_completed_tool_html(\", \"replace\": \"    elif name == \\\"think\\\":\\n        # Think tool - show conclusion during streaming\\n        return render_think_html(parsed, result=None)\\n    elif name == \\\"run_tests\\\":\\n        # Run tests - show as streaming card\\n        return render_run_tests_html(parsed, result=None)\\n    elif name in (\\\"say\\\", \\\"done\\\"):\\n        # These are \\\"in-flow\\\" tools - displayed as assistant text, not tool cards\\n        return \\\"\\\"\\n    else:\\n        return None  # Unknown tool - use default rendering\\n\\n\\ndef render_completed_tool_html(\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_014kgfcBBBw7MfodM6JfrE8a",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01Ph95LHDQE1y6UUbQWqZ1Tm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018QcvuFeRhFgfN19NAWAsep",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01T5996dDehpYKxAtshVndXR",
+      "content": "{\"message\": \"Replaced in forge/ui/diff_view.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0195Npb4JCdUym2dJsMGLA6t",
+      "content": "{\"message\": \"Replaced in forge/ui/diff_view.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014kgfcBBBw7MfodM6JfrE8a",
+      "content": "{\"message\": \"Replaced in forge/ui/diff_view.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Ph95LHDQE1y6UUbQWqZ1Tm",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! I made three changes:\\n\\n1. **Added `commit`, `think`, and `run_tests` to `builtin_tools_with_native_rendering`** in `ai_chat_widget.py` - This suppresses the system message block for these tools when they succeed, since they now have native rendering.\\n\\n2. **Added `render_think_html()`** in `diff_view.py` - Shows the conclusion from the think tool in a nice card with a \ud83d\udcad icon.\\n\\n3. **Added `render_run_tests_html()`** in `diff_view.py` - Shows test results in a card with:\\n   - Pattern and verbose args if specified\\n   - Pass/fail counts with \u2713/\u2717 status\\n   - Test output in a scrollable `<pre>` block that properly handles linebreaks (max-height 300px with overflow-y: auto)\\n\\n4. **Added streaming support** for both tools in `render_streaming_tool_html()` so they show a nice card while executing rather than raw JSON.\\n\\nAll checks pass.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_013mbJ4hMX9nTUPCLnhg2aHX",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013mbJ4hMX9nTUPCLnhg2aHX",
+      "content": "{\"done\": true, \"message\": \"Done! I made three changes:\\n\\n1. **Added `commit`, `think`, and `run_tests` to `builtin_tools_with_native_rendering`** in `ai_chat_widget.py` - This suppresses the system message block for these tools when they succeed, since they now have native rendering.\\n\\n2. **Added `render_think_html()`** in `diff_view.py` - Shows the conclusion from the think tool in a nice card with a \\ud83d\\udcad icon.\\n\\n3. **Added `render_run_tests_html()`** in `diff_view.py` - Shows test results in a card with:\\n   - Pattern and verbose args if specified\\n   - Pass/fail counts with \\u2713/\\u2717 status\\n   - Test output in a scrollable `<pre>` block that properly handles linebreaks (max-height 300px with overflow-y: auto)\\n\\n4. **Added streaming support** for both tools in `render_streaming_tool_html()` so they show a nice card while executing rather than raw JSON.\\n\\nAll checks pass.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I made three changes:\n\n1. **Added `commit`, `think`, and `run_tests` to `builtin_tools_with_native_rendering`** in `ai_chat_widget.py` - This suppresses the system message block for these tools when they succeed, since they now have native rendering.\n\n2. **Added `render_think_html()`** in `diff_view.py` - Shows the conclusion from the think tool in a nice card with a \ud83d\udcad icon.\n\n3. **Added `render_run_tests_html()`** in `diff_view.py` - Shows test results in a card with:\n   - Pattern and verbose args if specified\n   - Pass/fail counts with \u2713/\u2717 status\n   - Test output in a scrollable `<pre>` block that properly handles linebreaks (max-height 300px with overflow-y: auto)\n\n4. **Added streaming support** for both tools in `render_streaming_tool_html()` so they show a nice card while executing rather than raw JSON.\n\nAll checks pass."
+    }
+  ]
+}

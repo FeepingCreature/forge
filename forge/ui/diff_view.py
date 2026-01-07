@@ -702,6 +702,12 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         return render_grep_open_html(parsed, is_streaming=True)
     elif name == "get_lines":
         return render_get_lines_html(parsed, is_streaming=True)
+    elif name == "think":
+        # Think tool - show conclusion during streaming
+        return render_think_html(parsed, result=None)
+    elif name == "run_tests":
+        # Run tests - show as streaming card
+        return render_run_tests_html(parsed, result=None)
     elif name in ("say", "done"):
         # These are "in-flow" tools - displayed as assistant text, not tool cards
         return ""
@@ -745,6 +751,10 @@ def render_completed_tool_html(
         return render_compact_html(args, result)
     elif name == "commit":
         return render_commit_html(args, result)
+    elif name == "think":
+        return render_think_html(args, result)
+    elif name == "run_tests":
+        return render_run_tests_html(args, result)
     elif name in ("say", "done"):
         # These are "in-flow" tools - displayed as assistant text, not tool cards
         return ""
@@ -810,6 +820,84 @@ def render_commit_html(args: dict[str, object], result: dict[str, object] | None
         <div class="tool-card-body">
             <div><code>{escaped_message}</code></div>
             {status}
+        </div>
+    </div>
+    """
+
+
+def render_think_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
+    """Render think tool call as HTML."""
+    conclusion = args.get("conclusion", "")
+
+    escaped_conclusion = html.escape(str(conclusion)) if conclusion else "..."
+
+    status = ""
+    if result:
+        if result.get("success"):
+            status = '<span class="success-msg">✓</span>'
+        else:
+            error = result.get("error", "Unknown error")
+            status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+
+    return f"""
+    <div class="tool-card">
+        <div class="tool-card-header">
+            <span class="tool-icon">💭</span>
+            <span class="tool-name">think</span>
+        </div>
+        <div class="tool-card-body">
+            <div><strong>Conclusion:</strong> {escaped_conclusion}</div>
+            {status}
+        </div>
+    </div>
+    """
+
+
+def render_run_tests_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
+    """Render run_tests tool call as HTML."""
+    pattern = args.get("pattern", "")
+    verbose = args.get("verbose", False)
+
+    streaming_class = ""
+    if result is None:
+        streaming_class = " streaming"
+
+    args_info = ""
+    if pattern:
+        args_info += f"<div>Pattern: <code>{html.escape(str(pattern))}</code></div>"
+    if verbose:
+        args_info += "<div>Verbose: on</div>"
+
+    status = ""
+    output_html = ""
+    if result:
+        if result.get("success"):
+            passed = result.get("passed", 0)
+            failed = result.get("failed", 0)
+            if failed:
+                status = f'<span class="error-msg">✗ {passed} passed, {failed} failed</span>'
+            else:
+                status = f'<span class="success-msg">✓ {passed} passed</span>'
+        else:
+            error = result.get("error", "Unknown error")
+            status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+
+        # Show test output (handle linebreaks properly)
+        output = result.get("output", "")
+        if output:
+            escaped_output = html.escape(str(output))
+            output_html = f'<pre class="line-excerpt" style="max-height: 300px; overflow-y: auto;">{escaped_output}</pre>'
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">🧪</span>
+            <span class="tool-name">run_tests</span>
+        </div>
+        <div class="tool-card-body">
+            {args_info}
+            {status}
+            {output_html}
         </div>
     </div>
     """

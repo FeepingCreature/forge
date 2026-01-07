@@ -1275,6 +1275,9 @@ class AIChatWidget(QWidget):
             "grep_open",
             "get_lines",
             "compact",
+            "commit",
+            "think",
+            "run_tests",
             "say",
             "done",
         }

@@ -1,9 +1,5 @@
 {
   "active_files": [
-    "forge/git_backend/commit_types.py",
-    "forge/session/manager.py",
-    "GRAPH_COMMIT_ORDERING.md",
-    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -114,6 +110,42 @@
       "streaming": true,
       "actual_cost": 0.038553,
       "generation_id": "gen-1767779111-6SrCsas7FWo2AynrvzUl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767779125267.json",
+      "response_file": "/tmp/forge_debug/response_1767779125267.json",
+      "timestamp": 1767779125.2673514,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000238,
+      "generation_id": "gen-1767779125-M4GPBBmNBAblMLbzw9dJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780275570.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780275570.json",
+      "timestamp": 1767780275.5717838,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.346,
+      "generation_id": "gen-1767780275-fJMYOHLr3dBvgDmeEj7n"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780296568.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780296568.json",
+      "timestamp": 1767780296.5688522,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03595875,
+      "generation_id": "gen-1767780296-3hdBOftMVVSxCDbpDpD7"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767780304830.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767780304830.json",
+      "timestamp": 1767780304.8312573,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.12675875,
+      "generation_id": "gen-1767780305-KZawJp4SYYQAEkrUI38A"
     }
   ],
   "messages": [
@@ -389,6 +421,52 @@
     {
       "role": "assistant",
       "content": "Implemented the fix for AI output after mid-turn commits. The changes:\n\n1. **Added `_had_mid_turn_commit` flag** to `SessionManager.__init__()` - tracks whether a commit tool was called during the current turn\n\n2. **Added `mark_mid_turn_commit()` method** to `SessionManager` - called when commit tool succeeds\n\n3. **Updated `commit_ai_turn()` logic** to determine commit type:\n   - `MAJOR` - if real file changes\n   - `FOLLOW_UP` - if only session changed AND there was a mid-turn commit (suffix to that commit)\n   - `PREPARE` - if only session changed with no mid-turn commit (prefix to next commit)\n\n4. **Reset flag after committing** in `commit_ai_turn()`\n\n5. **Called `mark_mid_turn_commit()`** in `AIChatWidget._on_tool_finished()` when the commit tool succeeds\n\nNow when the AI does something like `commit() \u2192 done(\"All done!\")`, the final conversation-only commit will be a FOLLOW_UP that amends the previous commit, keeping the AI's final message attached to the work it completed rather than prefixed to the next turn."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 8431fe7e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Where exactly are you resetting the flag? Because the AI may have another call after the commit call where it only talks."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, I'm resetting the flag in `commit_ai_turn()` which is called at the end of the turn. But that's actually correct - let me trace through the flow:\n\n1. User sends message \u2192 AI turn starts\n2. AI calls `commit()` tool \u2192 `mark_mid_turn_commit()` sets flag to `True`\n3. AI calls `done(\"All done!\")` \u2192 turn ends\n4. `_on_tools_all_finished()` sees `done` succeeded, calls `commit_ai_turn()`\n5. `commit_ai_turn()` sees only session changed + `_had_mid_turn_commit=True` \u2192 uses `FOLLOW_UP`\n6. Flag is reset to `False` for next turn\n\nThe flag persists through the entire turn until `commit_ai_turn()` is called at the end. So even if the AI does:\n- `commit()` \u2192 sets flag\n- `say(\"checking...\")` \u2192 flag still True\n- `done(\"finished!\")` \u2192 triggers `commit_ai_turn()` which uses FOLLOW_UP because flag is still True\n\nThe reset happens *after* we've already decided the commit type, so it's correct:\n\n```python\n# Determine commit type (flag is still True here if we had mid-turn commit)\nif only_session_changed and self._had_mid_turn_commit:\n    commit_type = CommitType.FOLLOW_UP\n...\n\n# Commit happens\ncommit_oid = self.tool_manager.vfs.commit(commit_message, commit_type=commit_type)\n\n# THEN reset for next turn\nself._had_mid_turn_commit = False\n```\n\nThe flag is only reset after the commit is made, so it works correctly. Does that make sense, or did I misunderstand your concern?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 82cd841f",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "No, that's perfect, I just didn't see it in the diff. Cheers!"
+    },
+    {
+      "role": "assistant",
+      "content": "Glad that makes sense! The key insight is that the flag survives the entire tool chain and only gets reset *after* the final commit type decision is made.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/session/manager.py\",\"forge/ui/ai_chat_widget.py\",\"GRAPH_COMMIT_ORDERING.md\",\"forge/git_backend/commit_types.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_bdrk_014uth7EtCR5WF4mUi82xS2R",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_014uth7EtCR5WF4mUi82xS2R",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 4 files from context\", \"remove\": [\"forge/session/manager.py\", \"forge/ui/ai_chat_widget.py\", \"GRAPH_COMMIT_ORDERING.md\", \"forge/git_backend/commit_types.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Cheers! \ud83c\udf89"
     }
   ]
 }

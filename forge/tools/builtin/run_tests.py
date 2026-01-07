@@ -130,13 +130,6 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        # Capture text file contents before running tests (using VFS which filters binaries)
-        before_run: dict[str, str] = {}
-        for rel_path in vfs.list_files():
-            content = vfs.read_file(rel_path)
-            if content is not None:
-                before_run[rel_path] = content
-
         # Discover test command
         cmd, cmd_desc = _discover_test_command(tmpdir)
         results["test_command"] = cmd_desc
@@ -201,24 +194,11 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             results["output"] = f"Command not found: {e}"
             results["summary"] = f"✗ Could not run {cmd_desc}: command not found"
 
-        # Check for file changes and write back to VFS
-        changed_files = []
+        # Write all text files back to VFS (it will track actual changes)
         for rel_path in vfs.list_files():
             file_path = tmpdir / rel_path
-            if not file_path.exists():
-                continue
-
-            after_content = file_path.read_text(encoding="utf-8")
-            before_content = before_run.get(rel_path)
-
-            if before_content is not None and after_content != before_content:
-                # File changed - write back to VFS
-                vfs.write_file(rel_path, after_content)
-                changed_files.append(rel_path)
-
-        if changed_files:
-            results["changed_files"] = changed_files
-            results["summary"] += f"\n\nFiles modified: {', '.join(changed_files)}"
+            if file_path.exists():
+                vfs.write_file(rel_path, file_path.read_text(encoding="utf-8"))
 
     finally:
         # Clean up temp directory

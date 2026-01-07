@@ -68,7 +68,7 @@ search_replace(file1) → search_replace(file2) → check() → commit() → upd
 ```
 search_replace(file1)
 ← wait for result
-search_replace(file2)  
+search_replace(file2)
 ← wait for result
 check()
 ← wait for result

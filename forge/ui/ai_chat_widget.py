@@ -169,31 +169,20 @@ class ToolExecutionWorker(QObject):
         self.results: list[dict[str, Any]] = []
 
     def run(self) -> None:
-        """Execute tool calls sequentially, aborting on first failure"""
+        """Execute tool calls sequentially, stopping on first failure.
+
+        When a tool fails, we stop immediately and don't process remaining tools.
+        The AI will only see the failed tool's result (not the unattempted ones),
+        allowing it to fix the issue and resubmit the full chain.
+        """
         # Claim VFS for this thread
         self.session_manager.vfs.claim_thread()
-        aborted = False
-        abort_reason = ""
 
         try:
             for tool_call in self.tool_calls:
                 tool_name = tool_call["function"]["name"]
                 arguments_str = tool_call["function"]["arguments"]
                 tool_call_id = tool_call.get("id", "")
-
-                # If we've aborted, mark remaining tools as aborted
-                if aborted:
-                    result = {"success": False, "aborted": True, "reason": abort_reason}
-                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)
-                    self.results.append(
-                        {
-                            "tool_call": tool_call,
-                            "args": {},
-                            "result": result,
-                            "aborted": True,
-                        }
-                    )
-                    continue
 
                 # Parse arguments
                 # With fine-grained tool streaming, we might get invalid JSON
@@ -213,10 +202,8 @@ class ToolExecutionWorker(QObject):
                             "parse_error": True,
                         }
                     )
-                    # Abort remaining tools
-                    aborted = True
-                    abort_reason = f"Tool {tool_name} had invalid JSON arguments"
-                    continue
+                    # Stop here - don't process remaining tools, don't record them
+                    break
 
                 # Emit that we're starting this tool
                 self.tool_started.emit(tool_name, tool_args)
@@ -235,12 +222,11 @@ class ToolExecutionWorker(QObject):
                     }
                 )
 
-                # Check if this tool failed - abort remaining tools
+                # Check if this tool failed - stop processing remaining tools
                 # Tools signal failure by returning success=False
+                # The AI will only see this failed result (not unattempted ones)
                 if not result.get("success", True):
-                    aborted = True
-                    error_msg = result.get("error", "unknown error")
-                    abort_reason = f"Tool {tool_name} failed: {error_msg}"
+                    break
 
             self.all_finished.emit(self.results)
 

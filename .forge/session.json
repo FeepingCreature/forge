@@ -1,7 +1,9 @@
 {
   "active_files": [
-    "CLAUDE.md",
     "forge/git_backend/commit_types.py",
+    "forge/session/manager.py",
+    "CLAUDE.md",
+    "forge/ui/ai_chat_widget.py",
     "forge/prompts/system.py"
   ],
   "request_log_entries": [
@@ -40,6 +42,87 @@
       "streaming": true,
       "actual_cost": 0.03169625,
       "generation_id": "gen-1767796957-2vO9KY0pvs2nSbYU0sWV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767796982285.json",
+      "response_file": "/tmp/forge_debug/response_1767796982285.json",
+      "timestamp": 1767796982.286516,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002166,
+      "generation_id": "gen-1767796982-dd3p0oNqBBJ1y792OwxQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797032914.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797032914.json",
+      "timestamp": 1767797032.9153285,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.12914,
+      "generation_id": "gen-1767797033-1lZygivhatosjbHPRWPo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797068733.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797068733.json",
+      "timestamp": 1767797068.7337587,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02179325,
+      "generation_id": "gen-1767797068-3I9BdkCvoGpv35BRZC4x"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797149354.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797149354.json",
+      "timestamp": 1767797149.3545299,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02263425,
+      "generation_id": "gen-1767797149-t452nBosuvBHje72emUh"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797219519.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797219519.json",
+      "timestamp": 1767797219.5194561,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.01777275,
+      "generation_id": "gen-1767797219-t1e9WrUTZiIP5qPHrSPD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797224163.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797224163.json",
+      "timestamp": 1767797224.1639879,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0280405,
+      "generation_id": "gen-1767797224-OkQlr5UHddvaXl61l725"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797236449.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797236449.json",
+      "timestamp": 1767797236.4507954,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.2666945,
+      "generation_id": "gen-1767797236-wuAA85RvZEGmXGfkX9CA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797262456.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797262456.json",
+      "timestamp": 1767797262.457687,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.244692,
+      "generation_id": "gen-1767797262-03Bwp0FUJJIDjOwXZz9A"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797279350.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797279350.json",
+      "timestamp": 1767797279.3507836,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.240318,
+      "generation_id": "gen-1767797279-HiikM3MFM49cYIZWoOo9"
     }
   ],
   "messages": [
@@ -135,6 +218,234 @@
     {
       "role": "assistant",
       "content": "Done! I've significantly strengthened the guidance about assuming tool success. The changes:\n\n1. **Added a new prominent section**: \"### IMPORTANT: Assume Tools Succeed\" with bold emphasis\n2. **Explicit \"Do NOT wait\" instruction**: Made it crystal clear not to stop after each tool\n3. **Added a clear WRONG/RIGHT example** showing the contrast between stopping after each call vs chaining everything\n4. **Explained why**: \"The pipeline handles failure for you\" - so babysitting is unnecessary\n5. **Added \"Be maximally optimistic\"** as a guiding principle - assume search text exists, edits are correct, checks pass, commits succeed\n\nThe key message is now much stronger: chain everything together optimistically in one response, and only handle failures if/when they actually happen."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 99 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks, restarted- you should have the new prompt now. As the AI who will be most affected by this, which do you prefer- tool calls after the error shown but registered as aborted or just removed on successive requests? If they're shown you can just copy from them, but they'll bloat the context."
+    },
+    {
+      "role": "assistant",
+      "content": "Great question! Let me think about this from a practical perspective.\n\n**I prefer: Show aborted tool calls, but let me compact them.**\n\nHere's my reasoning:\n\n1. **Copy-paste value is real** - If I wrote a complex `search_replace` that failed because the search text was slightly off, I want to see exactly what I tried so I can fix it rather than reconstruct it from memory.\n\n2. **Context bloat is also real** - After I've fixed the issue and moved on, those aborted calls become dead weight. But that's what `compact` is for - I can summarize \"attempted X, failed because Y, fixed by Z\" and move on.\n\n3. **Debugging value** - Seeing *why* something failed (the error message) alongside *what* I tried (the tool call) is much more useful than just the error alone.\n\n4. **The alternative is worse** - If aborted calls just vanish, I might not even realize what I tried, leading to repeated failed attempts or confusion about what state I'm in.\n\nSo the ideal flow would be:\n```\nsearch_replace(file) \u2190 ABORTED: search text not found\ncheck() \u2190 ABORTED (predecessor failed)\ndone() \u2190 ABORTED (predecessor failed)\n```\n\nThen on my next turn, I can see what I tried, fix the search text, and `compact` the failed attempt if I want to clean up context.\n\nDoes this match how you're thinking about implementing it?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 96101b0d",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "sory to clarify, what I mean is, you always see the tool call that *failed*, do you want to also see the tool calls *after* the failure that weren't even attempted"
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, got it! **No, don't show the unattempted calls.**\n\nReasoning:\n\n1. **I already know what I tried** - I just wrote them, they're in my \"mental model\" of what I intended. I don't need to see `check()` and `done()` that never ran.\n\n2. **Zero information content** - Unattempted calls tell me nothing. The failed call + error message is the signal. The queued-but-skipped calls are just noise.\n\n3. **Context bloat with no upside** - Unlike the failed call (which I might want to copy/fix), the unattempted calls are exactly what I'll write again anyway. No copy-paste value.\n\n4. **Cleaner mental model** - Seeing \"search_replace failed\" is clear. Seeing \"search_replace failed, check ABORTED, done ABORTED\" makes it look like three things went wrong when really only one did.\n\nSo: **Show the failure, hide the unattempted tail.**\n\nThe conversation should look like:\n```\n\u2192 Tool calls: search_replace(file), check(), done()\n\u2190 search_replace: ERROR - text not found\n[check and done silently dropped]\n```\n\nThen I'm back in control with clear signal about what to fix."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 43492deb",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hang on to clarify they won't be in your mental model because we'll have *dropped them from the context*. Basically if a failure happens it'd be like you'd cognitively travel back in time to right after the failed request. So you'll have to write the extra stuff again, but also it'll not feel repetitive because we'll have removed them from your awareness. Is that still fine by you?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, that's a subtle but important distinction! Yes, **still fine by me** - actually even better.\n\nHere's why:\n\n1. **No cognitive dissonance** - If I don't remember writing them, I won't feel like I'm repeating myself. I'll just naturally write `check() \u2192 done()` again because that's the obvious next step after a successful edit.\n\n2. **Cleaner context** - The failed call is the only thing that matters. Showing me ghost calls I don't remember writing would be confusing (\"wait, did I try this already? why is it marked aborted?\").\n\n3. **The right mental model** - From my perspective, time flows like: \"I tried X, it failed, now I'm back in control.\" Not \"I tried X, Y, Z but Y and Z were phantoms.\" The simpler narrative is better.\n\n4. **Token efficiency** - This is the leanest option. Failed call + error = minimal context, maximum signal.\n\nThe only theoretical downside is re-writing boilerplate like `check() \u2192 done()`, but that's trivial - a few tokens. And I won't even notice because I won't remember having written them before.\n\nSo yes: **Drop the unattempted tail entirely. Show only the failure point.**"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 17de54b8",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright, can you implement that please? I think right now we keep the aborted calls... might be in prompts or session, not sure"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"abort|ABORTED|unattempted\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01USewbHyFY6nNxW8r8JvqAv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01USewbHyFY6nNxW8r8JvqAv",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/prompts/system.py:49 \\u2500\\u2500\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n>>>   49 | **Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n\\n\\u2500\\u2500 forge/prompts/system.py:63 \\u2500\\u2500\\n      60 | \\n      61 | ### IMPORTANT: Assume Tools Succeed\\n      62 | \\n>>>   63 | **Do NOT wait for tool results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. But you should **assume success** and keep going. Don't stop after `search_replace` to see if it worked. Don't stop after `check()` to see if it passed. Just chain everything together optimistically.\\n      64 | \\n      65 | **The pipeline handles failure for you.** If `search_replace` fails to find the text, the chain stops and you get the error. If `check()` finds type errors, the chain stops and you see them. You don't need to babysit each step - that's what the pipeline is for.\\n      66 | \\n\\n\\u2500\\u2500 forge/tools/builtin/done.py:8 \\u2500\\u2500\\n       5 | that the AI has completed its work. The message is displayed to the user\\n       6 | as the AI's final response for this turn.\\n       7 | \\n>>>    8 | If any tool in the chain fails before `done`, the chain aborts and the AI\\n       9 | gets control back to handle the error. If all tools succeed including `done`,\\n      10 | the turn ends cleanly with the done message shown to the user.\\n      11 | \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:143 \\u2500\\u2500\\n     140 |     \\\"\\\"\\\"Worker for executing tool calls in a background thread.\\n     141 | \\n     142 |     Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),\\n>>>  143 |     remaining tools are aborted and marked as such. This allows the AI to chain\\n     144 |     tools like: search_replace \\u2192 search_replace \\u2192 check \\u2192 commit \\u2192 done\\n     145 | \\n     146 |     If all tools succeed, the chain completes. If any fails, the AI gets control\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:172 \\u2500\\u2500\\n     169 |         self.results: list[dict[str, Any]] = []\\n     170 | \\n     171 |     def run(self) -> None:\\n>>>  172 |         \\\"\\\"\\\"Execute tool calls sequentially, aborting on first failure\\\"\\\"\\\"\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n     175 |         aborted = False\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:175 \\u2500\\u2500\\n     172 |         \\\"\\\"\\\"Execute tool calls sequentially, aborting on first failure\\\"\\\"\\\"\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n>>>  175 |         aborted = False\\n     176 |         abort_reason = \\\"\\\"\\n     177 | \\n     178 |         try:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:176 \\u2500\\u2500\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n     175 |         aborted = False\\n>>>  176 |         abort_reason = \\\"\\\"\\n     177 | \\n     178 |         try:\\n     179 |             for tool_call in self.tool_calls:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:184 \\u2500\\u2500\\n     181 |                 arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n     182 |                 tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n     183 | \\n>>>  184 |                 # If we've aborted, mark remaining tools as aborted\\n     185 |                 if aborted:\\n     186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:185 \\u2500\\u2500\\n     182 |                 tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n     183 | \\n     184 |                 # If we've aborted, mark remaining tools as aborted\\n>>>  185 |                 if aborted:\\n     186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n     188 |                     self.results.append(\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:186 \\u2500\\u2500\\n     183 | \\n     184 |                 # If we've aborted, mark remaining tools as aborted\\n     185 |                 if aborted:\\n>>>  186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n     188 |                     self.results.append(\\n     189 |                         {\", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"abort|ABORTED|unattempted\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/system.py:49 \\u2500\\u2500\\n      46 | \\n      47 | ### Batch Operations\\n      48 | \\n>>>   49 | **Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.\\n      50 | \\n      51 | Examples of batching:\\n      52 | - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n\\n\\u2500\\u2500 forge/prompts/system.py:63 \\u2500\\u2500\\n      60 | \\n      61 | ### IMPORTANT: Assume Tools Succeed\\n      62 | \\n>>>   63 | **Do NOT wait for tool results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. But you should **assume success** and keep going. Don't stop after `search_replace` to see if it worked. Don't stop after `check()` to see if it passed. Just chain everything together optimistically.\\n      64 | \\n      65 | **The pipeline handles failure for you.** If `search_replace` fails to find the text, the chain stops and you get the error. If `check()` finds type errors, the chain stops and you see them. You don't need to babysit each step - that's what the pipeline is for.\\n      66 | \\n\\n\\u2500\\u2500 forge/tools/builtin/done.py:8 \\u2500\\u2500\\n       5 | that the AI has completed its work. The message is displayed to the user\\n       6 | as the AI's final response for this turn.\\n       7 | \\n>>>    8 | If any tool in the chain fails before `done`, the chain aborts and the AI\\n       9 | gets control back to handle the error. If all tools succeed including `done`,\\n      10 | the turn ends cleanly with the done message shown to the user.\\n      11 | \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:143 \\u2500\\u2500\\n     140 |     \\\"\\\"\\\"Worker for executing tool calls in a background thread.\\n     141 | \\n     142 |     Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),\\n>>>  143 |     remaining tools are aborted and marked as such. This allows the AI to chain\\n     144 |     tools like: search_replace \\u2192 search_replace \\u2192 check \\u2192 commit \\u2192 done\\n     145 | \\n     146 |     If all tools succeed, the chain completes. If any fails, the AI gets control\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:172 \\u2500\\u2500\\n     169 |         self.results: list[dict[str, Any]] = []\\n     170 | \\n     171 |     def run(self) -> None:\\n>>>  172 |         \\\"\\\"\\\"Execute tool calls sequentially, aborting on first failure\\\"\\\"\\\"\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n     175 |         aborted = False\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:175 \\u2500\\u2500\\n     172 |         \\\"\\\"\\\"Execute tool calls sequentially, aborting on first failure\\\"\\\"\\\"\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n>>>  175 |         aborted = False\\n     176 |         abort_reason = \\\"\\\"\\n     177 | \\n     178 |         try:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:176 \\u2500\\u2500\\n     173 |         # Claim VFS for this thread\\n     174 |         self.session_manager.vfs.claim_thread()\\n     175 |         aborted = False\\n>>>  176 |         abort_reason = \\\"\\\"\\n     177 | \\n     178 |         try:\\n     179 |             for tool_call in self.tool_calls:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:184 \\u2500\\u2500\\n     181 |                 arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n     182 |                 tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n     183 | \\n>>>  184 |                 # If we've aborted, mark remaining tools as aborted\\n     185 |                 if aborted:\\n     186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:185 \\u2500\\u2500\\n     182 |                 tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n     183 | \\n     184 |                 # If we've aborted, mark remaining tools as aborted\\n>>>  185 |                 if aborted:\\n     186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n     188 |                     self.results.append(\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:186 \\u2500\\u2500\\n     183 | \\n     184 |                 # If we've aborted, mark remaining tools as aborted\\n     185 |                 if aborted:\\n>>>  186 |                     result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n     187 |                     self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n     188 |                     self.results.append(\\n     189 |                         {\",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I found the relevant code in `ai_chat_widget.py`. Let me look at the full context of how aborted tools are handled and how results get added to the prompt.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_012d8KMZ71X89zAK3yvQtcsp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_012d8KMZ71X89zAK3yvQtcsp",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/session/manager.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see the issue. In `ToolExecutionWorker.run()`, when a tool fails, subsequent tools are marked as aborted and their results are still emitted and recorded. The results get appended to `self.results` and emitted via `tool_finished.emit()`.\n\nLet me trace the flow:\n1. `ToolExecutionWorker` emits results for aborted tools\n2. `_on_tool_finished` receives these and adds them to messages\n3. These get persisted in the session\n\nThe fix should be: when a tool fails, simply stop processing and don't emit anything for the remaining tools. Let me implement this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def run(self) -> None:\\n        \\\"\\\"\\\"Execute tool calls sequentially, aborting on first failure\\\"\\\"\\\"\\n        # Claim VFS for this thread\\n        self.session_manager.vfs.claim_thread()\\n        aborted = False\\n        abort_reason = \\\"\\\"\\n\\n        try:\\n            for tool_call in self.tool_calls:\\n                tool_name = tool_call[\\\"function\\\"][\\\"name\\\"]\\n                arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n                tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n\\n                # If we've aborted, mark remaining tools as aborted\\n                if aborted:\\n                    result = {\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": abort_reason}\\n                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)\\n                    self.results.append(\\n                        {\\n                            \\\"tool_call\\\": tool_call,\\n                            \\\"args\\\": {},\\n                            \\\"result\\\": result,\\n                            \\\"aborted\\\": True,\\n                        }\\n                    )\\n                    continue\\n\\n                # Parse arguments\\n                # With fine-grained tool streaming, we might get invalid JSON\\n                # In that case, wrap it so the model sees what it produced\\n                try:\\n                    tool_args = json.loads(arguments_str) if arguments_str else {}\\n                except json.JSONDecodeError as e:\\n                    # Wrap invalid JSON so it gets sent back to the model\\n                    tool_args = {\\\"INVALID_JSON\\\": arguments_str}\\n                    result = {\\\"success\\\": False, \\\"error\\\": f\\\"Invalid JSON arguments: {e}\\\"}\\n                    self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)\\n                    self.results.append(\\n                        {\\n                            \\\"tool_call\\\": tool_call,\\n                            \\\"args\\\": tool_args,\\n                            \\\"result\\\": result,\\n                            \\\"parse_error\\\": True,\\n                        }\\n                    )\\n                    # Abort remaining tools\\n                    aborted = True\\n                    abort_reason = f\\\"Tool {tool_name} had invalid JSON arguments\\\"\\n                    continue\\n\\n                # Emit that we're starting this tool\\n                self.tool_started.emit(tool_name, tool_args)\\n\\n                # Execute tool\\n                result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)\\n\\n                # Emit result with tool_call_id\\n                self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)\\n\\n                self.results.append(\\n                    {\\n                        \\\"tool_call\\\": tool_call,\\n                        \\\"args\\\": tool_args,\\n                        \\\"result\\\": result,\\n                    }\\n                )\\n\\n                # Check if this tool failed - abort remaining tools\\n                # Tools signal failure by returning success=False\\n                if not result.get(\\\"success\\\", True):\\n                    aborted = True\\n                    error_msg = result.get(\\\"error\\\", \\\"unknown error\\\")\\n                    abort_reason = f\\\"Tool {tool_name} failed: {error_msg}\\\"\\n\\n            self.all_finished.emit(self.results)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\\n        finally:\\n            # Always release VFS ownership\\n            self.session_manager.vfs.release_thread()\", \"replace\": \"    def run(self) -> None:\\n        \\\"\\\"\\\"Execute tool calls sequentially, stopping on first failure.\\n\\n        When a tool fails, we stop immediately and don't process remaining tools.\\n        The AI will only see the failed tool's result (not the unattempted ones),\\n        allowing it to fix the issue and resubmit the full chain.\\n        \\\"\\\"\\\"\\n        # Claim VFS for this thread\\n        self.session_manager.vfs.claim_thread()\\n\\n        try:\\n            for tool_call in self.tool_calls:\\n                tool_name = tool_call[\\\"function\\\"][\\\"name\\\"]\\n                arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n                tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n\\n                # Parse arguments\\n                # With fine-grained tool streaming, we might get invalid JSON\\n                # In that case, wrap it so the model sees what it produced\\n                try:\\n                    tool_args = json.loads(arguments_str) if arguments_str else {}\\n                except json.JSONDecodeError as e:\\n                    # Wrap invalid JSON so it gets sent back to the model\\n                    tool_args = {\\\"INVALID_JSON\\\": arguments_str}\\n                    result = {\\\"success\\\": False, \\\"error\\\": f\\\"Invalid JSON arguments: {e}\\\"}\\n                    self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)\\n                    self.results.append(\\n                        {\\n                            \\\"tool_call\\\": tool_call,\\n                            \\\"args\\\": tool_args,\\n                            \\\"result\\\": result,\\n                            \\\"parse_error\\\": True,\\n                        }\\n                    )\\n                    # Stop here - don't process remaining tools, don't record them\\n                    break\\n\\n                # Emit that we're starting this tool\\n                self.tool_started.emit(tool_name, tool_args)\\n\\n                # Execute tool\\n                result = self.tool_manager.execute_tool(tool_name, tool_args, self.session_manager)\\n\\n                # Emit result with tool_call_id\\n                self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)\\n\\n                self.results.append(\\n                    {\\n                        \\\"tool_call\\\": tool_call,\\n                        \\\"args\\\": tool_args,\\n                        \\\"result\\\": result,\\n                    }\\n                )\\n\\n                # Check if this tool failed - stop processing remaining tools\\n                # Tools signal failure by returning success=False\\n                # The AI will only see this failed result (not unattempted ones)\\n                if not result.get(\\\"success\\\", True):\\n                    break\\n\\n            self.all_finished.emit(self.results)\\n\\n        except Exception as e:\\n            self.error.emit(str(e))\\n        finally:\\n            # Always release VFS ownership\\n            self.session_manager.vfs.release_thread()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_01EbEv9moHJEGcAwTXfaRgkJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EbEv9moHJEGcAwTXfaRgkJ",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"5\", \"6\", \"7\"], \"summary\": \"Found aborted tool handling in forge/ui/ai_chat_widget.py ToolExecutionWorker.run(). Changed the logic from marking remaining tools as aborted and continuing the loop, to simply using `break` to stop processing on first failure. Now when a tool fails, we stop immediately - the AI only sees the failed tool's result, not the unattempted ones.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01UHwpFLT4NVybYPsSSj8ZNf",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_018xPpAghmCzbg8D53tg5gE5",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! I've updated `ToolExecutionWorker.run()` in `forge/ui/ai_chat_widget.py` to stop processing on first failure instead of marking remaining tools as \\\"aborted\\\".\\n\\n**The change:**\\n- **Before**: When a tool failed, we'd continue the loop and mark remaining tools as `{\\\"success\\\": False, \\\"aborted\\\": True, \\\"reason\\\": ...}`, emitting results for all of them\\n- **After**: When a tool fails, we simply `break` out of the loop - no results emitted for unattempted tools\\n\\nThis means when you see a failure, you'll only see:\\n1. The tool that actually failed (with its error)\\n2. Nothing about the tools that would have come after\\n\\nYou won't remember having written `check() \u2192 done()` because those calls will have been dropped from context entirely. You'll naturally rewrite them as the obvious next step after fixing the failed edit.\"}",
+            "name": "done"
+          },
+          "id": "toolu_018pgU5RJFQKQgBAtVRu5VXu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UHwpFLT4NVybYPsSSj8ZNf",
+      "content": "{\"compact\": true, \"message\": \"Compacted 3 tool result(s)\", \"success\": true, \"summary\": \"Found aborted tool handling in forge/ui/ai_chat_widget.py ToolExecutionWorker.run(). Changed the logic from marking remaining tools as aborted and continuing the loop, to simply using `break` to stop processing on first failure. Now when a tool fails, we stop immediately - the AI only sees the failed tool's result, not the unattempted ones.\", \"tool_call_ids\": [\"5\", \"6\", \"7\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_018xPpAghmCzbg8D53tg5gE5",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nW291 Trailing whitespace\\n  --> forge/prompts/system.py:71:22\\n   |\\n69 | search_replace(file1)\\n70 | \\u2190 wait for result\\n71 | search_replace(file2)  \\n   |                      ^^\\n72 | \\u2190 wait for result\\n73 | check()\\n   |\\nhelp: Remove trailing whitespace\\n\\nFound 1 error.\\nNo fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).\\nmake: *** [Makefile:13: lint-check] Error 1\\n\", \"lint_passed\": false, \"success\": false, \"summary\": \"\\u2713 Type check passed\\n\\u2717 Lint failed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nW291 Trailing whitespace\\n  --> forge/prompts/system.py:71:22\\n   |\\n69 | search_replace(file1)\\n70 | \\u2190 wait for result\\n71 | search_replace(file2)  \\n   |                      ^^\\n72 | \\u2190 wait for result\\n73 | check()\\n   |\\nhelp: Remove trailing whitespace\\n\\nFound 1 error.\\nNo fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).\\nmake: *** [Makefile:13: lint-check] Error 1\\n\",\n  \"lint_passed\": false,\n  \"success\": false,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2717 Lint failed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_018pgU5RJFQKQgBAtVRu5VXu",
+      "content": "{\"aborted\": true, \"reason\": \"Tool check failed: unknown error\", \"success\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\u274c **done** failed: Unknown error",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "There's a lint error - trailing whitespace in the prompt I added. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/system.py\", \"search\": \"```\\nsearch_replace(file1)\\n\u2190 wait for result\\nsearch_replace(file2)  \\n\u2190 wait for result\\ncheck()\\n\u2190 wait for result\\ndone(\\\"Done!\\\")\\n```\", \"replace\": \"```\\nsearch_replace(file1)\\n\u2190 wait for result\\nsearch_replace(file2)\\n\u2190 wait for result\\ncheck()\\n\u2190 wait for result\\ndone(\\\"Done!\\\")\\n```\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_01WexPP9LWzXp35EMRxpC27i",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_011g8NDAcwYuzcvaprd73qrS",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed the trailing whitespace lint error. The implementation is complete:\\n\\n**What changed in `ToolExecutionWorker.run()`:**\\n- When a tool fails (`success=False`), we now `break` immediately\\n- No results are emitted for unattempted tools\\n- The AI only sees the failed tool's error, then gets control back\\n\\nThis means when you chain `search_replace \u2192 check \u2192 done` and the search_replace fails, you'll only see the search_replace error. You won't see `check` or `done` marked as aborted - they'll simply be gone from context, as if you never wrote them.\"}",
+            "name": "done"
+          },
+          "id": "toolu_016otY7v2LntRngVJ3WKEQtG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01WexPP9LWzXp35EMRxpC27i",
+      "content": "{\"message\": \"Replaced in forge/prompts/system.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_011g8NDAcwYuzcvaprd73qrS",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_016otY7v2LntRngVJ3WKEQtG",
+      "content": "{\"done\": true, \"message\": \"Fixed the trailing whitespace lint error. The implementation is complete:\\n\\n**What changed in `ToolExecutionWorker.run()`:**\\n- When a tool fails (`success=False`), we now `break` immediately\\n- No results are emitted for unattempted tools\\n- The AI only sees the failed tool's error, then gets control back\\n\\nThis means when you chain `search_replace \\u2192 check \\u2192 done` and the search_replace fails, you'll only see the search_replace error. You won't see `check` or `done` marked as aborted - they'll simply be gone from context, as if you never wrote them.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed the trailing whitespace lint error. The implementation is complete:\n\n**What changed in `ToolExecutionWorker.run()`:**\n- When a tool fails (`success=False`), we now `break` immediately\n- No results are emitted for unattempted tools\n- The AI only sees the failed tool's error, then gets control back\n\nThis means when you chain `search_replace \u2192 check \u2192 done` and the search_replace fails, you'll only see the search_replace error. You won't see `check` or `done` marked as aborted - they'll simply be gone from context, as if you never wrote them."
     }
   ]
 }

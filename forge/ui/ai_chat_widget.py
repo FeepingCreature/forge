@@ -1236,7 +1236,8 @@ class AIChatWidget(QWidget):
             # Note: the conclusion is in the tool result, scratchpad is now gone
 
         # Handle side effects declared by tools
-        side_effects = result.get("side_effects", [])
+        # Pop them from result so they don't break JSON serialization
+        side_effects = result.pop("side_effects", [])
         if SideEffect.MID_TURN_COMMIT in side_effects:
             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)
             commit_oid = result.get("commit", "")

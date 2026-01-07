@@ -1,8 +1,8 @@
 {
   "active_files": [
+    "CLAUDE.md",
     "forge/git_backend/commit_types.py",
-    "forge/tools/side_effects.py",
-    "CLAUDE.md"
+    "forge/tools/side_effects.py"
   ],
   "request_log_entries": [
     {
@@ -472,6 +472,33 @@
       "streaming": true,
       "actual_cost": 0.36268125,
       "generation_id": "gen-1767782007-SzwibumdGx4lct1lxgis"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767782045948.json",
+      "response_file": "/tmp/forge_debug/response_1767782045948.json",
+      "timestamp": 1767782045.9503818,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000659,
+      "generation_id": "gen-1767782046-o6K5QP1ERM4k4QBFB91f"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767782045950.json",
+      "response_file": "/tmp/forge_debug/response_1767782045950.json",
+      "timestamp": 1767782045.95066,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003362,
+      "generation_id": "gen-1767782046-G6mhyoVW47uf9LcpuExH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767782110131.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767782110131.json",
+      "timestamp": 1767782110.131996,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.20673625,
+      "generation_id": "gen-1767782110-tR6xHuLwOBfDrgRFnCj5"
     }
   ],
   "messages": [
@@ -1883,6 +1910,124 @@
     {
       "role": "assistant",
       "content": "Test complete! Made a change, committed mid-turn, then continued. Check your terminal for the `[mid-turn-commit]` logs - you should now see:\n\n1. `tool=commit, side_effects=['mid_turn_commit']` when the commit tool runs\n2. `mark_mid_turn_commit() called, setting flag to True`\n3. `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP` when this turn ends\n\nThe SideEffect enum now inherits from `str`, making it JSON-serializable automatically."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 100 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ah sorry, I've restarted, try again?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\", \"replace\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"  # test\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_017i9QpVMqyNLHk7H3Y7Hfoc",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Made a small edit, now committing mid-turn...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_014MA3VaAmBQeamYtTqAwXzq",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Test mid-turn commit\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01PLk4QEaZCdK8axNR2UZxqc",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Mid-turn commit done! Now continuing after the commit. Check your logs for:\\n\\n1. `[mid-turn-commit] tool=commit, side_effects=[...]`\\n2. `[mid-turn-commit] mark_mid_turn_commit() called`\\n\\nNow cleaning up the test comment...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_017HwzZqsms344CDmtTF5n45",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"  # test\", \"replace\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01BNrDkNvVidYuZNyq4HGxMh",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Test complete! Made a change, committed mid-turn, continued talking, then cleaned up. Check the terminal logs - you should see:\\n\\n1. `tool=commit, side_effects=['mid_turn_commit']` when commit ran\\n2. `mark_mid_turn_commit() called, setting flag to True` \\n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\\n\\nWhat do the logs show?\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01EfnMsDddUBJ94oU4rGfyC1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017i9QpVMqyNLHk7H3Y7Hfoc",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014MA3VaAmBQeamYtTqAwXzq",
+      "content": "{\"message\": \"Made a small edit, now committing mid-turn...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Made a small edit, now committing mid-turn...",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PLk4QEaZCdK8axNR2UZxqc",
+      "content": "{\"commit\": \"ccd6cce97c6b\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"Test mid-turn commit\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"ccd6cce97c6b\",\n  \"message\": \"Committed: 1 file(s) modified/created\",\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017HwzZqsms344CDmtTF5n45",
+      "content": "{\"message\": \"Mid-turn commit done! Now continuing after the commit. Check your logs for:\\n\\n1. `[mid-turn-commit] tool=commit, side_effects=[...]`\\n2. `[mid-turn-commit] mark_mid_turn_commit() called`\\n\\nNow cleaning up the test comment...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Mid-turn commit done! Now continuing after the commit. Check your logs for:\n\n1. `[mid-turn-commit] tool=commit, side_effects=[...]`\n2. `[mid-turn-commit] mark_mid_turn_commit() called`\n\nNow cleaning up the test comment...",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BNrDkNvVidYuZNyq4HGxMh",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EfnMsDddUBJ94oU4rGfyC1",
+      "content": "{\"done\": true, \"message\": \"Test complete! Made a change, committed mid-turn, continued talking, then cleaned up. Check the terminal logs - you should see:\\n\\n1. `tool=commit, side_effects=['mid_turn_commit']` when commit ran\\n2. `mark_mid_turn_commit() called, setting flag to True` \\n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\\n\\nWhat do the logs show?\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Test complete! Made a change, committed mid-turn, continued talking, then cleaned up. Check the terminal logs - you should see:\n\n1. `tool=commit, side_effects=['mid_turn_commit']` when commit ran\n2. `mark_mid_turn_commit() called, setting flag to True` \n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\n\nWhat do the logs show?"
     }
   ]
 }

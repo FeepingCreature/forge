@@ -1,6 +1,7 @@
 {
   "active_files": [
     "forge/git_backend/commit_types.py",
+    "test_streaming_latency.py",
     "CLAUDE.md",
     "forge/llm/client.py"
   ],
@@ -472,6 +473,33 @@
       "streaming": true,
       "actual_cost": 0.2367325,
       "generation_id": "gen-1767791659-mME8WXZ5aPbDprUghqQC"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767791668107.json",
+      "response_file": "/tmp/forge_debug/response_1767791668107.json",
+      "timestamp": 1767791668.1074524,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000231,
+      "generation_id": "gen-1767791668-Z3tVYTLe6CqnucJv0Bzr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767791724428.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767791724428.json",
+      "timestamp": 1767791724.4287922,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.28571625,
+      "generation_id": "gen-1767791724-Qf0mWmZsh6KLbYnvx8fD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767791749371.json",
+      "response_file": "/tmp/forge_debug/response_1767791749371.json",
+      "timestamp": 1767791749.371858,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002643,
+      "generation_id": "gen-1767791749-KNddNgtpojaoZ0ba2oQL"
     }
   ],
   "messages": [
@@ -2023,6 +2051,53 @@
     {
       "role": "assistant",
       "content": "Check the terminal - did you see similar buffering for the search_replace tool calls, or did those stream immediately?\n\nIf search_replace streams fine but think buffers, it might be something specific about the think tool (maybe the long `scratchpad` parameter name, or the fact that it expects a large string value?).\n\nIf both buffer similarly, it's a general OpenRouter/Anthropic issue with tool call streaming."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 29da7d2b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "[  1.71s] SSE tool_call args chunk: 'tr' \n[  1.71s] SSE tool_call args chunk: 'igger ano' \n[  1.71s] SSE tool_call args chunk: 'ther sea' \n[  1.71s] SSE tool_call args chunk: 'rch_replac' \n[  1.71s] SSE tool_call args chunk: 'e\"}' \n[  1.72s] SSE tool_call name: done \n[  4.38s] SSE tool_call args chunk: '{\"' \n[  4.38s] SSE tool_call args chunk: 'messag' \n[  4.38s] SSE tool_call args chunk: 'e\"' \n[  4.38s] SSE tool_call args chunk: ': \"Check th' \n[  4.39s] SSE tool_call args chunk: 'e ' \n[  4.39s] SSE tool_call args chunk: 'termi' \n[  4.39s] SSE tool_call args chunk: 'nal -'\n\nearlier\n\n[  0.30s] SSE content: ' see if it shows' \n[  0.30s] SSE content: ' similar' \n[  0.38s] SSE content: ' buff' \n[  0.38s] SSE content: 'ering:' \n[  0.62s] SSE tool_call name: search_replace \n[  1.01s] SSE tool_call args chunk: '{\"' \n[  1.01s] SSE tool_call args chunk: 'file' \n[  1.01s] SSE tool_call args chunk: 'path\": \"fo' \n[  1.01s] SSE tool_call args chunk: 'rge/llm/cl' \n[  1.01s] SSE tool_call args chunk: 'ient.' \n[  1.01s] SSE tool_call args chunk: 'py' \n[  1.01s] SSE tool_call args chunk: '\"' \n[  1.47s] SSE tool_call args chunk: ', '\n\nyeah there's definitely a buffering issue. Bleh. Can you write a quick test program for this in the root dir? It should log the timestamps and \"time to first token of tool call\" or similar."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"test_streaming_latency.py\", \"content\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"\\nTest script to measure OpenRouter streaming latency for tool calls.\\nMeasures time from stream start to first token, and time from tool name to first args chunk.\\n\\\"\\\"\\\"\\n\\nimport json\\nimport os\\nimport time\\nfrom datetime import datetime\\n\\nimport requests\\n\\nAPI_KEY = os.environ.get(\\\"OPENROUTER_API_KEY\\\")\\nMODEL = \\\"anthropic/claude-sonnet-4-20250514\\\"\\n\\nTOOLS = [\\n    {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"think\\\",\\n            \\\"description\\\": \\\"Think through a problem step by step\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"scratchpad\\\": {\\\"type\\\": \\\"string\\\", \\\"description\\\": \\\"Your reasoning\\\"},\\n                    \\\"conclusion\\\": {\\\"type\\\": \\\"string\\\", \\\"description\\\": \\\"Your conclusion\\\"},\\n                },\\n                \\\"required\\\": [\\\"scratchpad\\\", \\\"conclusion\\\"],\\n            },\\n        },\\n    },\\n    {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"search_replace\\\",\\n            \\\"description\\\": \\\"Search and replace in a file\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"filepath\\\": {\\\"type\\\": \\\"string\\\"},\\n                    \\\"search\\\": {\\\"type\\\": \\\"string\\\"},\\n                    \\\"replace\\\": {\\\"type\\\": \\\"string\\\"},\\n                },\\n                \\\"required\\\": [\\\"filepath\\\", \\\"search\\\", \\\"replace\\\"],\\n            },\\n        },\\n    },\\n]\\n\\nMESSAGES = [\\n    {\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"You are a helpful assistant. Use the think tool to reason through problems.\\\"},\\n    {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Use the think tool to think about what makes a good API design. Be thorough in your scratchpad.\\\"},\\n]\\n\\n\\ndef test_streaming():\\n    if not API_KEY:\\n        print(\\\"ERROR: Set OPENROUTER_API_KEY environment variable\\\")\\n        return\\n\\n    print(f\\\"Testing streaming latency with {MODEL}\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    headers = {\\n        \\\"Authorization\\\": f\\\"Bearer {API_KEY}\\\",\\n        \\\"Content-Type\\\": \\\"application/json\\\",\\n        \\\"HTTP-Referer\\\": \\\"https://github.com/FeepingCreature/forge\\\",\\n        \\\"X-Title\\\": \\\"Forge Latency Test\\\",\\n    }\\n\\n    payload = {\\n        \\\"model\\\": MODEL,\\n        \\\"messages\\\": MESSAGES,\\n        \\\"tools\\\": TOOLS,\\n        \\\"stream\\\": True,\\n    }\\n\\n    response = requests.post(\\n        \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n        headers=headers,\\n        json=payload,\\n        stream=True,\\n    )\\n\\n    if not response.ok:\\n        print(f\\\"ERROR: {response.status_code} {response.reason}\\\")\\n        print(response.text)\\n        return\\n\\n    stream_start = datetime.now()\\n    first_token_time = None\\n    tool_timings: dict[int, dict] = {}  # tool index -> timing info\\n\\n    print(f\\\"\\\\n[{0:6.2f}s] Stream started\\\")\\n\\n    for line in response.iter_lines():\\n        ts = (datetime.now() - stream_start).total_seconds()\\n\\n        if not line:\\n            continue\\n\\n        line = line.decode(\\\"utf-8\\\")\\n        if not line.startswith(\\\"data: \\\"):\\n            continue\\n\\n        data = line[6:]\\n        if data == \\\"[DONE]\\\":\\n            print(f\\\"[{ts:6.2f}s] [DONE]\\\")\\n            break\\n\\n        try:\\n            chunk = json.loads(data)\\n        except json.JSONDecodeError:\\n            continue\\n\\n        delta = chunk.get(\\\"choices\\\", [{}])[0].get(\\\"delta\\\", {})\\n        content = delta.get(\\\"content\\\", \\\"\\\")\\n        tool_calls = delta.get(\\\"tool_calls\\\", [])\\n\\n        if content and first_token_time is None:\\n            first_token_time = ts\\n            print(f\\\"[{ts:6.2f}s] FIRST CONTENT TOKEN: {repr(content[:50])}\\\")\\n        elif content:\\n            pass  # Don't spam content\\n\\n        for tc in tool_calls:\\n            idx = tc.get(\\\"index\\\", 0)\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            if idx not in tool_timings:\\n                tool_timings[idx] = {\\\"name\\\": None, \\\"name_time\\\": None, \\\"first_args_time\\\": None}\\n\\n            if name:\\n                tool_timings[idx][\\\"name\\\"] = name\\n                tool_timings[idx][\\\"name_time\\\"] = ts\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] NAME: {name}\\\")\\n\\n            if args and tool_timings[idx][\\\"first_args_time\\\"] is None:\\n                tool_timings[idx][\\\"first_args_time\\\"] = ts\\n                latency = ts - tool_timings[idx][\\\"name_time\\\"] if tool_timings[idx][\\\"name_time\\\"] else 0\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] FIRST ARGS (latency: {latency:.2f}s): {repr(args[:50])}\\\")\\n\\n    # Summary\\n    print(\\\"\\\\n\\\" + \\\"=\\\" * 60)\\n    print(\\\"SUMMARY\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    if first_token_time:\\n        print(f\\\"Time to first content token: {first_token_time:.2f}s\\\")\\n\\n    for idx, timing in sorted(tool_timings.items()):\\n        name = timing[\\\"name\\\"] or f\\\"tool_{idx}\\\"\\n        name_time = timing[\\\"name_time\\\"]\\n        args_time = timing[\\\"first_args_time\\\"]\\n\\n        if name_time and args_time:\\n            latency = args_time - name_time\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, first args at {args_time:.2f}s, LATENCY: {latency:.2f}s\\\")\\n        elif name_time:\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, NO ARGS RECEIVED\\\")\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    test_streaming()\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_bdrk_01CeMtpnqegVwzhQwv89NcuU",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Created `test_streaming_latency.py` in the root directory. Run it with:\\n\\n```bash\\nOPENROUTER_API_KEY=your_key python test_streaming_latency.py\\n```\\n\\nIt will:\\n1. Send a request asking Claude to use the think tool\\n2. Log timestamps for every SSE event\\n3. Measure and report the latency between tool name and first args chunk\\n\\nThis gives you a standalone repro case to share with OpenRouter if needed. The output will show something like:\\n\\n```\\nSUMMARY\\nTool 'think': name at 1.50s, first args at 5.50s, LATENCY: 4.00s\\n```\\n\\nThat 4s latency is the buffering we're seeing.\"}",
+            "name": "done"
+          },
+          "id": "toolu_bdrk_01WAnVXFUK79Ykjo5XMvipFX",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01CeMtpnqegVwzhQwv89NcuU",
+      "content": "{\"message\": \"Wrote 5131 bytes to test_streaming_latency.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01WAnVXFUK79Ykjo5XMvipFX",
+      "content": "{\"done\": true, \"message\": \"Created `test_streaming_latency.py` in the root directory. Run it with:\\n\\n```bash\\nOPENROUTER_API_KEY=your_key python test_streaming_latency.py\\n```\\n\\nIt will:\\n1. Send a request asking Claude to use the think tool\\n2. Log timestamps for every SSE event\\n3. Measure and report the latency between tool name and first args chunk\\n\\nThis gives you a standalone repro case to share with OpenRouter if needed. The output will show something like:\\n\\n```\\nSUMMARY\\nTool 'think': name at 1.50s, first args at 5.50s, LATENCY: 4.00s\\n```\\n\\nThat 4s latency is the buffering we're seeing.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Created `test_streaming_latency.py` in the root directory. Run it with:\n\n```bash\nOPENROUTER_API_KEY=your_key python test_streaming_latency.py\n```\n\nIt will:\n1. Send a request asking Claude to use the think tool\n2. Log timestamps for every SSE event\n3. Measure and report the latency between tool name and first args chunk\n\nThis gives you a standalone repro case to share with OpenRouter if needed. The output will show something like:\n\n```\nSUMMARY\nTool 'think': name at 1.50s, first args at 5.50s, LATENCY: 4.00s\n```\n\nThat 4s latency is the buffering we're seeing."
     }
   ]
 }

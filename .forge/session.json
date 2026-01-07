@@ -499,6 +499,33 @@
       "streaming": true,
       "actual_cost": 0.20673625,
       "generation_id": "gen-1767782110-tR6xHuLwOBfDrgRFnCj5"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767782123663.json",
+      "response_file": "/tmp/forge_debug/response_1767782123663.json",
+      "timestamp": 1767782123.663188,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000159,
+      "generation_id": "gen-1767782123-tiocpQ8ihbRlNNacrYsF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767782201704.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767782201704.json",
+      "timestamp": 1767782201.7049859,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21207625,
+      "generation_id": "gen-1767782201-x8QBmcixGj5KclBvonAP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767782210383.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767782210383.json",
+      "timestamp": 1767782210.383727,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1923675,
+      "generation_id": "gen-1767782210-YOnphg9Fb9rhe0wV45lx"
     }
   ],
   "messages": [
@@ -2028,6 +2055,53 @@
     {
       "role": "assistant",
       "content": "Test complete! Made a change, committed mid-turn, continued talking, then cleaned up. Check the terminal logs - you should see:\n\n1. `tool=commit, side_effects=['mid_turn_commit']` when commit ran\n2. `mark_mid_turn_commit() called, setting flag to True` \n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\n\nWhat do the logs show?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bd0bfede",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "\ud83e\udd16\u0000 PromptManager: Appending assistant message (358 chars) \n[mid-turn-commit] commit_ai_turn() called, _had_mid_turn_commit = True \n[mid-turn-commit] all_changes keys: ['forge/tools/side_effects.py', '.forge/session.json'] \n[mid-turn-commit] deleted_files: set() \n[mid-turn-commit] has_real_changes = True (len=2, SESSION_FILE in changes=True) \n[mid-turn-commit] only_session_changed = False \n[mid-turn-commit] -> CommitType.MAJOR (real file changes) \n\ud83c\udf10\u0000 LLM Request: anthropic/claude-haiku-4.5 (non-streaming, 1 messages) \n  \ud83d\udcdd\u0000 Request dumped to: /tmp/forge_debug/request_1767782123663.json \n\u2705\u0000 LLM Response received \n\ud83d\udcb0\u0000 Request cost: $0.000159 (total: $0.2109) \n[mid-turn-commit] committing with message: 'refactor: restart side_effects.py implementation', type: CommitType.MAJOR \n[mid-turn-commit] commit complete, oid: bd0bfede6ecbe265b1a82f001abb9225a9cebeef \n[mid-turn-commit] resetting _had_mid_turn_commit to False\n\nthis *looks* right? I realize this is ironic after what I just told you, but try to make a change then say something normally. I think that's committed differently."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"52\",\"53\",\"54\",\"55\",\"56\",\"57\",\"58\",\"59\",\"60\",\"61\",\"62\",\"63\",\"64\",\"65\",\"66\",\"67\",\"68\",\"69\",\"70\",\"71\"], \"summary\": \"Made SideEffect inherit from str for JSON serialization. Added logging for side_effects check in ai_chat_widget.py. Tested mid-turn commit flow twice - second test showed _had_mid_turn_commit = True working correctly.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01Scffd2vQHGjLbsuSfYPtNr",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\", \"replace\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"  # test normal flow\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01UFM5o6sVt97faAuoRo9krp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Scffd2vQHGjLbsuSfYPtNr",
+      "content": "{\"compact\": true, \"message\": \"Compacted 20 tool result(s)\", \"success\": true, \"summary\": \"Made SideEffect inherit from str for JSON serialization. Added logging for side_effects check in ai_chat_widget.py. Tested mid-turn commit flow twice - second test showed _had_mid_turn_commit = True working correctly.\", \"tool_call_ids\": [\"52\", \"53\", \"54\", \"55\", \"56\", \"57\", \"58\", \"59\", \"60\", \"61\", \"62\", \"63\", \"64\", \"65\", \"66\", \"67\", \"68\", \"69\", \"70\", \"71\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UFM5o6sVt97faAuoRo9krp",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Made the change. Now I'm replying with normal text instead of chaining to `done()`.\n\nThis forces a new API request - check your terminal to see what commit type gets used when this turn ends. The key question is whether the flag handling differs when I end with plain text vs when I use `done()`."
     }
   ]
 }

@@ -235,10 +235,18 @@ def get_diff_styles() -> str:
         .think-scratchpad-wrapper {
             margin-top: 6px;
         }
-        .think-scratchpad {
+        /* Outer container with fixed max-height, uses flex column-reverse for auto-scroll */
+        .think-scratchpad-outer {
+            max-height: 5.5em;  /* ~4 lines - collapsed by default */
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
             background: #fff;
             border: 1px solid #ddd;
             border-radius: 4px;
+        }
+        /* Inner content - flex-direction: column-reverse makes this stick to bottom */
+        .think-scratchpad {
             padding: 8px;
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -246,11 +254,9 @@ def get_diff_styles() -> str:
             white-space: pre-wrap;
             word-wrap: break-word;
             color: #555;
-            overflow-y: auto;
-            max-height: 5.5em;  /* ~4 lines - collapsed by default */
         }
         /* Expanded: larger height */
-        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-scratchpad {
+        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-scratchpad-outer {
             max-height: 300px;
         }
     """
@@ -702,10 +708,6 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
     name = func.get("name", "")
     args_str = func.get("arguments", "")
 
-    # DEBUG: Print streaming chunks for think tool
-    if name == "think":
-        print(f"[STREAM think] args_str length: {len(args_str)}")
-
     if not isinstance(args_str, str):
         return None
 
@@ -888,27 +890,28 @@ def render_think_html(args: dict[str, object], result: dict[str, object] | None 
     scratchpad_str = str(scratchpad) if scratchpad else ""
     escaped_conclusion = html.escape(str(conclusion)) if conclusion else ""
 
-    # Scratchpad foldout: single scrollable container with JS scroll-to-bottom
+    # Scratchpad foldout with outer container for scroll, inner for content
+    # Uses flex-direction: column-reverse on outer to auto-scroll to bottom
     scratchpad_html = ""
     if scratchpad_str:
         word_count = len(scratchpad_str.split())
         escaped_full = html.escape(scratchpad_str)
 
-        # Single container - CSS toggles max-height, JS handles scroll
+        # Generate unique ID for each think call (allows multiple on page)
+        import random
+
+        toggle_id = f"think-toggle-{random.randint(0, 999999)}"
+
         scratchpad_html = f"""
         <div class="think-foldout">
-            <input type="checkbox" id="think-toggle" class="think-toggle-input">
-            <label for="think-toggle" class="think-toggle-label">Scratchpad ({word_count} words)</label>
+            <input type="checkbox" id="{toggle_id}" class="think-toggle-input">
+            <label for="{toggle_id}" class="think-toggle-label">Scratchpad ({word_count} words)</label>
             <div class="think-scratchpad-wrapper">
-                <div class="think-scratchpad" id="think-scratchpad-content">{escaped_full}</div>
+                <div class="think-scratchpad-outer">
+                    <div class="think-scratchpad">{escaped_full}</div>
+                </div>
             </div>
         </div>
-        <script>
-            (function() {{
-                var el = document.getElementById('think-scratchpad-content');
-                if (el) el.scrollTop = el.scrollHeight;
-            }})();
-        </script>
         """
 
     # Conclusion section

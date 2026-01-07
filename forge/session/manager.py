@@ -273,18 +273,21 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
         self._had_mid_turn_commit = True
 
-    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
+    def compact_tool_results(
+        self, from_id: str, to_id: str, summary: str
+    ) -> tuple[int, str | None]:
         """
         Compact tool results by replacing them with a summary.
 
         Args:
-            tool_call_ids: List of tool_call_ids to compact
+            from_id: First tool_call_id to compact (inclusive)
+            to_id: Last tool_call_id to compact (inclusive)
             summary: Summary text to replace the results with
 
         Returns:
-            Tuple of (number of blocks compacted, list of missing IDs)
+            Tuple of (number of blocks compacted, error message or None)
         """
-        return self.prompt_manager.compact_tool_results(tool_call_ids, summary)
+        return self.prompt_manager.compact_tool_results(from_id, to_id, summary)
 
     def compact_think_call(self, tool_call_id: str) -> bool:
         """

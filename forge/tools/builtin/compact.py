@@ -28,10 +28,13 @@ def get_schema() -> dict[str, Any]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "tool_call_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of tool_call_ids to compact",
+                    "from_id": {
+                        "type": "string",
+                        "description": "First tool_call_id to compact (inclusive)",
+                    },
+                    "to_id": {
+                        "type": "string",
+                        "description": "Last tool_call_id to compact (inclusive)",
                     },
                     "summary": {
                         "type": "string",
@@ -43,7 +46,7 @@ def get_schema() -> dict[str, Any]:
                         ),
                     },
                 },
-                "required": ["tool_call_ids", "summary"],
+                "required": ["from_id", "to_id", "summary"],
             },
         },
     }
@@ -56,24 +59,25 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     This is a special tool - it doesn't use VFS directly but signals
     to the PromptManager to replace tool result blocks.
     """
-    tool_call_ids = args.get("tool_call_ids", [])
+    from_id = args.get("from_id", "")
+    to_id = args.get("to_id", "")
     summary = args.get("summary", "")
 
-    if not tool_call_ids:
-        return {"success": False, "error": "No tool_call_ids provided"}
+    if not from_id:
+        return {"success": False, "error": "No from_id provided"}
+
+    if not to_id:
+        return {"success": False, "error": "No to_id provided"}
 
     if not summary:
         return {"success": False, "error": "No summary provided"}
-
-    if not isinstance(tool_call_ids, list):
-        return {"success": False, "error": "tool_call_ids must be a list"}
 
     # Return special result that signals compaction
     # The session manager will handle the actual compaction
     return {
         "success": True,
         "compact": True,
-        "tool_call_ids": tool_call_ids,
+        "from_id": from_id,
+        "to_id": to_id,
         "summary": summary,
-        "message": f"Compacted {len(tool_call_ids)} tool result(s)",
     }

@@ -430,119 +430,105 @@ class PromptManager:
                         return True
         return False
 
-    def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
+    def compact_tool_results(
+        self, from_id: str, to_id: str, summary: str
+    ) -> tuple[int, str | None]:
         """
-        Replace tool result blocks with a compact summary.
+        Replace tool result blocks in a range with a compact summary.
 
-        Only compacts the TOOL_RESULT blocks themselves. FILE_CONTENT blocks
-        are NOT removed - they represent the actual file content in context,
-        which is the authoritative view of the file.
+        Compacts all tool results and assistant messages between from_id and to_id
+        (inclusive). FILE_CONTENT blocks are NOT removed.
 
         Args:
-            tool_call_ids: List of tool_call_ids to compact (can be user-friendly
-                          IDs like "1", "2" or raw tool_call_ids)
+            from_id: First tool_call_id to compact (user-friendly like "1" or raw)
+            to_id: Last tool_call_id to compact (user-friendly like "1" or raw)
             summary: Summary text to replace the results with
-                     Should include enough detail to stay oriented on what changed,
-                     e.g., "Added calculate_totals() and format_output() functions to utils.py"
 
         Returns:
-            Tuple of (number of blocks compacted, list of missing IDs)
+            Tuple of (number of blocks compacted, error message or None)
         """
-        compacted = 0
-
         # Reset compaction nudge state - they just compacted!
         self._last_compaction_tool_id = self._next_tool_id - 1
         self._nudge_suppressed = False
 
-        # Translate user-friendly IDs to actual tool_call_ids
-        ids_set = self._resolve_tool_ids(tool_call_ids)
+        # Resolve user-friendly IDs to indices
+        from_idx: int | None = None
+        to_idx: int | None = None
 
-        # Track which user IDs couldn't be resolved or found
-        existing_ids = {
-            block.metadata.get("tool_call_id")
-            for block in self.blocks
-            if block.block_type == BlockType.TOOL_RESULT and not block.deleted
-        }
+        # Convert user IDs to ints for range comparison
+        try:
+            from_int = int(from_id)
+            to_int = int(to_id)
+        except ValueError:
+            return 0, f"Invalid IDs: from_id={from_id}, to_id={to_id} (must be integers)"
 
-        # Find missing user IDs (ones that don't exist or couldn't be resolved)
-        missing_user_ids = []
-        for user_id in tool_call_ids:
-            resolved = self._tool_id_map.get(user_id, user_id)
-            if resolved not in existing_ids:
-                missing_user_ids.append(user_id)
+        if from_int > to_int:
+            return 0, f"from_id ({from_int}) must be <= to_id ({to_int})"
 
-        print(f"📦 Compact requested for {len(tool_call_ids)} IDs: {tool_call_ids[:3]}...")
-        if missing_user_ids:
-            print(f"📦 WARNING: {len(missing_user_ids)} IDs not found: {missing_user_ids[:3]}...")
+        # Find the block indices for the range
+        for i, block in enumerate(self.blocks):
+            if block.deleted or block.block_type != BlockType.TOOL_RESULT:
+                continue
+            user_id = block.metadata.get("user_id", "")
+            try:
+                block_int = int(user_id)
+            except (ValueError, TypeError):
+                continue
+            if block_int == from_int:
+                from_idx = i
+            if block_int == to_int:
+                to_idx = i
 
-        for block in self.blocks:
+        if from_idx is None:
+            return 0, f"from_id {from_id} not found"
+        if to_idx is None:
+            return 0, f"to_id {to_id} not found"
+
+        print(f"📦 Compacting range #{from_id} to #{to_id}")
+
+        # Compact everything in the range
+        compacted = 0
+        first_result = True
+
+        for i in range(from_idx, to_idx + 1):
+            block = self.blocks[i]
             if block.deleted:
                 continue
 
-            # Compact tool result blocks
-            if (
-                block.block_type == BlockType.TOOL_RESULT
-                and block.metadata.get("tool_call_id") in ids_set
-            ):
-                # Replace content with summary (first match gets summary, rest get minimal)
+            if block.block_type == BlockType.TOOL_RESULT:
                 user_id = block.metadata.get("user_id", "?")
-                if compacted == 0:
+                if first_result:
                     block.content = f"[COMPACTED] {summary}"
+                    first_result = False
                 else:
                     block.content = "[COMPACTED - see above]"
                 compacted += 1
                 print(f"📦 Compacted tool result #{user_id}")
 
-            # Also compact the corresponding tool call blocks
-            # These contain the full arguments (e.g., search/replace strings)
             elif block.block_type == BlockType.TOOL_CALL:
+                # Compact all tool calls in this block
                 tool_calls = block.metadata.get("tool_calls", [])
                 compacted_calls = []
-                any_compacted = False
                 for tc in tool_calls:
-                    tc_id = tc.get("id", "")
-                    if tc_id in ids_set:
-                        # Replace with minimal stub
-                        compacted_calls.append(
-                            {
-                                "id": tc_id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.get("function", {}).get("name", "?"),
-                                    "arguments": '{"_compacted": true}',
-                                },
-                            }
-                        )
-                        any_compacted = True
-                    else:
-                        compacted_calls.append(tc)
-                if any_compacted:
-                    block.metadata["tool_calls"] = compacted_calls
-                    # Mark this tool call block as compacted for assistant message truncation
-                    block.metadata["compacted"] = True
+                    compacted_calls.append(
+                        {
+                            "id": tc.get("id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": tc.get("function", {}).get("name", "?"),
+                                "arguments": '{"_compacted": true}',
+                            },
+                        }
+                    )
+                block.metadata["tool_calls"] = compacted_calls
 
-        # Truncate assistant messages that are followed by compacted tool calls
-        # These are the explanatory prose that accompanies tool usage - once the
-        # tool calls are compacted, the explanation is no longer needed in full
-        for i, block in enumerate(self.blocks):
-            if block.deleted or block.block_type != BlockType.ASSISTANT_MESSAGE:
-                continue
-            # Check if the next non-deleted block is a compacted tool call
-            for j in range(i + 1, len(self.blocks)):
-                next_block = self.blocks[j]
-                if next_block.deleted:
-                    continue
-                if (
-                    next_block.block_type == BlockType.TOOL_CALL
-                    and next_block.metadata.get("compacted")
-                    and len(block.content) > 100
-                ):
+            elif block.block_type == BlockType.ASSISTANT_MESSAGE:
+                # Truncate assistant messages in the range
+                if len(block.content) > 100:
                     block.content = block.content[:100] + "..."
-                    print("📦 Truncated assistant message before compacted tool call")
-                # Stop at any non-deleted block (only check immediate next block)
-                break
+                    print("📦 Truncated assistant message in range")
 
-        return compacted, missing_user_ids
+        return compacted, None
 
     def get_last_user_message(self) -> str | None:
         """Get the last user message from the conversation (for commit message context)"""

@@ -387,12 +387,14 @@ class AIChatWidget(QWidget):
                             if func.get("name") == "compact":
                                 try:
                                     args = json.loads(func.get("arguments", "{}"))
-                                    compact_ids = args.get("tool_call_ids", [])
+                                    from_id = args.get("from_id", "")
+                                    to_id = args.get("to_id", "")
                                     summary = args.get("summary", "")
-                                    compacted, _ = self.session_manager.compact_tool_results(
-                                        compact_ids, summary
-                                    )
-                                    print(f"📦 Replayed compaction: {compacted} tool result(s)")
+                                    if from_id and to_id:
+                                        compacted, _ = self.session_manager.compact_tool_results(
+                                            from_id, to_id, summary
+                                        )
+                                        print(f"📦 Replayed compaction: {compacted} tool result(s)")
                                 except (json.JSONDecodeError, TypeError):
                                     pass  # Malformed args, skip
                     elif content:
@@ -1211,14 +1213,15 @@ class AIChatWidget(QWidget):
 
         # Handle compact tool specially - it modifies the prompt manager
         if result.get("compact") and result.get("success"):
-            compact_ids = result.get("tool_call_ids", [])
+            from_id = result.get("from_id", "")
+            to_id = result.get("to_id", "")
             summary = result.get("summary", "")
-            compacted, missing_ids = self.session_manager.compact_tool_results(compact_ids, summary)
+            compacted, error = self.session_manager.compact_tool_results(from_id, to_id, summary)
             print(f"📦 Compacted {compacted} tool result(s)")
-            # Update the result to include any missing IDs as an error
-            if missing_ids:
-                result["error"] = f"IDs not found: {missing_ids}"
-                result["success"] = False  # Partial failure
+            # Update the result to include any error
+            if error:
+                result["error"] = error
+                result["success"] = False
 
         # Note: think tool scratchpad is kept in session for UI rendering,
         # but compacted on-the-fly when building API requests (in PromptManager.to_messages)

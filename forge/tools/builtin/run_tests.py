@@ -133,8 +133,6 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
 
     try:
         # Capture text file contents before running tests (using VFS which filters binaries)
-        from forge.vfs.binary import is_binary_file
-
         before_run: dict[str, str] = {}
         for rel_path in vfs.list_files():
             content = vfs.read_file(rel_path)
@@ -207,18 +205,16 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
 
         # Check for file changes and write back to VFS
         changed_files = []
-        for file_path in tmpdir.rglob("*"):
-            if not file_path.is_file():
-                continue
-            rel_path = str(file_path.relative_to(tmpdir))
-            if is_binary_file(rel_path):
+        for rel_path in vfs.list_files():
+            file_path = tmpdir / rel_path
+            if not file_path.exists():
                 continue
 
             after_content = file_path.read_text(encoding="utf-8")
             before_content = before_run.get(rel_path)
 
-            if before_content is None or after_content != before_content:
-                # File is new or changed - write back to VFS
+            if before_content is not None and after_content != before_content:
+                # File changed - write back to VFS
                 vfs.write_file(rel_path, after_content)
                 changed_files.append(rel_path)
 

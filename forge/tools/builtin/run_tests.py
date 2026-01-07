@@ -115,6 +115,7 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
 
 def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     """Run tests and return results"""
+    from forge.tools.side_effects import SideEffect
 
     pattern = args.get("pattern", "")
     verbose = args.get("verbose", False)
@@ -131,6 +132,17 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
+        # Capture file contents before running tests
+        import contextlib
+
+        all_files = list(tmpdir.rglob("*"))
+        before_run: dict[str, str] = {}
+        for file_path in all_files:
+            if file_path.is_file():
+                rel_path = str(file_path.relative_to(tmpdir))
+                with contextlib.suppress(OSError, UnicodeDecodeError):
+                    before_run[rel_path] = file_path.read_text(encoding="utf-8", errors="replace")
+
         # Discover test command
         cmd, cmd_desc = _discover_test_command(tmpdir)
         results["test_command"] = cmd_desc
@@ -194,6 +206,26 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         except FileNotFoundError as e:
             results["output"] = f"Command not found: {e}"
             results["summary"] = f"✗ Could not run {cmd_desc}: command not found"
+
+        # Check for file changes and write back to VFS
+        changed_files = []
+        all_files_after = list(tmpdir.rglob("*"))
+        for file_path in all_files_after:
+            if file_path.is_file():
+                rel_path = str(file_path.relative_to(tmpdir))
+                with contextlib.suppress(OSError, UnicodeDecodeError):
+                    after_content = file_path.read_text(encoding="utf-8", errors="replace")
+                    before_content = before_run.get(rel_path)
+
+                    if before_content is None or after_content != before_content:
+                        # File is new or changed - write back to VFS
+                        vfs.write_file(rel_path, after_content)
+                        changed_files.append(rel_path)
+
+        if changed_files:
+            results["changed_files"] = changed_files
+            results["side_effects"] = [SideEffect.FILE_CHANGES]
+            results["summary"] += f"\n\nFiles modified: {', '.join(changed_files)}"
 
     finally:
         # Clean up temp directory

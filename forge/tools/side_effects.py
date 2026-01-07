@@ -17,3 +17,6 @@ class SideEffect(str, Enum):
 
     # Marks that a commit happened mid-turn, affecting end-of-turn commit type
     MID_TURN_COMMIT = "mid_turn_commit"
+
+    # Marks that the tool made file changes that should be included in the commit
+    FILE_CHANGES = "file_changes"

@@ -201,6 +201,69 @@
       "streaming": true,
       "actual_cost": 0.05154775,
       "generation_id": "gen-1767798835-KTMFYS4rsBpNc0ryhvRk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767799764216.json",
+      "response_file": "/tmp/forge_debug/response_1767799764216.json",
+      "timestamp": 1767799764.2196121,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004456,
+      "generation_id": "gen-1767799764-Qy0K51J5Jxd4bePdsMHr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767799764219.json",
+      "response_file": "/tmp/forge_debug/response_1767799764219.json",
+      "timestamp": 1767799764.2202268,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003219,
+      "generation_id": "gen-1767799764-URHEA9v1fI9noyIBqQP1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767799764217.json",
+      "response_file": "/tmp/forge_debug/response_1767799764217.json",
+      "timestamp": 1767799764.220324,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00415,
+      "generation_id": "gen-1767799764-GhedE1t1DvmhV1EQPFOs"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767799764220.json",
+      "response_file": "/tmp/forge_debug/response_1767799764220.json",
+      "timestamp": 1767799764.22185,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00125,
+      "generation_id": "gen-1767799764-hZ9hkK7Li24tB5TD8E9N"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767799770801.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767799770801.json",
+      "timestamp": 1767799770.802295,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21531875,
+      "generation_id": "gen-1767799770-uGUJmAiGHvqs797vVIcI"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767799778492.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767799778492.json",
+      "timestamp": 1767799778.4933949,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.14258875,
+      "generation_id": "gen-1767799778-7OgmDGLS8Ybp1SS8VZ21"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767799812536.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767799812536.json",
+      "timestamp": 1767799812.5368018,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02262875,
+      "generation_id": "gen-1767799812-AgNqKotz8pWm2tqh9w0k"
     }
   ],
   "messages": [
@@ -827,6 +890,97 @@
     {
       "role": "assistant",
       "content": "Done! The `compact` tool now uses a simpler range-based API:\n\n**Before:** `compact(tool_call_ids=[\"1\",\"2\",\"3\",\"4\",\"5\"], summary=\"...\")`\n**After:** `compact(from_id=\"1\", to_id=\"5\", summary=\"...\")`\n\nAll tool results, tool call arguments, AND assistant messages between `from_id` and `to_id` (inclusive) are now compacted. Assistant messages in the range get truncated to 100 characters."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 100 files",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u23f3 Please wait for repository summaries to finish generating...",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Restarted- try it out?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"1\", \"to_id\": \"28\", \"summary\": \"Implemented range-based compact tool: changed from tool_call_ids list to from_id/to_id range params. Updated compact.py schema/execute, PromptManager.compact_tool_results to iterate over block range, SessionManager passthrough, and ai_chat_widget.py callers. Also added truncation of assistant messages (to 100 chars) within the compacted range.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_bdrk_01CWbg8RJFwicXu8B63yTYth",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01CWbg8RJFwicXu8B63yTYth",
+      "content": "{\"compact\": true, \"from_id\": \"1\", \"success\": true, \"summary\": \"Implemented range-based compact tool: changed from tool_call_ids list to from_id/to_id range params. Updated compact.py schema/execute, PromptManager.compact_tool_results to iterate over block range, SessionManager passthrough, and ai_chat_widget.py callers. Also added truncation of assistant messages (to 100 chars) within the compacted range.\", \"to_id\": \"28\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "It's working! The context dropped from 34k to 18.4k tokens after compaction.\n\nLooking at the recap, I can see that assistant messages are now being truncated properly:\n- \"I need to update the session manager and UI to use the new range-based API:\" \n- \"Now let me update the session manager and UI to use the new range-based API:\"\n- \"Checks pass. Now let me update the system prompt to document the new API, then commit:\"\n- \"The system prompt doesn't mention the compact API details, so no update needed there. Let me comm...\" (truncated!)\n\nThe last one shows the truncation in action - it cuts off at ~100 chars with \"...\".\n\nAnd the tool calls show `[compacted]` instead of the full parameters, confirming both pieces are working:\n- `search_replace([compacted])` - no more huge search/replace strings\n- `done([compacted])` - parameters removed",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"The range-based compact is working great! Context dropped from 34k \u2192 18.4k tokens. Both assistant messages (truncated to ~100 chars) and tool call parameters (replaced with `[compacted]`) are being compressed properly.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01Uw1whubEC7PwDMAddRptud",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Uw1whubEC7PwDMAddRptud",
+      "content": "{\"done\": true, \"message\": \"The range-based compact is working great! Context dropped from 34k \\u2192 18.4k tokens. Both assistant messages (truncated to ~100 chars) and tool call parameters (replaced with `[compacted]`) are being compressed properly.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The range-based compact is working great! Context dropped from 34k \u2192 18.4k tokens. Both assistant messages (truncated to ~100 chars) and tool call parameters (replaced with `[compacted]`) are being compressed properly."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: e96ba44a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "It's actually down to 5k now, not sure what was going on with that 18.4k. Does it say 18.4k for you? The UI says 5k for me."
+    },
+    {
+      "role": "assistant",
+      "content": "The stats shown to me say:\n- **total_tokens**: 19.0k\n- **conversation**: 5.4k\n\nSo yes, the conversation is 5.4k for me too! The 19k total includes system prompt (2.6k), summaries (10.3k), and files (0.8k).\n\nWhen I said \"34k \u2192 18.4k\" earlier, I was reading from the system nudge that said \"context is 34k tokens\" - but that must have been stale or I misread it. The compaction is working correctly and conversation is down to ~5k.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"We're aligned - conversation is 5.4k tokens. The 19k total includes system/summaries/files overhead. Compaction is working as expected! \ud83c\udf89\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01DrvMfLod1LVWaLwSxKtCKB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DrvMfLod1LVWaLwSxKtCKB",
+      "content": "{\"done\": true, \"message\": \"We're aligned - conversation is 5.4k tokens. The 19k total includes system/summaries/files overhead. Compaction is working as expected! \\ud83c\\udf89\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "We're aligned - conversation is 5.4k tokens. The 19k total includes system/summaries/files overhead. Compaction is working as expected! \ud83c\udf89"
     }
   ]
 }

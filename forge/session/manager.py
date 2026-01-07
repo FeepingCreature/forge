@@ -271,6 +271,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
     def mark_mid_turn_commit(self) -> None:
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
+        print(f"[mid-turn-commit] mark_mid_turn_commit() called, setting _had_mid_turn_commit = True")
         self._had_mid_turn_commit = True
 
     def compact_tool_results(self, tool_call_ids: list[str], summary: str) -> tuple[int, list[str]]:
@@ -370,6 +371,8 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         Returns:
             Commit OID as string
         """
+        print(f"[mid-turn-commit] commit_ai_turn() called, _had_mid_turn_commit = {self._had_mid_turn_commit}")
+
         # Build session state with messages
         session_state = self.get_session_data(messages)
 
@@ -380,6 +383,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         all_changes = self.tool_manager.get_pending_changes()
         deleted_files = self.tool_manager.vfs.get_deleted_files()
 
+        print(f"[mid-turn-commit] all_changes keys: {list(all_changes.keys())}")
+        print(f"[mid-turn-commit] deleted_files: {deleted_files}")
+
         # Determine commit type:
         # - MAJOR if real file changes
         # - FOLLOW_UP if only session changed AND we had a mid-turn commit (suffix to that commit)
@@ -387,12 +393,18 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         has_real_changes = len(all_changes) > 1 or SESSION_FILE not in all_changes or deleted_files
         only_session_changed = not has_real_changes
 
+        print(f"[mid-turn-commit] has_real_changes = {has_real_changes} (len={len(all_changes)}, SESSION_FILE in changes={SESSION_FILE in all_changes})")
+        print(f"[mid-turn-commit] only_session_changed = {only_session_changed}")
+
         if only_session_changed and self._had_mid_turn_commit:
             commit_type = CommitType.FOLLOW_UP
+            print(f"[mid-turn-commit] -> CommitType.FOLLOW_UP (only session + had mid-turn commit)")
         elif only_session_changed:
             commit_type = CommitType.PREPARE
+            print(f"[mid-turn-commit] -> CommitType.PREPARE (only session, no mid-turn commit)")
         else:
             commit_type = CommitType.MAJOR
+            print(f"[mid-turn-commit] -> CommitType.MAJOR (real file changes)")
 
         # Generate commit message if not provided
         if not commit_message:
@@ -401,8 +413,13 @@ Think about what category this file is, then put ONLY the final bullets or "—"
             else:
                 commit_message = self.generate_commit_message(all_changes)
 
+        print(f"[mid-turn-commit] committing with message: {commit_message!r}, type: {commit_type}")
+
         # Commit via VFS - handles workdir sync automatically
         commit_oid = self.tool_manager.vfs.commit(commit_message, commit_type=commit_type)
+
+        print(f"[mid-turn-commit] commit complete, oid: {commit_oid}")
+        print(f"[mid-turn-commit] resetting _had_mid_turn_commit to False")
 
         # Reset mid-turn commit flag for next turn
         self._had_mid_turn_commit = False

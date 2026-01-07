@@ -272,7 +272,7 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
 
     # Incomplete JSON - extract what we can
     # Look for each field pattern: "fieldname": "value or "fieldname":"value
-    for field in ("filepath", "search", "replace"):
+    for field in ("filepath", "search", "replace", "scratchpad", "conclusion"):
         # Find the start of this field
         patterns = [f'"{field}": "', f'"{field}":"']
         start_idx = -1
@@ -865,7 +865,10 @@ def render_commit_html(args: dict[str, object], result: dict[str, object] | None
 def render_think_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
     """Render think tool call as HTML."""
     scratchpad = args.get("scratchpad", "")
+    # Conclusion can come from args, or from result if args was compacted
     conclusion = args.get("conclusion", "")
+    if not conclusion and result:
+        conclusion = result.get("conclusion", "")
 
     is_streaming = result is None
     streaming_class = " streaming" if is_streaming else ""

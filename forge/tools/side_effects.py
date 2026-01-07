@@ -16,4 +16,4 @@ class SideEffect(str, Enum):
     """
 
     # Marks that a commit happened mid-turn, affecting end-of-turn commit type
-    MID_TURN_COMMIT = "mid_turn_commit"  # test normal flow
+    MID_TURN_COMMIT = "mid_turn_commit"

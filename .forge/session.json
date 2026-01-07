@@ -216,6 +216,78 @@
       "streaming": true,
       "actual_cost": 0.02485825,
       "generation_id": "gen-1767781190-0tPpjzyK6MfESbJmdN6m"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781230669.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781230669.json",
+      "timestamp": 1767781230.6696222,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0205515,
+      "generation_id": "gen-1767781230-P8ZP94GB6TeCMBUi2EkD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781235189.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781235189.json",
+      "timestamp": 1767781235.1898756,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.174699,
+      "generation_id": "gen-1767781235-ghYBEIx3fUROJ8LVd5W0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781242765.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781242765.json",
+      "timestamp": 1767781242.7667992,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21757875,
+      "generation_id": "gen-1767781242-0ABp0jwHqrgkSMcsz98p"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781252157.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781252157.json",
+      "timestamp": 1767781252.1584046,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21797875,
+      "generation_id": "gen-1767781252-yopieiVXbw38lIrkKl0S"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781258661.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781258661.json",
+      "timestamp": 1767781258.6617956,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.22520625,
+      "generation_id": "gen-1767781258-ycgOUmW1M9mZzkFFs9UZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781269265.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781269265.json",
+      "timestamp": 1767781269.2664707,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21926625,
+      "generation_id": "gen-1767781269-yREsQpiH3gr80BmEc7Gi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781277890.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781277890.json",
+      "timestamp": 1767781277.8908753,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.045712,
+      "generation_id": "gen-1767781278-XEknL9iYTAGMUNzEMAPp"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767781290035.json",
+      "response_file": "/tmp/forge_debug/response_1767781290035.json",
+      "timestamp": 1767781290.0353708,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00052,
+      "generation_id": "gen-1767781290-l71y1YBbbNpsALTyQYID"
     }
   ],
   "messages": [
@@ -787,6 +859,211 @@
     {
       "role": "assistant",
       "content": "You're right, it's awkward. We're pretending tools are pure but then special-casing one by name in the orchestrator. That's the worst of both worlds.\n\nTwo cleaner options:\n\n**Option A: Tools declare side effects in their return value**\n```python\n# Tool returns:\n{\n    \"success\": True,\n    \"message\": \"Committed: ...\",\n    \"commit\": \"abc123\",\n    \"side_effects\": [\"mid_turn_commit\"]  # Explicit declaration\n}\n```\nThe orchestrator checks `side_effects` generically, no tool-name matching.\n\n**Option B: Give tools a callback/context object**\n```python\ndef execute(vfs, args, context):\n    # ... do commit ...\n    context.mark_mid_turn_commit()\n    return {\"success\": True, ...}\n```\nTools that need session state get it explicitly. The `context` object is a narrow interface, not the full session manager.\n\nOption B is more honest - the commit tool *does* have a session-level side effect, so let it say so directly rather than encoding it in magic return values that the orchestrator has to decode.\n\nWhich direction feels right to you?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 04638e3c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I see what you mean. Let's do side effects, but make it an enum instead of a string."
+    },
+    {
+      "role": "assistant",
+      "content": "Good call. An enum is type-safe and self-documenting. Let me implement this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/commit.py\",\"forge/ui/ai_chat_widget.py\",\"forge/tools/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01QfVs4R9y7vqenSUpEPprP8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QfVs4R9y7vqenSUpEPprP8",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/commit.py\", \"forge/ui/ai_chat_widget.py\", \"forge/tools/manager.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see all the relevant files. Let me implement the side effects enum approach:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"content\": \"\\\"\\\"\\\"\\nSide effects that tools can declare in their return values.\\n\\nTools are pure functions that operate on VFS, but some have session-level\\nside effects that the orchestrator needs to handle. Rather than special-casing\\ntool names, tools declare their side effects explicitly.\\n\\\"\\\"\\\"\\n\\nfrom enum import Enum, auto\\n\\n\\nclass SideEffect(Enum):\\n    \\\"\\\"\\\"Side effects a tool can declare.\\\"\\\"\\\"\\n\\n    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = auto()\\n\"}",
+            "name": "write_file"
+          },
+          "id": "toolu_vrtx_012YnWRiCYSTTfsVzSR96hJY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012YnWRiCYSTTfsVzSR96hJY",
+      "content": "{\"message\": \"Wrote 486 bytes to forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now update the commit tool to declare the side effect:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/commit.py\", \"search\": \"from typing import TYPE_CHECKING, Any\\n\\nfrom forge.git_backend.commit_types import CommitType\", \"replace\": \"from typing import TYPE_CHECKING, Any\\n\\nfrom forge.git_backend.commit_types import CommitType\\nfrom forge.tools.side_effects import SideEffect\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01SVbfB5aNsB2JuS657gvEYn",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/commit.py\", \"search\": \"    return {\\n        \\\"success\\\": True,\\n        \\\"message\\\": f\\\"Committed: {summary}\\\",\\n        \\\"commit\\\": commit_oid[:12],\\n    }\", \"replace\": \"    return {\\n        \\\"success\\\": True,\\n        \\\"message\\\": f\\\"Committed: {summary}\\\",\\n        \\\"commit\\\": commit_oid[:12],\\n        \\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT],\\n    }\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01MYeRBGD5n7LjSoPcGGkGR4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SVbfB5aNsB2JuS657gvEYn",
+      "content": "{\"message\": \"Replaced in forge/tools/builtin/commit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MYeRBGD5n7LjSoPcGGkGR4",
+      "content": "{\"message\": \"Replaced in forge/tools/builtin/commit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update the orchestrator (`ai_chat_widget.py`) to handle the side effects generically instead of checking for tool name:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"from forge.ui.diff_view import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\", \"replace\": \"from forge.tools.side_effects import SideEffect\\nfrom forge.ui.diff_view import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_012S9aW5LpK4WFFBEyKWERmt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012S9aW5LpK4WFFBEyKWERmt",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update the handler to check for side effects instead of the tool name. Let me find and update that code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Handle commit tool - emit signal to refresh UI and mark for follow-up logic\\n        if tool_name == \\\"commit\\\" and result.get(\\\"success\\\"):\\n            commit_oid = result.get(\\\"commit\\\", \\\"\\\")  # Note: key is \\\"commit\\\", not \\\"commit_oid\\\"\\n            if commit_oid:\\n                self.mid_turn_commit.emit(commit_oid)\\n            # Mark that we had a mid-turn commit so end-of-turn session commit\\n            # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)\\n            self.session_manager.mark_mid_turn_commit()\", \"replace\": \"        # Handle side effects declared by tools\\n        side_effects = result.get(\\\"side_effects\\\", [])\\n        if SideEffect.MID_TURN_COMMIT in side_effects:\\n            # Emit signal to refresh UI (commit_oid is tool-specific, get from result)\\n            commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n            if commit_oid:\\n                self.mid_turn_commit.emit(commit_oid)\\n            # Mark that we had a mid-turn commit so end-of-turn session commit\\n            # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)\\n            self.session_manager.mark_mid_turn_commit()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01WnQ9R2aGvRaYwZTkjYDv8K",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WnQ9R2aGvRaYwZTkjYDv8K",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the handler is updated. Now let me run checks to make sure everything compiles correctly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01LssFdDxJkq6mfCbv1X3qpn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LssFdDxJkq6mfCbv1X3qpn",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit this change and clean up:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"refactor: tools declare side effects via enum instead of name-matching\\n\\nAdded SideEffect enum in forge/tools/side_effects.py. Tools can now\\nreturn {\\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT]} instead of the\\norchestrator checking tool names. This is more explicit and type-safe.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_0175bqQbx946qRnE8y5DjA8m",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/tools/builtin/commit.py\",\"forge/ui/ai_chat_widget.py\",\"forge/tools/manager.py\",\"forge/tools/side_effects.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01DHL9NQxAFx55ELkyTzXaDj",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! Implemented the side effects enum approach:\\n\\n1. **Created `forge/tools/side_effects.py`** with a `SideEffect` enum containing `MID_TURN_COMMIT`\\n\\n2. **Updated `forge/tools/builtin/commit.py`** to return:\\n   ```python\\n   \\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT]\\n   ```\\n\\n3. **Updated `forge/ui/ai_chat_widget.py`** to check generically:\\n   ```python\\n   side_effects = result.get(\\\"side_effects\\\", [])\\n   if SideEffect.MID_TURN_COMMIT in side_effects:\\n       # handle it\\n   ```\\n\\nNow the commit tool explicitly declares its session-level side effect, and the orchestrator handles it generically without knowing tool names. If we add more side effects later (e.g., `CONTEXT_CHANGED`, `REQUIRES_REFRESH`), we just add them to the enum.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01EZ9toUbaXnc4bdH3oVV9cG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0175bqQbx946qRnE8y5DjA8m",
+      "content": "{\"commit\": \"b7525f17693c\", \"message\": \"Committed: 3 file(s) modified/created\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `commit`\n```json\n{\n  \"message\": \"refactor: tools declare side effects via enum instead of name-matching\\n\\nAdded SideEffect enum in forge/tools/side_effects.py. Tools can now\\nreturn {\\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT]} instead of the\\norchestrator checking tool names. This is more explicit and type-safe.\"\n}\n```\n**Result:**\n```json\n{\n  \"commit\": \"b7525f17693c\",\n  \"message\": \"Committed: 3 file(s) modified/created\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DHL9NQxAFx55ELkyTzXaDj",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 4 files from context\", \"remove\": [\"forge/tools/builtin/commit.py\", \"forge/ui/ai_chat_widget.py\", \"forge/tools/manager.py\", \"forge/tools/side_effects.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EZ9toUbaXnc4bdH3oVV9cG",
+      "content": "{\"done\": true, \"message\": \"Done! Implemented the side effects enum approach:\\n\\n1. **Created `forge/tools/side_effects.py`** with a `SideEffect` enum containing `MID_TURN_COMMIT`\\n\\n2. **Updated `forge/tools/builtin/commit.py`** to return:\\n   ```python\\n   \\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT]\\n   ```\\n\\n3. **Updated `forge/ui/ai_chat_widget.py`** to check generically:\\n   ```python\\n   side_effects = result.get(\\\"side_effects\\\", [])\\n   if SideEffect.MID_TURN_COMMIT in side_effects:\\n       # handle it\\n   ```\\n\\nNow the commit tool explicitly declares its session-level side effect, and the orchestrator handles it generically without knowing tool names. If we add more side effects later (e.g., `CONTEXT_CHANGED`, `REQUIRES_REFRESH`), we just add them to the enum.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Implemented the side effects enum approach:\n\n1. **Created `forge/tools/side_effects.py`** with a `SideEffect` enum containing `MID_TURN_COMMIT`\n\n2. **Updated `forge/tools/builtin/commit.py`** to return:\n   ```python\n   \"side_effects\": [SideEffect.MID_TURN_COMMIT]\n   ```\n\n3. **Updated `forge/ui/ai_chat_widget.py`** to check generically:\n   ```python\n   side_effects = result.get(\"side_effects\", [])\n   if SideEffect.MID_TURN_COMMIT in side_effects:\n       # handle it\n   ```\n\nNow the commit tool explicitly declares its session-level side effect, and the orchestrator handles it generically without knowing tool names. If we add more side effects later (e.g., `CONTEXT_CHANGED`, `REQUIRES_REFRESH`), we just add them to the enum."
     }
   ]
 }

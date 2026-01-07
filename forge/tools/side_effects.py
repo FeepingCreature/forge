@@ -13,4 +13,4 @@ class SideEffect(Enum):
     """Side effects a tool can declare."""
 
     # Marks that a commit happened mid-turn, affecting end-of-turn commit type
-    MID_TURN_COMMIT = auto()
+    MID_TURN_COMMIT = auto()  # test edit

@@ -1,10 +1,7 @@
 {
   "active_files": [
-    "forge/git_backend/commit_types.py",
-    "forge/session/manager.py",
-    "CLAUDE.md",
-    "forge/ui/ai_chat_widget.py",
-    "forge/prompts/system.py"
+    "forge/prompts/manager.py",
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -123,6 +120,60 @@
       "streaming": true,
       "actual_cost": 0.240318,
       "generation_id": "gen-1767797279-HiikM3MFM49cYIZWoOo9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767797319139.json",
+      "response_file": "/tmp/forge_debug/response_1767797319139.json",
+      "timestamp": 1767797319.1409001,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002245,
+      "generation_id": "gen-1767797319-UnCjMTlUjrn5Gg6HWKoj"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767797319140.json",
+      "response_file": "/tmp/forge_debug/response_1767797319140.json",
+      "timestamp": 1767797319.1412344,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003249,
+      "generation_id": "gen-1767797319-ol8CT6LhGsOWXBkkf3yk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797342960.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797342960.json",
+      "timestamp": 1767797342.960997,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.40923875,
+      "generation_id": "gen-1767797343-FDbjKIE8iuwP2HKV2MnR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797391933.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797391933.json",
+      "timestamp": 1767797391.934081,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05334625,
+      "generation_id": "gen-1767797392-1v6FYLEQwLaFowDHmctd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797408870.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797408870.json",
+      "timestamp": 1767797408.8711166,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.36466625,
+      "generation_id": "gen-1767797409-vbbVpJu0Ds2qGRnwLSdD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767797418530.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767797418530.json",
+      "timestamp": 1767797418.5314484,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3749325,
+      "generation_id": "gen-1767797418-GYhcILRT3xvyxQaJNVAQ"
     }
   ],
   "messages": [
@@ -446,6 +497,132 @@
     {
       "role": "assistant",
       "content": "Fixed the trailing whitespace lint error. The implementation is complete:\n\n**What changed in `ToolExecutionWorker.run()`:**\n- When a tool fails (`success=False`), we now `break` immediately\n- No results are emitted for unattempted tools\n- The AI only sees the failed tool's error, then gets control back\n\nThis means when you chain `search_replace \u2192 check \u2192 done` and the search_replace fails, you'll only see the search_replace error. You won't see `check` or `done` marked as aborted - they'll simply be gone from context, as if you never wrote them."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 100 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Cheers. Double-check before we test it, will that work fine with the api? The next request must not see tool calls that had no responses."
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch - let me trace through this carefully.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"scratchpad\": \"The question is: when a tool fails, we now `break` and don't emit results for unattempted tools. But what about the tool CALLS themselves?\\n\\nLet me trace the flow:\\n\\n1. AI responds with tool_calls: [search_replace, check, done]\\n2. We record the assistant message with ALL tool_calls in `_on_stream_finished`:\\n   - `self.messages[-1][\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]`\\n   - `self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], ...)` \\n\\n3. Then we execute tools in ToolExecutionWorker\\n4. When search_replace fails, we `break` - no results emitted for check/done\\n5. But the tool_calls were already recorded in step 2!\\n\\nSo the next API request would have:\\n- assistant message with tool_calls: [search_replace, check, done]\\n- tool result for search_replace only\\n\\nThis violates the API requirement! Anthropic (and probably OpenAI) require that every tool_call has a corresponding tool result.\\n\\nThe fix needs to happen in TWO places:\\n1. ToolExecutionWorker - stop emitting results for unattempted tools \u2713 (done)\\n2. When building the next request, we need to NOT include tool_calls that weren't executed\\n\\nOptions:\\nA) After tool execution, go back and modify the assistant message to only include executed tool_calls\\nB) When building messages (in PromptManager), filter out tool_calls without results\\nC) Record tool_calls one at a time as they execute (not all at once upfront)\\n\\nOption A seems cleanest - after `_on_tools_all_finished`, we know which tools actually ran. We can trim `self.messages[-1][\\\"tool_calls\\\"]` to only include those.\\n\\nActually, let me look at what happens in `_on_tools_all_finished`:\\n- It receives `results` - list of dicts with tool_call info\\n- Each result has `tool_call`, `args`, `result`\\n- Only executed tools are in results (due to our `break`)\\n\\nSo we can update the assistant message's tool_calls to only include those that were executed.\\n\\nWait, there's another issue. In `_on_tool_finished`, we call:\\n```python\\nself.session_manager.append_tool_result(tool_call_id, result_json)\\n```\\n\\nBut we already called `append_tool_call` with ALL tool_calls in `_on_stream_finished`. So the prompt manager has all tool_calls but only some results.\\n\\nThe fix should be in `_on_tools_all_finished` - after all tools finish (or abort), we need to:\\n1. Update `self.messages[-1][\\\"tool_calls\\\"]` to only include executed ones\\n2. Update the prompt manager's tool_call block similarly\\n\\nActually, looking at PromptManager... `append_tool_call` adds a block. We'd need to modify that block to remove the unattempted tool_calls.\\n\\nHmm, this is getting complex. Let me think of a simpler approach.\\n\\nAlternative: Don't record tool_calls upfront. Instead:\\n1. In `_on_stream_finished`, DON'T call `append_tool_call` yet\\n2. In `_on_tools_all_finished`, call `append_tool_call` with only the executed tool_calls\\n3. Update `self.messages[-1][\\\"tool_calls\\\"]` similarly\\n\\nBut wait, we record tool results as they execute in `_on_tool_finished`:\\n```python\\nself.session_manager.append_tool_result(tool_call_id, result_json)\\n```\\n\\nSo we'd have tool_results without the preceding tool_call block. That's also invalid.\\n\\nOK, cleanest solution:\\n1. Keep recording tool_calls upfront (in `_on_stream_finished`)\\n2. In `_on_tools_all_finished`, after we know which tools ran:\\n   - Get the list of executed tool_call_ids from results\\n   - Filter `self.messages[-1][\\\"tool_calls\\\"]` to only those\\n   - Update the prompt manager to filter its tool_call block similarly\\n\\nFor the prompt manager update, we could add a method like `filter_last_tool_calls(executed_ids)` that modifies the last TOOL_CALL block.\\n\\nActually, even simpler: in `_on_tools_all_finished`, we already have `results` which tells us what was executed. We can:\\n1. Build the list of executed tool_calls from results\\n2. Replace `self.messages[-1][\\\"tool_calls\\\"]` with just those\\n3. For prompt manager, we need to handle this somehow...\\n\\nWait, let me re-read the prompt manager flow:\\n\\nIn `_on_stream_finished`:\\n```python\\nif result.get(\\\"tool_calls\\\"):\\n    self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\\n```\\n\\nThis adds a TOOL_CALL block with ALL tool_calls.\\n\\nIn `_on_tool_finished`:\\n```python\\nself.session_manager.append_tool_result(tool_call_id, result_json)\\n```\\n\\nThis adds individual TOOL_RESULT blocks.\\n\\nSo after a partial execution, we have:\\n- TOOL_CALL block with [tc1, tc2, tc3]\\n- TOOL_RESULT for tc1 only\\n\\nThis is invalid for the API.\\n\\nThe fix in prompt manager could be:\\n- Add a method to filter the last TOOL_CALL block\\n- Or, change how we record tool_calls - record them one at a time as results come in\\n\\nActually, the simplest fix might be to change the recording approach:\\n1. In `_on_stream_finished`, store tool_calls temporarily but DON'T add to prompt manager\\n2. In `_on_tool_finished`, for EACH tool that executes:\\n   - Add a tool_call entry (just that one)\\n   - Add the tool_result\\n3. This way, only executed tool_calls get recorded\\n\\nBut this changes the structure - instead of one TOOL_CALL block with multiple calls, we'd have alternating TOOL_CALL and TOOL_RESULT blocks. Let me check if that's valid...\\n\\nActually, in the API, the assistant message has `tool_calls` as an array. The tool results are separate messages. So the structure is:\\n- assistant message: { content, tool_calls: [...] }\\n- tool message: { tool_call_id, content }\\n- tool message: { tool_call_id, content }\\n- ...\\n\\nSo we need ONE assistant message with tool_calls array, followed by tool result messages.\\n\\nOK so the fix needs to be: after partial execution, modify the already-recorded assistant message to only include executed tool_calls.\\n\\nLet me write the fix:\\n\\nIn `_on_tools_all_finished`:\\n```python\\n# Get IDs of tools that actually executed\\nexecuted_ids = {r[\\\"tool_call\\\"][\\\"id\\\"] for r in results}\\n\\n# Update messages to only include executed tool_calls\\nif self.messages and \\\"tool_calls\\\" in self.messages[-1]:\\n    self.messages[-1][\\\"tool_calls\\\"] = [\\n        tc for tc in self.messages[-1][\\\"tool_calls\\\"]\\n        if tc.get(\\\"id\\\") in executed_ids\\n    ]\\n\\n# Also need to update prompt manager...\\n```\\n\\nFor prompt manager, we need a method to do the same filtering. Let me add one.\\n\\nActually wait - I need to look at WHERE the last assistant message is. After tool results are added, there might be tool result messages after the assistant message. Let me trace again:\\n\\n1. AI responds -> assistant message added to self.messages with tool_calls\\n2. Tools execute, each one adds a tool result message\\n3. After all tools, we're in _on_tools_all_finished\\n\\nSo self.messages looks like:\\n[..., assistant_msg_with_tool_calls, tool_result_1, tool_result_2, ...]\\n\\nWe need to find the assistant message, not just use self.messages[-1].\\n\\nLet me find it by iterating backwards:\\n```python\\nfor i in range(len(self.messages) - 1, -1, -1):\\n    if self.messages[i].get(\\\"role\\\") == \\\"assistant\\\" and \\\"tool_calls\\\" in self.messages[i]:\\n        # Found it, filter tool_calls\\n        executed_ids = {r[\\\"tool_call\\\"][\\\"id\\\"] for r in results}\\n        self.messages[i][\\\"tool_calls\\\"] = [\\n            tc for tc in self.messages[i][\\\"tool_calls\\\"]\\n            if tc.get(\\\"id\\\") in executed_ids\\n        ]\\n        break\\n```\\n\\nAnd for prompt manager, I'll add a method `filter_tool_calls(executed_ids)` that finds the last TOOL_CALL block and filters it.\\n\", \"conclusion\": \"There IS a bug! The tool_calls are recorded in the assistant message BEFORE execution, so if we abort mid-chain, the next API request would have tool_calls without corresponding results - invalid.\\n\\nFix needed in two places:\\n1. In `_on_tools_all_finished`: filter `self.messages` to only include executed tool_calls\\n2. In PromptManager: add a method to filter the last TOOL_CALL block, called from `_on_tools_all_finished`\\n\\nNeed to find the assistant message by iterating backwards (not just `messages[-1]`) since tool results are appended after it.\"}",
+            "name": "think"
+          },
+          "id": "toolu_01PZwnGEQxT2KVP7E3eMWRNt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01PZwnGEQxT2KVP7E3eMWRNt",
+      "content": "{\"conclusion\": \"There IS a bug! The tool_calls are recorded in the assistant message BEFORE execution, so if we abort mid-chain, the next API request would have tool_calls without corresponding results - invalid.\\n\\nFix needed in two places:\\n1. In `_on_tools_all_finished`: filter `self.messages` to only include executed tool_calls\\n2. In PromptManager: add a method to filter the last TOOL_CALL block, called from `_on_tools_all_finished`\\n\\nNeed to find the assistant message by iterating backwards (not just `messages[-1]`) since tool results are appended after it.\", \"message\": \"Thought through 1310 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - there's a bug! Let me trace through what happens:\n\n1. **Assistant message with tool_calls is added to `self.messages`** in `_on_stream_finished` BEFORE tool execution starts\n2. **Tool execution starts** - `append_tool_call()` records the tool_calls in PromptManager\n3. **If a tool fails mid-chain**, we `break` and stop executing\n4. **Problem**: The assistant message still has ALL tool_calls, but we only have results for the executed ones\n\nThe next API request would have tool_calls without corresponding results - that's invalid!\n\nI need to filter out the unattempted tool calls from both:\n1. `self.messages` (the UI/session state)\n2. The PromptManager's recorded tool_call block\n\nLet me fix this in `_on_tools_all_finished`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"    def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:\\n        \\\"\\\"\\\"Handle all tools completed - continue conversation, end turn, or send queued message\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.tool_thread:\\n            self.tool_thread.quit()\\n            self.tool_thread.wait()\\n            self.tool_thread = None\\n            self.tool_worker = None\\n\\n        # NOW it's safe to update file contents in the prompt manager.\", \"replace\": \"    def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:\\n        \\\"\\\"\\\"Handle all tools completed - continue conversation, end turn, or send queued message\\\"\\\"\\\"\\n        # Clean up thread\\n        if self.tool_thread:\\n            self.tool_thread.quit()\\n            self.tool_thread.wait()\\n            self.tool_thread = None\\n            self.tool_worker = None\\n\\n        # Filter out unattempted tool calls from the assistant message.\\n        # If we broke out of the loop early (tool failure), the assistant message\\n        # still has ALL tool_calls but we only have results for the executed ones.\\n        # The API requires every tool_call to have a corresponding tool result.\\n        executed_tool_ids = {r[\\\"tool_call\\\"][\\\"id\\\"] for r in results}\\n        \\n        # Find the assistant message with tool_calls (search backwards)\\n        for msg in reversed(self.messages):\\n            if msg.get(\\\"role\\\") == \\\"assistant\\\" and \\\"tool_calls\\\" in msg:\\n                original_count = len(msg[\\\"tool_calls\\\"])\\n                msg[\\\"tool_calls\\\"] = [\\n                    tc for tc in msg[\\\"tool_calls\\\"] \\n                    if tc.get(\\\"id\\\") in executed_tool_ids\\n                ]\\n                if len(msg[\\\"tool_calls\\\"]) < original_count:\\n                    dropped = original_count - len(msg[\\\"tool_calls\\\"])\\n                    print(f\\\"\ud83d\udce6 Dropped {dropped} unattempted tool call(s) from assistant message\\\")\\n                break\\n        \\n        # Also filter in PromptManager - it recorded all tool_calls initially\\n        self.session_manager.prompt_manager.filter_tool_calls(executed_tool_ids)\\n\\n        # NOW it's safe to update file contents in the prompt manager.\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_01LGA3L4DTHRHucmcaukmkzi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01LGA3L4DTHRHucmcaukmkzi",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the `filter_tool_calls` method to PromptManager. Let me check what's there and add it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/manager.py\"], \"remove\": [\"forge/prompts/system.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\", \"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01Qw6an9nAdukxuuzqbFsADw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Qw6an9nAdukxuuzqbFsADw",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\"], \"message\": \"Added 1 files, removed 4 files from context\", \"remove\": [\"forge/prompts/system.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\", \"forge/session/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the PromptManager. I need to add the `filter_tool_calls` method. Looking at how `append_tool_call` works, it stores tool_calls in the metadata of a TOOL_CALL block. I need to filter those:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\", \"search\": \"    def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n        \\\"\\\"\\\"Add a tool result to the stream\\\"\\\"\\\"\", \"replace\": \"    def filter_tool_calls(self, executed_tool_ids: set[str]) -> None:\\n        \\\"\\\"\\\"\\n        Filter tool calls to only include those that were actually executed.\\n\\n        When tools are chained (A \u2192 B \u2192 C) and B fails, C is never attempted.\\n        The API requires every tool_call to have a corresponding tool result,\\n        so we must remove C from the assistant message's tool_calls list.\\n\\n        This is called after tool execution completes, before the next API request.\\n\\n        Args:\\n            executed_tool_ids: Set of tool_call IDs that were actually executed\\n        \\\"\\\"\\\"\\n        for block in reversed(self.blocks):\\n            if block.deleted or block.block_type != BlockType.TOOL_CALL:\\n                continue\\n\\n            tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n            original_count = len(tool_calls)\\n\\n            # Filter to only executed tool calls\\n            filtered = [tc for tc in tool_calls if tc.get(\\\"id\\\") in executed_tool_ids]\\n\\n            if len(filtered) < original_count:\\n                block.metadata[\\\"tool_calls\\\"] = filtered\\n                dropped = original_count - len(filtered)\\n                print(f\\\"\ud83d\udce6 PromptManager: Filtered out {dropped} unattempted tool call(s)\\\")\\n\\n            # Only filter the most recent TOOL_CALL block (the one that just executed)\\n            break\\n\\n    def append_tool_result(self, tool_call_id: str, result: str) -> None:\\n        \\\"\\\"\\\"Add a tool result to the stream\\\"\\\"\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_016m177LXjs7vkcaFi9eenvZ",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_01JXFLaTgQ9rBjrXMG8HHN83",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Added the `filter_tool_calls` method to PromptManager. The full flow now works like this:\\n\\n1. **Assistant sends tool_calls** `[A, B, C]` \u2192 recorded in `self.messages` and `PromptManager`\\n2. **Tool A executes** \u2192 result recorded\\n3. **Tool B fails** \u2192 result recorded, loop `break`s (C never runs)\\n4. **`_on_tools_all_finished` is called** with results for only A and B\\n5. **Filter both places**:\\n   - `self.messages[-1][\\\"tool_calls\\\"]` is filtered to `[A, B]`\\n   - `PromptManager.filter_tool_calls({A.id, B.id})` filters its TOOL_CALL block to `[A, B]`\\n\\nThe next API request will see tool_calls `[A, B]` with matching results for A and B. Tool C is gone from context entirely - you won't remember writing it and will naturally rewrite it after fixing B.\"}",
+            "name": "done"
+          },
+          "id": "toolu_01X5jTguzftyDHxsWyc9M4JZ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_016m177LXjs7vkcaFi9eenvZ",
+      "content": "{\"message\": \"Replaced in forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01JXFLaTgQ9rBjrXMG8HHN83",
+      "content": "{\"format_diffs\": {\"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -1316,20 +1316,19 @@         # still has ALL tool_calls but we only have results for the executed ones.\\n         # The API requires every tool_call to have a corresponding tool result.\\n         executed_tool_ids = {r[\\\"tool_call\\\"][\\\"id\\\"] for r in results}\\n-        \\n+\\n         # Find the assistant message with tool_calls (search backwards)\\n         for msg in reversed(self.messages):\\n             if msg.get(\\\"role\\\") == \\\"assistant\\\" and \\\"tool_calls\\\" in msg:\\n                 original_count = len(msg[\\\"tool_calls\\\"])\\n                 msg[\\\"tool_calls\\\"] = [\\n-                    tc for tc in msg[\\\"tool_calls\\\"] \\n-                    if tc.get(\\\"id\\\") in executed_tool_ids\\n+                    tc for tc in msg[\\\"tool_calls\\\"] if tc.get(\\\"id\\\") in executed_tool_ids\\n                 ]\\n                 if len(msg[\\\"tool_calls\\\"]) < original_count:\\n                     dropped = original_count - len(msg[\\\"tool_calls\\\"])\\n                     print(f\\\"\\ud83d\\udce6 Dropped {dropped} unattempted tool call(s) from assistant message\\\")\\n                 break\\n-        \\n+\\n         # Also filter in PromptManager - it recorded all tool_calls initially\\n         self.session_manager.prompt_manager.filter_tool_calls(executed_tool_ids)\\n \\n\"}, \"formatted_files\": [\"forge/ui/ai_chat_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -1316,20 +1316,19 @@         # still has ALL tool_calls but we only have results for the executed ones.\\n         # The API requires every tool_call to have a corresponding tool result.\\n         executed_tool_ids = {r[\\\"tool_call\\\"][\\\"id\\\"] for r in results}\\n-        \\n+\\n         # Find the assistant message with tool_calls (search backwards)\\n         for msg in reversed(self.messages):\\n             if msg.get(\\\"role\\\") == \\\"assistant\\\" and \\\"tool_calls\\\" in msg:\\n                 original_count = len(msg[\\\"tool_calls\\\"])\\n                 msg[\\\"tool_calls\\\"] = [\\n-                    tc for tc in msg[\\\"tool_calls\\\"] \\n-                    if tc.get(\\\"id\\\") in executed_tool_ids\\n+                    tc for tc in msg[\\\"tool_calls\\\"] if tc.get(\\\"id\\\") in executed_tool_ids\\n                 ]\\n                 if len(msg[\\\"tool_calls\\\"]) < original_count:\\n                     dropped = original_count - len(msg[\\\"tool_calls\\\"])\\n                     print(f\\\"\\ud83d\\udce6 Dropped {dropped} unattempted tool call(s) from assistant message\\\")\\n                 break\\n-        \\n+\\n         # Also filter in PromptManager - it recorded all tool_calls initially\\n         self.session_manager.prompt_manager.filter_tool_calls(executed_tool_ids)\\n \\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01X5jTguzftyDHxsWyc9M4JZ",
+      "content": "{\"done\": true, \"message\": \"Added the `filter_tool_calls` method to PromptManager. The full flow now works like this:\\n\\n1. **Assistant sends tool_calls** `[A, B, C]` \\u2192 recorded in `self.messages` and `PromptManager`\\n2. **Tool A executes** \\u2192 result recorded\\n3. **Tool B fails** \\u2192 result recorded, loop `break`s (C never runs)\\n4. **`_on_tools_all_finished` is called** with results for only A and B\\n5. **Filter both places**:\\n   - `self.messages[-1][\\\"tool_calls\\\"]` is filtered to `[A, B]`\\n   - `PromptManager.filter_tool_calls({A.id, B.id})` filters its TOOL_CALL block to `[A, B]`\\n\\nThe next API request will see tool_calls `[A, B]` with matching results for A and B. Tool C is gone from context entirely - you won't remember writing it and will naturally rewrite it after fixing B.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Added the `filter_tool_calls` method to PromptManager. The full flow now works like this:\n\n1. **Assistant sends tool_calls** `[A, B, C]` \u2192 recorded in `self.messages` and `PromptManager`\n2. **Tool A executes** \u2192 result recorded\n3. **Tool B fails** \u2192 result recorded, loop `break`s (C never runs)\n4. **`_on_tools_all_finished` is called** with results for only A and B\n5. **Filter both places**:\n   - `self.messages[-1][\"tool_calls\"]` is filtered to `[A, B]`\n   - `PromptManager.filter_tool_calls({A.id, B.id})` filters its TOOL_CALL block to `[A, B]`\n\nThe next API request will see tool_calls `[A, B]` with matching results for A and B. Tool C is gone from context entirely - you won't remember writing it and will naturally rewrite it after fixing B."
     }
   ]
 }

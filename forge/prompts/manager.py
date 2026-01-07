@@ -294,6 +294,37 @@ class PromptManager:
             )
         )
 
+    def filter_tool_calls(self, executed_tool_ids: set[str]) -> None:
+        """
+        Filter tool calls to only include those that were actually executed.
+
+        When tools are chained (A → B → C) and B fails, C is never attempted.
+        The API requires every tool_call to have a corresponding tool result,
+        so we must remove C from the assistant message's tool_calls list.
+
+        This is called after tool execution completes, before the next API request.
+
+        Args:
+            executed_tool_ids: Set of tool_call IDs that were actually executed
+        """
+        for block in reversed(self.blocks):
+            if block.deleted or block.block_type != BlockType.TOOL_CALL:
+                continue
+
+            tool_calls = block.metadata.get("tool_calls", [])
+            original_count = len(tool_calls)
+
+            # Filter to only executed tool calls
+            filtered = [tc for tc in tool_calls if tc.get("id") in executed_tool_ids]
+
+            if len(filtered) < original_count:
+                block.metadata["tool_calls"] = filtered
+                dropped = original_count - len(filtered)
+                print(f"📦 PromptManager: Filtered out {dropped} unattempted tool call(s)")
+
+            # Only filter the most recent TOOL_CALL block (the one that just executed)
+            break
+
     def append_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add a tool result to the stream"""
         # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$

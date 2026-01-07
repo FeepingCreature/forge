@@ -1311,6 +1311,27 @@ class AIChatWidget(QWidget):
             self.tool_thread = None
             self.tool_worker = None
 
+        # Filter out unattempted tool calls from the assistant message.
+        # If we broke out of the loop early (tool failure), the assistant message
+        # still has ALL tool_calls but we only have results for the executed ones.
+        # The API requires every tool_call to have a corresponding tool result.
+        executed_tool_ids = {r["tool_call"]["id"] for r in results}
+
+        # Find the assistant message with tool_calls (search backwards)
+        for msg in reversed(self.messages):
+            if msg.get("role") == "assistant" and "tool_calls" in msg:
+                original_count = len(msg["tool_calls"])
+                msg["tool_calls"] = [
+                    tc for tc in msg["tool_calls"] if tc.get("id") in executed_tool_ids
+                ]
+                if len(msg["tool_calls"]) < original_count:
+                    dropped = original_count - len(msg["tool_calls"])
+                    print(f"📦 Dropped {dropped} unattempted tool call(s) from assistant message")
+                break
+
+        # Also filter in PromptManager - it recorded all tool_calls initially
+        self.session_manager.prompt_manager.filter_tool_calls(executed_tool_ids)
+
         # NOW it's safe to update file contents in the prompt manager.
         # All tool_result blocks have been recorded, so adding FILE_CONTENT
         # blocks won't break the tool_use -> tool_result adjacency requirement.

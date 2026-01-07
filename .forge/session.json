@@ -1,5 +1,7 @@
 {
   "active_files": [
+    "forge/git_backend/commit_types.py",
+    "forge/tools/side_effects.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -425,6 +427,51 @@
       "streaming": true,
       "actual_cost": 0.044878,
       "generation_id": "gen-1767781739-E6cmnhMrTB2KXy6PLMfx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767781777179.json",
+      "response_file": "/tmp/forge_debug/response_1767781777179.json",
+      "timestamp": 1767781777.179613,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001972,
+      "generation_id": "gen-1767781777-TCK3p8ZrWFmXLU3G390q"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781975285.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781975285.json",
+      "timestamp": 1767781975.2865498,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.19386625,
+      "generation_id": "gen-1767781975-bBI5WJ16LyYxAGvFlWyu"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781983485.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781983485.json",
+      "timestamp": 1767781983.4866529,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3415975,
+      "generation_id": "gen-1767781983-14833ZD2yLpIXp5c3PjL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781993170.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781993170.json",
+      "timestamp": 1767781993.1718845,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.34633625,
+      "generation_id": "gen-1767781993-LcRpekqC3p8uxnGYsWbd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767782007078.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767782007078.json",
+      "timestamp": 1767782007.079826,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.36268125,
+      "generation_id": "gen-1767782007-SzwibumdGx4lct1lxgis"
     }
   ],
   "messages": [
@@ -1562,6 +1609,280 @@
     {
       "role": "assistant",
       "content": "Updated the system prompt with a new \"CRITICAL: Never End a Response Without `done`\" section that explicitly explains:\n\n1. **The cost model**: Every response without `done` forces a new API request that replays the entire conversation\n2. **Wrong pattern**: Making tool calls, getting results, then ending with plain text\n3. **Right pattern**: Chaining tools \u2192 `say()` for narration \u2192 `done()` to finish\n4. **The simple rule**: Once you start tool calls, never go back to plain text\n\nRestart when ready and we can test the mid-turn commit flow again!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 99 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I still get\n\nTraceback (most recent call last): \n File \"/home/feep/forge/forge/ui/ai_chat_widget.py\", line 1191, in _on_tool_finished \n   result_json = json.dumps(result) \n File \"/usr/lib/python3.13/json/__init__.py\", line 231, in dumps \n   return _default_encoder.encode(obj) \n          ~~~~~~~~~~~~~~~~~~~~~~~^^^^^ \n File \"/usr/lib/python3.13/json/encoder.py\", line 200, in encode \n   chunks = self.iterencode(o, _one_shot=True) \n File \"/usr/lib/python3.13/json/encoder.py\", line 261, in iterencode \n   return _iterencode(o, 0) \n File \"/usr/lib/python3.13/json/encoder.py\", line 180, in default \n   raise TypeError(f'Object of type {o.__class__.__name__} ' \n                   f'is not JSON serializable') \nTypeError: Object of type SideEffect is not JSON serializable\n\nwe should just make it encodable if possible\n\nto be clear, it's fine to end the request if you *want* to see the result of your changes to this point, because the diffs are becoming too confusing/stacked etc. You just shouldn't end request for \"mere\" conversation. The simple rule is probably right. It's just a matter of knowing what the effect of your way of talking is. I think to you talking probably feels natural? If caching worked properly, it would be... to be clear, the pattern you use is the normal and sensible thing, it's a deficit of tooling that we have to jump through these hoops. But it is what it is. - As of last turn, we still have\n\ud83e\udd16\u0000 PromptManager: Appending assistant message (549 chars) \n[mid-turn-commit] commit_ai_turn() called, _had_mid_turn_commit = False \n[mid-turn-commit] all_changes keys: ['.forge/session.json'] \n[mid-turn-commit] deleted_files: set() \n[mid-turn-commit] has_real_changes = set() (len=1, SESSION_FILE in changes=True) \n[mid-turn-commit] only_session_changed = True \n[mid-turn-commit] -> CommitType.PREPARE (only session, no mid-turn commit) \n[mid-turn-commit] committing with message: 'conversation turn', type: CommitType.PREPARE \n[mid-turn-commit] commit complete, oid: d4b0eb09a337a7e1fd4225b401c58df011e8fa4b \n[mid-turn-commit] resetting _had_mid_turn_commit to False\n\nWe should probably log when we consider setting the flag, to see why we don't set it."
+    },
+    {
+      "role": "assistant",
+      "content": "Got it, two issues to fix: 1) Make SideEffect JSON-encodable, 2) Add logging when we consider setting the mid-turn flag. Let me load the relevant files and fix both:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"42\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\",\"49\",\"50\",\"51\"], \"summary\": \"Fixed JSON serialization by using pop() instead of get() for side_effects (didn't work - still getting the error). Updated system prompt with CRITICAL section about never ending without done().\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_015VqKMvfevSdFr5qq9EXQ2F",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/side_effects.py\",\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01HbztDSE7HvFZ6ddYio11qa",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015VqKMvfevSdFr5qq9EXQ2F",
+      "content": "{\"compact\": true, \"message\": \"Compacted 16 tool result(s)\", \"success\": true, \"summary\": \"Fixed JSON serialization by using pop() instead of get() for side_effects (didn't work - still getting the error). Updated system prompt with CRITICAL section about never ending without done().\", \"tool_call_ids\": [\"36\", \"37\", \"38\", \"39\", \"40\", \"41\", \"42\", \"43\", \"44\", \"45\", \"46\", \"47\", \"48\", \"49\", \"50\", \"51\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01HbztDSE7HvFZ6ddYio11qa",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/side_effects.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see both files now. Let me fix both issues:\n\n1. Make `SideEffect` JSON-encodable by adding a custom `__str__` method and using it\n2. Add logging when we consider setting the mid-turn flag",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"from enum import Enum, auto\\n\\n\\nclass SideEffect(Enum):\\n    \\\"\\\"\\\"Side effects a tool can declare.\\\"\\\"\\\"\\n\\n    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = auto()\", \"replace\": \"import json\\nfrom enum import Enum\\n\\n\\nclass SideEffect(str, Enum):\\n    \\\"\\\"\\\"Side effects a tool can declare.\\n    \\n    Inherits from str so it's JSON-serializable automatically.\\n    \\\"\\\"\\\"\\n\\n    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Y699ujAMXpEDqgt99KnVPB",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed SideEffect to inherit from str, making it JSON-serializable. Now adding logging for when we check side effects...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_018WXKQWKrPz6CYXXSsqe5Uz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Y699ujAMXpEDqgt99KnVPB",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018WXKQWKrPz6CYXXSsqe5Uz",
+      "content": "{\"message\": \"Fixed SideEffect to inherit from str, making it JSON-serializable. Now adding logging for when we check side effects...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed SideEffect to inherit from str, making it JSON-serializable. Now adding logging for when we check side effects...",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me add logging where we check for side effects, and remove the unused json import I just added:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"import json\\nfrom enum import Enum\", \"replace\": \"from enum import Enum\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_019pebSUvp13ANwK4WrtajLg",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Handle side effects declared by tools\\n        # Pop them from result so they don't break JSON serialization\\n        side_effects = result.pop(\\\"side_effects\\\", [])\\n        if SideEffect.MID_TURN_COMMIT in side_effects:\", \"replace\": \"        # Handle side effects declared by tools\\n        side_effects = result.get(\\\"side_effects\\\", [])\\n        print(f\\\"[mid-turn-commit] tool={tool_name}, side_effects={side_effects}\\\")\\n        if SideEffect.MID_TURN_COMMIT in side_effects:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01XXBMycKyVCiRWUXPuyiUwq",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Added logging for when we check side effects. Now running checks...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_012MhLAvXeHk1LWyVrUdrRLk",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01T235qRAhYcST1JUdFRriAp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_019pebSUvp13ANwK4WrtajLg",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XXBMycKyVCiRWUXPuyiUwq",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012MhLAvXeHk1LWyVrUdrRLk",
+      "content": "{\"message\": \"Added logging for when we check side effects. Now running checks...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Added logging for when we check side effects. Now running checks...",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01T235qRAhYcST1JUdFRriAp",
+      "content": "{\"format_diffs\": {\"forge/tools/side_effects.py\": \"--- before+++ after@@ -11,7 +11,7 @@ \\n class SideEffect(str, Enum):\\n     \\\"\\\"\\\"Side effects a tool can declare.\\n-    \\n+\\n     Inherits from str so it's JSON-serializable automatically.\\n     \\\"\\\"\\\"\\n \\n\"}, \"formatted_files\": [\"forge/tools/side_effects.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/tools/side_effects.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/tools/side_effects.py\": \"--- before+++ after@@ -11,7 +11,7 @@ \\n class SideEffect(str, Enum):\\n     \\\"\\\"\\\"Side effects a tool can declare.\\n-    \\n+\\n     Inherits from str so it's JSON-serializable automatically.\\n     \\\"\\\"\\\"\\n \\n\"\n  },\n  \"formatted_files\": [\n    \"forge/tools/side_effects.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/tools/side_effects.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Checks pass. Let me commit this and do the test:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Make SideEffect JSON-serializable and add mid-turn commit logging\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_018zc1JPg2YA3dPbYEDjtofa",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Committed. Now let me do the test - make a change, commit mid-turn, then continue:\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_01BxBasJbtt7ijUKJ3LySex9",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\", \"replace\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"  # test comment\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01FGCTTRWxoqtbJhRuVJw18L",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Test mid-turn commit\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01FutYJhF16LTBDs1TXPvsaA",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Mid-turn commit done. Now continuing to talk after the commit. Check your logs for:\\n\\n1. `[mid-turn-commit] tool=commit, side_effects=[...]` - showing the commit tool declared its side effect\\n2. `[mid-turn-commit] mark_mid_turn_commit() called` - showing we set the flag\\n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\\n\\nLet me clean up the test comment:\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_01Q4o5rkHV3wrJtFVu6yjcZc",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/side_effects.py\", \"search\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"  # test comment\", \"replace\": \"    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\\n    MID_TURN_COMMIT = \\\"mid_turn_commit\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01JK69VArcixdBqaRU2DeAZv",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/tools/side_effects.py\",\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01M8epbXq1yzhphRgp6Tkjkp",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Test complete! Made a change, committed mid-turn, then continued. Check your terminal for the `[mid-turn-commit]` logs - you should now see:\\n\\n1. `tool=commit, side_effects=['mid_turn_commit']` when the commit tool runs\\n2. `mark_mid_turn_commit() called, setting flag to True`\\n3. `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP` when this turn ends\\n\\nThe SideEffect enum now inherits from `str`, making it JSON-serializable automatically.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01UdpoLiC65Vzs8tvuMzcg83",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BxBasJbtt7ijUKJ3LySex9",
+      "content": "{\"message\": \"Committed. Now let me do the test - make a change, commit mid-turn, then continue:\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Committed. Now let me do the test - make a change, commit mid-turn, then continue:",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FGCTTRWxoqtbJhRuVJw18L",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Q4o5rkHV3wrJtFVu6yjcZc",
+      "content": "{\"message\": \"Mid-turn commit done. Now continuing to talk after the commit. Check your logs for:\\n\\n1. `[mid-turn-commit] tool=commit, side_effects=[...]` - showing the commit tool declared its side effect\\n2. `[mid-turn-commit] mark_mid_turn_commit() called` - showing we set the flag\\n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\\n\\nLet me clean up the test comment:\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Mid-turn commit done. Now continuing to talk after the commit. Check your logs for:\n\n1. `[mid-turn-commit] tool=commit, side_effects=[...]` - showing the commit tool declared its side effect\n2. `[mid-turn-commit] mark_mid_turn_commit() called` - showing we set the flag\n3. When this turn ends: `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP`\n\nLet me clean up the test comment:",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JK69VArcixdBqaRU2DeAZv",
+      "content": "{\"message\": \"Replaced in forge/tools/side_effects.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01M8epbXq1yzhphRgp6Tkjkp",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/tools/side_effects.py\", \"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UdpoLiC65Vzs8tvuMzcg83",
+      "content": "{\"done\": true, \"message\": \"Test complete! Made a change, committed mid-turn, then continued. Check your terminal for the `[mid-turn-commit]` logs - you should now see:\\n\\n1. `tool=commit, side_effects=['mid_turn_commit']` when the commit tool runs\\n2. `mark_mid_turn_commit() called, setting flag to True`\\n3. `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP` when this turn ends\\n\\nThe SideEffect enum now inherits from `str`, making it JSON-serializable automatically.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Test complete! Made a change, committed mid-turn, then continued. Check your terminal for the `[mid-turn-commit]` logs - you should now see:\n\n1. `tool=commit, side_effects=['mid_turn_commit']` when the commit tool runs\n2. `mark_mid_turn_commit() called, setting flag to True`\n3. `_had_mid_turn_commit = True` and `CommitType.FOLLOW_UP` when this turn ends\n\nThe SideEffect enum now inherits from `str`, making it JSON-serializable automatically."
     }
   ]
 }

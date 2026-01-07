@@ -978,11 +978,36 @@ class PromptManager:
         }
 
     def _make_assistant_tool_call(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
-        """Create assistant message with tool_calls and optional content"""
+        """Create assistant message with tool_calls and optional content.
+
+        Note: Think tool calls are compacted on-the-fly here - the scratchpad
+        is stripped from the arguments so it doesn't bloat API requests.
+        The original scratchpad is preserved in the block for session storage/UI.
+        """
         tool_calls = block.metadata.get("tool_calls", [])
+
+        # Compact think tool calls on-the-fly (don't mutate original)
+        compacted_tool_calls = []
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            if func.get("name") == "think":
+                # Replace with compacted version (scratchpad stripped)
+                compacted_tool_calls.append(
+                    {
+                        "id": tc.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": "think",
+                            "arguments": '{"_compacted": true}',
+                        },
+                    }
+                )
+            else:
+                compacted_tool_calls.append(tc)
+
         msg: dict[str, Any] = {
             "role": "assistant",
-            "tool_calls": tool_calls,
+            "tool_calls": compacted_tool_calls,
         }
         # Include content if present (assistant may explain what it's doing)
         if block.content:

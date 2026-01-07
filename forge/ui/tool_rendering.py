@@ -213,25 +213,27 @@ def get_diff_styles() -> str:
         .think-foldout {
             margin: 6px 0;
         }
-        .think-foldout summary {
+        .think-toggle-input {
+            display: none;
+        }
+        .think-toggle-label {
             cursor: pointer;
             color: #666;
             font-size: 12px;
             user-select: none;
         }
-        .think-foldout summary:hover {
+        .think-toggle-label:hover {
             color: #333;
         }
-        .think-scratchpad-wrapper {
-            display: flex;
-            flex-direction: column-reverse;
-            max-height: 200px;
-            overflow-y: auto;
-            margin-top: 6px;
+        .think-toggle-label::before {
+            content: "▶ ";
+            font-size: 10px;
         }
-        .think-scratchpad-scroll {
-            display: flex;
-            flex-direction: column-reverse;
+        .think-toggle-input:checked + .think-toggle-label::before {
+            content: "▼ ";
+        }
+        .think-scratchpad-wrapper {
+            margin-top: 6px;
         }
         .think-scratchpad {
             background: #fff;
@@ -244,6 +246,21 @@ def get_diff_styles() -> str:
             white-space: pre-wrap;
             word-wrap: break-word;
             color: #555;
+        }
+        /* Preview: show by default, hide when expanded */
+        .think-preview {
+            display: block;
+        }
+        .think-full {
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-preview {
+            display: none;
+        }
+        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-full {
+            display: block;
         }
     """
 
@@ -873,23 +890,30 @@ def render_think_html(args: dict[str, object], result: dict[str, object] | None 
     is_streaming = result is None
     streaming_class = " streaming" if is_streaming else ""
 
-    escaped_scratchpad = html.escape(str(scratchpad)) if scratchpad else ""
+    scratchpad_str = str(scratchpad) if scratchpad else ""
     escaped_conclusion = html.escape(str(conclusion)) if conclusion else ""
 
-    # Scratchpad foldout (closed by default, scrolled to bottom via JS trick)
+    # Scratchpad foldout: show last 4 lines as preview, full text when expanded
     scratchpad_html = ""
-    if escaped_scratchpad:
-        # Use a wrapper div with flex-direction: column-reverse to auto-scroll to bottom
-        word_count = len(str(scratchpad).split())
+    if scratchpad_str:
+        lines = scratchpad_str.split("\n")
+        word_count = len(scratchpad_str.split())
+
+        # Always show last 4 lines as preview
+        preview_lines = lines[-4:] if len(lines) > 4 else lines
+        escaped_preview = html.escape("\n".join(preview_lines))
+        escaped_full = html.escape(scratchpad_str)
+
+        # Use checkbox hack for toggle without JS
         scratchpad_html = f"""
-        <details class="think-foldout">
-            <summary>Scratchpad ({word_count} words)</summary>
+        <div class="think-foldout">
+            <input type="checkbox" id="think-toggle" class="think-toggle-input">
+            <label for="think-toggle" class="think-toggle-label">Scratchpad ({word_count} words)</label>
             <div class="think-scratchpad-wrapper">
-                <div class="think-scratchpad-scroll">
-                    <pre class="think-scratchpad">{escaped_scratchpad}</pre>
-                </div>
+                <pre class="think-scratchpad think-preview">{escaped_preview}</pre>
+                <pre class="think-scratchpad think-full">{escaped_full}</pre>
             </div>
-        </details>
+        </div>
         """
 
     # Conclusion section

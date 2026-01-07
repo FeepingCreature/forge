@@ -1230,10 +1230,8 @@ class AIChatWidget(QWidget):
                 result["error"] = f"IDs not found: {missing_ids}"
                 result["success"] = False  # Partial failure
 
-        # Handle think tool specially - auto-compact the scratchpad
-        if result.get("think") and result.get("success"):
-            self.session_manager.compact_think_call(tool_call_id)
-            # Note: the conclusion is in the tool result, scratchpad is now gone
+        # Note: think tool scratchpad is kept in session for UI rendering,
+        # but compacted on-the-fly when building API requests (in PromptManager.to_messages)
 
         # Handle side effects declared by tools
         side_effects = result.get("side_effects", [])

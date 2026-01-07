@@ -1,7 +1,5 @@
 {
   "active_files": [
-    "forge/git_backend/commit_types.py",
-    "forge/tools/side_effects.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -391,6 +389,42 @@
       "streaming": true,
       "actual_cost": 0.1883795,
       "generation_id": "gen-1767781567-0BxGWbvqL8wudO3neJpD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767781595131.json",
+      "response_file": "/tmp/forge_debug/response_1767781595131.json",
+      "timestamp": 1767781595.1326199,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003157,
+      "generation_id": "gen-1767781595-ycFQuJa3HjfUCZ03Uvqz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781703934.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781703934.json",
+      "timestamp": 1767781703.9349144,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1694175,
+      "generation_id": "gen-1767781704-FWFKs2pPp5ZGewbbGVCL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781709512.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781709512.json",
+      "timestamp": 1767781709.5134184,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.19920125,
+      "generation_id": "gen-1767781709-XWaIqiJpbxHCchpy4eWR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781739681.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781739681.json",
+      "timestamp": 1767781739.6817172,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.044878,
+      "generation_id": "gen-1767781739-E6cmnhMrTB2KXy6PLMfx"
     }
   ],
   "messages": [
@@ -1395,6 +1429,139 @@
     {
       "role": "assistant",
       "content": "Fixed the JSON serialization error by using `pop()` instead of `get()` to remove the `side_effects` list from the result dict before it gets serialized. The side effects are handled first, then removed so they don't break `json.dumps()`.\n\nRestart and try the mid-turn commit test again - it should work now!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 100 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Restarted. Yeah you used say there, that was good. You didn't use it before... I think you might be trained really strongly to use standard conversation instead of say(\"\"), and every time you try to converse normally after a tool call you force the api/framework to start a new request. Using extra tool calls that have no effect because the sequence is aborted is **much** cheaper than starting a new request. Idk, can you change the prompt (it's in this repo) to emphasize that the desired flow is change, change, say, change, say, change, say, check, commit even more strongly?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, I should update the system prompt to make this clearer. Let me load it and strengthen the guidance:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"], \"remove\": [\"forge/tools/side_effects.py\",\"forge/git_backend/commit_types.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01BfVEM9yRDQwpx7CjKNdKRG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BfVEM9yRDQwpx7CjKNdKRG",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/tools/side_effects.py\", \"forge/git_backend/commit_types.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the current prompt. It does mention batching and `say`, but the key insight - that ending your response without `done` forces a whole new API request - isn't explicit enough. Let me strengthen this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/system.py\", \"search\": \"### Batch Operations\\n\\n**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.\\n\\nExamples of batching:\\n- Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n- Need to edit multiple files? Return all `search_replace` calls together in one response.\\n- Need to create several files? Return all `write_file` calls at once.\\n\\n**The ideal turn**: Chain all your operations together, using `say` to narrate and `done` to finish:\\n```\\nsearch_replace(file1) \u2192 search_replace(file2) \u2192 say(\\\"Running checks...\\\") \u2192 check() \u2192 commit() \u2192 say(\\\"Cleaning up context...\\\") \u2192 update_context() \u2192 done(\\\"Refactored X to use Y!\\\")\\n```\\n\\nNone of these tools return important state on success - you only need control back if something fails. If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, the pipeline aborts and you get control back to fix it.\\n\\n**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\", \"replace\": \"### Batch Operations\\n\\n**Batch tool calls**: You can call multiple tools in a single response. Do this whenever possible to minimize round-trips and reduce costs. Tools execute **sequentially as a pipeline** - if one fails, the rest are aborted and you get control back to handle the error.\\n\\nExamples of batching:\\n- Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.\\n- Need to edit multiple files? Return all `search_replace` calls together in one response.\\n- Need to create several files? Return all `write_file` calls at once.\\n\\n**The ideal turn**: Chain all your operations together, using `say` to narrate and `done` to finish:\\n```\\nsearch_replace(file1) \u2192 search_replace(file2) \u2192 say(\\\"Running checks...\\\") \u2192 check() \u2192 commit() \u2192 say(\\\"Cleaning up context...\\\") \u2192 update_context() \u2192 done(\\\"Refactored X to use Y!\\\")\\n```\\n\\nNone of these tools return important state on success - you only need control back if something fails. If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, the pipeline aborts and you get control back to fix it.\\n\\n**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.\\n\\n### CRITICAL: Never End a Response Without `done`\\n\\n**Every time you end your response without calling `done`, you force a new API request.** This is extremely expensive - each new request replays the entire conversation context.\\n\\n\u274c **WRONG** - Ending with plain text after tools:\\n```\\n[tool calls...]\\n\u2190 results come back\\n\\\"I've made those changes. Let me know if you need anything else.\\\"  \u2190 COSTS A FULL NEW REQUEST\\n```\\n\\n\u2705 **RIGHT** - Always chain to `done`:\\n```\\n[tool calls...] \u2192 done(\\\"I've made those changes. Let me know if you need anything else.\\\")\\n```\\n\\nIf you need to narrate between operations, use `say()` - it's a tool call that continues the chain:\\n```\\nsearch_replace(...) \u2192 say(\\\"Fixed the bug, now running checks...\\\") \u2192 check() \u2192 done(\\\"All done!\\\")\\n```\\n\\n**The rule is simple**: Once you start making tool calls, NEVER go back to plain text. Keep chaining tools, use `say()` to talk, and end with `done()`.\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011y1Ru2a958BuQqRpq1ghxH",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Added a new \\\"CRITICAL: Never End a Response Without `done`\\\" section that explicitly explains the cost model - that ending without `done` forces a new API request which replays the whole conversation. Running checks...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_013S855tagdaSznbcu2EWJnk",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01Xmsjnyoa6BcRm4av3rN93D",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011y1Ru2a958BuQqRpq1ghxH",
+      "content": "{\"message\": \"Replaced in forge/prompts/system.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013S855tagdaSznbcu2EWJnk",
+      "content": "{\"message\": \"Added a new \\\"CRITICAL: Never End a Response Without `done`\\\" section that explicitly explains the cost model - that ending without `done` forces a new API request which replays the whole conversation. Running checks...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Added a new \"CRITICAL: Never End a Response Without `done`\" section that explicitly explains the cost model - that ending without `done` forces a new API request which replays the whole conversation. Running checks...",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Xmsjnyoa6BcRm4av3rN93D",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Checks pass. Let me commit this and then we can test the mid-turn commit again:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add CRITICAL section to system prompt about never ending without done()\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_011ebw3vsx51Kr1soR9Mq4TU",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01UkN9vvmr36V3veXJ9tyRNB",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Updated the system prompt with a new \\\"CRITICAL: Never End a Response Without `done`\\\" section that explicitly explains:\\n\\n1. **The cost model**: Every response without `done` forces a new API request that replays the entire conversation\\n2. **Wrong pattern**: Making tool calls, getting results, then ending with plain text\\n3. **Right pattern**: Chaining tools \u2192 `say()` for narration \u2192 `done()` to finish\\n4. **The simple rule**: Once you start tool calls, never go back to plain text\\n\\nRestart when ready and we can test the mid-turn commit flow again!\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_012Uwsmuh4byAoLmYaVCiLtB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UkN9vvmr36V3veXJ9tyRNB",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/prompts/system.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012Uwsmuh4byAoLmYaVCiLtB",
+      "content": "{\"done\": true, \"message\": \"Updated the system prompt with a new \\\"CRITICAL: Never End a Response Without `done`\\\" section that explicitly explains:\\n\\n1. **The cost model**: Every response without `done` forces a new API request that replays the entire conversation\\n2. **Wrong pattern**: Making tool calls, getting results, then ending with plain text\\n3. **Right pattern**: Chaining tools \\u2192 `say()` for narration \\u2192 `done()` to finish\\n4. **The simple rule**: Once you start tool calls, never go back to plain text\\n\\nRestart when ready and we can test the mid-turn commit flow again!\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Updated the system prompt with a new \"CRITICAL: Never End a Response Without `done`\" section that explicitly explains:\n\n1. **The cost model**: Every response without `done` forces a new API request that replays the entire conversation\n2. **Wrong pattern**: Making tool calls, getting results, then ending with plain text\n3. **Right pattern**: Chaining tools \u2192 `say()` for narration \u2192 `done()` to finish\n4. **The simple rule**: Once you start tool calls, never go back to plain text\n\nRestart when ready and we can test the mid-turn commit flow again!"
     }
   ]
 }

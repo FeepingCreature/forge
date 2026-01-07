@@ -62,6 +62,29 @@ None of these tools return important state on success - you only need control ba
 
 **Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
 
+### CRITICAL: Never End a Response Without `done`
+
+**Every time you end your response without calling `done`, you force a new API request.** This is extremely expensive - each new request replays the entire conversation context.
+
+❌ **WRONG** - Ending with plain text after tools:
+```
+[tool calls...]
+← results come back
+"I've made those changes. Let me know if you need anything else."  ← COSTS A FULL NEW REQUEST
+```
+
+✅ **RIGHT** - Always chain to `done`:
+```
+[tool calls...] → done("I've made those changes. Let me know if you need anything else.")
+```
+
+If you need to narrate between operations, use `say()` - it's a tool call that continues the chain:
+```
+search_replace(...) → say("Fixed the bug, now running checks...") → check() → done("All done!")
+```
+
+**The rule is simple**: Once you start making tool calls, NEVER go back to plain text. Keep chaining tools, use `say()` to talk, and end with `done()`.
+
 ### Context Management
 
 **Load aggressively, clean up proactively.** Prompt caching means you don't pay for files that stay the same between turns, so:

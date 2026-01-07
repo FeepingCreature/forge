@@ -355,6 +355,42 @@
       "streaming": true,
       "actual_cost": 0.02486,
       "generation_id": "gen-1767781513-9Ii2iNCsMc99kSWZrl6V"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767781523795.json",
+      "response_file": "/tmp/forge_debug/response_1767781523795.json",
+      "timestamp": 1767781523.7956831,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000235,
+      "generation_id": "gen-1767781523-vUzPyQ8zIdbO9UQ7M2qG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781549220.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781549220.json",
+      "timestamp": 1767781549.2208905,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.16049875,
+      "generation_id": "gen-1767781549-6ilkmwZgCLfptqRhZPfD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781553941.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781553941.json",
+      "timestamp": 1767781553.9419577,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.186332,
+      "generation_id": "gen-1767781554-tt1DDubNtjLC2zIqhKcx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767781567411.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767781567411.json",
+      "timestamp": 1767781567.4128397,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1883795,
+      "generation_id": "gen-1767781567-0BxGWbvqL8wudO3neJpD"
     }
   ],
   "messages": [
@@ -1226,6 +1262,139 @@
     {
       "role": "assistant",
       "content": "Test complete! Made an edit, committed mid-turn, then continued. Check your terminal for the `[mid-turn-commit]` logs - you should now see `mark_mid_turn_commit()` being called when the commit tool runs, and `_had_mid_turn_commit = True` when `commit_ai_turn()` runs at end of turn."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: ef67c4a8",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Oops-\n\nTraceback (most recent call last): \n File \"/home/feep/forge/forge/ui/ai_chat_widget.py\", line 1191, in _on_tool_finished \n   result_json = json.dumps(result) \n File \"/usr/lib/python3.13/json/__init__.py\", line 231, in dumps \n   return _default_encoder.encode(obj) \n          ~~~~~~~~~~~~~~~~~~~~~~~^^^^^ \n File \"/usr/lib/python3.13/json/encoder.py\", line 200, in encode \n   chunks = self.iterencode(o, _one_shot=True) \n File \"/usr/lib/python3.13/json/encoder.py\", line 261, in iterencode \n   return _iterencode(o, 0) \n File \"/usr/lib/python3.13/json/encoder.py\", line 180, in default \n   raise TypeError(f'Object of type {o.__class__.__name__} ' \n                   f'is not JSON serializable') \nTypeError: Object of type SideEffect is not JSON serializable"
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, the side effects list contains enum values which can't be JSON serialized when we log the result. The fix is to handle side effects before serializing, or serialize them specially. Let me fix this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01MULC4QJkvqMkGm1xJqtW6T",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MULC4QJkvqMkGm1xJqtW6T",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The `side_effects` list contains `SideEffect` enum values, but when we try to `json.dumps(result)` at line 1191, it fails because enums aren't JSON serializable.\n\nThe fix: we should pop the side_effects from the result before serializing, or convert them to strings. Let me fix this by handling side_effects before the JSON serialization:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"        # Handle side effects declared by tools\\n        side_effects = result.get(\\\"side_effects\\\", [])\", \"replace\": \"        # Handle side effects declared by tools\\n        # Pop them from result so they don't break JSON serialization\\n        side_effects = result.pop(\\\"side_effects\\\", [])\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01VpZQAgvFSxoX5SPH4yrXZs",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed by using `pop()` instead of `get()` - this removes the side_effects from the result dict before it gets JSON-serialized. Running checks...\"}",
+            "name": "say"
+          },
+          "id": "toolu_vrtx_015pEpvky4hi13S9YJPcwV7x",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01XFYcUgBXGRbJsev5BWMih3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VpZQAgvFSxoX5SPH4yrXZs",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015pEpvky4hi13S9YJPcwV7x",
+      "content": "{\"message\": \"Fixed by using `pop()` instead of `get()` - this removes the side_effects from the result dict before it gets JSON-serialized. Running checks...\", \"say\": true, \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed by using `pop()` instead of `get()` - this removes the side_effects from the result dict before it gets JSON-serialized. Running checks...",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XFYcUgBXGRbJsev5BWMih3",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "All checks pass. Let me commit this fix:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix SideEffect enum not JSON serializable - pop from result before serializing\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01JCgvdFR5nrS9zTKR2TbD74",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GDmJuK7wXSrCLQocLhejQq",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed the JSON serialization error by using `pop()` instead of `get()` to remove the `side_effects` list from the result dict before it gets serialized. The side effects are handled first, then removed so they don't break `json.dumps()`.\\n\\nRestart and try the mid-turn commit test again - it should work now!\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01G4XEkfzCNc6RqPqtbhNoPx",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GDmJuK7wXSrCLQocLhejQq",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 1 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01G4XEkfzCNc6RqPqtbhNoPx",
+      "content": "{\"done\": true, \"message\": \"Fixed the JSON serialization error by using `pop()` instead of `get()` to remove the `side_effects` list from the result dict before it gets serialized. The side effects are handled first, then removed so they don't break `json.dumps()`.\\n\\nRestart and try the mid-turn commit test again - it should work now!\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed the JSON serialization error by using `pop()` instead of `get()` to remove the `side_effects` list from the result dict before it gets serialized. The side effects are handled first, then removed so they don't break `json.dumps()`.\n\nRestart and try the mid-turn commit test again - it should work now!"
     }
   ]
 }

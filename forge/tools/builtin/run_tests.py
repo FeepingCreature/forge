@@ -115,8 +115,6 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
 
 def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     """Run tests and return results"""
-    from forge.tools.side_effects import SideEffect
-
     pattern = args.get("pattern", "")
     verbose = args.get("verbose", False)
 
@@ -220,7 +218,6 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
 
         if changed_files:
             results["changed_files"] = changed_files
-            results["side_effects"] = [SideEffect.FILE_CHANGES]
             results["summary"] += f"\n\nFiles modified: {', '.join(changed_files)}"
 
     finally:

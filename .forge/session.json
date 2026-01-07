@@ -59,6 +59,60 @@
       "streaming": true,
       "actual_cost": 0.34243125,
       "generation_id": "gen-1767788465-frpdavQmep4FpbfvfL0u"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767788474971.json",
+      "response_file": "/tmp/forge_debug/response_1767788474971.json",
+      "timestamp": 1767788474.9718997,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00024,
+      "generation_id": "gen-1767788475-tQJ1p2wAZtNEBU4T375C"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788498167.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788498167.json",
+      "timestamp": 1767788498.1683822,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.046008,
+      "generation_id": "gen-1767788498-R2ClKZREABzT5hftYwWL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788510140.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788510140.json",
+      "timestamp": 1767788510.1413887,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03740275,
+      "generation_id": "gen-1767788510-JF1Wq9b229ActAum5B7f"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788516305.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788516305.json",
+      "timestamp": 1767788516.3064678,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3458225,
+      "generation_id": "gen-1767788516-vhrmn872PcLEsClRmZG0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788525544.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788525544.json",
+      "timestamp": 1767788525.545497,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04076525,
+      "generation_id": "gen-1767788525-RVaXOCBvb3cgnXe7C5PZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767788536263.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767788536263.json",
+      "timestamp": 1767788536.2639356,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3598775,
+      "generation_id": "gen-1767788536-MWtxPKNdXVNkRvTTHa2k"
     }
   ],
   "messages": [
@@ -259,6 +313,181 @@
     {
       "role": "assistant",
       "content": "Done! I made three changes:\n\n1. **Added `commit`, `think`, and `run_tests` to `builtin_tools_with_native_rendering`** in `ai_chat_widget.py` - This suppresses the system message block for these tools when they succeed, since they now have native rendering.\n\n2. **Added `render_think_html()`** in `diff_view.py` - Shows the conclusion from the think tool in a nice card with a \ud83d\udcad icon.\n\n3. **Added `render_run_tests_html()`** in `diff_view.py` - Shows test results in a card with:\n   - Pattern and verbose args if specified\n   - Pass/fail counts with \u2713/\u2717 status\n   - Test output in a scrollable `<pre>` block that properly handles linebreaks (max-height 300px with overflow-y: auto)\n\n4. **Added streaming support** for both tools in `render_streaming_tool_html()` so they show a nice card while executing rather than raw JSON.\n\nAll checks pass."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 8d7c9bac",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Why are these all in diff_view though? We should probably reserve that for just the diff rendering."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - `diff_view.py` has grown into a grab-bag of tool renderers when its name suggests it should just be for diff rendering. Let me refactor this.",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_016Jim1gfxAfgFSY2bdE3Koi",
+          "type": "function",
+          "function": {
+            "name": "think",
+            "arguments": "{\"_compacted\": true}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016Jim1gfxAfgFSY2bdE3Koi",
+      "content": "{\"conclusion\": \"Rename `diff_view.py` to `tool_rendering.py` since it now handles rendering for all tools, not just diffs. Update the import in `ai_chat_widget.py`.\", \"message\": \"Thought through 159 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `think`\n```json\n{\n  \"conclusion\": \"Rename `diff_view.py` to `tool_rendering.py` since it now handles rendering for all tools, not just diffs. Update the import in `ai_chat_widget.py`.\",\n  \"scratchpad\": \"Looking at the current state:\\n- diff_view.py has: diff rendering, plus render_*_html for write_file, delete_file, update_context, grep_open, get_lines, compact, commit, think, run_tests\\n- The file is imported as `from forge.ui.diff_view import get_diff_styles, render_completed_tool_html, render_streaming_tool_html`\\n\\nOptions:\\n1. Rename diff_view.py to tool_rendering.py or similar\\n2. Split into diff_view.py (just diffs) and tool_cards.py (other tools)\\n3. Create a new file and move things there\\n\\nI think option 1 is cleanest - just rename it to `tool_rendering.py` since that's what it actually does. The diff rendering is just one type of tool rendering (for search_replace).\\n\\nActually looking at the imports in ai_chat_widget.py:\\n```python\\nfrom forge.ui.diff_view import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\\n```\\n\\nThese are all about tool rendering, not specifically diffs. So renaming to `tool_rendering.py` makes sense.\\n\"\n}\n```\n**Result:**\n```json\n{\n  \"conclusion\": \"Rename `diff_view.py` to `tool_rendering.py` since it now handles rendering for all tools, not just diffs. Update the import in `ai_chat_widget.py`.\",\n  \"message\": \"Thought through 159 tokens, concluded.\",\n  \"success\": true,\n  \"think\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"old_path\": \"forge/ui/diff_view.py\", \"new_path\": \"forge/ui/tool_rendering.py\"}",
+            "name": "rename_file"
+          },
+          "id": "toolu_vrtx_01LZn1SmJ7QkZ1bHeq3szjwR",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"from forge.ui.diff_view import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\", \"replace\": \"from forge.ui.tool_rendering import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_018rEj99Vnou9noDbBLdmric",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LZn1SmJ7QkZ1bHeq3szjwR",
+      "content": "{\"message\": \"Renamed forge/ui/diff_view.py -> forge/ui/tool_rendering.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `rename_file`\n```json\n{\n  \"new_path\": \"forge/ui/tool_rendering.py\",\n  \"old_path\": \"forge/ui/diff_view.py\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Renamed forge/ui/diff_view.py -> forge/ui/tool_rendering.py\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018rEj99Vnou9noDbBLdmric",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01PWhvPTFha7SnsRdghjW35p",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PWhvPTFha7SnsRdghjW35p",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nI001 [*] Import block is un-sorted or un-formatted\\n  --> forge/ui/ai_chat_widget.py:5:1\\n   |\\n 3 |   \\\"\\\"\\\"\\n 4 |\\n 5 | / import json\\n 6 | | from typing import TYPE_CHECKING, Any\\n 7 | |\\n 8 | | import markdown\\n 9 | | from PySide6.QtCore import QEvent, QObject, Qt, QThread, QUrl, Signal, Slot\\n10 | | from PySide6.QtGui import QDesktopServices, QKeyEvent, QKeySequence, QShortcut\\n11 | | from PySide6.QtWebChannel import QWebChannel\\n12 | | from PySide6.QtWebEngineCore import QWebEnginePage\\n13 | | from PySide6.QtWebEngineWidgets import QWebEngineView\\n14 | | from PySide6.QtWidgets import (\\n15 | |     QApplication,\\n16 | |     QHBoxLayout,\\n17 | |     QPushButton,\\n18 | |     QSystemTrayIcon,\\n19 | |     QTextEdit,\\n20 | |     QVBoxLayout,\\n21 | |     QWidget,\\n22 | | )\\n23 | |\\n24 | | from forge.constants import SESSION_FILE\\n25 | | from forge.llm.client import LLMClient\\n26 | | from forge.session.manager import SessionManager\\n27 | | from forge.tools.side_effects import SideEffect\\n28 | | from forge.ui.tool_rendering import (\\n29 | |     get_diff_styles,\\n30 | |     render_completed_tool_html,\\n31 | |     render_streaming_tool_html,\\n32 | | )\\n33 | | from forge.ui.editor_widget import SearchBar\\n   | |____________________________________________^\\n34 |\\n35 |   if TYPE_CHECKING:\\n   |\\nhelp: Organize imports\\n\\nFound 1 error.\\n[*] 1 fixable with the `--fix` option.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\", \"lint_passed\": false, \"success\": false, \"summary\": \"\\u2713 Type check passed\\n\\u2717 Lint failed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nI001 [*] Import block is un-sorted or un-formatted\\n  --> forge/ui/ai_chat_widget.py:5:1\\n   |\\n 3 |   \\\"\\\"\\\"\\n 4 |\\n 5 | / import json\\n 6 | | from typing import TYPE_CHECKING, Any\\n 7 | |\\n 8 | | import markdown\\n 9 | | from PySide6.QtCore import QEvent, QObject, Qt, QThread, QUrl, Signal, Slot\\n10 | | from PySide6.QtGui import QDesktopServices, QKeyEvent, QKeySequence, QShortcut\\n11 | | from PySide6.QtWebChannel import QWebChannel\\n12 | | from PySide6.QtWebEngineCore import QWebEnginePage\\n13 | | from PySide6.QtWebEngineWidgets import QWebEngineView\\n14 | | from PySide6.QtWidgets import (\\n15 | |     QApplication,\\n16 | |     QHBoxLayout,\\n17 | |     QPushButton,\\n18 | |     QSystemTrayIcon,\\n19 | |     QTextEdit,\\n20 | |     QVBoxLayout,\\n21 | |     QWidget,\\n22 | | )\\n23 | |\\n24 | | from forge.constants import SESSION_FILE\\n25 | | from forge.llm.client import LLMClient\\n26 | | from forge.session.manager import SessionManager\\n27 | | from forge.tools.side_effects import SideEffect\\n28 | | from forge.ui.tool_rendering import (\\n29 | |     get_diff_styles,\\n30 | |     render_completed_tool_html,\\n31 | |     render_streaming_tool_html,\\n32 | | )\\n33 | | from forge.ui.editor_widget import SearchBar\\n   | |____________________________________________^\\n34 |\\n35 |   if TYPE_CHECKING:\\n   |\\nhelp: Organize imports\\n\\nFound 1 error.\\n[*] 1 fixable with the `--fix` option.\\nmake: *** [Makefile:13: lint-check] Error 1\\n\",\n  \"lint_passed\": false,\n  \"success\": false,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2717 Lint failed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The lint error is just import ordering. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"from forge.ui.tool_rendering import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\\nfrom forge.ui.editor_widget import SearchBar\", \"replace\": \"from forge.ui.editor_widget import SearchBar\\nfrom forge.ui.tool_rendering import (\\n    get_diff_styles,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01PehYoPKJhnpth5UYom3KAA",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_017zZ1hFZMVqXggKa4qDw1B5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PehYoPKJhnpth5UYom3KAA",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017zZ1hFZMVqXggKa4qDw1B5",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 77 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"tool_call_ids\": [\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\"], \"summary\": \"Renamed forge/ui/diff_view.py to forge/ui/tool_rendering.py. Added commit, think, run_tests to builtin_tools_with_native_rendering in ai_chat_widget.py. Added render_think_html() and render_run_tests_html() functions with streaming support. Updated import in ai_chat_widget.py. All checks pass.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01T1YfeDzQrJ6QzJTC9QavCB",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! Renamed `diff_view.py` \u2192 `tool_rendering.py` and updated the import in `ai_chat_widget.py`. The name now reflects that it handles rendering for all tools, not just diffs. All checks pass.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01L5jiJjYbBLDQoSNwdE8qEb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01T1YfeDzQrJ6QzJTC9QavCB",
+      "content": "{\"compact\": true, \"message\": \"Compacted 16 tool result(s)\", \"success\": true, \"summary\": \"Renamed forge/ui/diff_view.py to forge/ui/tool_rendering.py. Added commit, think, run_tests to builtin_tools_with_native_rendering in ai_chat_widget.py. Added render_think_html() and render_run_tests_html() functions with streaming support. Updated import in ai_chat_widget.py. All checks pass.\", \"tool_call_ids\": [\"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"11\", \"12\", \"13\", \"14\", \"15\", \"16\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01L5jiJjYbBLDQoSNwdE8qEb",
+      "content": "{\"done\": true, \"message\": \"Done! Renamed `diff_view.py` \\u2192 `tool_rendering.py` and updated the import in `ai_chat_widget.py`. The name now reflects that it handles rendering for all tools, not just diffs. All checks pass.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! Renamed `diff_view.py` \u2192 `tool_rendering.py` and updated the import in `ai_chat_widget.py`. The name now reflects that it handles rendering for all tools, not just diffs. All checks pass."
     }
   ]
 }

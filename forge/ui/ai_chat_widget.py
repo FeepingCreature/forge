@@ -25,12 +25,12 @@ from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
 from forge.tools.side_effects import SideEffect
-from forge.ui.diff_view import (
+from forge.ui.editor_widget import SearchBar
+from forge.ui.tool_rendering import (
     get_diff_styles,
     render_completed_tool_html,
     render_streaming_tool_html,
 )
-from forge.ui.editor_widget import SearchBar
 
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace

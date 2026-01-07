@@ -196,15 +196,19 @@ class ToolExecutionWorker(QObject):
                     continue
 
                 # Parse arguments
+                # With fine-grained tool streaming, we might get invalid JSON
+                # In that case, wrap it so the model sees what it produced
                 try:
                     tool_args = json.loads(arguments_str) if arguments_str else {}
                 except json.JSONDecodeError as e:
+                    # Wrap invalid JSON so it gets sent back to the model
+                    tool_args = {"INVALID_JSON": arguments_str}
                     result = {"success": False, "error": f"Invalid JSON arguments: {e}"}
-                    self.tool_finished.emit(tool_call_id, tool_name, {}, result)
+                    self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)
                     self.results.append(
                         {
                             "tool_call": tool_call,
-                            "args": {},
+                            "args": tool_args,
                             "result": result,
                             "parse_error": True,
                         }

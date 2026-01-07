@@ -54,7 +54,7 @@ TOOLS = [
 
 MESSAGES = [
     {"role": "system", "content": "You are a helpful assistant. Use the think tool to reason through problems."},
-    {"role": "user", "content": "Hi! We just need you to call the think tool with some text as a test. We're testing tool streaming latency."},
+    {"role": "user", "content": "Use the think tool to think about what makes a good API design. Be thorough in your scratchpad."},
 ]
 
 # Anthropic uses a different tool format
@@ -97,6 +97,8 @@ def test_openrouter(api_key: str):
         "Content-Type": "application/json",
         "HTTP-Referer": "https://github.com/FeepingCreature/forge",
         "X-Title": "Forge Latency Test",
+        # Enable fine-grained tool streaming for Anthropic models
+        "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14",
     }
 
     payload = {
@@ -130,6 +132,8 @@ def test_anthropic(api_key: str):
         "x-api-key": api_key,
         "Content-Type": "application/json",
         "anthropic-version": "2023-06-01",
+        # Enable fine-grained tool streaming
+        "anthropic-beta": "fine-grained-tool-streaming-2025-05-14",
     }
 
     # Anthropic uses different message format (no system in messages)

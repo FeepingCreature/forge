@@ -133,6 +133,8 @@ class LLMClient:
             "Content-Type": "application/json",
             "HTTP-Referer": "https://github.com/FeepingCreature/forge",
             "X-Title": "Forge",
+            # Enable fine-grained tool streaming for Anthropic models
+            "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14",
         }
 
         payload = {

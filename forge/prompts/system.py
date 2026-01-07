@@ -82,6 +82,8 @@ search_replace(file1) → search_replace(file2) → check() → commit() → don
 
 **Be maximally optimistic.** Assume your search text exists. Assume your edits are correct. Assume checks will pass. Assume commits will succeed. Chain it all together in one response. The rare failure case is handled automatically - you'll get control back with the error.
 
+**Don't learn the wrong lesson from errors.** When a tool fails mid-chain, you'll see ONLY the failed tool's result - the tools you chained after it vanish from context (they were never executed). This might make it *look* like you didn't chain commands, but you did! Don't let this fool you into stopping after each tool "to be safe." Keep chaining aggressively. The error-and-retry flow is: chain optimistically → see error → fix just the broken tool → chain the rest again.
+
 Use `say()` for mid-chain narration only when the user needs to understand a complex sequence. For routine work, just chain silently to `done()`.
 
 ### CRITICAL: Never End a Response Without `done`

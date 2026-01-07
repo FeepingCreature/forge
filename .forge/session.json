@@ -500,6 +500,42 @@
       "streaming": false,
       "actual_cost": 0.002643,
       "generation_id": "gen-1767791749-KNddNgtpojaoZ0ba2oQL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767791753575.json",
+      "response_file": "/tmp/forge_debug/response_1767791753575.json",
+      "timestamp": 1767791753.5752177,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000726,
+      "generation_id": "gen-1767791753-TT3Fxk6NWDLEbsfIVvT4"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767791755980.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767791755980.json",
+      "timestamp": 1767791755.9814506,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.2743975,
+      "generation_id": "gen-1767791756-FwxkFKVhkUtQ2X62wzGf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767791764817.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767791764817.json",
+      "timestamp": 1767791764.8184702,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.345545,
+      "generation_id": "gen-1767791764-uvBbdCc6kOPHrmjVF8cf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767791796017.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767791796017.json",
+      "timestamp": 1767791796.0180235,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.33464125,
+      "generation_id": "gen-1767791796-lPHoS417fZNGKgWatmHt"
     }
   ],
   "messages": [
@@ -2098,6 +2134,107 @@
     {
       "role": "assistant",
       "content": "Created `test_streaming_latency.py` in the root directory. Run it with:\n\n```bash\nOPENROUTER_API_KEY=your_key python test_streaming_latency.py\n```\n\nIt will:\n1. Send a request asking Claude to use the think tool\n2. Log timestamps for every SSE event\n3. Measure and report the latency between tool name and first args chunk\n\nThis gives you a standalone repro case to share with OpenRouter if needed. The output will show something like:\n\n```\nSUMMARY\nTool 'think': name at 1.50s, first args at 5.50s, LATENCY: 4.00s\n```\n\nThat 4s latency is the buffering we're seeing."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 2d42b0c5",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "actually can you give it flags to use either openrouter or anthropic api too?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"test_streaming_latency.py\", \"search\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"\\nTest script to measure OpenRouter streaming latency for tool calls.\\nMeasures time from stream start to first token, and time from tool name to first args chunk.\\n\\\"\\\"\\\"\\n\\nimport json\\nimport os\\nimport time\\nfrom datetime import datetime\\n\\nimport requests\\n\\nAPI_KEY = os.environ.get(\\\"OPENROUTER_API_KEY\\\")\\nMODEL = \\\"anthropic/claude-sonnet-4-20250514\\\"\", \"replace\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"\\nTest script to measure streaming latency for tool calls.\\nMeasures time from stream start to first token, and time from tool name to first args chunk.\\n\\nUsage:\\n  python test_streaming_latency.py              # Use OpenRouter (default)\\n  python test_streaming_latency.py --anthropic  # Use Anthropic API directly\\n\\\"\\\"\\\"\\n\\nimport argparse\\nimport json\\nimport os\\nfrom datetime import datetime\\n\\nimport requests\\n\\nOPENROUTER_MODEL = \\\"anthropic/claude-sonnet-4-20250514\\\"\\nANTHROPIC_MODEL = \\\"claude-sonnet-4-20250514\\\"\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_017EnPkVdForWWS2CAzmBxbe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_017EnPkVdForWWS2CAzmBxbe",
+      "content": "{\"message\": \"Replaced in test_streaming_latency.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"test_streaming_latency.py\", \"search\": \"MESSAGES = [\\n    {\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"You are a helpful assistant. Use the think tool to reason through problems.\\\"},\\n    {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Use the think tool to think about what makes a good API design. Be thorough in your scratchpad.\\\"},\\n]\\n\\n\\ndef test_streaming():\\n    if not API_KEY:\\n        print(\\\"ERROR: Set OPENROUTER_API_KEY environment variable\\\")\\n        return\\n\\n    print(f\\\"Testing streaming latency with {MODEL}\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    headers = {\\n        \\\"Authorization\\\": f\\\"Bearer {API_KEY}\\\",\\n        \\\"Content-Type\\\": \\\"application/json\\\",\\n        \\\"HTTP-Referer\\\": \\\"https://github.com/FeepingCreature/forge\\\",\\n        \\\"X-Title\\\": \\\"Forge Latency Test\\\",\\n    }\\n\\n    payload = {\\n        \\\"model\\\": MODEL,\\n        \\\"messages\\\": MESSAGES,\\n        \\\"tools\\\": TOOLS,\\n        \\\"stream\\\": True,\\n    }\\n\\n    response = requests.post(\\n        \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n        headers=headers,\\n        json=payload,\\n        stream=True,\\n    )\", \"replace\": \"MESSAGES = [\\n    {\\\"role\\\": \\\"system\\\", \\\"content\\\": \\\"You are a helpful assistant. Use the think tool to reason through problems.\\\"},\\n    {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Use the think tool to think about what makes a good API design. Be thorough in your scratchpad.\\\"},\\n]\\n\\n# Anthropic uses a different tool format\\nANTHROPIC_TOOLS = [\\n    {\\n        \\\"name\\\": \\\"think\\\",\\n        \\\"description\\\": \\\"Think through a problem step by step\\\",\\n        \\\"input_schema\\\": {\\n            \\\"type\\\": \\\"object\\\",\\n            \\\"properties\\\": {\\n                \\\"scratchpad\\\": {\\\"type\\\": \\\"string\\\", \\\"description\\\": \\\"Your reasoning\\\"},\\n                \\\"conclusion\\\": {\\\"type\\\": \\\"string\\\", \\\"description\\\": \\\"Your conclusion\\\"},\\n            },\\n            \\\"required\\\": [\\\"scratchpad\\\", \\\"conclusion\\\"],\\n        },\\n    },\\n    {\\n        \\\"name\\\": \\\"search_replace\\\",\\n        \\\"description\\\": \\\"Search and replace in a file\\\",\\n        \\\"input_schema\\\": {\\n            \\\"type\\\": \\\"object\\\",\\n            \\\"properties\\\": {\\n                \\\"filepath\\\": {\\\"type\\\": \\\"string\\\"},\\n                \\\"search\\\": {\\\"type\\\": \\\"string\\\"},\\n                \\\"replace\\\": {\\\"type\\\": \\\"string\\\"},\\n            },\\n            \\\"required\\\": [\\\"filepath\\\", \\\"search\\\", \\\"replace\\\"],\\n        },\\n    },\\n]\\n\\n\\ndef test_openrouter(api_key: str):\\n    \\\"\\\"\\\"Test streaming via OpenRouter API\\\"\\\"\\\"\\n    print(f\\\"Testing OpenRouter streaming with {OPENROUTER_MODEL}\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    headers = {\\n        \\\"Authorization\\\": f\\\"Bearer {api_key}\\\",\\n        \\\"Content-Type\\\": \\\"application/json\\\",\\n        \\\"HTTP-Referer\\\": \\\"https://github.com/FeepingCreature/forge\\\",\\n        \\\"X-Title\\\": \\\"Forge Latency Test\\\",\\n    }\\n\\n    payload = {\\n        \\\"model\\\": OPENROUTER_MODEL,\\n        \\\"messages\\\": MESSAGES,\\n        \\\"tools\\\": TOOLS,\\n        \\\"stream\\\": True,\\n    }\\n\\n    response = requests.post(\\n        \\\"https://openrouter.ai/api/v1/chat/completions\\\",\\n        headers=headers,\\n        json=payload,\\n        stream=True,\\n    )\\n\\n    if not response.ok:\\n        print(f\\\"ERROR: {response.status_code} {response.reason}\\\")\\n        print(response.text)\\n        return\\n\\n    process_openai_stream(response)\\n\\n\\ndef test_anthropic(api_key: str):\\n    \\\"\\\"\\\"Test streaming via Anthropic API directly\\\"\\\"\\\"\\n    print(f\\\"Testing Anthropic streaming with {ANTHROPIC_MODEL}\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    headers = {\\n        \\\"x-api-key\\\": api_key,\\n        \\\"Content-Type\\\": \\\"application/json\\\",\\n        \\\"anthropic-version\\\": \\\"2023-06-01\\\",\\n    }\\n\\n    # Anthropic uses different message format (no system in messages)\\n    payload = {\\n        \\\"model\\\": ANTHROPIC_MODEL,\\n        \\\"max_tokens\\\": 4096,\\n        \\\"system\\\": MESSAGES[0][\\\"content\\\"],\\n        \\\"messages\\\": [{\\\"role\\\": \\\"user\\\", \\\"content\\\": MESSAGES[1][\\\"content\\\"]}],\\n        \\\"tools\\\": ANTHROPIC_TOOLS,\\n        \\\"stream\\\": True,\\n    }\\n\\n    response = requests.post(\\n        \\\"https://api.anthropic.com/v1/messages\\\",\\n        headers=headers,\\n        json=payload,\\n        stream=True,\\n    )\\n\\n    if not response.ok:\\n        print(f\\\"ERROR: {response.status_code} {response.reason}\\\")\\n        print(response.text)\\n        return\\n\\n    process_anthropic_stream(response)\\n\\n\\ndef process_openai_stream(response):\\n    \\\"\\\"\\\"Process OpenAI-format SSE stream (used by OpenRouter)\\\"\\\"\\\"\\n    stream_start = datetime.now()\\n    first_token_time = None\\n    tool_timings: dict[int, dict] = {}\\n\\n    print(f\\\"\\\\n[{0:6.2f}s] Stream started\\\")\\n\\n    for line in response.iter_lines():\\n        ts = (datetime.now() - stream_start).total_seconds()\\n\\n        if not line:\\n            continue\\n\\n        line = line.decode(\\\"utf-8\\\")\\n        if not line.startswith(\\\"data: \\\"):\\n            continue\\n\\n        data = line[6:]\\n        if data == \\\"[DONE]\\\":\\n            print(f\\\"[{ts:6.2f}s] [DONE]\\\")\\n            break\\n\\n        try:\\n            chunk = json.loads(data)\\n        except json.JSONDecodeError:\\n            continue\\n\\n        delta = chunk.get(\\\"choices\\\", [{}])[0].get(\\\"delta\\\", {})\\n        content = delta.get(\\\"content\\\", \\\"\\\")\\n        tool_calls = delta.get(\\\"tool_calls\\\", [])\\n\\n        if content and first_token_time is None:\\n            first_token_time = ts\\n            print(f\\\"[{ts:6.2f}s] FIRST CONTENT TOKEN: {repr(content[:50])}\\\")\\n\\n        for tc in tool_calls:\\n            idx = tc.get(\\\"index\\\", 0)\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            if idx not in tool_timings:\\n                tool_timings[idx] = {\\\"name\\\": None, \\\"name_time\\\": None, \\\"first_args_time\\\": None}\\n\\n            if name:\\n                tool_timings[idx][\\\"name\\\"] = name\\n                tool_timings[idx][\\\"name_time\\\"] = ts\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] NAME: {name}\\\")\\n\\n            if args and tool_timings[idx][\\\"first_args_time\\\"] is None:\\n                tool_timings[idx][\\\"first_args_time\\\"] = ts\\n                latency = ts - tool_timings[idx][\\\"name_time\\\"] if tool_timings[idx][\\\"name_time\\\"] else 0\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] FIRST ARGS (latency: {latency:.2f}s): {repr(args[:50])}\\\")\\n\\n    print_summary(first_token_time, tool_timings)\\n\\n\\ndef process_anthropic_stream(response):\\n    \\\"\\\"\\\"Process Anthropic SSE stream format\\\"\\\"\\\"\\n    stream_start = datetime.now()\\n    first_token_time = None\\n    tool_timings: dict[int, dict] = {}\\n    current_tool_idx = -1\\n\\n    print(f\\\"\\\\n[{0:6.2f}s] Stream started\\\")\\n\\n    for line in response.iter_lines():\\n        ts = (datetime.now() - stream_start).total_seconds()\\n\\n        if not line:\\n            continue\\n\\n        line = line.decode(\\\"utf-8\\\")\\n        if not line.startswith(\\\"data: \\\"):\\n            continue\\n\\n        data = line[6:]\\n        try:\\n            event = json.loads(data)\\n        except json.JSONDecodeError:\\n            continue\\n\\n        event_type = event.get(\\\"type\\\", \\\"\\\")\\n\\n        if event_type == \\\"content_block_start\\\":\\n            block = event.get(\\\"content_block\\\", {})\\n            if block.get(\\\"type\\\") == \\\"tool_use\\\":\\n                current_tool_idx += 1\\n                name = block.get(\\\"name\\\", \\\"\\\")\\n                tool_timings[current_tool_idx] = {\\\"name\\\": name, \\\"name_time\\\": ts, \\\"first_args_time\\\": None}\\n                print(f\\\"[{ts:6.2f}s] TOOL[{current_tool_idx}] NAME: {name}\\\")\\n            elif block.get(\\\"type\\\") == \\\"text\\\":\\n                text = block.get(\\\"text\\\", \\\"\\\")\\n                if text and first_token_time is None:\\n                    first_token_time = ts\\n                    print(f\\\"[{ts:6.2f}s] FIRST CONTENT TOKEN: {repr(text[:50])}\\\")\\n\\n        elif event_type == \\\"content_block_delta\\\":\\n            delta = event.get(\\\"delta\\\", {})\\n            if delta.get(\\\"type\\\") == \\\"text_delta\\\":\\n                text = delta.get(\\\"text\\\", \\\"\\\")\\n                if text and first_token_time is None:\\n                    first_token_time = ts\\n                    print(f\\\"[{ts:6.2f}s] FIRST CONTENT TOKEN: {repr(text[:50])}\\\")\\n            elif delta.get(\\\"type\\\") == \\\"input_json_delta\\\":\\n                partial_json = delta.get(\\\"partial_json\\\", \\\"\\\")\\n                if partial_json and current_tool_idx in tool_timings:\\n                    if tool_timings[current_tool_idx][\\\"first_args_time\\\"] is None:\\n                        tool_timings[current_tool_idx][\\\"first_args_time\\\"] = ts\\n                        latency = ts - tool_timings[current_tool_idx][\\\"name_time\\\"]\\n                        print(f\\\"[{ts:6.2f}s] TOOL[{current_tool_idx}] FIRST ARGS (latency: {latency:.2f}s): {repr(partial_json[:50])}\\\")\\n\\n        elif event_type == \\\"message_stop\\\":\\n            print(f\\\"[{ts:6.2f}s] [DONE]\\\")\\n            break\\n\\n    print_summary(first_token_time, tool_timings)\\n\\n\\ndef print_summary(first_token_time, tool_timings):\\n    \\\"\\\"\\\"Print timing summary\\\"\\\"\\\"\\n    print(\\\"\\\\n\\\" + \\\"=\\\" * 60)\\n    print(\\\"SUMMARY\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    if first_token_time:\\n        print(f\\\"Time to first content token: {first_token_time:.2f}s\\\")\\n\\n    for idx, timing in sorted(tool_timings.items()):\\n        name = timing[\\\"name\\\"] or f\\\"tool_{idx}\\\"\\n        name_time = timing[\\\"name_time\\\"]\\n        args_time = timing[\\\"first_args_time\\\"]\\n\\n        if name_time and args_time:\\n            latency = args_time - name_time\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, first args at {args_time:.2f}s, LATENCY: {latency:.2f}s\\\")\\n        elif name_time:\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, NO ARGS RECEIVED\\\")\\n\\n\\ndef main():\\n    parser = argparse.ArgumentParser(description=\\\"Test LLM streaming latency for tool calls\\\")\\n    parser.add_argument(\\\"--anthropic\\\", action=\\\"store_true\\\", help=\\\"Use Anthropic API directly instead of OpenRouter\\\")\\n    args = parser.parse_args()\\n\\n    if args.anthropic:\\n        api_key = os.environ.get(\\\"ANTHROPIC_API_KEY\\\")\\n        if not api_key:\\n            print(\\\"ERROR: Set ANTHROPIC_API_KEY environment variable\\\")\\n            return\\n        test_anthropic(api_key)\\n    else:\\n        api_key = os.environ.get(\\\"OPENROUTER_API_KEY\\\")\\n        if not api_key:\\n            print(\\\"ERROR: Set OPENROUTER_API_KEY environment variable\\\")\\n            return\\n        test_openrouter(api_key)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01G5NZgdNeVWt2pudhyKkKtC",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01G5NZgdNeVWt2pudhyKkKtC",
+      "content": "{\"message\": \"Replaced in test_streaming_latency.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see there's leftover code at the bottom from the old version. Let me fix that:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"test_streaming_latency.py\", \"search\": \"        test_openrouter(api_key)\\n\\n    if not response.ok:\\n        print(f\\\"ERROR: {response.status_code} {response.reason}\\\")\\n        print(response.text)\\n        return\\n\\n    stream_start = datetime.now()\\n    first_token_time = None\\n    tool_timings: dict[int, dict] = {}  # tool index -> timing info\\n\\n    print(f\\\"\\\\n[{0:6.2f}s] Stream started\\\")\\n\\n    for line in response.iter_lines():\\n        ts = (datetime.now() - stream_start).total_seconds()\\n\\n        if not line:\\n            continue\\n\\n        line = line.decode(\\\"utf-8\\\")\\n        if not line.startswith(\\\"data: \\\"):\\n            continue\\n\\n        data = line[6:]\\n        if data == \\\"[DONE]\\\":\\n            print(f\\\"[{ts:6.2f}s] [DONE]\\\")\\n            break\\n\\n        try:\\n            chunk = json.loads(data)\\n        except json.JSONDecodeError:\\n            continue\\n\\n        delta = chunk.get(\\\"choices\\\", [{}])[0].get(\\\"delta\\\", {})\\n        content = delta.get(\\\"content\\\", \\\"\\\")\\n        tool_calls = delta.get(\\\"tool_calls\\\", [])\\n\\n        if content and first_token_time is None:\\n            first_token_time = ts\\n            print(f\\\"[{ts:6.2f}s] FIRST CONTENT TOKEN: {repr(content[:50])}\\\")\\n        elif content:\\n            pass  # Don't spam content\\n\\n        for tc in tool_calls:\\n            idx = tc.get(\\\"index\\\", 0)\\n            func = tc.get(\\\"function\\\", {})\\n            name = func.get(\\\"name\\\", \\\"\\\")\\n            args = func.get(\\\"arguments\\\", \\\"\\\")\\n\\n            if idx not in tool_timings:\\n                tool_timings[idx] = {\\\"name\\\": None, \\\"name_time\\\": None, \\\"first_args_time\\\": None}\\n\\n            if name:\\n                tool_timings[idx][\\\"name\\\"] = name\\n                tool_timings[idx][\\\"name_time\\\"] = ts\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] NAME: {name}\\\")\\n\\n            if args and tool_timings[idx][\\\"first_args_time\\\"] is None:\\n                tool_timings[idx][\\\"first_args_time\\\"] = ts\\n                latency = ts - tool_timings[idx][\\\"name_time\\\"] if tool_timings[idx][\\\"name_time\\\"] else 0\\n                print(f\\\"[{ts:6.2f}s] TOOL[{idx}] FIRST ARGS (latency: {latency:.2f}s): {repr(args[:50])}\\\")\\n\\n    # Summary\\n    print(\\\"\\\\n\\\" + \\\"=\\\" * 60)\\n    print(\\\"SUMMARY\\\")\\n    print(\\\"=\\\" * 60)\\n\\n    if first_token_time:\\n        print(f\\\"Time to first content token: {first_token_time:.2f}s\\\")\\n\\n    for idx, timing in sorted(tool_timings.items()):\\n        name = timing[\\\"name\\\"] or f\\\"tool_{idx}\\\"\\n        name_time = timing[\\\"name_time\\\"]\\n        args_time = timing[\\\"first_args_time\\\"]\\n\\n        if name_time and args_time:\\n            latency = args_time - name_time\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, first args at {args_time:.2f}s, LATENCY: {latency:.2f}s\\\")\\n        elif name_time:\\n            print(f\\\"Tool '{name}': name at {name_time:.2f}s, NO ARGS RECEIVED\\\")\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    test_streaming()\", \"replace\": \"        test_openrouter(api_key)\\n\\n\\nif __name__ == \\\"__main__\\\":\\n    main()\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_bdrk_01RMwmrVoYcWfAmVsDzEKYd9",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add streaming latency test script with OpenRouter and Anthropic support\\n\\nUsage:\\n  python test_streaming_latency.py              # OpenRouter\\n  python test_streaming_latency.py --anthropic  # Anthropic direct\\n\\nMeasures time from tool name to first args chunk to diagnose buffering.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_bdrk_01GQHR9uPDtSTkFL4zqd3zhH",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed! Now you can run:\\n\\n```bash\\n# Test OpenRouter\\npython test_streaming_latency.py\\n\\n# Test Anthropic directly\\nANTHROPIC_API_KEY=your_key python test_streaming_latency.py --anthropic\\n```\\n\\nThis will let you compare the latency between OpenRouter and Anthropic to see if the buffering is on OpenRouter's side or Anthropic's side.\"}",
+            "name": "done"
+          },
+          "id": "toolu_bdrk_016orRVj8Vk4NyEmPRJkkeyo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01RMwmrVoYcWfAmVsDzEKYd9",
+      "content": "{\"message\": \"Replaced in test_streaming_latency.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01GQHR9uPDtSTkFL4zqd3zhH",
+      "content": "{\"commit\": \"7b41e4cfbe38\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_016orRVj8Vk4NyEmPRJkkeyo",
+      "content": "{\"done\": true, \"message\": \"Fixed! Now you can run:\\n\\n```bash\\n# Test OpenRouter\\npython test_streaming_latency.py\\n\\n# Test Anthropic directly\\nANTHROPIC_API_KEY=your_key python test_streaming_latency.py --anthropic\\n```\\n\\nThis will let you compare the latency between OpenRouter and Anthropic to see if the buffering is on OpenRouter's side or Anthropic's side.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed! Now you can run:\n\n```bash\n# Test OpenRouter\npython test_streaming_latency.py\n\n# Test Anthropic directly\nANTHROPIC_API_KEY=your_key python test_streaming_latency.py --anthropic\n```\n\nThis will let you compare the latency between OpenRouter and Anthropic to see if the buffering is on OpenRouter's side or Anthropic's side."
     }
   ]
 }

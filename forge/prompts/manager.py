@@ -518,6 +518,29 @@ class PromptManager:
                         compacted_calls.append(tc)
                 if any_compacted:
                     block.metadata["tool_calls"] = compacted_calls
+                    # Mark this tool call block as compacted for assistant message truncation
+                    block.metadata["compacted"] = True
+
+        # Truncate assistant messages that are followed by compacted tool calls
+        # These are the explanatory prose that accompanies tool usage - once the
+        # tool calls are compacted, the explanation is no longer needed in full
+        for i, block in enumerate(self.blocks):
+            if block.deleted or block.block_type != BlockType.ASSISTANT_MESSAGE:
+                continue
+            # Check if the next non-deleted block is a compacted tool call
+            for j in range(i + 1, len(self.blocks)):
+                next_block = self.blocks[j]
+                if next_block.deleted:
+                    continue
+                if (
+                    next_block.block_type == BlockType.TOOL_CALL
+                    and next_block.metadata.get("compacted")
+                    and len(block.content) > 100
+                ):
+                    block.content = block.content[:100] + "..."
+                    print("📦 Truncated assistant message before compacted tool call")
+                # Stop at any non-deleted block (only check immediate next block)
+                break
 
         return compacted, missing_user_ids
 

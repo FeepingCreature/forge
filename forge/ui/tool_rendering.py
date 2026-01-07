@@ -208,6 +208,43 @@ def get_diff_styles() -> str:
             animation: diff-blink 1s step-end infinite;
             color: #1976d2;
         }
+
+        /* Think tool foldout styles */
+        .think-foldout {
+            margin: 6px 0;
+        }
+        .think-foldout summary {
+            cursor: pointer;
+            color: #666;
+            font-size: 12px;
+            user-select: none;
+        }
+        .think-foldout summary:hover {
+            color: #333;
+        }
+        .think-scratchpad-wrapper {
+            display: flex;
+            flex-direction: column-reverse;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 6px;
+        }
+        .think-scratchpad-scroll {
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        .think-scratchpad {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #555;
+        }
     """
 
 
@@ -827,9 +864,37 @@ def render_commit_html(args: dict[str, object], result: dict[str, object] | None
 
 def render_think_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
     """Render think tool call as HTML."""
+    scratchpad = args.get("scratchpad", "")
     conclusion = args.get("conclusion", "")
 
-    escaped_conclusion = html.escape(str(conclusion)) if conclusion else "..."
+    is_streaming = result is None
+    streaming_class = " streaming" if is_streaming else ""
+
+    escaped_scratchpad = html.escape(str(scratchpad)) if scratchpad else ""
+    escaped_conclusion = html.escape(str(conclusion)) if conclusion else ""
+
+    # Scratchpad foldout (closed by default, scrolled to bottom via JS trick)
+    scratchpad_html = ""
+    if escaped_scratchpad:
+        # Use a wrapper div with flex-direction: column-reverse to auto-scroll to bottom
+        word_count = len(str(scratchpad).split())
+        scratchpad_html = f"""
+        <details class="think-foldout">
+            <summary>Scratchpad ({word_count} words)</summary>
+            <div class="think-scratchpad-wrapper">
+                <div class="think-scratchpad-scroll">
+                    <pre class="think-scratchpad">{escaped_scratchpad}</pre>
+                </div>
+            </div>
+        </details>
+        """
+
+    # Conclusion section
+    conclusion_html = ""
+    if escaped_conclusion:
+        conclusion_html = f"<div><strong>Conclusion:</strong> {escaped_conclusion}</div>"
+    elif is_streaming:
+        conclusion_html = "<div><strong>Conclusion:</strong> ...</div>"
 
     status = ""
     if result:
@@ -840,13 +905,14 @@ def render_think_html(args: dict[str, object], result: dict[str, object] | None 
             status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
 
     return f"""
-    <div class="tool-card">
+    <div class="tool-card{streaming_class}">
         <div class="tool-card-header">
             <span class="tool-icon">💭</span>
             <span class="tool-name">think</span>
         </div>
         <div class="tool-card-body">
-            <div><strong>Conclusion:</strong> {escaped_conclusion}</div>
+            {scratchpad_html}
+            {conclusion_html}
             {status}
         </div>
     </div>

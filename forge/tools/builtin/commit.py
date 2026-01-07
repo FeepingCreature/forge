@@ -5,6 +5,7 @@ Commit pending VFS changes mid-turn with a descriptive message.
 from typing import TYPE_CHECKING, Any
 
 from forge.git_backend.commit_types import CommitType
+from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
@@ -69,4 +70,5 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         "success": True,
         "message": f"Committed: {summary}",
         "commit": commit_oid[:12],
+        "side_effects": [SideEffect.MID_TURN_COMMIT],
     }

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
+from forge.tools.side_effects import SideEffect
 from forge.ui.diff_view import (
     get_diff_styles,
     render_completed_tool_html,
@@ -1234,9 +1235,11 @@ class AIChatWidget(QWidget):
             self.session_manager.compact_think_call(tool_call_id)
             # Note: the conclusion is in the tool result, scratchpad is now gone
 
-        # Handle commit tool - emit signal to refresh UI and mark for follow-up logic
-        if tool_name == "commit" and result.get("success"):
-            commit_oid = result.get("commit", "")  # Note: key is "commit", not "commit_oid"
+        # Handle side effects declared by tools
+        side_effects = result.get("side_effects", [])
+        if SideEffect.MID_TURN_COMMIT in side_effects:
+            # Emit signal to refresh UI (commit_oid is tool-specific, get from result)
+            commit_oid = result.get("commit", "")
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
             # Mark that we had a mid-turn commit so end-of-turn session commit

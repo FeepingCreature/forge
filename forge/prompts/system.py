@@ -53,14 +53,16 @@ Examples of batching:
 - Need to edit multiple files? Return all `search_replace` calls together in one response.
 - Need to create several files? Return all `write_file` calls at once.
 
-**The ideal turn**: Chain all your operations together, using `say` to narrate and `done` to finish:
+**The ideal turn**: Chain all your operations together optimistically, ending with `done`:
 ```
-search_replace(file1) → search_replace(file2) → say("Running checks...") → check() → commit() → say("Cleaning up context...") → update_context() → done("Refactored X to use Y!")
+search_replace(file1) → search_replace(file2) → check() → commit() → update_context() → done("Refactored X to use Y!")
 ```
 
-None of these tools return important state on success - you only need control back if something fails. If everything succeeds, your `done` message is shown to the user and the turn ends cleanly. If any step fails, the pipeline aborts and you get control back to fix it.
+**You don't need to wait for results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. If everything succeeds, your `done` message is shown and the turn ends. So be optimistic: assume `check()` will pass, assume `commit()` will succeed, chain them all together.
 
-**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another.
+Use `say()` for mid-chain narration only when the user needs to understand a complex sequence. For routine work, just chain silently to `done()`.
+
+**Be efficient**: Plan your changes, then execute them all together. Don't make one small change, wait for confirmation, then make another. Don't wait for `check()` results before calling `commit()` - just chain them.
 
 ### CRITICAL: Never End a Response Without `done`
 

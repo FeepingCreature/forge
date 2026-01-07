@@ -132,16 +132,14 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        # Capture file contents before running tests
-        import contextlib
+        # Capture text file contents before running tests (using VFS which filters binaries)
+        from forge.vfs.binary import is_binary_file
 
-        all_files = list(tmpdir.rglob("*"))
         before_run: dict[str, str] = {}
-        for file_path in all_files:
-            if file_path.is_file():
-                rel_path = str(file_path.relative_to(tmpdir))
-                with contextlib.suppress(OSError, UnicodeDecodeError):
-                    before_run[rel_path] = file_path.read_text(encoding="utf-8", errors="replace")
+        for rel_path in vfs.list_files():
+            content = vfs.read_file(rel_path)
+            if content is not None:
+                before_run[rel_path] = content
 
         # Discover test command
         cmd, cmd_desc = _discover_test_command(tmpdir)
@@ -209,18 +207,20 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
 
         # Check for file changes and write back to VFS
         changed_files = []
-        all_files_after = list(tmpdir.rglob("*"))
-        for file_path in all_files_after:
-            if file_path.is_file():
-                rel_path = str(file_path.relative_to(tmpdir))
-                with contextlib.suppress(OSError, UnicodeDecodeError):
-                    after_content = file_path.read_text(encoding="utf-8", errors="replace")
-                    before_content = before_run.get(rel_path)
+        for file_path in tmpdir.rglob("*"):
+            if not file_path.is_file():
+                continue
+            rel_path = str(file_path.relative_to(tmpdir))
+            if is_binary_file(rel_path):
+                continue
 
-                    if before_content is None or after_content != before_content:
-                        # File is new or changed - write back to VFS
-                        vfs.write_file(rel_path, after_content)
-                        changed_files.append(rel_path)
+            after_content = file_path.read_text(encoding="utf-8")
+            before_content = before_run.get(rel_path)
+
+            if before_content is None or after_content != before_content:
+                # File is new or changed - write back to VFS
+                vfs.write_file(rel_path, after_content)
+                changed_files.append(rel_path)
 
         if changed_files:
             results["changed_files"] = changed_files

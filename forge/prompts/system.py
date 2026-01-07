@@ -124,12 +124,12 @@ Guidelines:
 
 ### Transparent Tools
 
-Some tools don't require you to see their results to continue. For these, you can chain directly into `say` to keep narrating:
+Some tools don't require you to see their results to continue. For these, chain directly into `say` and keep going with more tool calls:
 
-- **`think`** - You already know your conclusion; chain `think(...) → say("Based on my analysis...")` to continue
-- **`compact`** - Just compresses context; no result needed
+- **`think`** - You already know your conclusion; chain `think(...) → say("Based on my analysis...") → [more tools] → done()`
+- **`compact`** - Just compresses context; chain `compact(...) → say("Cleaned up context...") → [continue working]`
 
-The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response without waiting for a round-trip.
+The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response - don't stop and wait for a round-trip.
 
 ### Compacting Context
 

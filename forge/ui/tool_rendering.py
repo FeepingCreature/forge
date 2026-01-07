@@ -246,21 +246,12 @@ def get_diff_styles() -> str:
             white-space: pre-wrap;
             word-wrap: break-word;
             color: #555;
-        }
-        /* Preview: show by default, hide when expanded */
-        .think-preview {
-            display: block;
-        }
-        .think-full {
-            display: none;
-            max-height: 300px;
             overflow-y: auto;
+            max-height: 5.5em;  /* ~4 lines - collapsed by default */
         }
-        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-preview {
-            display: none;
-        }
-        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-full {
-            display: block;
+        /* Expanded: larger height */
+        .think-toggle-input:checked ~ .think-scratchpad-wrapper .think-scratchpad {
+            max-height: 300px;
         }
     """
 
@@ -280,7 +271,7 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
     try:
         parsed = json.loads(json_str)
         if isinstance(parsed, dict):
-            for key in ("filepath", "search", "replace"):
+            for key in ("filepath", "search", "replace", "scratchpad", "conclusion"):
                 if key in parsed and isinstance(parsed[key], str):
                     result[key] = parsed[key]
         return result
@@ -710,6 +701,10 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
 
     name = func.get("name", "")
     args_str = func.get("arguments", "")
+    
+    # DEBUG: Print streaming chunks for think tool
+    if name == "think":
+        print(f"[STREAM think] args_str length: {len(args_str)}")
 
     if not isinstance(args_str, str):
         return None
@@ -893,27 +888,27 @@ def render_think_html(args: dict[str, object], result: dict[str, object] | None 
     scratchpad_str = str(scratchpad) if scratchpad else ""
     escaped_conclusion = html.escape(str(conclusion)) if conclusion else ""
 
-    # Scratchpad foldout: show last 4 lines as preview, full text when expanded
+    # Scratchpad foldout: single scrollable container with JS scroll-to-bottom
     scratchpad_html = ""
     if scratchpad_str:
-        lines = scratchpad_str.split("\n")
         word_count = len(scratchpad_str.split())
-
-        # Always show last 4 lines as preview
-        preview_lines = lines[-4:] if len(lines) > 4 else lines
-        escaped_preview = html.escape("\n".join(preview_lines))
         escaped_full = html.escape(scratchpad_str)
 
-        # Use checkbox hack for toggle without JS
+        # Single container - CSS toggles max-height, JS handles scroll
         scratchpad_html = f"""
         <div class="think-foldout">
             <input type="checkbox" id="think-toggle" class="think-toggle-input">
             <label for="think-toggle" class="think-toggle-label">Scratchpad ({word_count} words)</label>
             <div class="think-scratchpad-wrapper">
-                <pre class="think-scratchpad think-preview">{escaped_preview}</pre>
-                <pre class="think-scratchpad think-full">{escaped_full}</pre>
+                <div class="think-scratchpad" id="think-scratchpad-content">{escaped_full}</div>
             </div>
         </div>
+        <script>
+            (function() {{
+                var el = document.getElementById('think-scratchpad-content');
+                if (el) el.scrollTop = el.scrollHeight;
+            }})();
+        </script>
         """
 
     # Conclusion section

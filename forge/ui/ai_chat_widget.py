@@ -5,7 +5,6 @@ AI chat widget with markdown/LaTeX rendering
 import json
 from typing import TYPE_CHECKING, Any
 
-import markdown
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
@@ -1779,13 +1778,13 @@ class AIChatWidget(QWidget):
 
     def _finalize_streaming_content(self) -> None:
         """Convert accumulated streaming text to markdown (called once at end)"""
+        from forge.ui.tool_rendering import render_markdown
+
         if not self.streaming_content:
             return
 
-        # Convert markdown to HTML
-        content_html = markdown.markdown(
-            self.streaming_content, extensions=["fenced_code", "codehilite", "tables"]
-        )
+        # Convert markdown to HTML, preserving <edit> blocks as diff views
+        content_html = render_markdown(self.streaming_content)
 
         # Escape for JavaScript string
         escaped_html = content_html.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")

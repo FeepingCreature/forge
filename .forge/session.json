@@ -2,7 +2,6 @@
   "active_files": [
     "tools/check.py",
     "forge/tools/inline_edit.py",
-    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md",
     "forge/git_backend/commit_types.py"
   ],
@@ -609,6 +608,42 @@
       "streaming": true,
       "actual_cost": 0.53046125,
       "generation_id": "gen-1767861274-WGFQSMqM37KSVTCrKAN6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767861286873.json",
+      "response_file": "/tmp/forge_debug/response_1767861286873.json",
+      "timestamp": 1767861286.8734193,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000202,
+      "generation_id": "gen-1767861286-IqKA5w5QmzIkW5TdBdQt"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861368474.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861368474.json",
+      "timestamp": 1767861368.4759574,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06145575,
+      "generation_id": "gen-1767861368-zVgK2DTcxW4QyolWZkAd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861374642.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861374642.json",
+      "timestamp": 1767861374.6439645,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.6197525,
+      "generation_id": "gen-1767861374-n4oZou60b4BOeWmIzaNT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861422090.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861422090.json",
+      "timestamp": 1767861422.091779,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.32176375,
+      "generation_id": "gen-1767861422-jiD2C17vBCmijAezDY5c"
     }
   ],
   "messages": [
@@ -2245,6 +2280,117 @@
       "role": "system",
       "content": "Edits applied:\n\u2713 forge/tools/inline_edit.py",
       "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bd4fdb9a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "System\nEdits applied: \u2713 forge/tools/inline_edit.py\nNice! Let's do some cleanup:\n\n- while streaming, there were extra newlines in the tool rendering.\n- The \"edits applied\" success should show by in the inflow tool widget and not show to the *user* as a system message. (I think we already have ways to suppress system messages, might have to expand that)"
+    },
+    {
+      "role": "assistant",
+      "content": "Good points! Let me fix both issues:\n\n1. **Extra newlines in streaming** - likely in the `render_streaming_edits` function\n2. **Success message should be inline** - not a system message, should show in the rendered edit block itself",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GxkSm6rweDNqWvigqgivbN",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GxkSm6rweDNqWvigqgivbN",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I can see two issues to fix:\n\n1. **Extra newlines in streaming** - The `render_streaming_edits` function uses `html.escape()` which preserves whitespace, but the issue is likely in how we're joining parts or the regex patterns eating/not eating newlines consistently.\n\n2. **Success message showing as system message** - In `_process_inline_edits`, we call `self._add_system_message(\"Edits applied:\\n\" + \"\\n\".join(success_msgs))`. This should instead be shown inline in the rendered edit block itself.\n\nLet me fix both:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # All edits succeeded - keep edit blocks in content for history/display\n        # They render as diff views in the chat\n\n        # Add success feedback as system message\n        success_msgs = [f\"\u2713 {edit.file}\" for edit in edits]\n        self._add_system_message(\"Edits applied:\\n\" + \"\\n\".join(success_msgs))\n\n        # Track modified files for context updates\n        for edit in edits:\n            self.session_manager.file_was_modified(edit.file, None)\n\n        # Return original content unchanged - edit blocks stay for rendering\n        return {\"had_edits\": True, \"failed\": False, \"clean_content\": content}\n</search>\n<replace>\n        # All edits succeeded - keep edit blocks in content for history/display\n        # They render as diff views in the chat (success is shown inline, no system message)\n\n        # Track modified files for context updates\n        for edit in edits:\n            self.session_manager.file_was_modified(edit.file, None)\n\n        # Return original content unchanged - edit blocks stay for rendering\n        return {\"had_edits\": True, \"failed\": False, \"clean_content\": content}\n</replace>\n</edit>\n\nNow let me check the streaming rendering for extra newlines. Looking at `render_streaming_edits`, the issue might be that we're escaping newlines in non-edit text but the edit blocks have their own newline handling:\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\ndef render_streaming_edits(content: str) -> str:\n    \"\"\"\n    Render streaming content with partial <edit> block support.\n\n    Used during streaming to show edit blocks as they're being typed.\n    Text outside edit blocks is escaped (not markdown-rendered) for performance.\n\n    Args:\n        content: Streaming text that may contain partial <edit> blocks\n\n    Returns:\n        HTML with edit blocks rendered as diffs, other text escaped\n    \"\"\"\n    result_parts = []\n    last_end = 0\n\n    # Find and render complete edit blocks\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\n        # Escape text before this edit block\n        text_before = content[last_end : match.start()]\n        if text_before:\n            result_parts.append(html.escape(text_before))\n\n        # Render the edit block as a diff\n        filepath = match.group(1)\n        search = match.group(2)\n        replace = match.group(3)\n\n        diff_html = render_diff_html(\n            filepath=filepath,\n            search=search,\n            replace=replace,\n            is_streaming=False,\n            streaming_phase=\"replace\",\n        )\n        result_parts.append(diff_html)\n        last_end = match.end()\n\n    # Check for partial edit block at the end\n    remaining = content[last_end:]\n    if remaining:\n        partial_html = _render_partial_edit(remaining)\n        if partial_html:\n            # Find where the partial edit starts\n            edit_start = EDIT_START_PATTERN.search(remaining)\n            if edit_start:\n                # Escape text before the partial edit\n                result_parts.append(html.escape(remaining[: edit_start.start()]))\n                result_parts.append(partial_html)\n            else:\n                result_parts.append(html.escape(remaining))\n        else:\n            result_parts.append(html.escape(remaining))\n\n    return \"\".join(result_parts)\n</search>\n<replace>\ndef render_streaming_edits(content: str) -> str:\n    \"\"\"\n    Render streaming content with partial <edit> block support.\n\n    Used during streaming to show edit blocks as they're being typed.\n    Text outside edit blocks is escaped (not markdown-rendered) for performance.\n\n    Args:\n        content: Streaming text that may contain partial <edit> blocks\n\n    Returns:\n        HTML with edit blocks rendered as diffs, other text escaped\n    \"\"\"\n    result_parts = []\n    last_end = 0\n\n    # Find and render complete edit blocks\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\n        # Escape text before this edit block, stripping trailing whitespace\n        # that's just formatting around the edit tag\n        text_before = content[last_end : match.start()].rstrip()\n        if text_before:\n            result_parts.append(html.escape(text_before))\n\n        # Render the edit block as a diff\n        filepath = match.group(1)\n        search = match.group(2)\n        replace = match.group(3)\n\n        diff_html = render_diff_html(\n            filepath=filepath,\n            search=search,\n            replace=replace,\n            is_streaming=False,\n            streaming_phase=\"replace\",\n        )\n        result_parts.append(diff_html)\n        last_end = match.end()\n\n    # Check for partial edit block at the end\n    remaining = content[last_end:]\n    if remaining:\n        partial_html = _render_partial_edit(remaining)\n        if partial_html:\n            # Find where the partial edit starts\n            edit_start = EDIT_START_PATTERN.search(remaining)\n            if edit_start:\n                # Escape text before the partial edit, stripping trailing whitespace\n                text_before = remaining[: edit_start.start()].rstrip()\n                if text_before:\n                    result_parts.append(html.escape(text_before))\n                result_parts.append(partial_html)\n            else:\n                result_parts.append(html.escape(remaining.rstrip()))\n        else:\n            result_parts.append(html.escape(remaining.rstrip()))\n\n    return \"\".join(result_parts)\n</replace>\n</edit>\n\nAlso fix the same issue in `render_markdown`:\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\ndef render_markdown(content: str) -> str:\n    \"\"\"\n    Render markdown content to HTML, handling <edit> blocks as diff views.\n\n    This is the canonical markdown renderer for assistant messages.\n    It handles both regular markdown and inline <edit> blocks.\n\n    Args:\n        content: Markdown text that may contain <edit> blocks\n\n    Returns:\n        HTML string with markdown rendered and edit blocks as diffs\n    \"\"\"\n    import markdown as md\n\n    result_parts = []\n    last_end = 0\n\n    # Find and render complete edit blocks, running markdown on text between them\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\n        # Add markdown-rendered text before this edit block\n        text_before = content[last_end : match.start()]\n        if text_before:\n            result_parts.append(\n                md.markdown(text_before, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n            )\n\n        # Render the edit block as a diff\n        filepath = match.group(1)\n        search = match.group(2)\n        replace = match.group(3)\n\n        diff_html = render_diff_html(\n            filepath=filepath,\n            search=search,\n            replace=replace,\n            is_streaming=False,\n            streaming_phase=\"replace\",\n        )\n        result_parts.append(diff_html)\n        last_end = match.end()\n\n    # Render remaining text after last edit block\n    remaining = content[last_end:]\n    if remaining:\n        result_parts.append(\n            md.markdown(remaining, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n        )\n\n    return \"\".join(result_parts)\n</search>\n<replace>\ndef render_markdown(content: str) -> str:\n    \"\"\"\n    Render markdown content to HTML, handling <edit> blocks as diff views.\n\n    This is the canonical markdown renderer for assistant messages.\n    It handles both regular markdown and inline <edit> blocks.\n\n    Args:\n        content: Markdown text that may contain <edit> blocks\n\n    Returns:\n        HTML string with markdown rendered and edit blocks as diffs\n    \"\"\"\n    import markdown as md\n\n    result_parts = []\n    last_end = 0\n\n    # Find and render complete edit blocks, running markdown on text between them\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\n        # Add markdown-rendered text before this edit block\n        # Strip trailing whitespace that's just formatting around the edit tag\n        text_before = content[last_end : match.start()].rstrip()\n        if text_before:\n            result_parts.append(\n                md.markdown(text_before, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n            )\n\n        # Render the edit block as a diff\n        filepath = match.group(1)\n        search = match.group(2)\n        replace = match.group(3)\n\n        diff_html = render_diff_html(\n            filepath=filepath,\n            search=search,\n            replace=replace,\n            is_streaming=False,\n            streaming_phase=\"replace\",\n        )\n        result_parts.append(diff_html)\n        last_end = match.end()\n\n    # Render remaining text after last edit block\n    # Strip leading whitespace after edit blocks\n    remaining = content[last_end:].lstrip()\n    if remaining:\n        result_parts.append(\n            md.markdown(remaining, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n        )\n\n    return \"\".join(result_parts)\n</replace>\n</edit>\n\nNow let me run checks and commit:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_014HdqD1QHRLTi4FU2t39sVe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "Edits applied:\n\u2713 forge/ui/ai_chat_widget.py\n\u2713 forge/ui/tool_rendering.py\n\u2713 forge/ui/tool_rendering.py",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014HdqD1QHRLTi4FU2t39sVe",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix inline edit UX: remove system message, strip extra newlines\\n\\n- Remove \\\"Edits applied\\\" system message - success shows inline in diff view\\n- Strip trailing/leading whitespace around edit blocks in render_markdown\\n- Strip trailing whitespace in render_streaming_edits to avoid extra newlines\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_014rirfqvqC76Y3vtny9781f",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/tool_rendering.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01E6z88AvhW7ERZDhyujXh8q",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed both issues:\\n\\n1. **No more \\\"Edits applied\\\" system message** - Removed the `_add_system_message()` call on edit success. The diff view itself shows the edit was applied.\\n\\n2. **Extra newlines fixed** - Added `.rstrip()` and `.lstrip()` calls when processing text around edit blocks in both `render_markdown()` and `render_streaming_edits()` to strip the formatting whitespace that surrounds `<edit>` tags.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01BJ9Ndx3JotcmyRQALc3gif",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014rirfqvqC76Y3vtny9781f",
+      "content": "{\"commit\": \"f8bbab6da9a6\", \"message\": \"Committed: 2 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01E6z88AvhW7ERZDhyujXh8q",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 2 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/tool_rendering.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BJ9Ndx3JotcmyRQALc3gif",
+      "content": "{\"done\": true, \"message\": \"Fixed both issues:\\n\\n1. **No more \\\"Edits applied\\\" system message** - Removed the `_add_system_message()` call on edit success. The diff view itself shows the edit was applied.\\n\\n2. **Extra newlines fixed** - Added `.rstrip()` and `.lstrip()` calls when processing text around edit blocks in both `render_markdown()` and `render_streaming_edits()` to strip the formatting whitespace that surrounds `<edit>` tags.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed both issues:\n\n1. **No more \"Edits applied\" system message** - Removed the `_add_system_message()` call on edit success. The diff view itself shows the edit was applied.\n\n2. **Extra newlines fixed** - Added `.rstrip()` and `.lstrip()` calls when processing text around edit blocks in both `render_markdown()` and `render_streaming_edits()` to strip the formatting whitespace that surrounds `<edit>` tags."
     }
   ]
 }

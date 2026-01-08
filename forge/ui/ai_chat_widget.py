@@ -1196,11 +1196,7 @@ class AIChatWidget(QWidget):
             return {"had_edits": True, "failed": True, "error": error_msg}
 
         # All edits succeeded - keep edit blocks in content for history/display
-        # They render as diff views in the chat
-
-        # Add success feedback as system message
-        success_msgs = [f"✓ {edit.file}" for edit in edits]
-        self._add_system_message("Edits applied:\n" + "\n".join(success_msgs))
+        # They render as diff views in the chat (success is shown inline, no system message)
 
         # Track modified files for context updates
         for edit in edits:

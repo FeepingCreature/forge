@@ -1037,7 +1037,8 @@ def render_markdown(content: str) -> str:
     # Find and render complete edit blocks, running markdown on text between them
     for match in EDIT_BLOCK_PATTERN.finditer(content):
         # Add markdown-rendered text before this edit block
-        text_before = content[last_end : match.start()]
+        # Strip trailing whitespace that's just formatting around the edit tag
+        text_before = content[last_end : match.start()].rstrip()
         if text_before:
             result_parts.append(
                 md.markdown(text_before, extensions=["fenced_code", "codehilite", "tables"])
@@ -1059,7 +1060,8 @@ def render_markdown(content: str) -> str:
         last_end = match.end()
 
     # Render remaining text after last edit block
-    remaining = content[last_end:]
+    # Strip leading whitespace after edit blocks
+    remaining = content[last_end:].lstrip()
     if remaining:
         result_parts.append(
             md.markdown(remaining, extensions=["fenced_code", "codehilite", "tables"])
@@ -1086,8 +1088,9 @@ def render_streaming_edits(content: str) -> str:
 
     # Find and render complete edit blocks
     for match in EDIT_BLOCK_PATTERN.finditer(content):
-        # Escape text before this edit block
-        text_before = content[last_end : match.start()]
+        # Escape text before this edit block, stripping trailing whitespace
+        # that's just formatting around the edit tag
+        text_before = content[last_end : match.start()].rstrip()
         if text_before:
             result_parts.append(html.escape(text_before))
 
@@ -1114,13 +1117,15 @@ def render_streaming_edits(content: str) -> str:
             # Find where the partial edit starts
             edit_start = EDIT_START_PATTERN.search(remaining)
             if edit_start:
-                # Escape text before the partial edit
-                result_parts.append(html.escape(remaining[: edit_start.start()]))
+                # Escape text before the partial edit, stripping trailing whitespace
+                text_before = remaining[: edit_start.start()].rstrip()
+                if text_before:
+                    result_parts.append(html.escape(text_before))
                 result_parts.append(partial_html)
             else:
-                result_parts.append(html.escape(remaining))
+                result_parts.append(html.escape(remaining.rstrip()))
         else:
-            result_parts.append(html.escape(remaining))
+            result_parts.append(html.escape(remaining.rstrip()))
 
     return "".join(result_parts)
 

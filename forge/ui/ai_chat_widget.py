@@ -1202,8 +1202,16 @@ class AIChatWidget(QWidget):
             error_content = "\n".join(system_parts)
 
             # Add truncated content to prompt manager (what the AI actually "said")
+            # Always add something - if empty, include the failed edit so AI sees what it tried
             if truncated_content:
                 self.session_manager.append_assistant_message(truncated_content)
+            else:
+                # Include the failed edit block so AI knows what it attempted
+                failed_edit_text = content[failed_edit.start_pos : failed_edit.end_pos]
+                self.session_manager.append_assistant_message(failed_edit_text)
+                # Also update self.messages to match
+                if self.messages and self.messages[-1]["role"] == "assistant":
+                    self.messages[-1]["content"] = failed_edit_text
 
             # Add error as user message so AI sees it
             self._add_system_message(error_content)

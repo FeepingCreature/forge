@@ -8,6 +8,7 @@ from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -148,6 +149,23 @@ class SettingsDialog(QDialog):
         self.base_url_input = QLineEdit()
         self.base_url_input.setPlaceholderText("https://openrouter.ai/api/v1")
         layout.addRow("Base URL:", self.base_url_input)
+
+        # Edit format selector
+        self.edit_format_input = QComboBox()
+        self.edit_format_input.addItem("XML (inline edits)", "xml")
+        self.edit_format_input.addItem("Tool calls", "tool")
+        self.edit_format_input.addItem("Both", "both")
+        layout.addRow("Edit Format:", self.edit_format_input)
+
+        # Info for edit format
+        edit_format_info = QLabel(
+            "XML: Edits appear inline in AI responses (fewer API round-trips).\n"
+            "Tool: Edits use search_replace tool calls.\n"
+            "Both: AI can use either method."
+        )
+        edit_format_info.setWordWrap(True)
+        edit_format_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", edit_format_info)
 
         # Info label
         info = QLabel(
@@ -527,6 +545,12 @@ class SettingsDialog(QDialog):
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
 
+        # Edit format
+        edit_format = self.settings.get("llm.edit_format", "xml")
+        index = self.edit_format_input.findData(edit_format)
+        if index >= 0:
+            self.edit_format_input.setCurrentIndex(index)
+
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
         self.tab_width_input.setValue(self.settings.get("editor.tab_width", 4))
@@ -548,6 +572,7 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.api_key", self.api_key_input.text())
         self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
+        self.settings.set("llm.edit_format", self.edit_format_input.currentData())
 
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())

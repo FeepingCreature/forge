@@ -301,10 +301,23 @@ class PromptManager:
 
         This is called after tool execution completes, before the next API request.
 
+        IMPORTANT: We filter ALL TOOL_CALL blocks since the last user message,
+        not just the most recent one. This handles the case where an inline edit
+        fails and the AI retries - the old TOOL_CALL block with orphaned tool calls
+        would otherwise cause "unexpected tool_use_id" errors.
+
         Args:
             executed_tool_ids: Set of tool_call IDs that were actually executed
         """
-        for block in reversed(self.blocks):
+        # Find the last user message index to limit our search
+        last_user_idx = -1
+        for i, block in enumerate(self.blocks):
+            if block.block_type == BlockType.USER_MESSAGE and not block.deleted:
+                last_user_idx = i
+
+        # Filter all TOOL_CALL blocks since the last user message
+        for i in range(last_user_idx + 1, len(self.blocks)):
+            block = self.blocks[i]
             if block.deleted or block.block_type != BlockType.TOOL_CALL:
                 continue
 
@@ -315,12 +328,15 @@ class PromptManager:
             filtered = [tc for tc in tool_calls if tc.get("id") in executed_tool_ids]
 
             if len(filtered) < original_count:
-                block.metadata["tool_calls"] = filtered
                 dropped = original_count - len(filtered)
                 print(f"📦 PromptManager: Filtered out {dropped} unattempted tool call(s)")
 
-            # Only filter the most recent TOOL_CALL block (the one that just executed)
-            break
+                if len(filtered) == 0:
+                    # No tool calls left - delete the entire block
+                    block.deleted = True
+                    print("📦 PromptManager: Deleted empty TOOL_CALL block")
+                else:
+                    block.metadata["tool_calls"] = filtered
 
     def append_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add a tool result to the stream"""

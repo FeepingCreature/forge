@@ -308,7 +308,7 @@ class PromptManager:
             executed_tool_ids: Set of tool_call IDs that were actually executed
         """
         print(f"📦 filter_tool_calls called with executed_tool_ids: {executed_tool_ids}")
-        
+
         # Find the last user message index to limit our search
         last_user_idx = -1
         for i, block in enumerate(self.blocks):
@@ -328,16 +328,26 @@ class PromptManager:
             tool_ids_in_block = [tc.get("id") for tc in tool_calls]
             tool_names_in_block = [tc.get("function", {}).get("name") for tc in tool_calls]
 
-            print(f"📦 Block {i}: {original_count} tool calls: {list(zip(tool_names_in_block, tool_ids_in_block))}")
+            print(
+                f"📦 Block {i}: {original_count} tool calls: {list(zip(tool_names_in_block, tool_ids_in_block, strict=False))}"
+            )
 
             # Filter to only executed tool calls
             filtered = [tc for tc in tool_calls if tc.get("id") in executed_tool_ids]
 
             if len(filtered) < original_count:
                 dropped = original_count - len(filtered)
-                dropped_ids = [tc.get("id") for tc in tool_calls if tc.get("id") not in executed_tool_ids]
-                dropped_names = [tc.get("function", {}).get("name") for tc in tool_calls if tc.get("id") not in executed_tool_ids]
-                print(f"📦 PromptManager: Filtered out {dropped} unattempted tool call(s): {list(zip(dropped_names, dropped_ids))}")
+                dropped_ids = [
+                    tc.get("id") for tc in tool_calls if tc.get("id") not in executed_tool_ids
+                ]
+                dropped_names = [
+                    tc.get("function", {}).get("name")
+                    for tc in tool_calls
+                    if tc.get("id") not in executed_tool_ids
+                ]
+                print(
+                    f"📦 PromptManager: Filtered out {dropped} unattempted tool call(s): {list(zip(dropped_names, dropped_ids, strict=False))}"
+                )
 
                 if len(filtered) == 0:
                     # No tool calls left - delete the entire block

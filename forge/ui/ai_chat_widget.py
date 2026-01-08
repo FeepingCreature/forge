@@ -357,6 +357,9 @@ class AIChatWidget(QWidget):
         self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls
         self._cancel_requested = False  # Track if user requested cancellation
 
+        # Track ALL executed tool IDs across the entire turn (reset on new user message)
+        self._turn_executed_tool_ids: set[str] = set()
+
         # Tool execution worker
         self.tool_thread: QThread | None = None
         self.tool_worker: ToolExecutionWorker | None = None
@@ -839,6 +842,9 @@ class AIChatWidget(QWidget):
 
         # Emit signal that AI turn is starting
         self.ai_turn_started.emit()
+
+        # Reset turn-level tracking for new turn
+        self._turn_executed_tool_ids = set()
 
         # Send to LLM
         self._process_llm_request()
@@ -1435,11 +1441,21 @@ class AIChatWidget(QWidget):
             self.tool_thread = None
             self.tool_worker = None
 
+        # Track executed tool IDs from THIS batch
+        batch_executed_ids = {r["tool_call"]["id"] for r in results}
+
+        # Add to turn-level tracking (accumulates across all tool batches in the turn)
+        self._turn_executed_tool_ids.update(batch_executed_ids)
+
         # Filter out unattempted tool calls from the assistant message.
         # If we broke out of the loop early (tool failure), the assistant message
         # still has ALL tool_calls but we only have results for the executed ones.
         # The API requires every tool_call to have a corresponding tool result.
-        executed_tool_ids = {r["tool_call"]["id"] for r in results}
+        #
+        # IMPORTANT: Use turn-level tracking, not just this batch!
+        # A turn may have multiple tool batches (AI responds, tools run, AI responds again, etc.)
+        # We must preserve tool calls from earlier batches that were already executed.
+        executed_tool_ids = self._turn_executed_tool_ids
 
         # Find the assistant message with tool_calls (search backwards)
         for msg in reversed(self.messages):

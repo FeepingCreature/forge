@@ -726,6 +726,33 @@
       "streaming": true,
       "actual_cost": 0.58877125,
       "generation_id": "gen-1767862862-1SI0mn8UMoKtvYfMLlNz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767862874009.json",
+      "response_file": "/tmp/forge_debug/response_1767862874009.json",
+      "timestamp": 1767862874.0100539,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000159,
+      "generation_id": "gen-1767862874-776Nse2d1xsfCIBuGuDT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862919814.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862919814.json",
+      "timestamp": 1767862919.8155615,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.58869875,
+      "generation_id": "gen-1767862920-tXwzUzR9Gnf60gDJfND9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862930315.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862930315.json",
+      "timestamp": 1767862930.317135,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0607535,
+      "generation_id": "gen-1767862930-oxEhuEUS6wvPeuyKDgHg"
     }
   ],
   "messages": [
@@ -2640,6 +2667,28 @@
     {
       "role": "assistant",
       "content": "Ha, you're right - sorry for the confusing wording! Let me try a change and fix that mental model:\n\n<edit file=\"forge/tools/inline_edit.py\">\n<search>\n\"\"\"\nInline edit parsing and execution for flow-text edits.\n\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the assistant narrates after edits).\n\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the AI narrates after edits).\n</search>\n<replace>\n\"\"\"\nInline edit parsing and execution for flow-text edits.\n\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the AI narrates after edits).\n</replace>\n</edit>\n\nThat removes the duplicate paragraph that my earlier edit accidentally created. And yes - the flow is:\n\n1. **User doesn't see the system message** - no yellow banner cluttering your UI\n2. **I (the AI) see it** - the success feedback gets added to the prompt, so I know edits worked\n\nThe phrasing in my summary was backwards. Thanks for the correction!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d0655e25",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Great, I don't see a success message, looks good! Let's test a flow where you make an incorrect change, say something, a correct change somewhere else, say something again. It should be truncated to the incorrect change."
+    },
+    {
+      "role": "assistant",
+      "content": "Alright, let me test the truncation on failure. I'll deliberately make an incorrect edit first, then narrate, then make a correct edit:"
+    },
+    {
+      "role": "system",
+      "content": "\n\u274c Edit failed for `forge/tools/inline_edit.py`:\n\nSearch text not found in forge/tools/inline_edit.py.\n\n**NO CLOSE MATCH - the text may have been modified or doesn't exist.\nYou may need to reload the file to see current content.**\n\nFound 18.4% similar text at line 55 (edit distance: 31):\n\n```\n    \"\"\"\n    edits = []\n    f\n```\n\nDiff (--- your search vs +++ actual file):\n```diff\n--- SEARCH (expected)+++ FOUND (actual)@@ -1 +1,3 @@-THIS TEXT DOES NOT EXIST AND WILL FAIL+    \"\"\"\n+    edits = []\n+    f\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The truncation worked! I can see that:\n\n1. My message was truncated right at the failed edit - the \"say something, correct edit, say something again\" parts I was about to write never made it through\n2. I got a clear error message showing the failure\n3. The conversation continued so I could react\n\nThis is exactly the behavior we wanted - it mirrors how tool chain failures work. The failed edit stops execution, truncates my response, and gives me a chance to fix it.\n\nLet me now make a correct edit to verify the success path still works:\n\n<edit file=\"forge/tools/inline_edit.py\">\n<search>\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the AI narrates after edits).\n</search>\n<replace>\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the AI narrates after edits).\n\nSyntax:\n    <edit file=\"path/to/file.py\">\n    <search>\n    exact text to find\n    </search>\n    <replace>\n    replacement text\n    </replace>\n    </edit>\n</replace>\n</edit>\n\nAnd I can narrate here freely - this text appears after the successful edit, no round-trip cost!"
     }
   ]
 }

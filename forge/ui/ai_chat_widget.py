@@ -1670,7 +1670,7 @@ class AIChatWidget(QWidget):
 
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
-        from forge.ui.tool_rendering import render_inline_edits
+        from forge.ui.tool_rendering import render_streaming_edits
 
         # Accumulate the chunk
         # (streaming_content is already updated in _on_stream_chunk before this is called)
@@ -1678,7 +1678,7 @@ class AIChatWidget(QWidget):
         # Check if we have any <edit> blocks in the accumulated content
         if "<edit" in self.streaming_content:
             # Render inline edits as diff views
-            rendered_html = render_inline_edits(self.streaming_content, is_streaming=True)
+            rendered_html = render_streaming_edits(self.streaming_content)
 
             # Escape for JavaScript string
             escaped_html = (
@@ -2253,9 +2253,9 @@ class AIChatWidget(QWidget):
                     tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
 
                 # Render content with markdown, handling any <edit> blocks as diffs
-                from forge.ui.tool_rendering import render_inline_edits
+                from forge.ui.tool_rendering import render_markdown
 
-                content = render_inline_edits(content_md, is_streaming=False, render_markdown=True)
+                content = render_markdown(content_md)
 
                 html_parts.append(f"""
                 <div class="message {role}" {msg_id}>

@@ -1016,43 +1016,34 @@ REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
 REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 
-def render_inline_edits(
-    content: str, is_streaming: bool = True, render_markdown: bool = False
-) -> str:
+def render_markdown(content: str) -> str:
     """
-    Render <edit> blocks in content as diff views.
+    Render markdown content to HTML, handling <edit> blocks as diff views.
 
-    Replaces <edit>...</edit> blocks with rendered HTML diff views.
-    Handles partial/incomplete blocks during streaming.
+    This is the canonical markdown renderer for assistant messages.
+    It handles both regular markdown and inline <edit> blocks.
 
     Args:
-        content: Text content that may contain <edit> blocks
-        is_streaming: Whether content is still being streamed
-        render_markdown: If True, run markdown on non-edit text segments
+        content: Markdown text that may contain <edit> blocks
 
     Returns:
-        Content with <edit> blocks replaced by HTML diff views
+        HTML string with markdown rendered and edit blocks as diffs
     """
     import markdown as md
 
     result_parts = []
     last_end = 0
 
-    def process_text(text: str) -> str:
-        """Process a text segment - either markdown or escape."""
-        if not text:
-            return ""
-        if render_markdown:
-            return md.markdown(text, extensions=["fenced_code", "codehilite", "tables"])
-        else:
-            return html.escape(text)
-
-    # First, find and render complete edit blocks
+    # Find and render complete edit blocks, running markdown on text between them
     for match in EDIT_BLOCK_PATTERN.finditer(content):
-        # Add text before this edit block
-        result_parts.append(process_text(content[last_end : match.start()]))
+        # Add markdown-rendered text before this edit block
+        text_before = content[last_end : match.start()]
+        if text_before:
+            result_parts.append(
+                md.markdown(text_before, extensions=["fenced_code", "codehilite", "tables"])
+            )
 
-        # Render the complete edit block as a diff
+        # Render the edit block as a diff
         filepath = match.group(1)
         search = match.group(2)
         replace = match.group(3)
@@ -1061,30 +1052,75 @@ def render_inline_edits(
             filepath=filepath,
             search=search,
             replace=replace,
-            is_streaming=False,  # Complete block
+            is_streaming=False,
             streaming_phase="replace",
         )
         result_parts.append(diff_html)
         last_end = match.end()
 
-    # Check for partial edit block at the end (streaming case)
+    # Render remaining text after last edit block
     remaining = content[last_end:]
+    if remaining:
+        result_parts.append(
+            md.markdown(remaining, extensions=["fenced_code", "codehilite", "tables"])
+        )
 
-    if is_streaming and remaining:
+    return "".join(result_parts)
+
+
+def render_streaming_edits(content: str) -> str:
+    """
+    Render streaming content with partial <edit> block support.
+
+    Used during streaming to show edit blocks as they're being typed.
+    Text outside edit blocks is escaped (not markdown-rendered) for performance.
+
+    Args:
+        content: Streaming text that may contain partial <edit> blocks
+
+    Returns:
+        HTML with edit blocks rendered as diffs, other text escaped
+    """
+    result_parts = []
+    last_end = 0
+
+    # Find and render complete edit blocks
+    for match in EDIT_BLOCK_PATTERN.finditer(content):
+        # Escape text before this edit block
+        text_before = content[last_end : match.start()]
+        if text_before:
+            result_parts.append(html.escape(text_before))
+
+        # Render the edit block as a diff
+        filepath = match.group(1)
+        search = match.group(2)
+        replace = match.group(3)
+
+        diff_html = render_diff_html(
+            filepath=filepath,
+            search=search,
+            replace=replace,
+            is_streaming=False,
+            streaming_phase="replace",
+        )
+        result_parts.append(diff_html)
+        last_end = match.end()
+
+    # Check for partial edit block at the end
+    remaining = content[last_end:]
+    if remaining:
         partial_html = _render_partial_edit(remaining)
         if partial_html:
             # Find where the partial edit starts
             edit_start = EDIT_START_PATTERN.search(remaining)
             if edit_start:
-                # Add text before the partial edit
-                result_parts.append(process_text(remaining[: edit_start.start()]))
+                # Escape text before the partial edit
+                result_parts.append(html.escape(remaining[: edit_start.start()]))
                 result_parts.append(partial_html)
             else:
-                result_parts.append(process_text(remaining))
+                result_parts.append(html.escape(remaining))
         else:
-            result_parts.append(process_text(remaining))
-    else:
-        result_parts.append(process_text(remaining))
+            result_parts.append(html.escape(remaining))
 
     return "".join(result_parts)
 

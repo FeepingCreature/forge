@@ -1668,43 +1668,78 @@ class AIChatWidget(QWidget):
         self.chat_view.page().runJavaScript(js_code)
 
     def _append_streaming_chunk(self, chunk: str) -> None:
-        """Append a raw text chunk to the streaming message (no markdown re-render)"""
-        # Escape the chunk for JavaScript string
-        escaped_chunk = (
-            chunk.replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-        )
+        """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
+        from forge.ui.tool_rendering import render_inline_edits
 
-        # Append raw text to streaming element - browser handles display
-        # Only auto-scroll if user was already at bottom (within 50px threshold)
-        js_code = f"""
-        (function() {{
-            var streamingMsg = document.getElementById('streaming-message');
-            if (streamingMsg) {{
-                // Check if user is at bottom before modifying content
-                var scrollThreshold = 50;
-                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+        # Accumulate the chunk
+        # (streaming_content is already updated in _on_stream_chunk before this is called)
 
-                var content = streamingMsg.querySelector('.content');
-                if (content) {{
-                    // Append to raw text accumulator
-                    if (!content.dataset.rawText) content.dataset.rawText = '';
-                    content.dataset.rawText += `{escaped_chunk}`;
-                    // Display as preformatted text during streaming
-                    content.innerText = content.dataset.rawText;
+        # Check if we have any <edit> blocks in the accumulated content
+        if "<edit" in self.streaming_content:
+            # Render inline edits as diff views
+            rendered_html = render_inline_edits(self.streaming_content, is_streaming=True)
+
+            # Escape for JavaScript string
+            escaped_html = (
+                rendered_html.replace("\\", "\\\\")
+                .replace("`", "\\`")
+                .replace("$", "\\$")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+            )
+
+            # Update the entire content with rendered edits
+            js_code = f"""
+            (function() {{
+                var streamingMsg = document.getElementById('streaming-message');
+                if (streamingMsg) {{
+                    var scrollThreshold = 50;
+                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                    var content = streamingMsg.querySelector('.content');
+                    if (content) {{
+                        content.innerHTML = `{escaped_html}`;
+                        content.style.whiteSpace = 'pre-wrap';
+                    }}
+
+                    if (wasAtBottom) {{
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }}
                 }}
+            }})();
+            """
+            self.chat_view.page().runJavaScript(js_code)
+        else:
+            # No edit blocks - use simple text append for performance
+            escaped_chunk = (
+                chunk.replace("\\", "\\\\")
+                .replace("`", "\\`")
+                .replace("$", "\\$")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+            )
 
-                // Only scroll if user was already at bottom
-                if (wasAtBottom) {{
-                    window.scrollTo(0, document.body.scrollHeight);
+            js_code = f"""
+            (function() {{
+                var streamingMsg = document.getElementById('streaming-message');
+                if (streamingMsg) {{
+                    var scrollThreshold = 50;
+                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                    var content = streamingMsg.querySelector('.content');
+                    if (content) {{
+                        if (!content.dataset.rawText) content.dataset.rawText = '';
+                        content.dataset.rawText += `{escaped_chunk}`;
+                        content.innerText = content.dataset.rawText;
+                    }}
+
+                    if (wasAtBottom) {{
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }}
                 }}
-            }}
-        }})();
-        """
-        self.chat_view.page().runJavaScript(js_code)
+            }})();
+            """
+            self.chat_view.page().runJavaScript(js_code)
 
     def _finalize_streaming_content(self) -> None:
         """Convert accumulated streaming text to markdown (called once at end)"""

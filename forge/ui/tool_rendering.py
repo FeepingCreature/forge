@@ -15,6 +15,7 @@ Local/user tools use default JSON rendering.
 import difflib
 import html
 import json
+import re
 
 
 def get_diff_styles() -> str:
@@ -992,3 +993,169 @@ def render_run_tests_html(args: dict[str, object], result: dict[str, object] | N
         </div>
     </div>
     """
+
+
+# =============================================================================
+# Inline <edit> block rendering for flow-text edits
+# =============================================================================
+
+# Regex patterns for parsing edit blocks in streaming content
+EDIT_BLOCK_PATTERN = re.compile(
+    r'<edit\s+file="([^"]+)">\s*'
+    r"<search>\n?(.*?)\n?</search>\s*"
+    r"<replace>\n?(.*?)\n?</replace>\s*"
+    r"</edit>",
+    re.DOTALL,
+)
+
+# Partial patterns for streaming detection
+EDIT_START_PATTERN = re.compile(r'<edit\s+file="([^"]*)"?', re.DOTALL)
+SEARCH_START_PATTERN = re.compile(r"<search>\n?", re.DOTALL)
+SEARCH_END_PATTERN = re.compile(r"\n?</search>", re.DOTALL)
+REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
+REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
+
+
+def render_inline_edits(content: str, is_streaming: bool = True) -> str:
+    """
+    Render <edit> blocks in content as diff views.
+
+    Replaces <edit>...</edit> blocks with rendered HTML diff views.
+    Handles partial/incomplete blocks during streaming.
+
+    Args:
+        content: Text content that may contain <edit> blocks
+        is_streaming: Whether content is still being streamed
+
+    Returns:
+        Content with <edit> blocks replaced by HTML diff views
+    """
+    result_parts = []
+    last_end = 0
+
+    # First, find and render complete edit blocks
+    for match in EDIT_BLOCK_PATTERN.finditer(content):
+        # Add text before this edit block
+        result_parts.append(html.escape(content[last_end : match.start()]))
+
+        # Render the complete edit block as a diff
+        filepath = match.group(1)
+        search = match.group(2)
+        replace = match.group(3)
+
+        diff_html = render_diff_html(
+            filepath=filepath,
+            search=search,
+            replace=replace,
+            is_streaming=False,  # Complete block
+            streaming_phase="replace",
+        )
+        result_parts.append(diff_html)
+        last_end = match.end()
+
+    # Check for partial edit block at the end (streaming case)
+    remaining = content[last_end:]
+
+    if is_streaming and remaining:
+        partial_html = _render_partial_edit(remaining)
+        if partial_html:
+            # Find where the partial edit starts
+            edit_start = EDIT_START_PATTERN.search(remaining)
+            if edit_start:
+                # Add text before the partial edit
+                result_parts.append(html.escape(remaining[: edit_start.start()]))
+                result_parts.append(partial_html)
+            else:
+                result_parts.append(html.escape(remaining))
+        else:
+            result_parts.append(html.escape(remaining))
+    else:
+        result_parts.append(html.escape(remaining))
+
+    return "".join(result_parts)
+
+
+def _render_partial_edit(content: str) -> str | None:
+    """
+    Try to render a partial/incomplete <edit> block during streaming.
+
+    Returns HTML if a partial edit is detected, None otherwise.
+    """
+    # Check if we have the start of an edit block
+    edit_match = EDIT_START_PATTERN.search(content)
+    if not edit_match:
+        return None
+
+    # Extract filepath (may be incomplete)
+    filepath = edit_match.group(1) if edit_match.group(1) else ""
+
+    # Find the content after <edit file="...">
+    after_edit = content[edit_match.end() :]
+
+    # Look for <search> tag
+    search_start = SEARCH_START_PATTERN.search(after_edit)
+    if not search_start:
+        # Haven't seen <search> yet
+        return render_diff_html(
+            filepath=filepath,
+            search="",
+            replace="",
+            is_streaming=True,
+            streaming_phase="search",
+        )
+
+    after_search_tag = after_edit[search_start.end() :]
+
+    # Look for </search>
+    search_end = SEARCH_END_PATTERN.search(after_search_tag)
+    if not search_end:
+        # Still streaming search content
+        search_content = after_search_tag
+        return render_diff_html(
+            filepath=filepath,
+            search=search_content,
+            replace="",
+            is_streaming=True,
+            streaming_phase="search",
+        )
+
+    # We have complete search, extract it
+    search_content = after_search_tag[: search_end.start()]
+    after_search = after_search_tag[search_end.end() :]
+
+    # Look for <replace>
+    replace_start = REPLACE_START_PATTERN.search(after_search)
+    if not replace_start:
+        # Between </search> and <replace>
+        return render_diff_html(
+            filepath=filepath,
+            search=search_content,
+            replace="",
+            is_streaming=True,
+            streaming_phase="replace",
+        )
+
+    after_replace_tag = after_search[replace_start.end() :]
+
+    # Look for </replace>
+    replace_end = REPLACE_END_PATTERN.search(after_replace_tag)
+    if not replace_end:
+        # Still streaming replace content
+        replace_content = after_replace_tag
+        return render_diff_html(
+            filepath=filepath,
+            search=search_content,
+            replace=replace_content,
+            is_streaming=True,
+            streaming_phase="replace",
+        )
+
+    # Complete replace but no </edit> yet - still render as streaming
+    replace_content = after_replace_tag[: replace_end.start()]
+    return render_diff_html(
+        filepath=filepath,
+        search=search_content,
+        replace=replace_content,
+        is_streaming=True,
+        streaming_phase="replace",
+    )

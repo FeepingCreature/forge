@@ -1135,7 +1135,7 @@ class AIChatWidget(QWidget):
                 "error": str,       # Error message if failed
             }
         """
-        from forge.tools.inline_edit import execute_edits, parse_edits, strip_edits
+        from forge.tools.inline_edit import execute_edits, parse_edits
 
         edits = parse_edits(content)
         if not edits:
@@ -1195,8 +1195,8 @@ class AIChatWidget(QWidget):
 
             return {"had_edits": True, "failed": True, "error": error_msg}
 
-        # All edits succeeded
-        clean_content = strip_edits(content)
+        # All edits succeeded - keep edit blocks in content for history/display
+        # They render as diff views in the chat
 
         # Add success feedback as system message
         success_msgs = [f"✓ {edit.file}" for edit in edits]
@@ -1206,7 +1206,8 @@ class AIChatWidget(QWidget):
         for edit in edits:
             self.session_manager.file_was_modified(edit.file, None)
 
-        return {"had_edits": True, "failed": False, "clean_content": clean_content}
+        # Return original content unchanged - edit blocks stay for rendering
+        return {"had_edits": True, "failed": False, "clean_content": content}
 
     def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error by feeding it back into the conversation"""

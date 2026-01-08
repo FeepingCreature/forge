@@ -56,6 +56,7 @@ class SummaryWorker(QObject):
             count = len(self.session_manager.repo_summaries)
             self.finished.emit(count)
         except Exception as e:
+            print(f"❌ SummaryWorker error: {e}")
             self.error.emit(str(e))
 
 
@@ -133,6 +134,7 @@ class StreamWorker(QObject):
             self.finished.emit(result)
 
         except Exception as e:
+            print(f"❌ StreamWorker error (LLM): {e}")
             self.error.emit(str(e))
 
 
@@ -231,6 +233,7 @@ class ToolExecutionWorker(QObject):
             self.all_finished.emit(self.results)
 
         except Exception as e:
+            print(f"❌ ToolExecutionWorker error: {e}")
             self.error.emit(str(e))
         finally:
             # Always release VFS ownership

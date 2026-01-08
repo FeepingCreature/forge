@@ -1,11 +1,11 @@
 {
   "active_files": [
-    "forge/prompts/manager.py",
+    "CLAUDE.md",
+    "tools/check.py",
     "forge/ui/ai_chat_widget.py",
     "forge/session/manager.py",
-    "CLAUDE.md",
     "forge/git_backend/commit_types.py",
-    "tools/check.py"
+    "forge/prompts/manager.py"
   ],
   "request_log_entries": [
     {
@@ -358,6 +358,33 @@
       "streaming": true,
       "actual_cost": 0.07665825,
       "generation_id": "gen-1767890152-o7COE5WnT9MJXW2pmEHi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767890461545.json",
+      "response_file": "/tmp/forge_debug/response_1767890461545.json",
+      "timestamp": 1767890461.5482886,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004056,
+      "generation_id": "gen-1767890461-Z0LRLmuBzcVe541ei3gi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767890461548.json",
+      "response_file": "/tmp/forge_debug/response_1767890461548.json",
+      "timestamp": 1767890461.5503125,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003203,
+      "generation_id": "gen-1767890461-etbucPmkMQTMj1SVqlW0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767890486671.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767890486671.json",
+      "timestamp": 1767890486.6727016,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.56793875,
+      "generation_id": "gen-1767890487-JsGvVoAubX693brX5eZc"
     }
   ],
   "messages": [
@@ -1306,6 +1333,72 @@
     {
       "role": "assistant",
       "content": "Fixed the message ordering bug and cleaned up debug prints!\n\n**Root Cause**: When the AI sent inline edits AND tool calls in the same response, the code was:\n1. Processing inline edits first \u2192 injecting \"Edits applied\" user message\n2. Then appending the tool_call\n\nBut the API requires:\n1. Assistant tool_call \n2. User message (\"Edits applied\")\n3. Tool result\n\n**The Fix**: Moved `append_tool_call()` to happen BEFORE `_process_inline_edits()` so the message ordering is correct.\n\nThis was the source of those \"unexpected tool_use_id\" errors on session replay."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 101 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Back to the grindstone...\n\n\u274c\u0000 ToolExecutionWorker error: 'NoneType' object is not iterable \nTraceback (most recent call last): \n File \"/home/feep/forge/forge/ui/ai_chat_widget.py\", line 188, in run \n   for tool_call in self.tool_calls: \n                    ^^^^^^^^^^^^^^^ \nTypeError: 'NoneType' object is not iterable\n\nAn AI message doesn't have to have tool calls."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, now I understand the issue. When the AI returns a text response with NO tool calls, `_on_stream_finished` still tries to execute tools because of the control flow bug.\n\nLooking at `_on_stream_finished`:\n\n```python\n# Process inline edits AFTER tool calls are recorded\nif result.get(\"content\") and self.session_manager.edit_format in (\"xml\", \"both\"):\n    edit_result = self._process_inline_edits(result[\"content\"])\n    ...\n\n        # Execute tools - don't commit yet, AI will respond again\n        self._execute_tool_calls(result[\"tool_calls\"])\n        return\n```\n\nThe `_execute_tool_calls` line is INSIDE the `if result.get(\"content\")` block but it's using `result[\"tool_calls\"]` which could be `None`! The indentation is wrong - it executes tool calls unconditionally whenever there's content, even if there are no tool calls.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Process inline edits AFTER tool calls are recorded\n        if result.get(\"content\") and self.session_manager.edit_format in (\"xml\", \"both\"):\n            edit_result = self._process_inline_edits(result[\"content\"])\n            if edit_result.get(\"had_edits\"):\n                if edit_result.get(\"failed\"):\n                    # Edit failed - truncate message, inject error, continue conversation\n                    return  # _process_inline_edits handles the continuation\n                else:\n                    # All edits succeeded - update the stored content (edits stripped)\n                    result[\"content\"] = edit_result.get(\"clean_content\", result[\"content\"])\n                    if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n                        self.messages[-1][\"content\"] = result[\"content\"]\n\n            # Execute tools - don't commit yet, AI will respond again\n            self._execute_tool_calls(result[\"tool_calls\"])\n            return\n</search>\n<replace>\n        # Process inline edits AFTER tool calls are recorded\n        if result.get(\"content\") and self.session_manager.edit_format in (\"xml\", \"both\"):\n            edit_result = self._process_inline_edits(result[\"content\"])\n            if edit_result.get(\"had_edits\"):\n                if edit_result.get(\"failed\"):\n                    # Edit failed - truncate message, inject error, continue conversation\n                    return  # _process_inline_edits handles the continuation\n                else:\n                    # All edits succeeded - update the stored content (edits stripped)\n                    result[\"content\"] = edit_result.get(\"clean_content\", result[\"content\"])\n                    if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n                        self.messages[-1][\"content\"] = result[\"content\"]\n\n        # Execute tools if present - don't commit yet, AI will respond again\n        if result.get(\"tool_calls\"):\n            self._execute_tool_calls(result[\"tool_calls\"])\n            return\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01Qfm3YPRKtsUKusKwMx2mQn",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"fix: only execute tool calls when tool_calls is present\\n\\nThe _execute_tool_calls was inside the content processing block but was\\nunconditionally called with result[\\\"tool_calls\\\"], which could be None\\nwhen the AI returns a text-only response. Now we properly check for\\ntool_calls before attempting to execute them.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01SNBsearoJrfGRoDhcaMSTR",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed the `'NoneType' object is not iterable` error!\\n\\n**Root Cause**: In `_on_stream_finished`, the `_execute_tool_calls(result[\\\"tool_calls\\\"])` line was inside the content processing block but wasn't guarded by a check for `result.get(\\\"tool_calls\\\")`. When the AI returned a text-only response (no tool calls), it would still try to execute `None` as tool calls.\\n\\n**The Fix**: Moved the tool execution outside the content block and added a proper guard:\\n```python\\nif result.get(\\\"tool_calls\\\"):\\n    self._execute_tool_calls(result[\\\"tool_calls\\\"])\\n    return\\n```\\n\\nNow text-only responses flow through to the normal \\\"final text response\\\" path instead of crashing.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01XYK4XKuQRaAnXmxodeWmTg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Qfm3YPRKtsUKusKwMx2mQn",
+      "content": "{\"format_diffs\": {\"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -57,6 +57,7 @@             self.finished.emit(count)\\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c SummaryWorker error: {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n@@ -137,6 +138,7 @@ \\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c StreamWorker error (LLM): {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n@@ -238,6 +240,7 @@ \\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c ToolExecutionWorker error: {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n\"}, \"formatted_files\": [\"forge/ui/ai_chat_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -57,6 +57,7 @@             self.finished.emit(count)\\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c SummaryWorker error: {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n@@ -137,6 +138,7 @@ \\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c StreamWorker error (LLM): {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n@@ -238,6 +240,7 @@ \\n         except Exception as e:\\n             import traceback\\n+\\n             print(f\\\"\\u274c ToolExecutionWorker error: {e}\\\")\\n             traceback.print_exc()\\n             self.error.emit(str(e))\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01SNBsearoJrfGRoDhcaMSTR",
+      "content": "{\"commit\": \"f817fe285a9b\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01XYK4XKuQRaAnXmxodeWmTg",
+      "content": "{\"done\": true, \"message\": \"Fixed the `'NoneType' object is not iterable` error!\\n\\n**Root Cause**: In `_on_stream_finished`, the `_execute_tool_calls(result[\\\"tool_calls\\\"])` line was inside the content processing block but wasn't guarded by a check for `result.get(\\\"tool_calls\\\")`. When the AI returned a text-only response (no tool calls), it would still try to execute `None` as tool calls.\\n\\n**The Fix**: Moved the tool execution outside the content block and added a proper guard:\\n```python\\nif result.get(\\\"tool_calls\\\"):\\n    self._execute_tool_calls(result[\\\"tool_calls\\\"])\\n    return\\n```\\n\\nNow text-only responses flow through to the normal \\\"final text response\\\" path instead of crashing.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed the `'NoneType' object is not iterable` error!\n\n**Root Cause**: In `_on_stream_finished`, the `_execute_tool_calls(result[\"tool_calls\"])` line was inside the content processing block but wasn't guarded by a check for `result.get(\"tool_calls\")`. When the AI returned a text-only response (no tool calls), it would still try to execute `None` as tool calls.\n\n**The Fix**: Moved the tool execution outside the content block and added a proper guard:\n```python\nif result.get(\"tool_calls\"):\n    self._execute_tool_calls(result[\"tool_calls\"])\n    return\n```\n\nNow text-only responses flow through to the normal \"final text response\" path instead of crashing."
     }
   ]
 }

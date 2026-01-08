@@ -57,6 +57,7 @@ class SummaryWorker(QObject):
             self.finished.emit(count)
         except Exception as e:
             import traceback
+
             print(f"❌ SummaryWorker error: {e}")
             traceback.print_exc()
             self.error.emit(str(e))
@@ -137,6 +138,7 @@ class StreamWorker(QObject):
 
         except Exception as e:
             import traceback
+
             print(f"❌ StreamWorker error (LLM): {e}")
             traceback.print_exc()
             self.error.emit(str(e))
@@ -238,6 +240,7 @@ class ToolExecutionWorker(QObject):
 
         except Exception as e:
             import traceback
+
             print(f"❌ ToolExecutionWorker error: {e}")
             traceback.print_exc()
             self.error.emit(str(e))
@@ -1103,7 +1106,8 @@ class AIChatWidget(QWidget):
                     if self.messages and self.messages[-1]["role"] == "assistant":
                         self.messages[-1]["content"] = result["content"]
 
-            # Execute tools - don't commit yet, AI will respond again
+        # Execute tools if present - don't commit yet, AI will respond again
+        if result.get("tool_calls"):
             self._execute_tool_calls(result["tool_calls"])
             return
 

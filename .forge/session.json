@@ -1,11 +1,11 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "tools/check.py",
-    "forge/ui/ai_chat_widget.py",
     "forge/session/manager.py",
+    "forge/ui/ai_chat_widget.py",
+    "forge/prompts/manager.py",
     "forge/git_backend/commit_types.py",
-    "forge/prompts/manager.py"
+    "CLAUDE.md",
+    "tools/check.py"
   ],
   "request_log_entries": [
     {
@@ -385,6 +385,15 @@
       "streaming": true,
       "actual_cost": 0.56793875,
       "generation_id": "gen-1767890487-JsGvVoAubX693brX5eZc"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767891294963.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767891294963.json",
+      "timestamp": 1767891294.9647555,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.61567875,
+      "generation_id": "gen-1767891295-dahjs4DQkkYRHPD9mdXB"
     }
   ],
   "messages": [
@@ -1399,6 +1408,39 @@
     {
       "role": "assistant",
       "content": "Fixed the `'NoneType' object is not iterable` error!\n\n**Root Cause**: In `_on_stream_finished`, the `_execute_tool_calls(result[\"tool_calls\"])` line was inside the content processing block but wasn't guarded by a check for `result.get(\"tool_calls\")`. When the AI returned a text-only response (no tool calls), it would still try to execute `None` as tool calls.\n\n**The Fix**: Moved the tool execution outside the content block and added a proper guard:\n```python\nif result.get(\"tool_calls\"):\n    self._execute_tool_calls(result[\"tool_calls\"])\n    return\n```\n\nNow text-only responses flow through to the normal \"final text response\" path instead of crashing."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 98 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, we're still not done.\n\n-----\n\ud83c\udf10\u0000 LLM Request: anthropic/claude-opus-4.5 (streaming, 107 messages) \n  Tools available: 17 \n  \ud83d\udcdd\u0000 Request dumped to: /tmp/forge_debug/request_stream_1767890576497.json \n\ud83d\udce1\u0000 Streaming response started \n\ud83d\udcb0\u0000 Request cost: $0.459751 (total: $1.6045) \n\ud83d\udccb\u0000 PromptManager: Appending tool result #44 for toolu_vrtx_01HCReJrFTJgGSpFma5Choio (1343 chars) \n\ud83d\udce6\u0000 PromptManager: Filtered out 1 unattempted tool call(s) \n\ud83d\udce6\u0000 PromptManager: Deleted empty TOOL_CALL block \n\ud83c\udf10\u0000 LLM Request: anthropic/claude-opus-4.5 (streaming, 108 messages) \n  Tools available: 17 \n  \ud83d\udcdd\u0000 Request dumped to: /tmp/forge_debug/request_stream_1767890582105.json \n\u274c\u0000 StreamWorker error (LLM): 400 Bad Request for https://openrouter.ai/api/v1/chat/completions \n\nResponse body: \n{\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"{\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"invalid_request_error\\\",\\\"message\\\"\n:\\\"messages.94.content.1: unexpected `tool_use_id` found in `tool_result` blocks: toolu_vrtx_01LtnVSxDBs5JqMCbHprJ3qP. Each `tool_result` block must have\na corresponding `tool_use` block in the previous message.\\\"}\n-----\n\nLooking at the request there seems to be a tool result for a compact call, which you probably did, but the call isn't shown at all in the request. I'm rolled back to an earlier version again. Feel free to augment the prints for testing."
+    },
+    {
+      "role": "assistant",
+      "content": "The issue is clear now: a compact tool call is being filtered out (deleted as an empty TOOL_CALL block) but its tool result still exists, causing an orphaned tool result.\n\nLooking at the logs:\n```\n\ud83d\udce6  PromptManager: Filtered out 1 unattempted tool call(s) \n\ud83d\udce6  PromptManager: Deleted empty TOOL_CALL block\n```\n\nThe `filter_tool_calls` function is deleting the TOOL_CALL block that contained the compact call, but the compact tool's result (`toolu_vrtx_01LtnVSxDBs5JqMCbHprJ3qP`) still exists in the conversation. This creates an orphaned tool result.\n\nThe bug is: `filter_tool_calls` takes `executed_tool_ids` (tools that were executed), but compact WAS executed - it just ended up in a TOOL_CALL block that got emptied for some other reason. Let me add more debugging to understand exactly what's happening:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def filter_tool_calls(self, executed_tool_ids: set[str]) -> None:\n        \"\"\"\n        Filter tool calls to only include those that were actually executed.\n\n        When tools are chained (A \u2192 B \u2192 C) and B fails, C is never attempted.\n        The API requires every tool_call to have a corresponding tool result,\n        so we must remove C from the assistant message's tool_calls list.\n\n        This is called after tool execution completes, before the next API request.\n\n        IMPORTANT: We filter ALL TOOL_CALL blocks since the last user message,\n        not just the most recent one. This handles the case where an inline edit\n        fails and the AI retries - the old TOOL_CALL block with orphaned tool calls\n        would otherwise cause \"unexpected tool_use_id\" errors.\n\n        Args:\n            executed_tool_ids: Set of tool_call IDs that were actually executed\n        \"\"\"\n        # Find the last user message index to limit our search\n        last_user_idx = -1\n        for i, block in enumerate(self.blocks):\n            if block.block_type == BlockType.USER_MESSAGE and not block.deleted:\n                last_user_idx = i\n\n        # Filter all TOOL_CALL blocks since the last user message\n        for i in range(last_user_idx + 1, len(self.blocks)):\n            block = self.blocks[i]\n            if block.deleted or block.block_type != BlockType.TOOL_CALL:\n                continue\n\n            tool_calls = block.metadata.get(\"tool_calls\", [])\n            original_count = len(tool_calls)\n\n            # Filter to only executed tool calls\n            filtered = [tc for tc in tool_calls if tc.get(\"id\") in executed_tool_ids]\n\n            if len(filtered) < original_count:\n                dropped = original_count - len(filtered)\n                print(f\"\ud83d\udce6 PromptManager: Filtered out {dropped} unattempted tool call(s)\")\n\n                if len(filtered) == 0:\n                    # No tool calls left - delete the entire block\n                    block.deleted = True\n                    print(\"\ud83d\udce6 PromptManager: Deleted empty TOOL_CALL block\")\n                else:\n                    block.metadata[\"tool_calls\"] = filtered\n</search>\n<replace>\n    def filter_tool_calls(self, executed_tool_ids: set[str]) -> None:\n        \"\"\"\n        Filter tool calls to only include those that were actually executed.\n\n        When tools are chained (A \u2192 B \u2192 C) and B fails, C is never attempted.\n        The API requires every tool_call to have a corresponding tool result,\n        so we must remove C from the assistant message's tool_calls list.\n\n        This is called after tool execution completes, before the next API request.\n\n        IMPORTANT: We filter ALL TOOL_CALL blocks since the last user message,\n        not just the most recent one. This handles the case where an inline edit\n        fails and the AI retries - the old TOOL_CALL block with orphaned tool calls\n        would otherwise cause \"unexpected tool_use_id\" errors.\n\n        Args:\n            executed_tool_ids: Set of tool_call IDs that were actually executed\n        \"\"\"\n        print(f\"\ud83d\udce6 filter_tool_calls called with executed_tool_ids: {executed_tool_ids}\")\n        \n        # Find the last user message index to limit our search\n        last_user_idx = -1\n        for i, block in enumerate(self.blocks):\n            if block.block_type == BlockType.USER_MESSAGE and not block.deleted:\n                last_user_idx = i\n\n        print(f\"\ud83d\udce6 last_user_idx: {last_user_idx}, total blocks: {len(self.blocks)}\")\n\n        # Filter all TOOL_CALL blocks since the last user message\n        for i in range(last_user_idx + 1, len(self.blocks)):\n            block = self.blocks[i]\n            if block.deleted or block.block_type != BlockType.TOOL_CALL:\n                continue\n\n            tool_calls = block.metadata.get(\"tool_calls\", [])\n            original_count = len(tool_calls)\n            tool_ids_in_block = [tc.get(\"id\") for tc in tool_calls]\n            tool_names_in_block = [tc.get(\"function\", {}).get(\"name\") for tc in tool_calls]\n\n            print(f\"\ud83d\udce6 Block {i}: {original_count} tool calls: {list(zip(tool_names_in_block, tool_ids_in_block))}\")\n\n            # Filter to only executed tool calls\n            filtered = [tc for tc in tool_calls if tc.get(\"id\") in executed_tool_ids]\n\n            if len(filtered) < original_count:\n                dropped = original_count - len(filtered)\n                dropped_ids = [tc.get(\"id\") for tc in tool_calls if tc.get(\"id\") not in executed_tool_ids]\n                dropped_names = [tc.get(\"function\", {}).get(\"name\") for tc in tool_calls if tc.get(\"id\") not in executed_tool_ids]\n                print(f\"\ud83d\udce6 PromptManager: Filtered out {dropped} unattempted tool call(s): {list(zip(dropped_names, dropped_ids))}\")\n\n                if len(filtered) == 0:\n                    # No tool calls left - delete the entire block\n                    block.deleted = True\n                    print(\"\ud83d\udce6 PromptManager: Deleted empty TOOL_CALL block\")\n                else:\n                    block.metadata[\"tool_calls\"] = filtered\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Added detailed debug prints to `filter_tool_calls` to trace:\\n1. What `executed_tool_ids` are passed in\\n2. What tool calls exist in each TOOL_CALL block (names + IDs)\\n3. Which specific tool calls are being filtered out\\n\\nThis will show us exactly why the compact tool call is being deleted even though it was executed. My hypothesis: there are multiple TOOL_CALL blocks, and the compact is in an earlier block that's getting filtered because its ID isn't in `executed_tool_ids` for some reason (maybe the ID tracking is off, or it's being called at the wrong time).\\n\\nPlease reproduce the issue and share the debug output!\"}",
+            "name": "done"
+          },
+          "id": "toolu_bdrk_01CWgXRqMQyKamnGF1qpNEKC",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01CWgXRqMQyKamnGF1qpNEKC",
+      "content": "{\"done\": true, \"message\": \"Added detailed debug prints to `filter_tool_calls` to trace:\\n1. What `executed_tool_ids` are passed in\\n2. What tool calls exist in each TOOL_CALL block (names + IDs)\\n3. Which specific tool calls are being filtered out\\n\\nThis will show us exactly why the compact tool call is being deleted even though it was executed. My hypothesis: there are multiple TOOL_CALL blocks, and the compact is in an earlier block that's getting filtered because its ID isn't in `executed_tool_ids` for some reason (maybe the ID tracking is off, or it's being called at the wrong time).\\n\\nPlease reproduce the issue and share the debug output!\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Added detailed debug prints to `filter_tool_calls` to trace:\n1. What `executed_tool_ids` are passed in\n2. What tool calls exist in each TOOL_CALL block (names + IDs)\n3. Which specific tool calls are being filtered out\n\nThis will show us exactly why the compact tool call is being deleted even though it was executed. My hypothesis: there are multiple TOOL_CALL blocks, and the compact is in an earlier block that's getting filtered because its ID isn't in `executed_tool_ids` for some reason (maybe the ID tracking is off, or it's being called at the wrong time).\n\nPlease reproduce the issue and share the debug output!"
     }
   ]
 }

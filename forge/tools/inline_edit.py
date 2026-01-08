@@ -3,10 +3,6 @@ Inline edit parsing and execution for flow-text edits.
 
 This module handles <edit> blocks that appear in assistant message text,
 allowing edits to be made without tool calls (avoiding round-trip costs
-when the assistant narrates after edits).
-
-This module handles <edit> blocks that appear in assistant message text,
-allowing edits to be made without tool calls (avoiding round-trip costs
 when the AI narrates after edits).
 
 Syntax:

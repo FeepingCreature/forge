@@ -1,9 +1,10 @@
 {
   "active_files": [
-    "forge/git_backend/commit_types.py",
-    "CLAUDE.md",
     "tools/check.py",
-    "forge/ui/ai_chat_widget.py"
+    "forge/tools/inline_edit.py",
+    "forge/ui/ai_chat_widget.py",
+    "CLAUDE.md",
+    "forge/git_backend/commit_types.py"
   ],
   "request_log_entries": [
     {
@@ -554,6 +555,60 @@
       "streaming": true,
       "actual_cost": 0.19990525,
       "generation_id": "gen-1767861090-4LTWGjZgKTPYkmJPVQj0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767861115223.json",
+      "response_file": "/tmp/forge_debug/response_1767861115223.json",
+      "timestamp": 1767861115.2241547,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003339,
+      "generation_id": "gen-1767861115-VMsSQA4D2dEPB8U8uGYq"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767861115224.json",
+      "response_file": "/tmp/forge_debug/response_1767861115224.json",
+      "timestamp": 1767861115.2254102,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004959,
+      "generation_id": "gen-1767861115-JlXaUBWthvg8RUGTj4tz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767861115225.json",
+      "response_file": "/tmp/forge_debug/response_1767861115225.json",
+      "timestamp": 1767861115.2255368,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003669,
+      "generation_id": "gen-1767861115-0iD81zD0ax5G2e5PomYR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861224468.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861224468.json",
+      "timestamp": 1767861224.4696586,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.51577625,
+      "generation_id": "gen-1767861224-xq359ViFbnN4BH1wPi29"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861231696.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861231696.json",
+      "timestamp": 1767861231.6974432,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.059984,
+      "generation_id": "gen-1767861231-tXFm5Wb65veqU4O9nGRo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861274450.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861274450.json",
+      "timestamp": 1767861274.4517639,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.53046125,
+      "generation_id": "gen-1767861274-WGFQSMqM37KSVTCrKAN6"
     }
   ],
   "messages": [
@@ -2114,6 +2169,82 @@
     {
       "role": "assistant",
       "content": "Done! Renamed the functions:\n\n- **`render_markdown(content)`** - The canonical markdown renderer. Runs markdown on text, renders `<edit>` blocks as diffs.\n- **`render_streaming_edits(content)`** - For streaming. Renders `<edit>` blocks as diffs, escapes other text (no markdown for performance).\n\nClean separation of concerns now."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 101 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Nice! I now see\n\"\n``` xml\n[path/to/file.py]\n- exact text to find\n+ replacement text\n```\nin my history. Nice, nice. Can you add the toggle for <edit> parsing to the settings dialog?"
+    },
+    {
+      "role": "assistant",
+      "content": "The toggle for edit format is already in the settings dialog! I added it earlier in this session. Let me verify it's there:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"edit_format_input|Edit Format\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01Y8gBgmd1rcjraXypt9CiKp",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Y8gBgmd1rcjraXypt9CiKp",
+      "content": "{\"message\": \"Found 8 matches\", \"output\": \"\\u2500\\u2500 forge/ui/settings_dialog.py:154 \\u2500\\u2500\\n     151 |         layout.addRow(\\\"Base URL:\\\", self.base_url_input)\\n     152 | \\n     153 |         # Edit format selector\\n>>>  154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:155 \\u2500\\u2500\\n     152 | \\n     153 |         # Edit format selector\\n     154 |         self.edit_format_input = QComboBox()\\n>>>  155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:156 \\u2500\\u2500\\n     153 |         # Edit format selector\\n     154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n>>>  156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:157 \\u2500\\u2500\\n     154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n>>>  157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n     160 |         # Info for edit format\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:158 \\u2500\\u2500\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n>>>  158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n     160 |         # Info for edit format\\n     161 |         edit_format_info = QLabel(\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:550 \\u2500\\u2500\\n     547 | \\n     548 |         # Edit format\\n     549 |         edit_format = self.settings.get(\\\"llm.edit_format\\\", \\\"xml\\\")\\n>>>  550 |         index = self.edit_format_input.findData(edit_format)\\n     551 |         if index >= 0:\\n     552 |             self.edit_format_input.setCurrentIndex(index)\\n     553 | \\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:552 \\u2500\\u2500\\n     549 |         edit_format = self.settings.get(\\\"llm.edit_format\\\", \\\"xml\\\")\\n     550 |         index = self.edit_format_input.findData(edit_format)\\n     551 |         if index >= 0:\\n>>>  552 |             self.edit_format_input.setCurrentIndex(index)\\n     553 | \\n     554 |         # Editor settings\\n     555 |         self.font_size_input.setValue(self.settings.get(\\\"editor.font_size\\\", 10))\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:575 \\u2500\\u2500\\n     572 |         self.settings.set(\\\"llm.api_key\\\", self.api_key_input.text())\\n     573 |         self.settings.set(\\\"llm.model\\\", self.model_input.text())\\n     574 |         self.settings.set(\\\"llm.base_url\\\", self.base_url_input.text())\\n>>>  575 |         self.settings.set(\\\"llm.edit_format\\\", self.edit_format_input.currentData())\\n     576 | \\n     577 |         # Editor settings\\n     578 |         self.settings.set(\\\"editor.font_size\\\", self.font_size_input.value())\", \"success\": true, \"total_matches\": 8}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"edit_format_input|Edit Format\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 8 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/settings_dialog.py:154 \\u2500\\u2500\\n     151 |         layout.addRow(\\\"Base URL:\\\", self.base_url_input)\\n     152 | \\n     153 |         # Edit format selector\\n>>>  154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:155 \\u2500\\u2500\\n     152 | \\n     153 |         # Edit format selector\\n     154 |         self.edit_format_input = QComboBox()\\n>>>  155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:156 \\u2500\\u2500\\n     153 |         # Edit format selector\\n     154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n>>>  156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:157 \\u2500\\u2500\\n     154 |         self.edit_format_input = QComboBox()\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n>>>  157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n     158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n     160 |         # Info for edit format\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:158 \\u2500\\u2500\\n     155 |         self.edit_format_input.addItem(\\\"XML (inline edits)\\\", \\\"xml\\\")\\n     156 |         self.edit_format_input.addItem(\\\"Tool calls\\\", \\\"tool\\\")\\n     157 |         self.edit_format_input.addItem(\\\"Both\\\", \\\"both\\\")\\n>>>  158 |         layout.addRow(\\\"Edit Format:\\\", self.edit_format_input)\\n     159 | \\n     160 |         # Info for edit format\\n     161 |         edit_format_info = QLabel(\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:550 \\u2500\\u2500\\n     547 | \\n     548 |         # Edit format\\n     549 |         edit_format = self.settings.get(\\\"llm.edit_format\\\", \\\"xml\\\")\\n>>>  550 |         index = self.edit_format_input.findData(edit_format)\\n     551 |         if index >= 0:\\n     552 |             self.edit_format_input.setCurrentIndex(index)\\n     553 | \\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:552 \\u2500\\u2500\\n     549 |         edit_format = self.settings.get(\\\"llm.edit_format\\\", \\\"xml\\\")\\n     550 |         index = self.edit_format_input.findData(edit_format)\\n     551 |         if index >= 0:\\n>>>  552 |             self.edit_format_input.setCurrentIndex(index)\\n     553 | \\n     554 |         # Editor settings\\n     555 |         self.font_size_input.setValue(self.settings.get(\\\"editor.font_size\\\", 10))\\n\\n\\u2500\\u2500 forge/ui/settings_dialog.py:575 \\u2500\\u2500\\n     572 |         self.settings.set(\\\"llm.api_key\\\", self.api_key_input.text())\\n     573 |         self.settings.set(\\\"llm.model\\\", self.model_input.text())\\n     574 |         self.settings.set(\\\"llm.base_url\\\", self.base_url_input.text())\\n>>>  575 |         self.settings.set(\\\"llm.edit_format\\\", self.edit_format_input.currentData())\\n     576 | \\n     577 |         # Editor settings\\n     578 |         self.settings.set(\\\"editor.font_size\\\", self.font_size_input.value())\",\n  \"success\": true,\n  \"total_matches\": 8\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "It's already there! The \"Edit Format\" dropdown is in Settings \u2192 LLM tab with three options:\n\n- **XML (inline edits)** - Default\n- **Tool calls** - Uses search_replace tool\n- **Both** - AI can use either\n\nYou should see it in the LLM settings tab between \"Base URL\" and the info text about API keys. If you're not seeing it, you may need to restart the app since the settings dialog code was updated this session.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"The Edit Format setting is already in the Settings dialog - I added it earlier in this session. It's in the LLM tab as a dropdown with options: \\\"XML (inline edits)\\\", \\\"Tool calls\\\", and \\\"Both\\\". \\n\\nIf you don't see it, try restarting the app to pick up the updated settings_dialog.py code.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01CTpzgkEeX9facoMfiQtubU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CTpzgkEeX9facoMfiQtubU",
+      "content": "{\"done\": true, \"message\": \"The Edit Format setting is already in the Settings dialog - I added it earlier in this session. It's in the LLM tab as a dropdown with options: \\\"XML (inline edits)\\\", \\\"Tool calls\\\", and \\\"Both\\\". \\n\\nIf you don't see it, try restarting the app to pick up the updated settings_dialog.py code.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The Edit Format setting is already in the Settings dialog - I added it earlier in this session. It's in the LLM tab as a dropdown with options: \"XML (inline edits)\", \"Tool calls\", and \"Both\". \n\nIf you don't see it, try restarting the app to pick up the updated settings_dialog.py code."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 98 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Oh I see it! It's set to xml- does that mean you should no longer see the \"say\" and \"search_replace\" tool and be able to make flowtext edit changes now?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, exactly! With `edit_format` set to `\"xml\"`, the tool filtering in `ToolManager.discover_tools()` should exclude `search_replace` and `say` from the tools list.\n\nLet me verify I no longer have those tools by trying an edit using the new XML format:\n\n<edit file=\"forge/tools/inline_edit.py\">\n<search>\n\"\"\"\nInline edit parsing and execution for flow-text edits.\n</search>\n<replace>\n\"\"\"\nInline edit parsing and execution for flow-text edits.\n\nThis module handles <edit> blocks that appear in assistant message text,\nallowing edits to be made without tool calls (avoiding round-trip costs\nwhen the assistant narrates after edits).\n</replace>\n</edit>\n\nThat should work! And I can freely narrate here without costing an API round-trip because this is all flow text, not a tool call that needs a result.\n\nThe key benefits:\n1. No round-trip for each edit - they're parsed from flow text after streaming completes\n2. I can explain what I'm doing before/after edits naturally\n3. Edits render as diffs in the UI during streaming and in history\n\nIf this edit succeeded, you should see it rendered as a diff view above!"
+    },
+    {
+      "role": "system",
+      "content": "Edits applied:\n\u2713 forge/tools/inline_edit.py",
+      "_ui_only": true
     }
   ]
 }

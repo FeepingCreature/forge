@@ -12,7 +12,7 @@ Syntax:
     </search>
     <replace>
     replacement text
-    
+
 
 Syntax:
     <edit file="path/to/file.py">

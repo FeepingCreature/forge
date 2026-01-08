@@ -490,7 +490,7 @@ def render_diff_html(
     lines.append("</div>")  # diff-content
     lines.append("</div>")  # diff-view
 
-    return "\n".join(lines)
+    return "".join(lines)
 
 
 def render_completed_diff_html(filepath: str, search: str, replace: str) -> str:

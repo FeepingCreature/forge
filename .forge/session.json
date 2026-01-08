@@ -1,8 +1,12 @@
 {
   "active_files": [
     "forge/ui/tool_rendering.py",
+    "forge/git_backend/commit_types.py",
     "CLAUDE.md",
-    "forge/tools/builtin/compact.py"
+    "tools/check.py",
+    "forge/session/manager.py",
+    "forge/tools/builtin/compact.py",
+    "forge/prompts/manager.py"
   ],
   "request_log_entries": [
     {
@@ -49,6 +53,33 @@
       "streaming": true,
       "actual_cost": 0.105012,
       "generation_id": "gen-1767870728-3pdYwrBMWJC5G6pwFKRX"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767887478273.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767887478273.json",
+      "timestamp": 1767887478.2744164,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.222355,
+      "generation_id": "gen-1767887478-R1EqC17v0Jrt2Thf6AC0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767887483122.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767887483122.json",
+      "timestamp": 1767887483.1234608,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.16079525,
+      "generation_id": "gen-1767887483-NR9CmtQGqB4qO6XjYjDM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767887521103.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767887521103.json",
+      "timestamp": 1767887521.1045,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.16523625,
+      "generation_id": "gen-1767887521-LXRdtoQTmOGKTTa7nR9E"
     }
   ],
   "messages": [
@@ -169,6 +200,98 @@
     {
       "role": "assistant",
       "content": "Fixed the compact tool rendering bug. The issue was that `render_compact_html` was looking for `tool_call_ids` (a list) in the args, but the compact tool schema actually uses `from_id` and `to_id` (strings representing a range).\n\nThe fix:\n- Now reads `from_id` and `to_id` from args instead of the non-existent `tool_call_ids`\n- Gets the actual count from `result.get(\"compacted\")` which is set by the session manager after compaction\n- Shows the range (from_id \u2192 to_id) during streaming when we don't have results yet\n- Removed the misleading \"Tool calls: 0\" line that was always wrong"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 98 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Update: Message from another instance\n---\nInteresting - even after compacting 1-117, the conversation is still 48.7k tokens. That means the compaction isn't removing as much as expected.\nLooking at the recap, I can see the issue: the 238 earlier messages are being omitted from the recap view but they're still in the actual conversation context. The compact tool is replacing tool results with summaries, but the large conversation includes:\nAll my assistant message text (edit blocks, explanations)\nAll your user messages (feedback, error pastes)\nThe tool calls themselves\nThe compact tool summarizes tool results but doesn't remove the assistant/user message content around them.\nThe 48.7k in \"conversation\" is mostly: - My long <edit> blocks (each one is hundreds of tokens) - Your error pastes and feedback - My explanations\nSuggestion for the Forge team: The compact tool could potentially also offer to summarize/remove the surrounding assistant text that led to those tool calls, not just the results. For a long session like this with many edits, the edit blocks themselves become the bloat.\n---\n\nI can confirm the model tries to compact the complete range but 49k remains. The assistant messages with their large edit blocks *in the tool range* seem to be uncompressed, despite the fact that the tool call range logic should cover them implicitly. \n\n---\n[\n  {\n    \"type\": \"text\",\n    \"text\": \"[tool_call_id: 118]\\n{\\\"compact\\\": true, \\\"from_id\\\": \\\"1\\\", \\\"success\\\": true, \\\"summary\\\": \\\"<summary here>\\\", \\\"to_id\\\": \\\"117\\\"}\",\n    \"cache_control\": {\n      \"type\": \"ephemeral\"\n    }\n  }\n]\n---\nLoad the relevant files completely (even though they're large) before thinking this through please.\n\nIMPORTANT: Don't get confused here. The large **ASSISTANT** blocks which are the problem are **definitely** inside the tool id range provided in the message."
+    },
+    {
+      "role": "assistant",
+      "content": "I need to understand how the compact tool actually works. Let me load the relevant files to see the full compaction logic.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/manager.py\", \"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01UhYKbGu9x7cp7KrEwTvd1N",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UhYKbGu9x7cp7KrEwTvd1N",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\", \"forge/session/manager.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"scratchpad\": \"Let me trace through the compact logic carefully.\\n\\n1. The compact tool is called with `from_id` and `to_id` (e.g., \\\"1\\\" to \\\"117\\\")\\n\\n2. Looking at `compact_tool_results` in `forge/prompts/manager.py` (around line 380):\\n\\n```python\\ndef compact_tool_results(\\n    self, from_id: str, to_id: str, summary: str\\n) -> tuple[int, str | None]:\\n    \\\"\\\"\\\"\\n    Replace tool result blocks in a range with a compact summary.\\n\\n    Compacts all tool results and assistant messages between from_id and to_id\\n    (inclusive). FILE_CONTENT blocks are NOT removed.\\n    ...\\n    \\\"\\\"\\\"\\n```\\n\\nThe docstring says it compacts \\\"tool results and assistant messages between from_id and to_id\\\". Let me trace the actual logic:\\n\\n```python\\n# Find the block indices for the range\\nfor i, block in enumerate(self.blocks):\\n    if block.deleted or block.block_type != BlockType.TOOL_RESULT:\\n        continue\\n    user_id = block.metadata.get(\\\"user_id\\\", \\\"\\\")\\n    try:\\n        block_int = int(user_id)\\n    except (ValueError, TypeError):\\n        continue\\n    if block_int == from_int:\\n        from_idx = i\\n    if block_int == to_int:\\n        to_idx = i\\n```\\n\\nThis finds the indices of the FIRST and LAST TOOL_RESULT blocks with those IDs.\\n\\nThen:\\n\\n```python\\nfor i in range(from_idx, to_idx + 1):\\n    block = self.blocks[i]\\n    if block.deleted:\\n        continue\\n\\n    if block.block_type == BlockType.TOOL_RESULT:\\n        # compact it\\n        ...\\n    elif block.block_type == BlockType.TOOL_CALL:\\n        # Compact all tool calls in this block\\n        ...\\n    elif block.block_type == BlockType.ASSISTANT_MESSAGE:\\n        # Truncate assistant messages in the range\\n        if len(block.content) > 100:\\n            block.content = block.content[:100] + \\\"...\\\"\\n            print(\\\"\ud83d\udce6 Truncated assistant message in range\\\")\\n```\\n\\nWait, the ASSISTANT_MESSAGE blocks ARE being truncated! Let me re-read...\\n\\nOh wait, I see the problem now!\\n\\nThe issue is that TOOL_CALL blocks contain BOTH:\\n1. The tool call metadata (in `block.metadata[\\\"tool_calls\\\"]`)\\n2. The accompanying text content (in `block.content`) - which is the assistant's text WITH THE EDIT BLOCKS\\n\\nLook at `append_tool_call`:\\n```python\\ndef append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \\\"\\\") -> None:\\n    \\\"\\\"\\\"Add tool calls to the stream, optionally with accompanying text content\\\"\\\"\\\"\\n    tool_names = [tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\") for tc in tool_calls]\\n    print(f\\\"\ud83d\udd27 PromptManager: Appending tool calls: {tool_names}\\\")\\n    self.blocks.append(\\n        ContentBlock(\\n            block_type=BlockType.TOOL_CALL,\\n            content=content,  # Assistant's text that accompanied the tool calls\\n            metadata={\\\"tool_calls\\\": tool_calls},\\n        )\\n    )\\n```\\n\\nSo when the LLM sends a message like:\\n```\\nI'll fix the bug:\\n\\n<edit file=\\\"foo.py\\\">\\n<search>\\n...long search text...\\n</search>\\n<replace>\\n...long replace text...\\n</replace>\\n</edit>\\n\\n<tool_call>search_replace(...)</tool_call>\\n```\\n\\nThe entire text (including the edit block) is stored as `block.content` in the TOOL_CALL block!\\n\\nNow look at what compact does with TOOL_CALL blocks:\\n\\n```python\\nelif block.block_type == BlockType.TOOL_CALL:\\n    # Compact all tool calls in this block\\n    tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n    compacted_calls = []\\n    for tc in tool_calls:\\n        compacted_calls.append(\\n            {\\n                \\\"id\\\": tc.get(\\\"id\\\", \\\"\\\"),\\n                \\\"type\\\": \\\"function\\\",\\n                \\\"function\\\": {\\n                    \\\"name\\\": tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\"),\\n                    \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n                },\\n            }\\n        )\\n    block.metadata[\\\"tool_calls\\\"] = compacted_calls\\n```\\n\\nIt compacts the `tool_calls` metadata (the arguments), BUT IT DOESN'T TOUCH `block.content`!\\n\\nSo all the edit blocks in the assistant's text are NEVER being compacted!\\n\\nLet me verify this is actually the problem by checking `_make_assistant_tool_call`:\\n\\n```python\\ndef _make_assistant_tool_call(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:\\n    ...\\n    msg: dict[str, Any] = {\\n        \\\"role\\\": \\\"assistant\\\",\\n        \\\"tool_calls\\\": compacted_tool_calls,\\n    }\\n    # Include content if present (assistant may explain what it's doing)\\n    if block.content:\\n        msg[\\\"content\\\"] = block.content  # <-- THIS IS THE PROBLEM!\\n    return msg\\n```\\n\\nYes! The `block.content` (which contains the huge edit blocks) is still being included in the message!\\n\\nThe fix: In `compact_tool_results`, when handling TOOL_CALL blocks, we should ALSO truncate/clear `block.content`:\\n\\n```python\\nelif block.block_type == BlockType.TOOL_CALL:\\n    # Compact all tool calls in this block\\n    tool_calls = block.metadata.get(\\\"tool_calls\\\", [])\\n    compacted_calls = []\\n    for tc in tool_calls:\\n        compacted_calls.append(\\n            {\\n                \\\"id\\\": tc.get(\\\"id\\\", \\\"\\\"),\\n                \\\"type\\\": \\\"function\\\",\\n                \\\"function\\\": {\\n                    \\\"name\\\": tc.get(\\\"function\\\", {}).get(\\\"name\\\", \\\"?\\\"),\\n                    \\\"arguments\\\": '{\\\"_compacted\\\": true}',\\n                },\\n            }\\n        )\\n    block.metadata[\\\"tool_calls\\\"] = compacted_calls\\n    # MISSING: Also compact the content!\\n    block.content = \\\"\\\"  # or truncate to first 100 chars if we want to keep some context\\n```\\n\\nActually, I should check what the content looks like. For xml edit format, the content might look like:\\n\\n```\\nI'll fix the bug:\\n\\n<edit file=\\\"foo.py\\\">\\n...\\n</edit>\\n```\\n\\nFor function call format, the content might just be the explanation text, since the actual edit is in the tool call arguments.\\n\\nBut for xml format, the edit blocks ARE in the content! And they're huge!\\n\\nSo the fix is: when compacting TOOL_CALL blocks, also clear/truncate the content.\\n\", \"conclusion\": \"Found the bug! In `compact_tool_results()`, when processing TOOL_CALL blocks, the code compacts the `block.metadata[\\\"tool_calls\\\"]` (replacing arguments with `{\\\"_compacted\\\": true}`), but it does NOT touch `block.content` which contains the assistant's text WITH THE FULL EDIT BLOCKS. For xml edit format, the huge `<edit>` blocks are stored in this content field and are never compacted, so they continue to bloat context even after compaction. The fix is to also truncate/clear `block.content` for TOOL_CALL blocks in the compacted range.\"}",
+            "name": "think"
+          },
+          "id": "toolu_vrtx_01USFFuFhst2SNFj9KCFMLbk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01USFFuFhst2SNFj9KCFMLbk",
+      "content": "{\"conclusion\": \"Found the bug! In `compact_tool_results()`, when processing TOOL_CALL blocks, the code compacts the `block.metadata[\\\"tool_calls\\\"]` (replacing arguments with `{\\\"_compacted\\\": true}`), but it does NOT touch `block.content` which contains the assistant's text WITH THE FULL EDIT BLOCKS. For xml edit format, the huge `<edit>` blocks are stored in this content field and are never compacted, so they continue to bloat context even after compaction. The fix is to also truncate/clear `block.content` for TOOL_CALL blocks in the compacted range.\", \"message\": \"Thought through 893 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I found the bug. Let me trace through the code:\n\nIn `compact_tool_results()` (manager.py lines 390-440), when processing blocks in the range:\n\n```python\nelif block.block_type == BlockType.TOOL_CALL:\n    # Compact all tool calls in this block\n    tool_calls = block.metadata.get(\"tool_calls\", [])\n    compacted_calls = []\n    for tc in tool_calls:\n        compacted_calls.append(\n            {\n                \"id\": tc.get(\"id\", \"\"),\n                \"type\": \"function\",\n                \"function\": {\n                    \"name\": tc.get(\"function\", {}).get(\"name\", \"?\"),\n                    \"arguments\": '{\"_compacted\": true}',\n                },\n            }\n        )\n    block.metadata[\"tool_calls\"] = compacted_calls\n```\n\nThe code compacts `block.metadata[\"tool_calls\"]` (replacing the arguments with `{\"_compacted\": true}`), but **it does NOT touch `block.content`**.\n\nFor XML edit format, the huge `<edit>` blocks are stored in `block.content` of `TOOL_CALL` blocks (since the assistant's text accompanies tool calls). These are never compacted, so they continue to bloat context even after compaction.\n\nThe fix is to also truncate `block.content` for TOOL_CALL blocks in the compacted range, just like we do for ASSISTANT_MESSAGE blocks.\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n            elif block.block_type == BlockType.TOOL_CALL:\n                # Compact all tool calls in this block\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                compacted_calls = []\n                for tc in tool_calls:\n                    compacted_calls.append(\n                        {\n                            \"id\": tc.get(\"id\", \"\"),\n                            \"type\": \"function\",\n                            \"function\": {\n                                \"name\": tc.get(\"function\", {}).get(\"name\", \"?\"),\n                                \"arguments\": '{\"_compacted\": true}',\n                            },\n                        }\n                    )\n                block.metadata[\"tool_calls\"] = compacted_calls\n</search>\n<replace>\n            elif block.block_type == BlockType.TOOL_CALL:\n                # Compact all tool calls in this block\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                compacted_calls = []\n                for tc in tool_calls:\n                    compacted_calls.append(\n                        {\n                            \"id\": tc.get(\"id\", \"\"),\n                            \"type\": \"function\",\n                            \"function\": {\n                                \"name\": tc.get(\"function\", {}).get(\"name\", \"?\"),\n                                \"arguments\": '{\"_compacted\": true}',\n                            },\n                        }\n                    )\n                block.metadata[\"tool_calls\"] = compacted_calls\n                # Also truncate the content (contains edit blocks in XML format)\n                if block.content and len(block.content) > 100:\n                    block.content = block.content[:100] + \"...\"\n                    print(\"\ud83d\udce6 Truncated tool call content in range\")\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01TabzWaP9KKcjy5473Wyy9h",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Found and fixed the compaction bug!\\n\\n**Root Cause**: In `compact_tool_results()`, when processing `TOOL_CALL` blocks in the compacted range, the code was only compacting `block.metadata[\\\"tool_calls\\\"]` (replacing arguments with `{\\\"_compacted\\\": true}`), but it was **not touching `block.content`**.\\n\\nFor XML edit format, the huge `<edit>` blocks are stored in `block.content` of TOOL_CALL blocks (the assistant's text that accompanies tool calls). These were never being truncated, so they continued to bloat context even after \\\"compaction\\\".\\n\\n**The Fix**: Added truncation for `block.content` in TOOL_CALL blocks, matching what was already done for ASSISTANT_MESSAGE blocks:\\n\\n```python\\n# Also truncate the content (contains edit blocks in XML format)\\nif block.content and len(block.content) > 100:\\n    block.content = block.content[:100] + \\\"...\\\"\\n```\\n\\nThis ensures that when you compact a range, the large edit blocks in assistant content get truncated too, actually reducing context size as expected.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01PZwU5kTcCR6DqbiSL2rVzD",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01TabzWaP9KKcjy5473Wyy9h",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PZwU5kTcCR6DqbiSL2rVzD",
+      "content": "{\"done\": true, \"message\": \"Found and fixed the compaction bug!\\n\\n**Root Cause**: In `compact_tool_results()`, when processing `TOOL_CALL` blocks in the compacted range, the code was only compacting `block.metadata[\\\"tool_calls\\\"]` (replacing arguments with `{\\\"_compacted\\\": true}`), but it was **not touching `block.content`**.\\n\\nFor XML edit format, the huge `<edit>` blocks are stored in `block.content` of TOOL_CALL blocks (the assistant's text that accompanies tool calls). These were never being truncated, so they continued to bloat context even after \\\"compaction\\\".\\n\\n**The Fix**: Added truncation for `block.content` in TOOL_CALL blocks, matching what was already done for ASSISTANT_MESSAGE blocks:\\n\\n```python\\n# Also truncate the content (contains edit blocks in XML format)\\nif block.content and len(block.content) > 100:\\n    block.content = block.content[:100] + \\\"...\\\"\\n```\\n\\nThis ensures that when you compact a range, the large edit blocks in assistant content get truncated too, actually reducing context size as expected.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found and fixed the compaction bug!\n\n**Root Cause**: In `compact_tool_results()`, when processing `TOOL_CALL` blocks in the compacted range, the code was only compacting `block.metadata[\"tool_calls\"]` (replacing arguments with `{\"_compacted\": true}`), but it was **not touching `block.content`**.\n\nFor XML edit format, the huge `<edit>` blocks are stored in `block.content` of TOOL_CALL blocks (the assistant's text that accompanies tool calls). These were never being truncated, so they continued to bloat context even after \"compaction\".\n\n**The Fix**: Added truncation for `block.content` in TOOL_CALL blocks, matching what was already done for ASSISTANT_MESSAGE blocks:\n\n```python\n# Also truncate the content (contains edit blocks in XML format)\nif block.content and len(block.content) > 100:\n    block.content = block.content[:100] + \"...\"\n```\n\nThis ensures that when you compact a range, the large edit blocks in assistant content get truncated too, actually reducing context size as expected."
     }
   ]
 }

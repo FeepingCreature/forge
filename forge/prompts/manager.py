@@ -512,6 +512,10 @@ class PromptManager:
                         }
                     )
                 block.metadata["tool_calls"] = compacted_calls
+                # Also truncate the content (contains edit blocks in XML format)
+                if block.content and len(block.content) > 100:
+                    block.content = block.content[:100] + "..."
+                    print("📦 Truncated tool call content in range")
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
                 # Truncate assistant messages in the range

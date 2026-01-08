@@ -2,7 +2,8 @@
 System prompts for Forge AI assistant
 """
 
-SYSTEM_PROMPT = """You are an AI coding assistant in Forge, a git-backed IDE.
+# Base system prompt - edit format instructions are appended dynamically
+SYSTEM_PROMPT_BASE = """You are an AI coding assistant in Forge, a git-backed IDE.
 
 ## Context Model
 
@@ -150,3 +151,73 @@ Example: After implementing a feature with 10+ edits, compact with: "Implemented
 That all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.
 
 """
+
+# Instructions for XML inline edit format
+EDIT_FORMAT_XML = """
+## Making Edits
+
+To edit files, use `<edit>` blocks in your response:
+
+```
+<edit file="path/to/file.py">
+<search>
+exact text to find
+</search>
+<replace>
+replacement text
+</replace>
+</edit>
+```
+
+Rules:
+- The search text must match EXACTLY (including whitespace and indentation)
+- Only the first occurrence is replaced
+- You can include multiple `<edit>` blocks in one response
+- Edits are applied in order; if one fails, later edits are skipped
+- After edits, you can continue talking - no round-trip cost
+
+Example:
+```
+I'll fix the bug in the calculate function:
+
+<edit file="utils.py">
+<search>
+def calculate(x):
+    return x * 2
+</search>
+<replace>
+def calculate(x):
+    return x * 3
+</replace>
+</edit>
+
+That should handle the edge case properly.
+```
+"""
+
+# Instructions for tool-based edit format (search_replace)
+EDIT_FORMAT_TOOL = """
+## Making Edits
+
+Use the `search_replace` tool to edit files. The search text must match exactly.
+"""
+
+
+def get_system_prompt(edit_format: str = "xml") -> str:
+    """
+    Get the full system prompt with appropriate edit format instructions.
+
+    Args:
+        edit_format: One of "xml", "tool", or "diff"
+    """
+    if edit_format == "xml":
+        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
+    elif edit_format == "tool":
+        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_TOOL
+    else:
+        # Default to xml
+        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
+
+
+# Keep SYSTEM_PROMPT for backwards compatibility (defaults to xml format now)
+SYSTEM_PROMPT = get_system_prompt("xml")

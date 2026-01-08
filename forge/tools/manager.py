@@ -229,10 +229,19 @@ class ToolManager:
 
         return unapproved
 
-    def discover_tools(self, force_refresh: bool = False) -> list[dict[str, Any]]:
-        """Discover all APPROVED tools (built-in + user) and get their schemas"""
+    def discover_tools(
+        self, force_refresh: bool = False, edit_format: str = "xml"
+    ) -> list[dict[str, Any]]:
+        """Discover all APPROVED tools (built-in + user) and get their schemas.
+
+        Args:
+            force_refresh: If True, ignore cache and reload all tools
+            edit_format: The edit format in use ("xml", "tool", or "diff").
+                        When "xml", excludes search_replace and say tools.
+        """
         if not force_refresh and self._schema_cache:
-            return list(self._schema_cache.values())
+            # Still need to filter based on edit_format
+            return self._filter_tools_for_format(list(self._schema_cache.values()), edit_format)
 
         tools: list[dict[str, Any]] = []
         self._schema_cache = {}
@@ -291,7 +300,25 @@ class ToolManager:
                     self._schema_cache[tool_name] = schema
                     self._tool_modules[tool_name] = tool_module
 
-        return tools
+        return self._filter_tools_for_format(tools, edit_format)
+
+    def _filter_tools_for_format(
+        self, tools: list[dict[str, Any]], edit_format: str
+    ) -> list[dict[str, Any]]:
+        """Filter tools based on the edit format in use.
+
+        When edit_format is "xml", we exclude:
+        - search_replace: replaced by inline <edit> blocks
+        - say: no longer needed since edits don't force round-trips
+
+        When edit_format is "tool", all tools are included.
+        """
+        if edit_format == "tool":
+            return tools
+
+        # For "xml" format, exclude search_replace and say
+        excluded = {"search_replace", "say"}
+        return [t for t in tools if t.get("function", {}).get("name") not in excluded]
 
     def _load_tool_module_from_path(self, tool_path: Path, is_builtin: bool = False) -> Any:
         """Load a tool as a Python module from disk"""

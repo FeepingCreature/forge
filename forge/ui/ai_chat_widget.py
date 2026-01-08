@@ -855,8 +855,10 @@ class AIChatWidget(QWidget):
         # Build complete prompt with fresh context
         messages_with_context = self._build_prompt_messages()
 
-        # Discover available tools
-        tools = self.session_manager.tool_manager.discover_tools()
+        # Discover available tools (filtered by edit_format setting)
+        tools = self.session_manager.tool_manager.discover_tools(
+            edit_format=self.session_manager.edit_format
+        )
 
         # Start streaming in a separate thread
         self.streaming_content = ""
@@ -1072,6 +1074,19 @@ class AIChatWidget(QWidget):
             if result.get("tool_calls"):
                 self.messages[-1]["tool_calls"] = result["tool_calls"]
 
+        # Process inline edits BEFORE tool calls (they appear in flow text)
+        if result.get("content") and self.session_manager.edit_format in ("xml", "both"):
+            edit_result = self._process_inline_edits(result["content"])
+            if edit_result.get("had_edits"):
+                if edit_result.get("failed"):
+                    # Edit failed - truncate message, inject error, continue conversation
+                    return  # _process_inline_edits handles the continuation
+                else:
+                    # All edits succeeded - update the stored content (edits stripped)
+                    result["content"] = edit_result.get("clean_content", result["content"])
+                    if self.messages and self.messages[-1]["role"] == "assistant":
+                        self.messages[-1]["content"] = result["content"]
+
         # Handle tool calls if present
         if result.get("tool_calls"):
             # Include content with tool calls so AI sees its own reasoning
@@ -1108,6 +1123,90 @@ class AIChatWidget(QWidget):
         self._notify_turn_complete(commit_oid)
 
         self._reset_input()
+
+    def _process_inline_edits(self, content: str) -> dict[str, Any]:
+        """Process <edit> blocks from assistant message content.
+
+        Returns:
+            {
+                "had_edits": bool,  # True if any <edit> blocks were found
+                "failed": bool,     # True if an edit failed
+                "clean_content": str,  # Content with edit blocks stripped
+                "error": str,       # Error message if failed
+            }
+        """
+        from forge.tools.inline_edit import execute_edits, parse_edits, strip_edits
+
+        edits = parse_edits(content)
+        if not edits:
+            return {"had_edits": False, "failed": False, "clean_content": content}
+
+        # Execute edits sequentially, stopping on first failure
+        vfs = self.session_manager.vfs
+        vfs.claim_thread()
+        try:
+            results, failed_index = execute_edits(vfs, edits)
+        finally:
+            vfs.release_thread()
+
+        if failed_index is not None:
+            # Edit failed - truncate message at the failed edit
+            failed_edit = edits[failed_index]
+            truncated_content = content[: failed_edit.start_pos].rstrip()
+
+            # Update the assistant message to truncated version
+            if self.messages and self.messages[-1]["role"] == "assistant":
+                self.messages[-1]["content"] = truncated_content
+
+            # Build error message for the AI
+            error_result = results[failed_index]
+            error_msg = error_result.get("error", "Unknown error")
+
+            # Add success messages for edits that worked
+            success_msgs = []
+            for i, result in enumerate(results[:-1]):  # Exclude the failed one
+                if result.get("success"):
+                    success_msgs.append(f"✓ {edits[i].file}")
+
+            # Build the system message
+            system_parts = []
+            if success_msgs:
+                system_parts.append("Edits applied:\n" + "\n".join(success_msgs))
+            system_parts.append(f"\n❌ Edit failed for `{failed_edit.file}`:\n\n{error_msg}")
+
+            error_content = "\n".join(system_parts)
+
+            # Add truncated content to prompt manager (what the AI actually "said")
+            if truncated_content:
+                self.session_manager.append_assistant_message(truncated_content)
+
+            # Add error as user message so AI sees it
+            self._add_system_message(error_content)
+            self.session_manager.append_user_message(error_content)
+
+            # Update display
+            self._update_chat_display(scroll_to_bottom=True)
+
+            # Continue conversation so AI can react to the error
+            tools = self.session_manager.tool_manager.discover_tools(
+                edit_format=self.session_manager.edit_format
+            )
+            self._continue_after_tools(tools)
+
+            return {"had_edits": True, "failed": True, "error": error_msg}
+
+        # All edits succeeded
+        clean_content = strip_edits(content)
+
+        # Add success feedback as system message
+        success_msgs = [f"✓ {edit.file}" for edit in edits]
+        self._add_system_message("Edits applied:\n" + "\n".join(success_msgs))
+
+        # Track modified files for context updates
+        for edit in edits:
+            self.session_manager.file_was_modified(edit.file, None)
+
+        return {"had_edits": True, "failed": False, "clean_content": clean_content}
 
     def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error by feeding it back into the conversation"""
@@ -1146,7 +1245,9 @@ class AIChatWidget(QWidget):
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread and continue conversation"""
         # Store tools for later use in _on_tools_all_finished
-        self._pending_tools = self.session_manager.tool_manager.discover_tools()
+        self._pending_tools = self.session_manager.tool_manager.discover_tools(
+            edit_format=self.session_manager.edit_format
+        )
 
         # Create and start tool execution worker
         self.tool_thread = QThread()

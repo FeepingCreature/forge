@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Any
 
 from forge.llm.cost_tracker import COST_TRACKER
+from forge.prompts.system import get_system_prompt
 
 
 class BlockType(Enum):
@@ -45,8 +46,13 @@ class PromptManager:
     - to_messages: Convert to API format with cache_control on last block
     """
 
-    def __init__(self, system_prompt: str) -> None:
+    def __init__(self, system_prompt: str | None = None, edit_format: str = "xml") -> None:
         self.blocks: list[ContentBlock] = []
+        self.edit_format = edit_format
+
+        # Generate system prompt based on edit format if not provided
+        if system_prompt is None:
+            system_prompt = get_system_prompt(edit_format)
         self.system_prompt = system_prompt
 
         # Rolling counter for user-friendly tool call IDs

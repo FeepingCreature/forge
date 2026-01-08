@@ -21,7 +21,6 @@ from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
 from forge.llm.request_log import REQUEST_LOG, RequestLogEntry
 from forge.prompts.manager import PromptManager
-from forge.prompts.system import SYSTEM_PROMPT
 from forge.tools.manager import ToolManager
 
 
@@ -38,8 +37,12 @@ class SessionManager:
         # Keep repo reference only for commit operations (not file reading)
         self._repo = repo
 
+        # Get edit format from settings
+        self.edit_format: str = str(settings.get("llm.edit_format", "xml"))
+
         # Prompt manager for cache-optimized prompt construction
-        self.prompt_manager = PromptManager(SYSTEM_PROMPT)
+        # Pass edit_format to generate appropriate system prompt
+        self.prompt_manager = PromptManager(edit_format=self.edit_format)
 
         # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()

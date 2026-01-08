@@ -20,6 +20,7 @@ class Settings:
             "base_url": "https://openrouter.ai/api/v1",
             "parallel_summarization": 8,  # Number of parallel requests for summarization
             "summary_token_budget": 10000,  # Max tokens for file summaries before listing only
+            "edit_format": "xml",  # "xml" (inline edits), "tool" (search_replace), or "diff"
         },
         "editor": {
             "font_size": 10,

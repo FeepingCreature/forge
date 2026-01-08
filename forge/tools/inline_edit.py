@@ -47,10 +47,12 @@ class EditBlock:
 
 # Regex to match <edit file="...">...</edit> blocks
 # Using DOTALL so . matches newlines
+# Key: use negative lookahead to prevent matching across </edit> boundaries
+# The (?:(?!</edit>).)*? pattern matches any char that's not the start of </edit>
 EDIT_PATTERN = re.compile(
     r'<edit\s+file="([^"]+)">\s*'
-    r"<search>\n?(.*?)\n?</search>\s*"
-    r"<replace>\n?(.*?)\n?</replace>\s*"
+    r"<search>\n?((?:(?!</edit>).)*?)\n?</search>\s*"
+    r"<replace>\n?((?:(?!</edit>).)*?)\n?</replace>\s*"
     r"</edit>",
     re.DOTALL,
 )

@@ -1077,7 +1077,16 @@ class AIChatWidget(QWidget):
             if result.get("tool_calls"):
                 self.messages[-1]["tool_calls"] = result["tool_calls"]
 
-        # Process inline edits BEFORE tool calls (they appear in flow text)
+        # Handle tool calls if present - MUST append BEFORE processing inline edits
+        # because inline edits inject a user message ("Edits applied"), and the assistant's
+        # tool_call message must come before that user message.
+        if result.get("tool_calls"):
+            # Include content with tool calls so AI sees its own reasoning
+            tool_names = [tc.get("function", {}).get("name", "?") for tc in result["tool_calls"]]
+            print(f"📝 _on_stream_finished: Appending tool_call with tools={tool_names}, content_len={len(result.get('content') or '')}")
+            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
+
+        # Process inline edits AFTER tool calls are recorded
         if result.get("content") and self.session_manager.edit_format in ("xml", "both"):
             edit_result = self._process_inline_edits(result["content"])
             if edit_result.get("had_edits"):
@@ -1089,11 +1098,6 @@ class AIChatWidget(QWidget):
                     result["content"] = edit_result.get("clean_content", result["content"])
                     if self.messages and self.messages[-1]["role"] == "assistant":
                         self.messages[-1]["content"] = result["content"]
-
-        # Handle tool calls if present
-        if result.get("tool_calls"):
-            # Include content with tool calls so AI sees its own reasoning
-            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
             # Execute tools - don't commit yet, AI will respond again
             self._execute_tool_calls(result["tool_calls"])
@@ -1207,6 +1211,7 @@ class AIChatWidget(QWidget):
 
         # Add to prompt manager so AI sees it, but don't display as system message
         # (similar to how builtin_tools_with_native_rendering suppress UI messages)
+        print(f"📝 _process_inline_edits: Appending 'Edits applied' user message")
         self.session_manager.append_user_message(success_content)
 
         # Track modified files for context updates

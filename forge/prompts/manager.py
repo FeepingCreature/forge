@@ -282,7 +282,7 @@ class PromptManager:
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the stream, optionally with accompanying text content"""
         tool_names = [tc.get("function", {}).get("name", "?") for tc in tool_calls]
-        print(f"🔧 PromptManager: Appending tool calls: {tool_names}")
+        print(f"🔧 PromptManager.append_tool_call: tools={tool_names}, content_len={len(content)}")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_CALL,

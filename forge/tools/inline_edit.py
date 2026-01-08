@@ -72,15 +72,6 @@ def parse_edits(content: str) -> list[EditBlock]:
     return edits
 
 
-def strip_edits(content: str) -> str:
-    """
-    Remove all <edit> blocks from content, leaving surrounding text.
-
-    Used to clean up assistant message for display after edits are executed.
-    """
-    return EDIT_PATTERN.sub("", content).strip()
-
-
 def execute_edit(vfs: "VFS", edit: EditBlock) -> dict[str, Any]:
     """
     Execute a single edit block.

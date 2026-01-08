@@ -1,6 +1,6 @@
 {
   "active_files": [
-    "forge/ui/ai_chat_widget.py",
+    "forge/tools/inline_edit.py",
     "CLAUDE.md",
     "forge/git_backend/commit_types.py"
   ],
@@ -319,6 +319,33 @@
       "streaming": true,
       "actual_cost": 0.206138,
       "generation_id": "gen-1767860683-RtOKVgPKyVndiiyEQxjp"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767860705186.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767860705186.json",
+      "timestamp": 1767860705.1880398,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.203873,
+      "generation_id": "gen-1767860705-d8mgRWlJ8R1pHVjbeMIe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767860710549.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767860710549.json",
+      "timestamp": 1767860710.550985,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04089125,
+      "generation_id": "gen-1767860710-jPkEntW8KZ5Vv7BFpSNp"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767860716102.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767860716102.json",
+      "timestamp": 1767860716.1035383,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.050768,
+      "generation_id": "gen-1767860716-nUVKZOwoyGqJVdFu8Vjz"
     }
   ],
   "messages": [
@@ -1198,6 +1225,131 @@
     {
       "role": "assistant",
       "content": "Fixed! Edit blocks now stay in the stored message content so they render as diff views in chat history. The flow is:\n\n1. During streaming: `render_inline_edits()` shows diffs as they stream in\n2. After execution: edit blocks remain in content, continue rendering as diffs\n3. On session replay: same content loads, same diffs display (but edits don't re-execute since that only happens in `_on_stream_finished` during live streaming)\n\nThis matches how tool calls work - they're facts in the history that render specially but don't re-execute."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: a64f9ee9",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Can you scout if we actually use strip_edit *anywhere*?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"strip_edits?\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01Y4aEsLkMTUGkvKn59yPWNn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Y4aEsLkMTUGkvKn59yPWNn",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/tools/inline_edit.py:75 \\u2500\\u2500\\n      72 |     return edits\\n      73 | \\n      74 | \\n>>>   75 | def strip_edits(content: str) -> str:\\n      76 |     \\\"\\\"\\\"\\n      77 |     Remove all <edit> blocks from content, leaving surrounding text.\\n      78 | \", \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"strip_edits?\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/tools/inline_edit.py:75 \\u2500\\u2500\\n      72 |     return edits\\n      73 | \\n      74 | \\n>>>   75 | def strip_edits(content: str) -> str:\\n      76 |     \\\"\\\"\\\"\\n      77 |     Remove all <edit> blocks from content, leaving surrounding text.\\n      78 | \",\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Nope! It's only defined, never used. Let me remove it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/inline_edit.py\"], \"remove\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01FrGbne7TULoxcmkKmcz1F7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FrGbne7TULoxcmkKmcz1F7",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/inline_edit.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/inline_edit.py\", \"search\": \"def strip_edits(content: str) -> str:\\n    \\\"\\\"\\\"\\n    Remove all <edit> blocks from content, leaving surrounding text.\\n\\n    Used to clean up assistant message for display after edits are executed.\\n    \\\"\\\"\\\"\\n    return EDIT_PATTERN.sub(\\\"\\\", content).strip()\\n\\n\\ndef execute_edit(vfs: \\\"VFS\\\", edit: EditBlock) -> dict[str, Any]:\", \"replace\": \"def execute_edit(vfs: \\\"VFS\\\", edit: EditBlock) -> dict[str, Any]:\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_01Q5m1TvLhvyKsWpauRpnRR4",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_015mtR6JvZgxETcsi4PAq4Q4",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Remove unused strip_edits function\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01YXGsYcNfJpnyqoRk1yMCix",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Removed the unused `strip_edits` function from inline_edit.py.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01QiccyGBuNA7n9cL39oRm5V",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Q5m1TvLhvyKsWpauRpnRR4",
+      "content": "{\"message\": \"Replaced in forge/tools/inline_edit.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015mtR6JvZgxETcsi4PAq4Q4",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01YXGsYcNfJpnyqoRk1yMCix",
+      "content": "{\"commit\": \"a964601e6191\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QiccyGBuNA7n9cL39oRm5V",
+      "content": "{\"done\": true, \"message\": \"Removed the unused `strip_edits` function from inline_edit.py.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Removed the unused `strip_edits` function from inline_edit.py."
     }
   ]
 }

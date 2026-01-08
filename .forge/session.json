@@ -1,0 +1,202 @@
+{
+  "active_files": [
+    "forge/ui/ai_chat_widget.py",
+    "forge/git_backend/commit_types.py",
+    "CLAUDE.md"
+  ],
+  "request_log_entries": [
+    {
+      "request_file": "/tmp/forge_debug/request_1767899787247.json",
+      "response_file": "/tmp/forge_debug/response_1767899787247.json",
+      "timestamp": 1767899787.2487714,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003809,
+      "generation_id": "gen-1767899788-IiHCrGba75vIwputWcX3"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767899823053.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767899823053.json",
+      "timestamp": 1767899823.0543098,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1026625,
+      "generation_id": "gen-1767899823-cJeiiYNSYHY6aN00WciC"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767899827732.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767899827732.json",
+      "timestamp": 1767899827.7333083,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0219255,
+      "generation_id": "gen-1767899828-xx0pSqmlPjwqPABVqpue"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767899833663.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767899833663.json",
+      "timestamp": 1767899833.664433,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02297225,
+      "generation_id": "gen-1767899834-Q6Uqw9UfXhzPb8SwunnH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767899839384.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767899839384.json",
+      "timestamp": 1767899839.385184,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.20944475,
+      "generation_id": "gen-1767899840-FEwHKdIpK7P1hxGSTvvo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767899890545.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767899890545.json",
+      "timestamp": 1767899890.5466273,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.2073665,
+      "generation_id": "gen-1767899891-QrpiX4UijzbWPItn7hmc"
+    }
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 100 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! There's an issue with the approval dialogues - if multiple edits were made inturn to a tool a user reports we can get multiple requests, of which only one works. Can you look into that?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at this issue, I need to understand the tool approval flow. Let me search for the relevant code.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"approve_tool|approval\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01LUgxXGLSWh27XczxTR1sn2",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LUgxXGLSWh27XczxTR1sn2",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:366 \\u2500\\u2500\\n     363 |         \\\"\\\"\\\"\\n     364 |         Commit all changes from an AI turn.\\n     365 | \\n>>>  366 |         If there are [prepare] commits (e.g., tool approvals), they will be absorbed automatically.\\n     367 | \\n     368 |         Commit type logic:\\n     369 |         - If only session state changed (just conversation): PREPARE commit\\n\\n\\u2500\\u2500 forge/tools/builtin/get_skill.py:114 \\u2500\\u2500\\n     111 | \\n     112 | ## Tool Approval\\n     113 | \\n>>>  114 | Custom tools require user approval before they can be executed. When you create\\n     115 | a new tool, the user will be prompted to review and approve it. The tool's hash\\n     116 | is stored in `.forge/approved_tools.json` so modifications require re-approval.\\n     117 | \\n\\n\\u2500\\u2500 forge/tools/builtin/get_skill.py:116 \\u2500\\u2500\\n     113 | \\n     114 | Custom tools require user approval before they can be executed. When you create\\n     115 | a new tool, the user will be prompted to review and approve it. The tool's hash\\n>>>  116 | is stored in `.forge/approved_tools.json` so modifications require re-approval.\\n     117 | \\n     118 | ## Example: A Tool That Runs Commands\\n     119 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:52 \\u2500\\u2500\\n      49 | \\n      50 |         self.branch_name = branch_name\\n      51 | \\n>>>   52 |         # Keep repo reference private - only used for VFS creation and approval loading\\n      53 |         self._repo = repo\\n      54 | \\n      55 |         # Create VFS for this session - this is THE source of truth for file content\\n\\n\\u2500\\u2500 forge/tools/manager.py:69 \\u2500\\u2500\\n      66 |         # Approved tools tracking\\n      67 |         self.approved_tools_path = APPROVED_TOOLS_FILE\\n      68 |         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash\\n>>>   69 |         self._pending_approvals: dict[str, str] = {}  # Changes to amend onto last commit\\n      70 |         self._load_approved_tools()\\n      71 | \\n      72 |     def _load_approved_tools(self) -> None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:122 \\u2500\\u2500\\n     119 |         # Check if tool is in approved list with matching hash\\n     120 |         return self._approved_tools.get(tool_name) == current_hash\\n     121 | \\n>>>  122 |     def approve_tool(self, tool_name: str) -> None:\\n     123 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     124 |         content = self._get_tool_content(tool_name)\\n     125 |         if content is None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:123 \\u2500\\u2500\\n     120 |         return self._approved_tools.get(tool_name) == current_hash\\n     121 | \\n     122 |     def approve_tool(self, tool_name: str) -> None:\\n>>>  123 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     124 |         content = self._get_tool_content(tool_name)\\n     125 |         if content is None:\\n     126 |             raise FileNotFoundError(f\\\"Tool not found: {tool_name}\\\")\\n\\n\\u2500\\u2500 forge/tools/manager.py:131 \\u2500\\u2500\\n     128 |         current_hash = self._get_content_hash(content)\\n     129 |         self._approved_tools[tool_name] = current_hash\\n     130 | \\n>>>  131 |         # Track in pending approvals (will be amended onto last commit)\\n     132 |         self._pending_approvals[tool_name] = current_hash\\n     133 | \\n     134 |     def reject_tool(self, tool_name: str) -> None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:132 \\u2500\\u2500\\n     129 |         self._approved_tools[tool_name] = current_hash\\n     130 | \\n     131 |         # Track in pending approvals (will be amended onto last commit)\\n>>>  132 |         self._pending_approvals[tool_name] = current_hash\\n     133 | \\n     134 |     def reject_tool(self, tool_name: str) -> None:\\n     135 |         \\\"\\\"\\\"Reject a tool (removes from approved list if present)\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/tools/manager.py:139 \\u2500\\u2500\\n     136 |         if tool_name in self._approved_tools:\\n     137 |             del self._approved_tools[tool_name]\\n     138 | \\n>>>  139 |         # Track rejection in pending approvals\\n     140 |         if tool_name in self._pending_approvals:\\n     141 |             del self._pending_approvals[tool_name]\\n     142 | \", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"approve_tool|approval\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:366 \\u2500\\u2500\\n     363 |         \\\"\\\"\\\"\\n     364 |         Commit all changes from an AI turn.\\n     365 | \\n>>>  366 |         If there are [prepare] commits (e.g., tool approvals), they will be absorbed automatically.\\n     367 | \\n     368 |         Commit type logic:\\n     369 |         - If only session state changed (just conversation): PREPARE commit\\n\\n\\u2500\\u2500 forge/tools/builtin/get_skill.py:114 \\u2500\\u2500\\n     111 | \\n     112 | ## Tool Approval\\n     113 | \\n>>>  114 | Custom tools require user approval before they can be executed. When you create\\n     115 | a new tool, the user will be prompted to review and approve it. The tool's hash\\n     116 | is stored in `.forge/approved_tools.json` so modifications require re-approval.\\n     117 | \\n\\n\\u2500\\u2500 forge/tools/builtin/get_skill.py:116 \\u2500\\u2500\\n     113 | \\n     114 | Custom tools require user approval before they can be executed. When you create\\n     115 | a new tool, the user will be prompted to review and approve it. The tool's hash\\n>>>  116 | is stored in `.forge/approved_tools.json` so modifications require re-approval.\\n     117 | \\n     118 | ## Example: A Tool That Runs Commands\\n     119 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:52 \\u2500\\u2500\\n      49 | \\n      50 |         self.branch_name = branch_name\\n      51 | \\n>>>   52 |         # Keep repo reference private - only used for VFS creation and approval loading\\n      53 |         self._repo = repo\\n      54 | \\n      55 |         # Create VFS for this session - this is THE source of truth for file content\\n\\n\\u2500\\u2500 forge/tools/manager.py:69 \\u2500\\u2500\\n      66 |         # Approved tools tracking\\n      67 |         self.approved_tools_path = APPROVED_TOOLS_FILE\\n      68 |         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash\\n>>>   69 |         self._pending_approvals: dict[str, str] = {}  # Changes to amend onto last commit\\n      70 |         self._load_approved_tools()\\n      71 | \\n      72 |     def _load_approved_tools(self) -> None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:122 \\u2500\\u2500\\n     119 |         # Check if tool is in approved list with matching hash\\n     120 |         return self._approved_tools.get(tool_name) == current_hash\\n     121 | \\n>>>  122 |     def approve_tool(self, tool_name: str) -> None:\\n     123 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     124 |         content = self._get_tool_content(tool_name)\\n     125 |         if content is None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:123 \\u2500\\u2500\\n     120 |         return self._approved_tools.get(tool_name) == current_hash\\n     121 | \\n     122 |     def approve_tool(self, tool_name: str) -> None:\\n>>>  123 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     124 |         content = self._get_tool_content(tool_name)\\n     125 |         if content is None:\\n     126 |             raise FileNotFoundError(f\\\"Tool not found: {tool_name}\\\")\\n\\n\\u2500\\u2500 forge/tools/manager.py:131 \\u2500\\u2500\\n     128 |         current_hash = self._get_content_hash(content)\\n     129 |         self._approved_tools[tool_name] = current_hash\\n     130 | \\n>>>  131 |         # Track in pending approvals (will be amended onto last commit)\\n     132 |         self._pending_approvals[tool_name] = current_hash\\n     133 | \\n     134 |     def reject_tool(self, tool_name: str) -> None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:132 \\u2500\\u2500\\n     129 |         self._approved_tools[tool_name] = current_hash\\n     130 | \\n     131 |         # Track in pending approvals (will be amended onto last commit)\\n>>>  132 |         self._pending_approvals[tool_name] = current_hash\\n     133 | \\n     134 |     def reject_tool(self, tool_name: str) -> None:\\n     135 |         \\\"\\\"\\\"Reject a tool (removes from approved list if present)\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/tools/manager.py:139 \\u2500\\u2500\\n     136 |         if tool_name in self._approved_tools:\\n     137 |             del self._approved_tools[tool_name]\\n     138 | \\n>>>  139 |         # Track rejection in pending approvals\\n     140 |         if tool_name in self._pending_approvals:\\n     141 |             del self._pending_approvals[tool_name]\\n     142 | \",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at where the approval dialog is triggered - likely in the AI chat widget where tools are executed.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"unapproved|approval.*dialog|ToolApproval\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01BgA8PLiCqqmPL4XU2xaf7h",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BgA8PLiCqqmPL4XU2xaf7h",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/tools/manager.py:175 \\u2500\\u2500\\n     172 | \\n     173 |         return new_commit_oid\\n     174 | \\n>>>  175 |     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:\\n     176 |         \\\"\\\"\\\"\\n     177 |         Get list of unapproved tools (excludes built-in tools).\\n     178 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:177 \\u2500\\u2500\\n     174 | \\n     175 |     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:\\n     176 |         \\\"\\\"\\\"\\n>>>  177 |         Get list of unapproved tools (excludes built-in tools).\\n     178 | \\n     179 |         Checks both the filesystem AND the VFS for tools, so tools created\\n     180 |         by the AI in the current session are discovered immediately.\\n\\n\\u2500\\u2500 forge/tools/manager.py:185 \\u2500\\u2500\\n     182 |         Returns:\\n     183 |             List of (tool_name, current_code, is_new, old_code) tuples\\n     184 |         \\\"\\\"\\\"\\n>>>  185 |         unapproved: list[tuple[str, str, bool, str | None]] = []\\n     186 |         seen_tools: set[str] = set()\\n     187 | \\n     188 |         # Check filesystem first (committed tools)\\n\\n\\u2500\\u2500 forge/tools/manager.py:208 \\u2500\\u2500\\n     205 | \\n     206 |                         # For modified tools, we don't have the old code easily accessible\\n     207 |                         # Could read from git history, but for now just mark as modified\\n>>>  208 |                         unapproved.append((tool_name, current_code, is_new, old_code))\\n     209 | \\n     210 |         # Also check VFS for tools created in current session (not yet committed)\\n     211 |         # Normalize the tools_dir path (remove ./ prefix if present)\\n\\n\\u2500\\u2500 forge/tools/manager.py:228 \\u2500\\u2500\\n     225 | \\n     226 |                 if not self.is_tool_approved(tool_name):\\n     227 |                     is_new = tool_name not in self._approved_tools\\n>>>  228 |                     unapproved.append((tool_name, current_code, is_new, None))\\n     229 | \\n     230 |         return unapproved\\n     231 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:230 \\u2500\\u2500\\n     227 |                     is_new = tool_name not in self._approved_tools\\n     228 |                     unapproved.append((tool_name, current_code, is_new, None))\\n     229 | \\n>>>  230 |         return unapproved\\n     231 | \\n     232 |     def discover_tools(\\n     233 |         self, force_refresh: bool = False, edit_format: str = \\\"xml\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:281 \\u2500\\u2500\\n     278 |         self.parent_widget = parent_widget\\n     279 | \\n     280 |     @Slot(str, bool)\\n>>>  281 |     def handleToolApproval(self, tool_name: str, approved: bool) -> None:\\n     282 |         \\\"\\\"\\\"Handle tool approval from JavaScript\\\"\\\"\\\"\\n     283 |         self.parent_widget._handle_approval(tool_name, approved)\\n     284 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:442 \\u2500\\u2500\\n     439 |             self._emit_context_stats()\\n     440 | \\n     441 |         self._update_chat_display()\\n>>>  442 |         self._check_for_unapproved_tools()\\n     443 | \\n     444 |     def _setup_ui(self) -> None:\\n     445 |         \\\"\\\"\\\"Setup the chat UI\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:604 \\u2500\\u2500\\n     601 | \\n     602 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     603 | \\n>>>  604 |     def _check_for_unapproved_tools(self) -> None:\\n     605 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n     606 |         unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n     607 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:605 \\u2500\\u2500\\n     602 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     603 | \\n     604 |     def _check_for_unapproved_tools(self) -> None:\\n>>>  605 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n     606 |         unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n     607 | \\n     608 |         if unapproved:\", \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"unapproved|approval.*dialog|ToolApproval\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/tools/manager.py:175 \\u2500\\u2500\\n     172 | \\n     173 |         return new_commit_oid\\n     174 | \\n>>>  175 |     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:\\n     176 |         \\\"\\\"\\\"\\n     177 |         Get list of unapproved tools (excludes built-in tools).\\n     178 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:177 \\u2500\\u2500\\n     174 | \\n     175 |     def get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:\\n     176 |         \\\"\\\"\\\"\\n>>>  177 |         Get list of unapproved tools (excludes built-in tools).\\n     178 | \\n     179 |         Checks both the filesystem AND the VFS for tools, so tools created\\n     180 |         by the AI in the current session are discovered immediately.\\n\\n\\u2500\\u2500 forge/tools/manager.py:185 \\u2500\\u2500\\n     182 |         Returns:\\n     183 |             List of (tool_name, current_code, is_new, old_code) tuples\\n     184 |         \\\"\\\"\\\"\\n>>>  185 |         unapproved: list[tuple[str, str, bool, str | None]] = []\\n     186 |         seen_tools: set[str] = set()\\n     187 | \\n     188 |         # Check filesystem first (committed tools)\\n\\n\\u2500\\u2500 forge/tools/manager.py:208 \\u2500\\u2500\\n     205 | \\n     206 |                         # For modified tools, we don't have the old code easily accessible\\n     207 |                         # Could read from git history, but for now just mark as modified\\n>>>  208 |                         unapproved.append((tool_name, current_code, is_new, old_code))\\n     209 | \\n     210 |         # Also check VFS for tools created in current session (not yet committed)\\n     211 |         # Normalize the tools_dir path (remove ./ prefix if present)\\n\\n\\u2500\\u2500 forge/tools/manager.py:228 \\u2500\\u2500\\n     225 | \\n     226 |                 if not self.is_tool_approved(tool_name):\\n     227 |                     is_new = tool_name not in self._approved_tools\\n>>>  228 |                     unapproved.append((tool_name, current_code, is_new, None))\\n     229 | \\n     230 |         return unapproved\\n     231 | \\n\\n\\u2500\\u2500 forge/tools/manager.py:230 \\u2500\\u2500\\n     227 |                     is_new = tool_name not in self._approved_tools\\n     228 |                     unapproved.append((tool_name, current_code, is_new, None))\\n     229 | \\n>>>  230 |         return unapproved\\n     231 | \\n     232 |     def discover_tools(\\n     233 |         self, force_refresh: bool = False, edit_format: str = \\\"xml\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:281 \\u2500\\u2500\\n     278 |         self.parent_widget = parent_widget\\n     279 | \\n     280 |     @Slot(str, bool)\\n>>>  281 |     def handleToolApproval(self, tool_name: str, approved: bool) -> None:\\n     282 |         \\\"\\\"\\\"Handle tool approval from JavaScript\\\"\\\"\\\"\\n     283 |         self.parent_widget._handle_approval(tool_name, approved)\\n     284 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:442 \\u2500\\u2500\\n     439 |             self._emit_context_stats()\\n     440 | \\n     441 |         self._update_chat_display()\\n>>>  442 |         self._check_for_unapproved_tools()\\n     443 | \\n     444 |     def _setup_ui(self) -> None:\\n     445 |         \\\"\\\"\\\"Setup the chat UI\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:604 \\u2500\\u2500\\n     601 | \\n     602 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     603 | \\n>>>  604 |     def _check_for_unapproved_tools(self) -> None:\\n     605 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n     606 |         unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n     607 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:605 \\u2500\\u2500\\n     602 |         self._add_system_message(f\\\"\\u274c Error generating summaries: {error_msg}\\\")\\n     603 | \\n     604 |     def _check_for_unapproved_tools(self) -> None:\\n>>>  605 |         \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n     606 |         unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n     607 | \\n     608 |         if unapproved:\",\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at the `_check_for_unapproved_tools` function more closely to understand when approvals are triggered.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_011b8YrJ8MrwDVxGRxKLBLxu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011b8YrJ8MrwDVxGRxKLBLxu",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"scratchpad\": \"Looking at the code, I need to understand the issue:\\n\\n1. `_check_for_unapproved_tools()` is called in `__init__` at line 442\\n2. It gets unapproved tools and for each one, adds an approval request message with buttons\\n3. The `_handle_approval` method handles when a user clicks approve/reject\\n\\nThe issue reported is: \\\"if multiple edits were made in-turn to a tool, we can get multiple requests, of which only one works\\\"\\n\\nLet me trace through what happens:\\n\\n1. `_check_for_unapproved_tools()` gets the list from `get_unapproved_tools()`\\n2. For each unapproved tool, it adds it to `self.pending_approvals` and creates a UI message\\n3. When user clicks approve, `_handle_approval` is called:\\n   - It checks if tool_name is in `pending_approvals`\\n   - If approved, calls `tool_manager.approve_tool(tool_name)`\\n   - Adds to `handled_approvals`\\n   - Deletes from `pending_approvals`\\n\\nThe problem: Look at `_check_for_unapproved_tools()`:\\n\\n```python\\ndef _check_for_unapproved_tools(self) -> None:\\n    \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n    unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n\\n    if unapproved:\\n        for tool_name, current_code, is_new, old_code in unapproved:\\n            # Check if this tool has already been handled in this session\\n            # by checking if it's in the approved_tools.json file\\n            if self.session_manager.tool_manager.is_tool_approved(tool_name):\\n                # Already handled, mark it so buttons render disabled\\n                self.handled_approvals.add(tool_name)\\n                continue\\n\\n            self.pending_approvals[tool_name] = {\\n                \\\"code\\\": current_code,\\n                \\\"is_new\\\": is_new,\\n                \\\"old_code\\\": old_code,\\n            }\\n\\n            # Add approval request to chat with interactive buttons\\n            ...\\n```\\n\\nThis is called:\\n1. At the end of `__init__` (line 442)\\n2. In `_reset_input()` at line 1299\\n\\nSo the flow is:\\n- AI makes changes to a tool file multiple times\\n- After AI turn finishes, `_reset_input()` is called\\n- `_check_for_unapproved_tools()` is called\\n- Tool appears once in the list (with final code)\\n- User approves\\n\\nBut wait - looking more carefully at line 442, this is called in `__init__` BEFORE `_update_chat_display()`. And also in `_reset_input()`.\\n\\nThe actual issue might be:\\n\\nIf the AI modifies a tool file MULTIPLE TIMES in a single turn, we might be calling `_check_for_unapproved_tools()` multiple times during the turn?\\n\\nLet me check when `_reset_input` is called:\\n- At end of `_on_stream_finished` when there are no tool calls (line 1069)\\n- At end of `_on_tools_all_finished` after done tool (line 1171)\\n- At end of `_on_tools_all_finished` in else branch (line 1302)... wait no\\n- At end of `_on_tool_error` (line 1183)\\n- At end of `_cancel_ai_turn` (line 1238)\\n\\nActually, I see the problem now!\\n\\nLook at the flow after tools finish:\\n\\n```python\\ndef _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:\\n    ...\\n    # Check if the last tool was `done` and succeeded - end turn cleanly\\n    if results:\\n        last_result = results[-1].get(\\\"result\\\", {})\\n        if last_result.get(\\\"done\\\") and last_result.get(\\\"success\\\"):\\n            ...\\n            self._reset_input()  # Calls _check_for_unapproved_tools\\n            return\\n\\n    # Check if user queued a message\\n    if self._queued_message:\\n        ...\\n        self._continue_after_tools(tools)  # Does NOT call _reset_input\\n    else:\\n        # No queued message - continue conversation\\n        self._continue_after_tools(tools)  # Does NOT call _reset_input\\n```\\n\\nSo `_check_for_unapproved_tools()` is only called when the turn ends (either via done tool or in _reset_input).\\n\\nBut wait - what about this case:\\n\\n1. AI calls write_file on tools/my_tool.py (creates tool)\\n2. Tool executed, `_on_tool_finished` is called\\n3. AI continues (no done yet)\\n4. AI calls write_file on tools/my_tool.py again (modifies tool)\\n5. Tool executed, `_on_tool_finished` is called\\n6. AI calls done\\n7. `_on_tools_all_finished` is called\\n8. `_reset_input` is called\\n9. `_check_for_unapproved_tools` is called\\n\\nSo that should only show ONE approval request...\\n\\nOH WAIT. Let me re-read the user's report: \\\"if multiple edits were made in-turn to a tool a user reports we can get multiple requests, of which only one works\\\"\\n\\nSo the issue is seeing multiple approval requests for the same tool. Let me look more carefully.\\n\\nActually, I see a potential issue! Look at `_check_for_unapproved_tools`:\\n\\n```python\\nif unapproved:\\n    for tool_name, current_code, is_new, old_code in unapproved:\\n        # Check if this tool has already been handled in this session\\n        if self.session_manager.tool_manager.is_tool_approved(tool_name):\\n            self.handled_approvals.add(tool_name)\\n            continue\\n\\n        self.pending_approvals[tool_name] = {...}  # Overwrites if already exists\\n        \\n        # ADD MESSAGE - this always adds a new message!\\n        self.add_message(\\\"system\\\", ...)\\n```\\n\\nThe issue is:\\n1. If `_check_for_unapproved_tools` is called twice (without the tool being approved in between)\\n2. The tool is NOT in `is_tool_approved` (hasn't been approved yet)\\n3. It would add ANOTHER approval message to the chat!\\n\\nBut when would `_check_for_unapproved_tools` be called twice for the same unapproved tool?\\n\\nLooking at the code:\\n- Called in `__init__` line 442\\n- Called in `_reset_input` line 1299\\n\\nSo if a session is loaded that has a pending tool approval, and then an AI turn completes:\\n1. `__init__` calls `_check_for_unapproved_tools` - adds message\\n2. AI does something, turn ends\\n3. `_reset_input` calls `_check_for_unapproved_tools` - adds ANOTHER message!\\n\\nThat's the bug! The check at the top:\\n```python\\nif self.session_manager.tool_manager.is_tool_approved(tool_name):\\n    self.handled_approvals.add(tool_name)\\n    continue\\n```\\n\\nThis only skips tools that are already APPROVED. But it doesn't skip tools that are already PENDING in `self.pending_approvals`!\\n\\nThe fix should be:\\n\\n```python\\nif tool_name in self.pending_approvals:\\n    # Already showing approval request for this tool\\n    continue\\n```\\n\\nWait, but `pending_approvals` is a dict that gets populated in this same loop... Let me re-read.\\n\\nOh I see - the issue is that `pending_approvals` IS being set:\\n```python\\nself.pending_approvals[tool_name] = {...}\\n```\\n\\nBut the MESSAGE is always being added regardless. So if this function is called twice:\\n1. First call: adds to pending_approvals, adds message\\n2. Second call: tool already in pending_approvals (but check is for is_tool_approved), updates pending_approvals, adds ANOTHER message\\n\\nThe fix should be to check if the tool is ALREADY in pending_approvals and skip it:\\n\\n```python\\ndef _check_for_unapproved_tools(self) -> None:\\n    \\\"\\\"\\\"Check for unapproved tools and show approval requests in chat\\\"\\\"\\\"\\n    unapproved = self.session_manager.tool_manager.get_unapproved_tools()\\n\\n    if unapproved:\\n        for tool_name, current_code, is_new, old_code in unapproved:\\n            # Check if this tool has already been handled in this session\\n            if self.session_manager.tool_manager.is_tool_approved(tool_name):\\n                self.handled_approvals.add(tool_name)\\n                continue\\n\\n            # Skip if we're already showing an approval request for this tool\\n            if tool_name in self.pending_approvals:\\n                continue\\n\\n            self.pending_approvals[tool_name] = {...}\\n            # Add approval request to chat\\n            ...\\n```\\n\\nThis simple fix should prevent duplicate approval messages.\\n\", \"conclusion\": \"Found the bug: `_check_for_unapproved_tools()` is called multiple times (in `__init__` and `_reset_input`), and it doesn't check if a tool is already in `self.pending_approvals` before adding another approval message. The fix is to add a check: `if tool_name in self.pending_approvals: continue` before adding the approval request message.\"}",
+            "name": "think"
+          },
+          "id": "toolu_vrtx_01ETDBjFtyhoWMgqMFR7YeSz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01ETDBjFtyhoWMgqMFR7YeSz",
+      "content": "{\"conclusion\": \"Found the bug: `_check_for_unapproved_tools()` is called multiple times (in `__init__` and `_reset_input`), and it doesn't check if a tool is already in `self.pending_approvals` before adding another approval message. The fix is to add a check: `if tool_name in self.pending_approvals: continue` before adding the approval request message.\", \"message\": \"Thought through 1253 tokens, concluded.\", \"success\": true, \"think\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I found the bug. In `_check_for_unapproved_tools()`, when it loops through unapproved tools, it doesn't check if the tool is *already* in `pending_approvals` before adding a new approval message. This method is called:\n1. In `__init__` when the widget is created\n2. In `_reset_input` after each AI turn completes\n\nIf a tool is edited multiple times in a turn, or if there's any situation where `_check_for_unapproved_tools()` is called again before the user handles the approval, duplicate approval messages get added.\n\nThe fix is simple - skip tools that are already pending approval:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _check_for_unapproved_tools(self) -> None:\n        \"\"\"Check for unapproved tools and show approval requests in chat\"\"\"\n        unapproved = self.session_manager.tool_manager.get_unapproved_tools()\n\n        if unapproved:\n            for tool_name, current_code, is_new, old_code in unapproved:\n                # Check if this tool has already been handled in this session\n                # by checking if it's in the approved_tools.json file\n                if self.session_manager.tool_manager.is_tool_approved(tool_name):\n                    # Already handled, mark it so buttons render disabled\n                    self.handled_approvals.add(tool_name)\n                    continue\n\n                self.pending_approvals[tool_name] = {\n</search>\n<replace>\n    def _check_for_unapproved_tools(self) -> None:\n        \"\"\"Check for unapproved tools and show approval requests in chat\"\"\"\n        unapproved = self.session_manager.tool_manager.get_unapproved_tools()\n\n        if unapproved:\n            for tool_name, current_code, is_new, old_code in unapproved:\n                # Check if this tool has already been handled in this session\n                # by checking if it's in the approved_tools.json file\n                if self.session_manager.tool_manager.is_tool_approved(tool_name):\n                    # Already handled, mark it so buttons render disabled\n                    self.handled_approvals.add(tool_name)\n                    continue\n\n                # Skip if we already have a pending approval for this tool\n                # (prevents duplicate approval messages if method is called multiple times)\n                if tool_name in self.pending_approvals:\n                    continue\n\n                self.pending_approvals[tool_name] = {\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fix duplicate tool approval dialogs when tool edited multiple times\\n\\n_check_for_unapproved_tools() is called multiple times (in __init__ and\\n_reset_input after each AI turn). If a tool was already pending approval,\\nit would add duplicate approval messages to the chat. Now we skip tools\\nthat are already in pending_approvals.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01P6KtkfzNV3pyvhRRxD6DKK",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed the duplicate approval dialog issue. The bug was in `_check_for_unapproved_tools()` - it didn't check if a tool was already in `pending_approvals` before adding a new approval message. Since this method is called both at widget init and after each AI turn completes, multiple approval messages could appear for the same tool.\\n\\nAdded a simple check: `if tool_name in self.pending_approvals: continue` to skip tools that already have a pending approval request.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01BEZ99xfJQ3Kpo5C5AoLtYQ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01P6KtkfzNV3pyvhRRxD6DKK",
+      "content": "{\"commit\": \"c87fc4f3391c\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BEZ99xfJQ3Kpo5C5AoLtYQ",
+      "content": "{\"done\": true, \"message\": \"Fixed the duplicate approval dialog issue. The bug was in `_check_for_unapproved_tools()` - it didn't check if a tool was already in `pending_approvals` before adding a new approval message. Since this method is called both at widget init and after each AI turn completes, multiple approval messages could appear for the same tool.\\n\\nAdded a simple check: `if tool_name in self.pending_approvals: continue` to skip tools that already have a pending approval request.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed the duplicate approval dialog issue. The bug was in `_check_for_unapproved_tools()` - it didn't check if a tool was already in `pending_approvals` before adding a new approval message. Since this method is called both at widget init and after each AI turn completes, multiple approval messages could appear for the same tool.\n\nAdded a simple check: `if tool_name in self.pending_approvals: continue` to skip tools that already have a pending approval request."
+    }
+  ]
+}

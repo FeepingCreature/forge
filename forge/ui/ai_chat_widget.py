@@ -614,6 +614,11 @@ class AIChatWidget(QWidget):
                     self.handled_approvals.add(tool_name)
                     continue
 
+                # Skip if we already have a pending approval for this tool
+                # (prevents duplicate approval messages if method is called multiple times)
+                if tool_name in self.pending_approvals:
+                    continue
+
                 self.pending_approvals[tool_name] = {
                     "code": current_code,
                     "is_new": is_new,

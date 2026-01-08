@@ -1016,7 +1016,9 @@ REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
 REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 
-def render_inline_edits(content: str, is_streaming: bool = True) -> str:
+def render_inline_edits(
+    content: str, is_streaming: bool = True, render_markdown: bool = False
+) -> str:
     """
     Render <edit> blocks in content as diff views.
 
@@ -1026,17 +1028,29 @@ def render_inline_edits(content: str, is_streaming: bool = True) -> str:
     Args:
         content: Text content that may contain <edit> blocks
         is_streaming: Whether content is still being streamed
+        render_markdown: If True, run markdown on non-edit text segments
 
     Returns:
         Content with <edit> blocks replaced by HTML diff views
     """
+    import markdown as md
+
     result_parts = []
     last_end = 0
+
+    def process_text(text: str) -> str:
+        """Process a text segment - either markdown or escape."""
+        if not text:
+            return ""
+        if render_markdown:
+            return md.markdown(text, extensions=["fenced_code", "codehilite", "tables"])
+        else:
+            return html.escape(text)
 
     # First, find and render complete edit blocks
     for match in EDIT_BLOCK_PATTERN.finditer(content):
         # Add text before this edit block
-        result_parts.append(html.escape(content[last_end : match.start()]))
+        result_parts.append(process_text(content[last_end : match.start()]))
 
         # Render the complete edit block as a diff
         filepath = match.group(1)
@@ -1063,14 +1077,14 @@ def render_inline_edits(content: str, is_streaming: bool = True) -> str:
             edit_start = EDIT_START_PATTERN.search(remaining)
             if edit_start:
                 # Add text before the partial edit
-                result_parts.append(html.escape(remaining[: edit_start.start()]))
+                result_parts.append(process_text(remaining[: edit_start.start()]))
                 result_parts.append(partial_html)
             else:
-                result_parts.append(html.escape(remaining))
+                result_parts.append(process_text(remaining))
         else:
-            result_parts.append(html.escape(remaining))
+            result_parts.append(process_text(remaining))
     else:
-        result_parts.append(html.escape(remaining))
+        result_parts.append(process_text(remaining))
 
     return "".join(result_parts)
 

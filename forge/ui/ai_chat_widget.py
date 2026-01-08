@@ -2252,15 +2252,10 @@ class AIChatWidget(QWidget):
                 if role == "assistant" and "tool_calls" in msg:
                     tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
 
-                # Render <edit> blocks as diffs before markdown processing
-                if "<edit" in content_md:
-                    from forge.ui.tool_rendering import render_inline_edits
+                # Render content with markdown, handling any <edit> blocks as diffs
+                from forge.ui.tool_rendering import render_inline_edits
 
-                    content = render_inline_edits(content_md, is_streaming=False)
-                else:
-                    content = markdown.markdown(
-                        content_md, extensions=["fenced_code", "codehilite", "tables"]
-                    )
+                content = render_inline_edits(content_md, is_streaming=False, render_markdown=True)
 
                 html_parts.append(f"""
                 <div class="message {role}" {msg_id}>

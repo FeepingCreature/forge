@@ -2,7 +2,8 @@
   "active_files": [
     "forge/git_backend/commit_types.py",
     "CLAUDE.md",
-    "tools/check.py"
+    "tools/check.py",
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -472,6 +473,42 @@
       "streaming": true,
       "actual_cost": 0.262008,
       "generation_id": "gen-1767860908-1jJDfga8oYB0oJWmlc4t"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767860980537.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767860980537.json",
+      "timestamp": 1767860980.5384774,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.30086,
+      "generation_id": "gen-1767860980-jqwndDuOvC27gdeTjzJX"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767860988572.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767860988572.json",
+      "timestamp": 1767860988.5737188,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1180365,
+      "generation_id": "gen-1767860988-OovDxIsctdyIwNsSVSOT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861011009.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861011009.json",
+      "timestamp": 1767861011.0099704,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1115945,
+      "generation_id": "gen-1767861011-ihtihDn0ksMkJpFeAU9W"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861018514.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861018514.json",
+      "timestamp": 1767861018.515907,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.18643825,
+      "generation_id": "gen-1767861018-YhKbrWwiWkb3BT3Wi7zj"
     }
   ],
   "messages": [
@@ -1708,6 +1745,151 @@
     {
       "role": "assistant",
       "content": "Fixed both issues:\n\n1. **Historic edit blocks now render as diffs** - Added a call to `render_inline_edits()` in `_build_messages_html()` when the content contains `<edit` tags. Now when you reload a session, the edit blocks display as proper diff views instead of raw XML.\n\n2. **Added Edit Format to settings UI** - There's now an \"Edit Format\" dropdown in Settings \u2192 LLM with three options:\n   - **XML (inline edits)** - Default, uses `<edit>` blocks in flow text\n   - **Tool calls** - Uses search_replace tool calls\n   - **Both** - AI can use either method\n\nThe setting is persisted and takes effect on new sessions (or after restart for active sessions since the edit_format is read at session creation time)."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 08055ed7",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hang on one sec. The <edit tag is embedded in markdown flowtext, does render_inline_edits chain to markdown.markdown with the diff tool inserted?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, that's a bug. Looking at my change:\n\n```python\nif \"<edit\" in content_md:\n    content = render_inline_edits(content_md, is_streaming=False)\nelse:\n    content = markdown.markdown(...)\n```\n\nIf there's an `<edit>` block, I skip markdown entirely! So any text around the edit block (explanations, code blocks, etc.) won't get markdown formatting.\n\n`render_inline_edits` needs to:\n1. Extract and render `<edit>` blocks as HTML\n2. Run markdown on the non-edit parts\n3. Combine them\n\nLet me fix this:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01CHkhbeWoPTkZWh72MpcrTi",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CHkhbeWoPTkZWh72MpcrTi",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at `render_inline_edits`, I see it just escapes the non-edit parts with `html.escape()` but doesn't run markdown on them. I need to fix this so it:\n\n1. Splits content into edit blocks and text segments\n2. Runs markdown on the text segments\n3. Renders edit blocks as diff HTML\n4. Combines them",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/tool_rendering.py\", \"search\": \"def render_inline_edits(content: str, is_streaming: bool = True) -> str:\\n    \\\"\\\"\\\"\\n    Render <edit> blocks in content as diff views.\\n\\n    Replaces <edit>...</edit> blocks with rendered HTML diff views.\\n    Handles partial/incomplete blocks during streaming.\\n\\n    Args:\\n        content: Text content that may contain <edit> blocks\\n        is_streaming: Whether content is still being streamed\\n\\n    Returns:\\n        Content with <edit> blocks replaced by HTML diff views\\n    \\\"\\\"\\\"\\n    result_parts = []\\n    last_end = 0\\n\\n    # First, find and render complete edit blocks\\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\\n        # Add text before this edit block\\n        result_parts.append(html.escape(content[last_end : match.start()]))\\n\\n        # Render the complete edit block as a diff\\n        filepath = match.group(1)\\n        search = match.group(2)\\n        replace = match.group(3)\\n\\n        diff_html = render_diff_html(\\n            filepath=filepath,\\n            search=search,\\n            replace=replace,\\n            is_streaming=False,  # Complete block\\n            streaming_phase=\\\"replace\\\",\\n        )\\n        result_parts.append(diff_html)\\n        last_end = match.end()\\n\\n    # Check for partial edit block at the end (streaming case)\\n    remaining = content[last_end:]\\n\\n    if is_streaming and remaining:\\n        partial_html = _render_partial_edit(remaining)\\n        if partial_html:\\n            # Find where the partial edit starts\\n            edit_start = EDIT_START_PATTERN.search(remaining)\\n            if edit_start:\\n                # Add text before the partial edit\\n                result_parts.append(html.escape(remaining[: edit_start.start()]))\\n                result_parts.append(partial_html)\\n            else:\\n                result_parts.append(html.escape(remaining))\\n        else:\\n            result_parts.append(html.escape(remaining))\\n    else:\\n        result_parts.append(html.escape(remaining))\\n\\n    return \\\"\\\".join(result_parts)\", \"replace\": \"def render_inline_edits(\\n    content: str, is_streaming: bool = True, render_markdown: bool = False\\n) -> str:\\n    \\\"\\\"\\\"\\n    Render <edit> blocks in content as diff views.\\n\\n    Replaces <edit>...</edit> blocks with rendered HTML diff views.\\n    Handles partial/incomplete blocks during streaming.\\n\\n    Args:\\n        content: Text content that may contain <edit> blocks\\n        is_streaming: Whether content is still being streamed\\n        render_markdown: If True, run markdown on non-edit text segments\\n\\n    Returns:\\n        Content with <edit> blocks replaced by HTML diff views\\n    \\\"\\\"\\\"\\n    import markdown as md\\n\\n    result_parts = []\\n    last_end = 0\\n\\n    def process_text(text: str) -> str:\\n        \\\"\\\"\\\"Process a text segment - either markdown or escape.\\\"\\\"\\\"\\n        if not text:\\n            return \\\"\\\"\\n        if render_markdown:\\n            return md.markdown(text, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\", \\\"tables\\\"])\\n        else:\\n            return html.escape(text)\\n\\n    # First, find and render complete edit blocks\\n    for match in EDIT_BLOCK_PATTERN.finditer(content):\\n        # Add text before this edit block\\n        result_parts.append(process_text(content[last_end : match.start()]))\\n\\n        # Render the complete edit block as a diff\\n        filepath = match.group(1)\\n        search = match.group(2)\\n        replace = match.group(3)\\n\\n        diff_html = render_diff_html(\\n            filepath=filepath,\\n            search=search,\\n            replace=replace,\\n            is_streaming=False,  # Complete block\\n            streaming_phase=\\\"replace\\\",\\n        )\\n        result_parts.append(diff_html)\\n        last_end = match.end()\\n\\n    # Check for partial edit block at the end (streaming case)\\n    remaining = content[last_end:]\\n\\n    if is_streaming and remaining:\\n        partial_html = _render_partial_edit(remaining)\\n        if partial_html:\\n            # Find where the partial edit starts\\n            edit_start = EDIT_START_PATTERN.search(remaining)\\n            if edit_start:\\n                # Add text before the partial edit\\n                result_parts.append(process_text(remaining[: edit_start.start()]))\\n                result_parts.append(partial_html)\\n            else:\\n                result_parts.append(process_text(remaining))\\n        else:\\n            result_parts.append(process_text(remaining))\\n    else:\\n        result_parts.append(process_text(remaining))\\n\\n    return \\\"\\\".join(result_parts)\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_011TCM7spLw75DgP4Jhfh7X2",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011TCM7spLw75DgP4Jhfh7X2",
+      "content": "{\"message\": \"Replaced in forge/ui/tool_rendering.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "user",
+      "content": "hang on, I think the way to go is to just have one render function that always handles edit",
+      "_mid_turn": true
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - we shouldn't have a conditional. The cleaner approach is to always call `render_inline_edits` with `render_markdown=True` for message rendering. If there are no `<edit>` blocks, it just runs markdown on the whole thing. If there are, it handles them properly.\n\nLet me update the chat widget to just use one path:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"forge/ui/tool_rendering.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Bt2Dj5ckwqcEi3sFYHFCga",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Bt2Dj5ckwqcEi3sFYHFCga",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"forge/ui/tool_rendering.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "You're right. Let me simplify this - just always use `render_inline_edits` with `render_markdown=True` for final message rendering. It handles both cases.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"search\": \"                # Render <edit> blocks as diffs before markdown processing\\n                if \\\"<edit\\\" in content_md:\\n                    from forge.ui.tool_rendering import render_inline_edits\\n\\n                    content = render_inline_edits(content_md, is_streaming=False)\\n                else:\\n                    content = markdown.markdown(\\n                        content_md, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\", \\\"tables\\\"]\\n                    )\", \"replace\": \"                # Render content with markdown, handling any <edit> blocks as diffs\\n                from forge.ui.tool_rendering import render_inline_edits\\n\\n                content = render_inline_edits(\\n                    content_md, is_streaming=False, render_markdown=True\\n                )\"}",
+            "name": "search_replace"
+          },
+          "id": "toolu_vrtx_0145PnxqMoiivt85mh1pb9uU",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_018spwn5BqVety1pPMXHrcL1",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Always use render_inline_edits for message rendering\\n\\nSimplify to one code path - render_inline_edits with render_markdown=True\\nhandles both regular markdown and <edit> blocks together.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01Veu7Rhb7pG7HMEbguRq5W7",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed. Now message rendering always goes through `render_inline_edits(content, is_streaming=False, render_markdown=True)`. \\n\\nThis handles both cases uniformly:\\n- If there are `<edit>` blocks: renders them as diffs, runs markdown on surrounding text\\n- If no `<edit>` blocks: just runs markdown on the whole thing\\n\\nOne code path, no conditional.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_018k4kQgnKKtf8QuhCZKo69m",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0145PnxqMoiivt85mh1pb9uU",
+      "content": "{\"message\": \"Replaced in forge/ui/ai_chat_widget.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018spwn5BqVety1pPMXHrcL1",
+      "content": "{\"format_diffs\": {\"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -2255,9 +2255,7 @@                 # Render content with markdown, handling any <edit> blocks as diffs\\n                 from forge.ui.tool_rendering import render_inline_edits\\n \\n-                content = render_inline_edits(\\n-                    content_md, is_streaming=False, render_markdown=True\\n-                )\\n+                content = render_inline_edits(content_md, is_streaming=False, render_markdown=True)\\n \\n                 html_parts.append(f\\\"\\\"\\\"\\n                 <div class=\\\"message {role}\\\" {msg_id}>\\n\"}, \"formatted_files\": [\"forge/ui/ai_chat_widget.py\"], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {\n    \"forge/ui/ai_chat_widget.py\": \"--- before+++ after@@ -2255,9 +2255,7 @@                 # Render content with markdown, handling any <edit> blocks as diffs\\n                 from forge.ui.tool_rendering import render_inline_edits\\n \\n-                content = render_inline_edits(\\n-                    content_md, is_streaming=False, render_markdown=True\\n-                )\\n+                content = render_inline_edits(content_md, is_streaming=False, render_markdown=True)\\n \\n                 html_parts.append(f\\\"\\\"\\\"\\n                 <div class=\\\"message {role}\\\" {msg_id}>\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/ui/ai_chat_widget.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Veu7Rhb7pG7HMEbguRq5W7",
+      "content": "{\"commit\": \"c7434aa69590\", \"message\": \"Committed: 2 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018k4kQgnKKtf8QuhCZKo69m",
+      "content": "{\"done\": true, \"message\": \"Fixed. Now message rendering always goes through `render_inline_edits(content, is_streaming=False, render_markdown=True)`. \\n\\nThis handles both cases uniformly:\\n- If there are `<edit>` blocks: renders them as diffs, runs markdown on surrounding text\\n- If no `<edit>` blocks: just runs markdown on the whole thing\\n\\nOne code path, no conditional.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed. Now message rendering always goes through `render_inline_edits(content, is_streaming=False, render_markdown=True)`. \n\nThis handles both cases uniformly:\n- If there are `<edit>` blocks: renders them as diffs, runs markdown on surrounding text\n- If no `<edit>` blocks: just runs markdown on the whole thing\n\nOne code path, no conditional."
     }
   ]
 }

@@ -816,21 +816,26 @@ def render_completed_tool_html(
 
 def render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
     """Render compact tool call as HTML."""
-    tool_call_ids = args.get("tool_call_ids", [])
+    from_id = args.get("from_id", "")
+    to_id = args.get("to_id", "")
     summary = args.get("summary", "")
 
     escaped_summary = html.escape(str(summary)) if summary else "..."
 
-    # Count how many were compacted
-    count = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0
+    # Get count from result (actual number compacted) or show range from args
     status = ""
+    range_info = ""
     if result:
         if result.get("success"):
-            compacted = result.get("compacted", count)
+            compacted = result.get("compacted", 0)
             status = f'<span class="success-msg">✓ Compacted {compacted} tool result(s)</span>'
         else:
             error = result.get("error", "Unknown error")
             status = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+    else:
+        # Streaming - show the range being compacted
+        if from_id and to_id:
+            range_info = f'<div class="stats">Range: {html.escape(str(from_id))} → {html.escape(str(to_id))}</div>'
 
     return f"""
     <div class="tool-card">
@@ -840,7 +845,7 @@ def render_compact_html(args: dict[str, object], result: dict[str, object] | Non
         </div>
         <div class="tool-card-body">
             <div><strong>Summary:</strong> {escaped_summary}</div>
-            <div class="stats">Tool calls: {count}</div>
+            {range_info}
             {status}
         </div>
     </div>

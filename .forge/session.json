@@ -1,0 +1,174 @@
+{
+  "active_files": [
+    "forge/ui/tool_rendering.py",
+    "CLAUDE.md",
+    "forge/tools/builtin/compact.py"
+  ],
+  "request_log_entries": [
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767870706727.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767870706727.json",
+      "timestamp": 1767870706.7282503,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.09778,
+      "generation_id": "gen-1767870706-jxr60AkxMdP4h2QrBz3H"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767870711229.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767870711229.json",
+      "timestamp": 1767870711.2298293,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.015776,
+      "generation_id": "gen-1767870711-fJ2xze6hqqhq6iRJCark"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767870715597.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767870715597.json",
+      "timestamp": 1767870715.5977209,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.02117725,
+      "generation_id": "gen-1767870715-MLdkc8091NBWEhSobUwp"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767870720624.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767870720624.json",
+      "timestamp": 1767870720.6246617,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0252355,
+      "generation_id": "gen-1767870720-hmo2zM9HEzohWx3OXX84"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767870728082.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767870728082.json",
+      "timestamp": 1767870728.0830736,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.105012,
+      "generation_id": "gen-1767870728-3pdYwrBMWJC5G6pwFKRX"
+    }
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 98 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hi! The tool call for compact now always \"Tool calls: 0\", even when there were plainly a lot of tool calls compacted. Can you debug this?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll debug this issue. Let me first look at the compact tool implementation and how it's being used.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/compact.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_018LWBTVNJQztW1KVqJEdZak",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018LWBTVNJQztW1KVqJEdZak",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/compact.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The compact tool itself just returns a signal. The actual compaction and the \"Tool calls: X\" message must be generated elsewhere. Let me search for where that message is produced.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"Tool calls:\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01F7B8SBxrhYjn5mGy2SruR8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01F7B8SBxrhYjn5mGy2SruR8",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:757 \\u2500\\u2500\\n     754 |                         if len(text) > 100:\\n     755 |                             text = text[:97] + \\\"...\\\"\\n     756 |                         lines.append(f\\\"**Assistant**: {text}\\\\n\\\")\\n>>>  757 |                     lines.append(f\\\"  \\u2192 Tool calls: {', '.join(summaries)}\\\\n\\\")\\n     758 | \\n     759 |             elif block.block_type == BlockType.TOOL_RESULT:\\n     760 |                 user_id = block.metadata.get(\\\"user_id\\\", \\\"?\\\")\\n\\n\\u2500\\u2500 forge/ui/request_debug_window.py:174 \\u2500\\u2500\\n     171 |         # Tool calls if present\\n     172 |         tool_calls = message.get(\\\"tool_calls\\\", [])\\n     173 |         if tool_calls:\\n>>>  174 |             tools_label = QLabel(f\\\"<b>Tool calls: {len(tool_calls)}</b>\\\")\\n     175 |             layout.addWidget(tools_label)\\n     176 |             for tc in tool_calls[:5]:  # Show max 5\\n     177 |                 func = tc.get(\\\"function\\\", {})\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:843 \\u2500\\u2500\\n     840 |         </div>\\n     841 |         <div class=\\\"tool-card-body\\\">\\n     842 |             <div><strong>Summary:</strong> {escaped_summary}</div>\\n>>>  843 |             <div class=\\\"stats\\\">Tool calls: {count}</div>\\n     844 |             {status}\\n     845 |         </div>\\n     846 |     </div>\", \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"pattern\": \"Tool calls:\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:757 \\u2500\\u2500\\n     754 |                         if len(text) > 100:\\n     755 |                             text = text[:97] + \\\"...\\\"\\n     756 |                         lines.append(f\\\"**Assistant**: {text}\\\\n\\\")\\n>>>  757 |                     lines.append(f\\\"  \\u2192 Tool calls: {', '.join(summaries)}\\\\n\\\")\\n     758 | \\n     759 |             elif block.block_type == BlockType.TOOL_RESULT:\\n     760 |                 user_id = block.metadata.get(\\\"user_id\\\", \\\"?\\\")\\n\\n\\u2500\\u2500 forge/ui/request_debug_window.py:174 \\u2500\\u2500\\n     171 |         # Tool calls if present\\n     172 |         tool_calls = message.get(\\\"tool_calls\\\", [])\\n     173 |         if tool_calls:\\n>>>  174 |             tools_label = QLabel(f\\\"<b>Tool calls: {len(tool_calls)}</b>\\\")\\n     175 |             layout.addWidget(tools_label)\\n     176 |             for tc in tool_calls[:5]:  # Show max 5\\n     177 |                 func = tc.get(\\\"function\\\", {})\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:843 \\u2500\\u2500\\n     840 |         </div>\\n     841 |         <div class=\\\"tool-card-body\\\">\\n     842 |             <div><strong>Summary:</strong> {escaped_summary}</div>\\n>>>  843 |             <div class=\\\"stats\\\">Tool calls: {count}</div>\\n     844 |             {status}\\n     845 |         </div>\\n     846 |     </div>\",\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The \"Tool calls: {count}\" message is in `forge/ui/tool_rendering.py` at line 843. Let me look at that code to see how `count` is calculated.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/tool_rendering.py\", \"line\": 843, \"context\": 40}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01VXXdnj2Jid3Ff4UBiNc3Yb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VXXdnj2Jid3Ff4UBiNc3Yb",
+      "content": "{\"content\": \"     803 |         return render_compact_html(args, result)\\n     804 |     elif name == \\\"commit\\\":\\n     805 |         return render_commit_html(args, result)\\n     806 |     elif name == \\\"think\\\":\\n     807 |         return render_think_html(args, result)\\n     808 |     elif name == \\\"run_tests\\\":\\n     809 |         return render_run_tests_html(args, result)\\n     810 |     elif name in (\\\"say\\\", \\\"done\\\"):\\n     811 |         # These are \\\"in-flow\\\" tools - displayed as assistant text, not tool cards\\n     812 |         return \\\"\\\"\\n     813 |     else:\\n     814 |         return None  # Unknown tool - use default rendering\\n     815 | \\n     816 | \\n     817 | def render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n     818 |     \\\"\\\"\\\"Render compact tool call as HTML.\\\"\\\"\\\"\\n     819 |     tool_call_ids = args.get(\\\"tool_call_ids\\\", [])\\n     820 |     summary = args.get(\\\"summary\\\", \\\"\\\")\\n     821 | \\n     822 |     escaped_summary = html.escape(str(summary)) if summary else \\\"...\\\"\\n     823 | \\n     824 |     # Count how many were compacted\\n     825 |     count = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0\\n     826 |     status = \\\"\\\"\\n     827 |     if result:\\n     828 |         if result.get(\\\"success\\\"):\\n     829 |             compacted = result.get(\\\"compacted\\\", count)\\n     830 |             status = f'<span class=\\\"success-msg\\\">\\u2713 Compacted {compacted} tool result(s)</span>'\\n     831 |         else:\\n     832 |             error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n     833 |             status = f'<span class=\\\"error-msg\\\">\\u2717 {html.escape(str(error))}</span>'\\n     834 | \\n     835 |     return f\\\"\\\"\\\"\\n     836 |     <div class=\\\"tool-card\\\">\\n     837 |         <div class=\\\"tool-card-header\\\">\\n     838 |             <span class=\\\"tool-icon\\\">\\ud83d\\udce6</span>\\n     839 |             <span class=\\\"tool-name\\\">compact</span>\\n     840 |         </div>\\n     841 |         <div class=\\\"tool-card-body\\\">\\n     842 |             <div><strong>Summary:</strong> {escaped_summary}</div>\\n>>>  843 |             <div class=\\\"stats\\\">Tool calls: {count}</div>\\n     844 |             {status}\\n     845 |         </div>\\n     846 |     </div>\\n     847 |     \\\"\\\"\\\"\\n     848 | \\n     849 | \\n     850 | def render_commit_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n     851 |     \\\"\\\"\\\"Render commit tool call as HTML.\\\"\\\"\\\"\\n     852 |     message = args.get(\\\"message\\\", \\\"\\\")\\n     853 | \\n     854 |     escaped_message = html.escape(str(message)) if message else \\\"...\\\"\\n     855 | \\n     856 |     status = \\\"\\\"\\n     857 |     if result:\\n     858 |         if result.get(\\\"success\\\"):\\n     859 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n     860 |             msg = result.get(\\\"message\\\", \\\"\\\")\\n     861 |             status = f'<span class=\\\"success-msg\\\">\\u2713 {html.escape(str(msg))} \\u2192 {commit_oid}</span>'\\n     862 |         else:\\n     863 |             error = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n     864 |             status = f'<span class=\\\"error-msg\\\">\\u2717 {html.escape(str(error))}</span>'\\n     865 | \\n     866 |     return f\\\"\\\"\\\"\\n     867 |     <div class=\\\"tool-card\\\">\\n     868 |         <div class=\\\"tool-card-header\\\">\\n     869 |             <span class=\\\"tool-icon\\\">\\ud83d\\udcbe</span>\\n     870 |             <span class=\\\"tool-name\\\">commit</span>\\n     871 |         </div>\\n     872 |         <div class=\\\"tool-card-body\\\">\\n     873 |             <div><code>{escaped_message}</code></div>\\n     874 |             {status}\\n     875 |         </div>\\n     876 |     </div>\\n     877 |     \\\"\\\"\\\"\\n     878 | \\n     879 | \\n     880 | def render_think_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\\n     881 |     \\\"\\\"\\\"Render think tool call as HTML.\\\"\\\"\\\"\\n     882 |     scratchpad = args.get(\\\"scratchpad\\\", \\\"\\\")\\n     883 |     # Conclusion can come from args, or from result if args was compacted\", \"filepath\": \"forge/ui/tool_rendering.py\", \"range\": \"803-883\", \"success\": true, \"target_line\": 843, \"total_lines\": 1217}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. On line 819 and 825, the code looks for `tool_call_ids` in the args:\n\n```python\ntool_call_ids = args.get(\"tool_call_ids\", [])\n...\ncount = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0\n```\n\nBut looking at the compact tool schema in `compact.py`, the arguments are `from_id` and `to_id` (strings), not `tool_call_ids` (a list). The rendering code is looking for the wrong field name.\n\nLet me verify what the actual args structure looks like and fix the rendering:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_016BDeL4KskqP2m4XJP2a9PG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016BDeL4KskqP2m4XJP2a9PG",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the full picture. The issue is in `render_compact_html`:\n\n```python\ndef render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\n    \"\"\"Render compact tool call as HTML.\"\"\"\n    tool_call_ids = args.get(\"tool_call_ids\", [])  # <-- Wrong field name!\n    summary = args.get(\"summary\", \"\")\n    ...\n    count = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0\n```\n\nBut the compact tool schema uses `from_id` and `to_id` (strings), not `tool_call_ids` (a list). The count should come from the `result` which contains `compacted` - the actual number of compacted tool calls.\n\nLooking at line 829, the result already provides the count:\n```python\ncompacted = result.get(\"compacted\", count)\n```\n\nBut `count` is always 0 because it's looking for the wrong field. The fix is to get the count from the result when available, and maybe show the range (`from_id` to `to_id`) when we don't have a result yet.\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\ndef render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\n    \"\"\"Render compact tool call as HTML.\"\"\"\n    tool_call_ids = args.get(\"tool_call_ids\", [])\n    summary = args.get(\"summary\", \"\")\n\n    escaped_summary = html.escape(str(summary)) if summary else \"...\"\n\n    # Count how many were compacted\n    count = len(tool_call_ids) if isinstance(tool_call_ids, list) else 0\n    status = \"\"\n    if result:\n        if result.get(\"success\"):\n            compacted = result.get(\"compacted\", count)\n            status = f'<span class=\"success-msg\">\u2713 Compacted {compacted} tool result(s)</span>'\n        else:\n            error = result.get(\"error\", \"Unknown error\")\n            status = f'<span class=\"error-msg\">\u2717 {html.escape(str(error))}</span>'\n\n    return f\"\"\"\n    <div class=\"tool-card\">\n        <div class=\"tool-card-header\">\n            <span class=\"tool-icon\">\ud83d\udce6</span>\n            <span class=\"tool-name\">compact</span>\n        </div>\n        <div class=\"tool-card-body\">\n            <div><strong>Summary:</strong> {escaped_summary}</div>\n            <div class=\"stats\">Tool calls: {count}</div>\n            {status}\n        </div>\n    </div>\n    \"\"\"\n</search>\n<replace>\ndef render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:\n    \"\"\"Render compact tool call as HTML.\"\"\"\n    from_id = args.get(\"from_id\", \"\")\n    to_id = args.get(\"to_id\", \"\")\n    summary = args.get(\"summary\", \"\")\n\n    escaped_summary = html.escape(str(summary)) if summary else \"...\"\n\n    # Get count from result (actual number compacted) or show range from args\n    status = \"\"\n    range_info = \"\"\n    if result:\n        if result.get(\"success\"):\n            compacted = result.get(\"compacted\", 0)\n            status = f'<span class=\"success-msg\">\u2713 Compacted {compacted} tool result(s)</span>'\n        else:\n            error = result.get(\"error\", \"Unknown error\")\n            status = f'<span class=\"error-msg\">\u2717 {html.escape(str(error))}</span>'\n    else:\n        # Streaming - show the range being compacted\n        if from_id and to_id:\n            range_info = f'<div class=\"stats\">Range: {html.escape(str(from_id))} \u2192 {html.escape(str(to_id))}</div>'\n\n    return f\"\"\"\n    <div class=\"tool-card\">\n        <div class=\"tool-card-header\">\n            <span class=\"tool-icon\">\ud83d\udce6</span>\n            <span class=\"tool-name\">compact</span>\n        </div>\n        <div class=\"tool-card-body\">\n            <div><strong>Summary:</strong> {escaped_summary}</div>\n            {range_info}\n            {status}\n        </div>\n    </div>\n    \"\"\"\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed the compact tool rendering bug. The issue was that `render_compact_html` was looking for `tool_call_ids` (a list) in the args, but the compact tool schema actually uses `from_id` and `to_id` (strings representing a range).\\n\\nThe fix:\\n- Now reads `from_id` and `to_id` from args instead of the non-existent `tool_call_ids`\\n- Gets the actual count from `result.get(\\\"compacted\\\")` which is set by the session manager after compaction\\n- Shows the range (from_id \u2192 to_id) during streaming when we don't have results yet\\n- Removed the misleading \\\"Tool calls: 0\\\" line that was always wrong\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01BrKkUsr8iecgbtBWAa9mqV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BrKkUsr8iecgbtBWAa9mqV",
+      "content": "{\"done\": true, \"message\": \"Fixed the compact tool rendering bug. The issue was that `render_compact_html` was looking for `tool_call_ids` (a list) in the args, but the compact tool schema actually uses `from_id` and `to_id` (strings representing a range).\\n\\nThe fix:\\n- Now reads `from_id` and `to_id` from args instead of the non-existent `tool_call_ids`\\n- Gets the actual count from `result.get(\\\"compacted\\\")` which is set by the session manager after compaction\\n- Shows the range (from_id \\u2192 to_id) during streaming when we don't have results yet\\n- Removed the misleading \\\"Tool calls: 0\\\" line that was always wrong\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed the compact tool rendering bug. The issue was that `render_compact_html` was looking for `tool_call_ids` (a list) in the args, but the compact tool schema actually uses `from_id` and `to_id` (strings representing a range).\n\nThe fix:\n- Now reads `from_id` and `to_id` from args instead of the non-existent `tool_call_ids`\n- Gets the actual count from `result.get(\"compacted\")` which is set by the session manager after compaction\n- Shows the range (from_id \u2192 to_id) during streaming when we don't have results yet\n- Removed the misleading \"Tool calls: 0\" line that was always wrong"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
   "active_files": [
     "tools/check.py",
     "forge/tools/inline_edit.py",
+    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md",
     "forge/git_backend/commit_types.py"
   ],
@@ -644,6 +645,51 @@
       "streaming": true,
       "actual_cost": 0.32176375,
       "generation_id": "gen-1767861422-jiD2C17vBCmijAezDY5c"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767861890448.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767861890448.json",
+      "timestamp": 1767861890.4502492,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.39745125,
+      "generation_id": "gen-1767861890-z8EsZCIOWdODGxcJpsIB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862476273.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862476273.json",
+      "timestamp": 1767862476.2750933,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3903425,
+      "generation_id": "gen-1767862476-zhfIawAqgquwqu4YPW4n"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862535755.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862535755.json",
+      "timestamp": 1767862535.756444,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3972525,
+      "generation_id": "gen-1767862535-tZvfhivrtwLo4GOucLED"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862543588.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862543588.json",
+      "timestamp": 1767862543.589782,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04392625,
+      "generation_id": "gen-1767862543-ygz1wWWChvHegCnPV6AI"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767862550391.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767862550391.json",
+      "timestamp": 1767862550.3923779,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.192457,
+      "generation_id": "gen-1767862551-8Jo9SL4x3NqjF3CC1jZO"
     }
   ],
   "messages": [
@@ -2391,6 +2437,160 @@
     {
       "role": "assistant",
       "content": "Fixed both issues:\n\n1. **No more \"Edits applied\" system message** - Removed the `_add_system_message()` call on edit success. The diff view itself shows the edit was applied.\n\n2. **Extra newlines fixed** - Added `.rstrip()` and `.lstrip()` calls when processing text around edit blocks in both `render_markdown()` and `render_streaming_edits()` to strip the formatting whitespace that surrounds `<edit>` tags."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 1be25793",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Will this be okay for you? Like, *you* should still be told about edit outcome."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right - I need to know if edits succeeded or failed! Currently on success I get no feedback at all. Let me think about this:\n\n**On failure**: We already inject a user/system message with the error, which is correct - I need to see that to react.\n\n**On success**: The edit blocks remain in my message content in the conversation history. When the conversation continues, I'll see my own message with the `<edit>` blocks in it. But I won't know if they *actually succeeded* unless something tells me.\n\nThe issue is: if we add feedback as a user message, that costs a round-trip. If we add it as a system message, it shows to the user (which you wanted to avoid).\n\nOptions:\n1. **Append to my own message** - After execution, append something like `<!-- edits applied successfully -->` to the assistant message content. I'd see it but the user wouldn't (it's an HTML comment, or we strip it in rendering).\n\n2. **Only tell me on failure** - Assume success if no error message follows. This is risky if something silently fails.\n\n3. **Inject as a hidden system block** - A message type that goes into the conversation for me but doesn't render to the user.\n\nI think option 1 is cleanest - append a non-rendered marker to my message content that I can see in the next turn. What do you think?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 17845e2d",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "We already have a mechanism for suppressing system messages for prettyprinted tools. We should just use that to hide the System message and append it as usual."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, right! Let me look at how the system message suppression works for tool results and use that same mechanism.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"suppress|prettyprint|hide.*system\", \"include_extensions\": [\".py\"], \"max_matches\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_bdrk_01GjjnKWor9G3NyuwMFY6KFL",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_bdrk_01GjjnKWor9G3NyuwMFY6KFL",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/git_backend/repository.py:175 \\u2500\\u2500\\n     172 |             parts = relative.split(\\\"/\\\")\\n     173 |             if len(parts) == 1:\\n     174 |                 # Direct deletion at this level\\n>>>  175 |                 with contextlib.suppress(KeyError):\\n     176 |                     tree_builder.remove(parts[0])\\n     177 |             else:\\n     178 |                 # Deletion in a subdirectory - we need to recurse into it\\n\\n\\u2500\\u2500 forge/ui/main_window.py:217 \\u2500\\u2500\\n     214 |                 if filepath == SESSION_FILE:\\n     215 |                     continue\\n     216 |                 # Just add to context, don't open tab\\n>>>  217 |                 with contextlib.suppress(FileNotFoundError):\\n     218 |                     chat_widget.add_file_to_context(filepath)\\n     219 | \\n     220 |         # Restore open file tabs from XDG cache\", \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 15,\n  \"pattern\": \"suppress|prettyprint|hide.*system\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/git_backend/repository.py:175 \\u2500\\u2500\\n     172 |             parts = relative.split(\\\"/\\\")\\n     173 |             if len(parts) == 1:\\n     174 |                 # Direct deletion at this level\\n>>>  175 |                 with contextlib.suppress(KeyError):\\n     176 |                     tree_builder.remove(parts[0])\\n     177 |             else:\\n     178 |                 # Deletion in a subdirectory - we need to recurse into it\\n\\n\\u2500\\u2500 forge/ui/main_window.py:217 \\u2500\\u2500\\n     214 |                 if filepath == SESSION_FILE:\\n     215 |                     continue\\n     216 |                 # Just add to context, don't open tab\\n>>>  217 |                 with contextlib.suppress(FileNotFoundError):\\n     218 |                     chat_widget.add_file_to_context(filepath)\\n     219 | \\n     220 |         # Restore open file tabs from XDG cache\",\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me search for the right pattern - I think it's related to native rendering or built-in tools:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"native_rendering|builtin_tools_with\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01Qux6zXbN4ZqCSxueohDYJd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Qux6zXbN4ZqCSxueohDYJd",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:1359 \\u2500\\u2500\\n    1356 |         # Display tool result\\n    1357 |         # Built-in tools with native rendering don't need system messages on success -\\n    1358 |         # they're rendered inline in the assistant message via _render_tool_calls_html\\n>>> 1359 |         builtin_tools_with_native_rendering = {\\n    1360 |             \\\"search_replace\\\",\\n    1361 |             \\\"write_file\\\",\\n    1362 |             \\\"delete_file\\\",\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1374 \\u2500\\u2500\\n    1371 |             \\\"done\\\",\\n    1372 |         }\\n    1373 | \\n>>> 1374 |         if tool_name in builtin_tools_with_native_rendering and result.get(\\\"success\\\"):\\n    1375 |             # Success case - tool call is already rendered inline, no system message needed\\n    1376 |             pass\\n    1377 |         elif tool_name == \\\"search_replace\\\" and not result.get(\\\"success\\\"):\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1392 \\u2500\\u2500\\n    1389 |                     f\\\"\\\\n\\ud83d\\udcc2 Added `{filepath}` to context so you can see its actual content\\\"\\n    1390 |                 )\\n    1391 |             self._add_system_message(\\\"\\\\n\\\".join(tool_display_parts))\\n>>> 1392 |         elif tool_name in builtin_tools_with_native_rendering and not result.get(\\\"success\\\"):\\n    1393 |             # Other built-in tool failure - show error\\n    1394 |             error_msg = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n    1395 |             self._add_system_message(f\\\"\\u274c **{tool_name}** failed: {error_msg}\\\")\", \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"native_rendering|builtin_tools_with\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:1359 \\u2500\\u2500\\n    1356 |         # Display tool result\\n    1357 |         # Built-in tools with native rendering don't need system messages on success -\\n    1358 |         # they're rendered inline in the assistant message via _render_tool_calls_html\\n>>> 1359 |         builtin_tools_with_native_rendering = {\\n    1360 |             \\\"search_replace\\\",\\n    1361 |             \\\"write_file\\\",\\n    1362 |             \\\"delete_file\\\",\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1374 \\u2500\\u2500\\n    1371 |             \\\"done\\\",\\n    1372 |         }\\n    1373 | \\n>>> 1374 |         if tool_name in builtin_tools_with_native_rendering and result.get(\\\"success\\\"):\\n    1375 |             # Success case - tool call is already rendered inline, no system message needed\\n    1376 |             pass\\n    1377 |         elif tool_name == \\\"search_replace\\\" and not result.get(\\\"success\\\"):\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1392 \\u2500\\u2500\\n    1389 |                     f\\\"\\\\n\\ud83d\\udcc2 Added `{filepath}` to context so you can see its actual content\\\"\\n    1390 |                 )\\n    1391 |             self._add_system_message(\\\"\\\\n\\\".join(tool_display_parts))\\n>>> 1392 |         elif tool_name in builtin_tools_with_native_rendering and not result.get(\\\"success\\\"):\\n    1393 |             # Other built-in tool failure - show error\\n    1394 |             error_msg = result.get(\\\"error\\\", \\\"Unknown error\\\")\\n    1395 |             self._add_system_message(f\\\"\\u274c **{tool_name}** failed: {error_msg}\\\")\",\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see! The pattern is `builtin_tools_with_native_rendering` - tools in that set don't show system messages on success because they render inline. I need to add a similar mechanism for inline edits.\n\nLooking at the code, on success it just passes (no system message), but the result is still appended to the prompt manager for me to see. Let me restore the feedback but suppress the UI display:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01KqZwyXC44KLFDXSZW2yDv5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KqZwyXC44KLFDXSZW2yDv5",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code, I see the pattern. For tool results, `builtin_tools_with_native_rendering` tools don't show system messages on success - they're rendered inline. I need to do the same for inline edits: add the success feedback to the prompt manager (so I see it) but not display it as a system message.\n\nLet me update `_process_inline_edits` to add the success message to the prompt manager without calling `_add_system_message`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # All edits succeeded - keep edit blocks in content for history/display\n        # They render as diff views in the chat (success is shown inline, no system message)\n\n        # Track modified files for context updates\n        for edit in edits:\n            self.session_manager.file_was_modified(edit.file, None)\n\n        # Return original content unchanged - edit blocks stay for rendering\n        return {\"had_edits\": True, \"failed\": False, \"clean_content\": content}\n</search>\n<replace>\n        # All edits succeeded - keep edit blocks in content for history/display\n        # They render as diff views in the chat\n\n        # Build success feedback for the AI (but don't show as system message to user)\n        success_msgs = [f\"\u2713 {edit.file}\" for edit in edits]\n        success_content = \"Edits applied:\\n\" + \"\\n\".join(success_msgs)\n\n        # Add to prompt manager so AI sees it, but don't display as system message\n        # (similar to how builtin_tools_with_native_rendering suppress UI messages)\n        self.session_manager.append_user_message(success_content)\n\n        # Track modified files for context updates\n        for edit in edits:\n            self.session_manager.file_was_modified(edit.file, None)\n\n        # Return original content unchanged - edit blocks stay for rendering\n        return {\"had_edits\": True, \"failed\": False, \"clean_content\": content}\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "",
+            "name": "check"
+          },
+          "id": "toolu_vrtx_01QD5CXz3CRNRiGH9u9LyCUK",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Add edit success feedback to prompt manager without UI display\\n\\nThe AI needs to know edits succeeded, but users don't need a system\\nmessage since the diff view already shows success. Add success info\\nto prompt manager only.\"}",
+            "name": "commit"
+          },
+          "id": "toolu_vrtx_01DZZpWbB7kT6HwMVxt1pGiz",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"message\": \"Fixed! Now on successful inline edits:\\n\\n1. **You (the AI) see it** - Success feedback is added to the prompt manager via `append_user_message()`, so you'll see \\\"Edits applied: \u2713 file1.py, \u2713 file2.py\\\" in the next API call\\n2. **User doesn't see a system message** - No `_add_system_message()` call, so no yellow banner cluttering the UI\\n3. **Diff view shows success inline** - The edit blocks render as diffs which visually confirm the edit happened\\n\\nThis mirrors how `builtin_tools_with_native_rendering` works - success is implicit in the rendered output, but the AI still gets feedback through the prompt.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_018nEo3nURtRFxykXPK6XjNy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "Edits applied:\n\u2713 forge/ui/ai_chat_widget.py",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QD5CXz3CRNRiGH9u9LyCUK",
+      "content": "{\"format_diffs\": {}, \"formatted_files\": [], \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"success\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\", \"typecheck_passed\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 78 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DZZpWbB7kT6HwMVxt1pGiz",
+      "content": "{\"commit\": \"f9653134fc6d\", \"message\": \"Committed: 1 file(s) modified/created\", \"side_effects\": [\"mid_turn_commit\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018nEo3nURtRFxykXPK6XjNy",
+      "content": "{\"done\": true, \"message\": \"Fixed! Now on successful inline edits:\\n\\n1. **You (the AI) see it** - Success feedback is added to the prompt manager via `append_user_message()`, so you'll see \\\"Edits applied: \\u2713 file1.py, \\u2713 file2.py\\\" in the next API call\\n2. **User doesn't see a system message** - No `_add_system_message()` call, so no yellow banner cluttering the UI\\n3. **Diff view shows success inline** - The edit blocks render as diffs which visually confirm the edit happened\\n\\nThis mirrors how `builtin_tools_with_native_rendering` works - success is implicit in the rendered output, but the AI still gets feedback through the prompt.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Fixed! Now on successful inline edits:\n\n1. **You (the AI) see it** - Success feedback is added to the prompt manager via `append_user_message()`, so you'll see \"Edits applied: \u2713 file1.py, \u2713 file2.py\" in the next API call\n2. **User doesn't see a system message** - No `_add_system_message()` call, so no yellow banner cluttering the UI\n3. **Diff view shows success inline** - The edit blocks render as diffs which visually confirm the edit happened\n\nThis mirrors how `builtin_tools_with_native_rendering` works - success is implicit in the rendered output, but the AI still gets feedback through the prompt."
     }
   ]
 }

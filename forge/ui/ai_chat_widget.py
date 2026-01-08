@@ -1088,8 +1088,6 @@ class AIChatWidget(QWidget):
         # tool_call message must come before that user message.
         if result.get("tool_calls"):
             # Include content with tool calls so AI sees its own reasoning
-            tool_names = [tc.get("function", {}).get("name", "?") for tc in result["tool_calls"]]
-            print(f"📝 _on_stream_finished: Appending tool_call with tools={tool_names}, content_len={len(result.get('content') or '')}")
             self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
         # Process inline edits AFTER tool calls are recorded
@@ -1217,7 +1215,6 @@ class AIChatWidget(QWidget):
 
         # Add to prompt manager so AI sees it, but don't display as system message
         # (similar to how builtin_tools_with_native_rendering suppress UI messages)
-        print(f"📝 _process_inline_edits: Appending 'Edits applied' user message")
         self.session_manager.append_user_message(success_content)
 
         # Track modified files for context updates

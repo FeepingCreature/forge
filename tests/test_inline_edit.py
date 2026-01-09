@@ -10,7 +10,7 @@ These tests cover:
 """
 
 import pytest
-from forge.tools.inline_edit import parse_edits, execute_edit, execute_edits, EditBlock
+from forge.tools.builtin.edit import parse_edits, execute_edit, execute_edits, EditBlock
 
 
 class TestParseEdits:

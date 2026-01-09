@@ -1089,7 +1089,7 @@ class AIChatWidget(QWidget):
                 "error": str,       # Error message if failed
             }
         """
-        from forge.tools.inline_edit import execute_edits, parse_edits
+        from forge.tools.builtin.edit import execute_edits, parse_edits
 
         edits = parse_edits(content)
         if not edits:

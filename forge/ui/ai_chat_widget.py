@@ -1184,16 +1184,24 @@ class AIChatWidget(QWidget):
             if cmd.tool_name == "run_tests":
                 output = result.get("output", "")
                 summary = result.get("summary", "")
-                if result.get("passed"):
+                passed = result.get("passed", False)
+                if passed:
                     success_parts.append(f"✓ run_tests: {summary}")
                 else:
-                    success_parts.append(f"✗ run_tests: {summary}\n{output}")
+                    # Tests failed - show full output so AI can fix issues
+                    # Truncate if very long to avoid context explosion
+                    if len(output) > 5000:
+                        output = output[:5000] + "\n... (truncated)"
+                    success_parts.append(f"✗ run_tests: {summary}\n\n{output}")
             elif cmd.tool_name == "check":
+                output = result.get("output", "")
                 if result.get("passed"):
                     success_parts.append("✓ check: All checks passed")
                 else:
-                    output = result.get("output", "")
-                    success_parts.append(f"✗ check failed:\n{output}")
+                    # Check failed - show full output so AI can fix issues
+                    if len(output) > 5000:
+                        output = output[:5000] + "\n... (truncated)"
+                    success_parts.append(f"✗ check failed:\n\n{output}")
             elif cmd.tool_name == "commit":
                 commit_oid = result.get("commit", "")[:8]
                 success_parts.append(f"✓ commit: {commit_oid}")

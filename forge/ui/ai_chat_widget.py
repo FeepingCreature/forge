@@ -1176,9 +1176,31 @@ class AIChatWidget(QWidget):
                     self.mid_turn_commit.emit(commit_oid)
                 self.session_manager.mark_mid_turn_commit()
 
-        # Build success feedback for the AI
-        success_msgs = [f"✓ {cmd.tool_name}" for cmd in commands]
-        success_content = "Commands executed:\n" + "\n".join(success_msgs)
+        # Build success feedback for the AI, including meaningful output from tools
+        success_parts = []
+        for i, cmd in enumerate(commands):
+            result = results[i]
+            # For tools with meaningful output, include it
+            if cmd.tool_name == "run_tests":
+                output = result.get("output", "")
+                summary = result.get("summary", "")
+                if result.get("passed"):
+                    success_parts.append(f"✓ run_tests: {summary}")
+                else:
+                    success_parts.append(f"✗ run_tests: {summary}\n{output}")
+            elif cmd.tool_name == "check":
+                if result.get("passed"):
+                    success_parts.append("✓ check: All checks passed")
+                else:
+                    output = result.get("output", "")
+                    success_parts.append(f"✗ check failed:\n{output}")
+            elif cmd.tool_name == "commit":
+                commit_oid = result.get("commit", "")[:8]
+                success_parts.append(f"✓ commit: {commit_oid}")
+            else:
+                success_parts.append(f"✓ {cmd.tool_name}")
+
+        success_content = "Commands executed:\n" + "\n".join(success_parts)
 
         # Add to prompt manager so AI sees it
         self.session_manager.append_user_message(success_content)

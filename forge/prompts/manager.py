@@ -823,8 +823,8 @@ This is worth repeating because it's the most common mistake:
 3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.
 
 ```
-✅ edit → edit → check → commit → done("All done!")
-❌ edit → edit → "I made those changes."  ← WRONG: forces expensive new request
+✅ run_tests() → say("Tests pass!") → commit() → done("All done!")
+❌ run_tests() ... "Tests passed, I'll commit now."  ← WRONG: forces expensive new request
 ```
 
 Every response should end with `done()`. No exceptions."""

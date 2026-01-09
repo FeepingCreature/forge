@@ -50,6 +50,24 @@
       "streaming": true,
       "actual_cost": 0.0553445,
       "generation_id": "gen-1767946592-SvLBrMqqSPiV7ZsY0wRe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767946620494.json",
+      "response_file": "/tmp/forge_debug/response_1767946620494.json",
+      "timestamp": 1767946620.4948528,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000186,
+      "generation_id": "gen-1767946620-QPo9gMwkHUSLJ1G6TkOo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767946701024.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767946701024.json",
+      "timestamp": 1767946701.0253878,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1329525,
+      "generation_id": "gen-1767946701-jYMf4bTSyZ23MTIGg0J0"
     }
   ],
   "messages": [
@@ -163,6 +181,39 @@
     {
       "role": "assistant",
       "content": "Done! I've:\n\n1. **Reverted** the addition to `SYSTEM_PROMPT_BASE` in `system.py`\n2. **Added** `_format_tool_chaining_reminder()` method in `manager.py` that returns the reminder text\n3. **Modified** `to_messages()` to inject the reminder as the very last content block\n\nNow the reminder appears at the absolute end of the context, after the conversation recap and stats, making it the last thing the AI sees before responding."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 5fbf7a58",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! The guidance can be changed a bit because we no longer have edit as a toolcall: edit is an in-flow command now, so we should use a more salient example like run_tests or commit. The important pattern is run_tests -> say(\"Tests pass! Let me commit...\") -> commit -> done."
+    },
+    {
+      "role": "assistant",
+      "content": "Good point! Let me update the reminder to use more relevant examples now that edits are inline.\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def _format_tool_chaining_reminder(self) -> str:\n        \"\"\"\n        Format a reminder about proper tool chaining for injection at the very end.\n\n        This is placed after recap and stats so it's the last thing the AI sees\n        before responding, making it maximally salient.\n        \"\"\"\n        return \"\"\"## REMINDER: Chain Tools and End With `done`\n\nThis is worth repeating because it's the most common mistake:\n\n1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.\n2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.\n3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.\n\n```\n\u2705 edit \u2192 edit \u2192 check \u2192 commit \u2192 done(\"All done!\")\n\u274c edit \u2192 edit \u2192 \"I made those changes.\"  \u2190 WRONG: forces expensive new request\n```\n\nEvery response should end with `done()`. No exceptions.\"\"\"\n</search>\n<replace>\n    def _format_tool_chaining_reminder(self) -> str:\n        \"\"\"\n        Format a reminder about proper tool chaining for injection at the very end.\n\n        This is placed after recap and stats so it's the last thing the AI sees\n        before responding, making it maximally salient.\n        \"\"\"\n        return \"\"\"## REMINDER: Chain Tools and End With `done`\n\nThis is worth repeating because it's the most common mistake:\n\n1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.\n2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.\n3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.\n\n```\n\u2705 run_tests() \u2192 say(\"Tests pass!\") \u2192 commit() \u2192 done(\"All done!\")\n\u274c run_tests() ... \"Tests passed, I'll commit now.\"  \u2190 WRONG: forces expensive new request\n```\n\nEvery response should end with `done()`. No exceptions.\"\"\"\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Updated the reminder example to use `run_tests() \u2192 say(\\\"Tests pass!\\\") \u2192 commit() \u2192 done()` instead of the old edit-based example. This better reflects the current flow where edits are inline and the key pattern is chaining tool calls like `run_tests`, `say`, and `commit`.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_013LCsETLd2yKXZAH84VZJf8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_013LCsETLd2yKXZAH84VZJf8",
+      "content": "{\"done\": true, \"message\": \"Updated the reminder example to use `run_tests() \\u2192 say(\\\"Tests pass!\\\") \\u2192 commit() \\u2192 done()` instead of the old edit-based example. This better reflects the current flow where edits are inline and the key pattern is chaining tool calls like `run_tests`, `say`, and `commit`.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Updated the reminder example to use `run_tests() \u2192 say(\"Tests pass!\") \u2192 commit() \u2192 done()` instead of the old edit-based example. This better reflects the current flow where edits are inline and the key pattern is chaining tool calls like `run_tests`, `say`, and `commit`."
     }
   ]
 }

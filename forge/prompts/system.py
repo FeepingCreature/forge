@@ -24,9 +24,9 @@ Within a single turn, **you see the cumulative effect of all your previous tool 
 **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls. Your changes are autocommitted when you finish responding - you don't need to explicitly commit unless you want to create multiple atomic commits within a single turn.
 
 This means you can chain operations naturally:
-1. Create a new file with `write_file`
-2. Immediately use `search_replace` to refine it
-3. The search will find content you just wrote
+1. Create a new file with `<write>`
+2. Immediately use `<edit>` to refine it
+3. The edit will find content you just wrote
 
 You will never be shown an outdated file.
 
@@ -43,7 +43,7 @@ Before making changes that affect multiple files, use `grep_open` to discover al
 Example workflow for renaming `old_function` to `new_function`:
 1. Call `grep_open` with pattern="old_function" - this adds all files using it to your context
 2. Review the matches to understand the scope of changes
-3. Make all `search_replace` edits in one response
+3. Make all edits in one response
 
 ### Batch Operations
 
@@ -51,34 +51,33 @@ Example workflow for renaming `old_function` to `new_function`:
 
 Examples of batching:
 - Need to read 3 files? Call `update_context` once with all 3 files, not 3 separate calls.
-- Need to edit multiple files? Return all `search_replace` calls together in one response.
-- Need to create several files? Return all `write_file` calls at once.
+- Need to edit multiple files? Include all edits in one response.
+- Need to create several files? Include all file writes in one response.
 
-**The ideal turn**: Chain all your operations together optimistically:
+**The ideal turn**: Do everything in one response:
 ```
-[make edits] → check() → commit() → update_context()
+[make edits]
+<check/>
+<commit message="Refactored X to use Y"/>
 
-Refactored X to use Y!
+Done! Refactored X to use Y.
 ```
 
 ### IMPORTANT: Assume Tools Succeed
 
-**Do NOT wait for tool results.** Tools execute as a pipeline - if any step fails, the chain aborts and you get control back. But you should **assume success** and keep going. Don't stop after `search_replace` to see if it worked. Don't stop after `check()` to see if it passed. Just chain everything together optimistically.
+**Do NOT wait for results.** Commands execute as a pipeline - if any step fails, the pipeline aborts and you get control back. But you should **assume success** and keep going. Don't stop after an edit to see if it worked. Don't stop after `<check/>` to see if it passed. Just do everything in one response.
 
-**The pipeline handles failure for you.** If `search_replace` fails to find the text, the chain stops and you get the error. If `check()` finds type errors, the chain stops and you see them. You don't need to babysit each step - that's what the pipeline is for.
+**The pipeline handles failure for you.** If an edit fails to find the search text, the pipeline stops and you get the error. If `<check/>` finds type errors, the pipeline stops and you see them. You don't need to babysit each step.
 
-❌ **WRONG** - Stopping to check results:
+❌ **WRONG** - One edit per response:
 ```
 [edit file1]
 ← wait for result
 [edit file2]
 ← wait for result
-<check/>
-← wait for result
-"Done!"
 ```
 
-✅ **RIGHT** - Assume success, do everything in one response:
+✅ **RIGHT** - Everything in one response:
 ```
 [edit file1]
 [edit file2]
@@ -104,15 +103,6 @@ Guidelines:
 - When creating new code, load examples of similar code to match patterns
 - When modifying a function, load its callers to understand usage
 - After completing a task, remove files you won't need again
-
-### Transparent Tools
-
-Some tools don't require you to see their results to continue. For these, chain directly into `say` and keep going with more tool calls:
-
-- **`think`** - You already know your conclusion; chain `think(...) → say("Based on my analysis...") → [more tools] → done()`
-- **`compact`** - Just compresses context; chain `compact(...) → say("Cleaned up context...") → [continue working]`
-
-The `say` tool emits text to the user as regular assistant output. Use it after transparent tools to continue your response - don't stop and wait for a round-trip.
 
 ### Compacting Context
 
@@ -194,7 +184,7 @@ new content with &lt;tags&gt;
 """
 
 def get_system_prompt() -> str:
-    """Get the full system prompt with inline edit format instructions."""
+    """Get the full system prompt with inline command format instructions."""
     return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
 
 

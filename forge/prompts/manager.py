@@ -931,7 +931,7 @@ class PromptManager:
             else:
                 i += 1
 
-        # Inject conversation recap, context stats, and reminder as a FINAL user message
+        # Inject conversation recap and context stats as a FINAL user message
         # This ensures they're always at the very end, right before the AI responds,
         # and don't cache-invalidate any prior content (since they change every turn).
         #

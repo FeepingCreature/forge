@@ -15,9 +15,9 @@ if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
 
-# Pattern: <conclusion>conclusion</conclusion>
+# Pattern: <think>scratchpad</think><conclusion>conclusion</conclusion>
 _INLINE_PATTERN = re.compile(
-    r"\s*<conclusion>\s*(.*?)\s*</conclusion>",
+    r"<think>\s*(.*?)\s*</think>\s*<conclusion>\s*(.*?)\s*</conclusion>",
     re.DOTALL,
 )
 
@@ -40,7 +40,7 @@ def get_schema() -> dict[str, Any]:
     return {
         "type": "function",
         "invocation": "inline",
-        "inline_syntax": "",
+        "inline_syntax": "<conclusion>decision</conclusion>",
         "function": {
             "name": "think",
             "description": (

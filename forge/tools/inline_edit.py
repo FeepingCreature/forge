@@ -1,17 +1,9 @@
-    replacement text
+"""
+Inline edit parsing and execution for flow-text edits.
 
-
-Syntax:
-    <edit file="path/to/file.py">
-    <search>
-    exact text to find
-    </search>
-    <replace>
-    replacement text
-    </search>
-    <replace>
-    replacement text
-
+This module handles <edit> blocks that appear in assistant message text,
+allowing edits to be made without tool calls (avoiding round-trip costs
+when the AI narrates after edits).
 
 Syntax:
     <edit file="path/to/file.py">
@@ -20,6 +12,16 @@ Syntax:
     </search>
     <replace>
     replacement text
+    </replace>
+    </edit>
+
+For files containing XML-like syntax, use escape="html":
+    <edit file="path/to/file.py" escape="html">
+    <search>
+    content with &lt;tags&gt;
+    </search>
+    <replace>
+    new content
     </replace>
     </edit>
 """
@@ -61,6 +63,44 @@ EDIT_PATTERN = re.compile(
 )
 
 
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return EDIT_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    return {
+        "filepath": match.group(1),
+        "escape_html": match.group(2) == "html",
+        "search": match.group(3),
+        "replace": match.group(4),
+    }
+
+
+def get_schema() -> dict[str, Any]:
+    """Return tool schema for LLM"""
+    return {
+        "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<edit file="path"><search>old</search><replace>new</replace></edit>',
+        "function": {
+            "name": "edit",
+            "description": "Edit a file by searching for exact text and replacing it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {"type": "string"},
+                    "search": {"type": "string"},
+                    "replace": {"type": "string"},
+                    "escape_html": {"type": "boolean"},
+                },
+                "required": ["filepath", "search", "replace"],
+            },
+        },
+    }
+
+
 def parse_edits(content: str) -> list[EditBlock]:
     """
     Parse <edit> blocks from assistant message content.
@@ -88,15 +128,33 @@ def parse_edits(content: str) -> list[EditBlock]:
     return edits
 
 
+def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Execute an edit from parsed arguments.
+
+    This is the standard tool execute interface.
+    """
+    filepath = args.get("filepath", "")
+    search = args.get("search", "")
+    replace = args.get("replace", "")
+    escape_html = args.get("escape_html", False)
+
+    # Unescape HTML entities if escape="html" was specified
+    if escape_html:
+        search = html.unescape(search)
+        replace = html.unescape(replace)
+
+    return _do_edit(vfs, filepath, search, replace)
+
+
 def execute_edit(vfs: "VFS", edit: EditBlock) -> dict[str, Any]:
     """
-    Execute a single edit block.
+    Execute a single edit block (legacy interface).
 
     Returns a result dict similar to search_replace tool:
     - {"success": True, "message": "..."} on success
     - {"success": False, "error": "..."} on failure
     """
-    filepath = edit.file
     search = edit.search
     replace = edit.replace
 
@@ -105,6 +163,16 @@ def execute_edit(vfs: "VFS", edit: EditBlock) -> dict[str, Any]:
     if edit.escape_html:
         search = html.unescape(search)
         replace = html.unescape(replace)
+
+    return _do_edit(vfs, edit.file, search, replace)
+
+
+def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, Any]:
+    """
+    Core edit logic shared by execute() and execute_edit().
+    """
+    if not filepath or not isinstance(filepath, str):
+        return {"success": False, "error": "filepath must be a non-empty string"}
 
     # Read current state from VFS
     try:

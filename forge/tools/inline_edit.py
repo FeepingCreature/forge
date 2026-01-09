@@ -26,6 +26,7 @@ For files containing XML-like syntax, use escape="html":
     </edit>
 """
 
+import difflib
 import html
 import re
 from dataclasses import dataclass
@@ -33,6 +34,52 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
+
+
+def _find_best_match(search: str, content: str) -> tuple[str, int, int]:
+    """
+    Find the closest matching text in content to the search string.
+
+    Returns (best_match, edit_distance, position).
+    """
+    search_lines = search.split("\n")
+    content_lines = content.split("\n")
+    search_len = len(search_lines)
+
+    if not content_lines:
+        return ("", len(search), 0)
+
+    best_match = ""
+    best_distance = float("inf")
+    best_pos = 0
+
+    # Sliding window over content lines
+    for i in range(max(1, len(content_lines) - search_len + 1)):
+        window = "\n".join(content_lines[i : i + search_len])
+
+        # Use SequenceMatcher for similarity
+        matcher = difflib.SequenceMatcher(None, search, window)
+        # Convert ratio to edit distance approximation
+        ratio = matcher.ratio()
+        distance = int((1 - ratio) * max(len(search), len(window)))
+
+        if distance < best_distance:
+            best_distance = distance
+            best_match = window
+            # Calculate character position
+            best_pos = sum(len(line) + 1 for line in content_lines[:i])
+
+    return (best_match, int(best_distance), best_pos)
+
+
+def _generate_diff(search: str, actual: str) -> str:
+    """Generate a unified diff between search text and actual text."""
+    search_lines = search.splitlines(keepends=True)
+    actual_lines = actual.splitlines(keepends=True)
+
+    diff = difflib.unified_diff(search_lines, actual_lines, fromfile="expected", tofile="actual")
+
+    return "".join(diff)
 
 
 @dataclass
@@ -181,9 +228,6 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
         return {"success": False, "error": f"File not found: {filepath}"}
 
     if search not in content:
-        # Import the fuzzy matching logic from search_replace
-        from forge.tools.builtin.search_replace import _find_best_match, _generate_diff
-
         # Find the closest matching text to help diagnose the issue
         best_match, distance, pos = _find_best_match(search, content)
 

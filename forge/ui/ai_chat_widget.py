@@ -877,10 +877,8 @@ class AIChatWidget(QWidget):
         # Build complete prompt with fresh context
         messages_with_context = self._build_prompt_messages()
 
-        # Discover available tools (filtered by edit_format setting)
-        tools = self.session_manager.tool_manager.discover_tools(
-            edit_format=self.session_manager.edit_format
-        )
+        # Discover available API tools (inline tools are handled separately)
+        tools = self.session_manager.tool_manager.discover_tools()
 
         # Start streaming in a separate thread
         self.streaming_content = ""
@@ -925,77 +923,8 @@ class AIChatWidget(QWidget):
         # Update the tool call at this index
         self._streaming_tool_calls[index] = tool_call
 
-        # Check if this is a 'say' tool - stream its message as assistant text
-        func = tool_call.get("function", {})
-        if func.get("name") == "say":
-            self._update_streaming_say_tool(index, func.get("arguments", ""))
-        else:
-            # Update the streaming display to show tool call progress
-            self._update_streaming_tool_calls()
-
-    def _update_streaming_say_tool(self, index: int, arguments: str) -> None:
-        """Stream a 'say' tool's message as assistant text.
-
-        The say tool is transparent - we don't need to see its result.
-        Instead, we stream its message argument directly as assistant text.
-        """
-        # Try to extract the message from partial JSON
-        # Arguments might be: '{"message": "Hello wor' (incomplete)
-        message = ""
-        try:
-            # Try complete JSON first
-            args = json.loads(arguments)
-            message = args.get("message", "")
-        except json.JSONDecodeError:
-            # Partial JSON - try to extract message value
-            # Look for "message": " or "message":" pattern
-            import re
-
-            match = re.search(r'"message"\s*:\s*"((?:[^"\\]|\\.)*)', arguments)
-            if match:
-                # Unescape basic JSON escapes
-                message = match.group(1)
-                message = message.replace('\\"', '"').replace("\\n", "\n").replace("\\\\", "\\")
-
-        if not message:
-            return
-
-        # Escape for JavaScript
-        escaped_message = (
-            message.replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-        )
-
-        # Update or create the streaming say content
-        js_code = f"""
-        (function() {{
-            var streamingMsg = document.getElementById('streaming-message');
-            if (streamingMsg) {{
-                // Check if user is at bottom before modifying content
-                var scrollThreshold = 50;
-                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-
-                // Find or create say container (separate from tool calls display)
-                var sayContainer = streamingMsg.querySelector('.streaming-say-{index}');
-                if (!sayContainer) {{
-                    sayContainer = document.createElement('div');
-                    sayContainer.className = 'streaming-say-{index} content';
-                    sayContainer.style.cssText = 'white-space: pre-wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;';
-                    streamingMsg.appendChild(sayContainer);
-                }}
-                sayContainer.innerText = `{escaped_message}`;
-
-                // Only scroll if user was already at bottom
-                if (wasAtBottom) {{
-                    window.scrollTo(0, document.body.scrollHeight);
-                }}
-            }}
-        }})();
-        """
-        self.chat_view.page().runJavaScript(js_code)
+        # Update the streaming display to show tool call progress
+        self._update_streaming_tool_calls()
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
@@ -1104,7 +1033,7 @@ class AIChatWidget(QWidget):
             self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
         # Process inline edits AFTER tool calls are recorded
-        if result.get("content") and self.session_manager.edit_format in ("xml", "both"):
+        if result.get("content"):
             edit_result = self._process_inline_edits(result["content"])
             if edit_result.get("had_edits"):
                 if edit_result.get("failed"):
@@ -1213,9 +1142,7 @@ class AIChatWidget(QWidget):
             self._update_chat_display(scroll_to_bottom=True)
 
             # Continue conversation so AI can react to the error
-            tools = self.session_manager.tool_manager.discover_tools(
-                edit_format=self.session_manager.edit_format
-            )
+            tools = self.session_manager.tool_manager.discover_tools()
             self._continue_after_tools(tools)
 
             return {"had_edits": True, "failed": True, "error": error_msg}
@@ -1275,9 +1202,7 @@ class AIChatWidget(QWidget):
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread and continue conversation"""
         # Store tools for later use in _on_tools_all_finished
-        self._pending_tools = self.session_manager.tool_manager.discover_tools(
-            edit_format=self.session_manager.edit_format
-        )
+        self._pending_tools = self.session_manager.tool_manager.discover_tools()
 
         # Create and start tool execution worker
         self.tool_thread = QThread()
@@ -1368,19 +1293,6 @@ class AIChatWidget(QWidget):
             # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)
             self.session_manager.mark_mid_turn_commit()
 
-        # Handle say tool - display message as assistant text (UI only)
-        # NOTE: We do NOT call append_assistant_message here! That would break
-        # the tool_call → tool_result sequence. The say tool result is recorded
-        # normally by append_tool_result above, but we display it as assistant text.
-        if result.get("say") and result.get("success"):
-            say_message = result.get("message", "")
-            if say_message:
-                # Add to UI messages only (not prompt manager)
-                self.messages.append(
-                    {"role": "assistant", "content": say_message, "_ui_only": True}
-                )
-                self._update_chat_display(scroll_to_bottom=True)
-
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())
@@ -1400,8 +1312,6 @@ class AIChatWidget(QWidget):
             "commit",
             "think",
             "run_tests",
-            "say",
-            "done",
         }
 
         if tool_name in builtin_tools_with_native_rendering and result.get("success"):
@@ -1483,36 +1393,6 @@ class AIChatWidget(QWidget):
             for filepath, tool_call_id in self._pending_file_updates:
                 self.session_manager.file_was_modified(filepath, tool_call_id)
             self._pending_file_updates = []
-
-        # Check if the last tool was `done` and succeeded - end turn cleanly
-        if results:
-            last_result = results[-1].get("result", {})
-            if last_result.get("done") and last_result.get("success"):
-                # AI explicitly signaled completion with done()
-                done_message = last_result.get("message", "")
-
-                # Add the done message as an assistant message
-                if done_message:
-                    self.add_message("assistant", done_message)
-                    self.session_manager.append_assistant_message(done_message)
-
-                # Emit updated context stats
-                self._emit_context_stats()
-
-                # Generate summaries for newly created files
-                if hasattr(self, "_newly_created_files") and self._newly_created_files:
-                    for filepath in self._newly_created_files:
-                        self.session_manager.generate_summary_for_file(filepath)
-                    self.summaries_ready.emit(self.session_manager.repo_summaries)
-                    self._newly_created_files.clear()
-
-                # Commit and finish
-                commit_oid = self.session_manager.commit_ai_turn(self.messages)
-                self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
-                self.ai_turn_finished.emit(commit_oid)
-                self._notify_turn_complete(commit_oid)
-                self._reset_input()
-                return
 
         # Check if user queued a message - if so, inject it now instead of continuing
         if self._queued_message:

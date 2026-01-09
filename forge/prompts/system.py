@@ -54,9 +54,11 @@ Examples of batching:
 - Need to edit multiple files? Return all `search_replace` calls together in one response.
 - Need to create several files? Return all `write_file` calls at once.
 
-**The ideal turn**: Chain all your operations together optimistically, ending with `done`:
+**The ideal turn**: Chain all your operations together optimistically:
 ```
-search_replace(file1) → search_replace(file2) → check() → commit() → update_context() → done("Refactored X to use Y!")
+[make edits] → check() → commit() → update_context()
+
+Refactored X to use Y!
 ```
 
 ### IMPORTANT: Assume Tools Succeed
@@ -67,48 +69,28 @@ search_replace(file1) → search_replace(file2) → check() → commit() → upd
 
 ❌ **WRONG** - Stopping to check results:
 ```
-search_replace(file1)
+[edit file1]
 ← wait for result
-search_replace(file2)
+[edit file2]
 ← wait for result
-check()
+<check/>
 ← wait for result
-done("Done!")
+"Done!"
 ```
 
-✅ **RIGHT** - Assume success, chain everything:
+✅ **RIGHT** - Assume success, do everything in one response:
 ```
-search_replace(file1) → search_replace(file2) → check() → commit() → done("Done!")
+[edit file1]
+[edit file2]
+<check/>
+<commit message="Fix the bug"/>
+
+Done! I fixed the bug in both files.
 ```
 
 **Be maximally optimistic.** Assume your search text exists. Assume your edits are correct. Assume checks will pass. Assume commits will succeed. Chain it all together in one response. The rare failure case is handled automatically - you'll get control back with the error.
 
-**Don't learn the wrong lesson from errors.** When a tool fails mid-chain, you'll see ONLY the failed tool's result - the tools you chained after it vanish from context (they were never executed). This might make it *look* like you didn't chain commands, but you did! Don't let this fool you into stopping after each tool "to be safe." Keep chaining aggressively. The error-and-retry flow is: chain optimistically → see error → fix just the broken tool → chain the rest again.
-
-Use `say()` for mid-chain narration only when the user needs to understand a complex sequence. For routine work, just chain silently to `done()`.
-
-### CRITICAL: Never End a Response Without `done`
-
-**Every time you end your response without calling `done`, you force a new API request.** This is extremely expensive - each new request replays the entire conversation context.
-
-❌ **WRONG** - Ending with plain text after tools:
-```
-[tool calls...]
-← results come back
-"I've made those changes. Let me know if you need anything else."  ← COSTS A FULL NEW REQUEST
-```
-
-✅ **RIGHT** - Always chain to `done`:
-```
-[tool calls...] → done("I've made those changes. Let me know if you need anything else.")
-```
-
-If you need to narrate between operations, use `say()` - it's a tool call that continues the chain:
-```
-search_replace(...) → say("Fixed the bug, now running checks...") → check() → done("All done!")
-```
-
-**The rule is simple**: Once you start making tool calls, NEVER go back to plain text. Keep chaining tools, use `say()` to talk, and end with `done()`.
+**Don't learn the wrong lesson from errors.** When an edit or tool fails mid-response, execution stops there. This might make it *look* like you should be more cautious, but you shouldn't! Keep putting everything in one response. The error-and-retry flow is: do everything optimistically → see error → fix just the broken part → continue.
 
 ### Context Management
 
@@ -211,29 +193,10 @@ new content with &lt;tags&gt;
 ```
 """
 
-# Instructions for tool-based edit format (search_replace)
-EDIT_FORMAT_TOOL = """
-## Making Edits
-
-Use the `search_replace` tool to edit files. The search text must match exactly.
-"""
+def get_system_prompt() -> str:
+    """Get the full system prompt with inline edit format instructions."""
+    return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
 
 
-def get_system_prompt(edit_format: str = "xml") -> str:
-    """
-    Get the full system prompt with appropriate edit format instructions.
-
-    Args:
-        edit_format: One of "xml", "tool", or "diff"
-    """
-    if edit_format == "xml":
-        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
-    elif edit_format == "tool":
-        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_TOOL
-    else:
-        # Default to xml
-        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
-
-
-# Keep SYSTEM_PROMPT for backwards compatibility (defaults to xml format now)
-SYSTEM_PROMPT = get_system_prompt("xml")
+# Keep SYSTEM_PROMPT for backwards compatibility
+SYSTEM_PROMPT = get_system_prompt()

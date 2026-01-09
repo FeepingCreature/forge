@@ -37,12 +37,8 @@ class SessionManager:
         # Keep repo reference only for commit operations (not file reading)
         self._repo = repo
 
-        # Get edit format from settings
-        self.edit_format: str = str(settings.get("llm.edit_format", "xml"))
-
         # Prompt manager for cache-optimized prompt construction
-        # Pass edit_format to generate appropriate system prompt
-        self.prompt_manager = PromptManager(edit_format=self.edit_format)
+        self.prompt_manager = PromptManager()
 
         # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()

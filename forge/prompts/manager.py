@@ -46,13 +46,12 @@ class PromptManager:
     - to_messages: Convert to API format with cache_control on last block
     """
 
-    def __init__(self, system_prompt: str | None = None, edit_format: str = "xml") -> None:
+    def __init__(self, system_prompt: str | None = None) -> None:
         self.blocks: list[ContentBlock] = []
-        self.edit_format = edit_format
 
-        # Generate system prompt based on edit format if not provided
+        # Generate system prompt if not provided
         if system_prompt is None:
-            system_prompt = get_system_prompt(edit_format)
+            system_prompt = get_system_prompt()
         self.system_prompt = system_prompt
 
         # Rolling counter for user-friendly tool call IDs

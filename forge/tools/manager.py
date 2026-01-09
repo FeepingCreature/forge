@@ -230,18 +230,18 @@ class ToolManager:
         return unapproved
 
     def discover_tools(
-        self, force_refresh: bool = False, edit_format: str = "xml"
+        self, force_refresh: bool = False
     ) -> list[dict[str, Any]]:
         """Discover all APPROVED tools (built-in + user) and get their schemas.
 
+        Only returns API tools (tools with invocation="api" or no invocation specified).
+        Inline tools (invocation="inline") are handled separately via inline command parsing.
+
         Args:
             force_refresh: If True, ignore cache and reload all tools
-            edit_format: The edit format in use ("xml", "tool", or "diff").
-                        When "xml", excludes search_replace and say tools.
         """
         if not force_refresh and self._schema_cache:
-            # Still need to filter based on edit_format
-            return self._filter_tools_for_format(list(self._schema_cache.values()), edit_format)
+            return self._filter_inline_tools(list(self._schema_cache.values()))
 
         tools: list[dict[str, Any]] = []
         self._schema_cache = {}
@@ -300,25 +300,17 @@ class ToolManager:
                     self._schema_cache[tool_name] = schema
                     self._tool_modules[tool_name] = tool_module
 
-        return self._filter_tools_for_format(tools, edit_format)
+        return self._filter_inline_tools(tools)
 
-    def _filter_tools_for_format(
-        self, tools: list[dict[str, Any]], edit_format: str
+    def _filter_inline_tools(
+        self, tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Filter tools based on the edit format in use.
+        """Filter out inline tools - they use XML syntax, not API calls.
 
-        When edit_format is "xml", we exclude:
-        - search_replace: replaced by inline <edit> blocks
-        - say: no longer needed since edits don't force round-trips
-
-        When edit_format is "tool", all tools are included.
+        Tools with invocation="inline" are handled by the inline command parser,
+        not the API tool calling mechanism.
         """
-        if edit_format == "tool":
-            return tools
-
-        # For "xml" format, exclude search_replace and say
-        excluded = {"search_replace", "say"}
-        return [t for t in tools if t.get("function", {}).get("name") not in excluded]
+        return [t for t in tools if t.get("invocation", "api") != "inline"]
 
     def _load_tool_module_from_path(self, tool_path: Path, is_builtin: bool = False) -> Any:
         """Load a tool as a Python module from disk"""

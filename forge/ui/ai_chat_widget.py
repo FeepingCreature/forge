@@ -1034,6 +1034,10 @@ class AIChatWidget(QWidget):
                 if cmd_result.get("failed"):
                     # Command failed - truncate message, inject error, continue conversation
                     # DO NOT record tool_calls - they come after the failed command
+                    # Also remove tool_calls from the assistant message so they don't get
+                    # saved to session.json (which would break reload - tool_calls without results)
+                    if self.messages and self.messages[-1]["role"] == "assistant":
+                        self.messages[-1].pop("tool_calls", None)
                     return  # _process_inline_commands handles the continuation
                 else:
                     # All commands succeeded - update the stored content

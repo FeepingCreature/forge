@@ -806,6 +806,37 @@ class PromptManager:
 
         return "".join(lines)
 
+    def _format_inline_command_reminder(self) -> str:
+        """
+        Format a reminder about optimistic chaining for inline commands.
+
+        This is injected at the very end of context so it's maximally salient.
+        """
+        return """## REMINDER: Be Optimistic, Do Everything In One Response
+
+Inline commands (`<edit>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.
+If any command fails, execution stops and you get control back with the error.
+
+**Don't wait for results. Assume success and keep going:**
+
+```
+[make edits]
+<run_tests/>
+<commit message="Add feature X"/>
+
+Done! Added feature X and tests pass.
+```
+
+NOT:
+```
+[make edits]
+<run_tests/>
+
+Let me wait for test results...  ← WRONG: costs an extra response
+```
+
+Chain everything optimistically. The pipeline handles failures for you."""
+
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
@@ -931,7 +962,7 @@ class PromptManager:
             else:
                 i += 1
 
-        # Inject conversation recap and context stats as a FINAL user message
+        # Inject conversation recap, context stats, and reminder as a FINAL user message
         # This ensures they're always at the very end, right before the AI responds,
         # and don't cache-invalidate any prior content (since they change every turn).
         #
@@ -939,9 +970,11 @@ class PromptManager:
         # (can't have two consecutive user messages for Anthropic API).
         recap_block = self.format_conversation_recap()
         stats_block = self.format_context_stats_block()
+        reminder_block = self._format_inline_command_reminder()
         stats_content = [
             {"type": "text", "text": recap_block},
             {"type": "text", "text": stats_block},
+            {"type": "text", "text": reminder_block},
         ]
 
         if messages and messages[-1].get("role") == "user":

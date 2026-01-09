@@ -176,14 +176,8 @@ Rules:
 - Edits are applied in order; if one fails, later edits are skipped
 - After edits, you can continue talking - no round-trip cost
 
-Example:
-```
-I'll fix the bug in the calculate function:
-
-<edit file="utils.py">
-<search>
 def calculate(x):
-    return x * 2
+    return x * 3
 </search>
 <replace>
 def calculate(x):

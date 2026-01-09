@@ -152,7 +152,16 @@ That all said, this is a tool in progress- if any of your operations don't seem 
 
 """
 
-replacement text
+# Instructions for XML inline edit format
+EDIT_FORMAT_XML = """
+## Making Edits
+
+To edit files, use `<edit>` blocks in your response:
+
+```
+<edit file="path/to/file.py">
+<search>
+exact text to find
 </search>
 <replace>
 replacement text

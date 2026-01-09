@@ -25,6 +25,7 @@ Syntax:
     </edit>
 """
 
+import html
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -43,14 +44,17 @@ class EditBlock:
     # Position in original text for truncation on failure
     start_pos: int
     end_pos: int
+    # Whether HTML entities should be unescaped
+    escape_html: bool = False
 
 
 # Regex to match <edit file="...">...</edit> blocks
 # Using DOTALL so . matches newlines
 # Key: use negative lookahead to prevent matching across </edit> boundaries
 # The (?:(?!</edit>).)*? pattern matches any char that's not the start of </edit>
+# Optional escape="html" attribute for editing files containing XML-like syntax
 EDIT_PATTERN = re.compile(
-    r'<edit\s+file="([^"]+)">\s*'
+    r'<edit\s+file="([^"]+)"(?:\s+escape="(html)")?\s*>\s*'
     r"<search>\n?((?:(?!</edit>).)*?)\n?</search>\s*"
     r"<replace>\n?((?:(?!</edit>).)*?)\n?</replace>\s*"
     r"</edit>",
@@ -67,8 +71,9 @@ def parse_edits(content: str) -> list[EditBlock]:
     edits = []
     for match in EDIT_PATTERN.finditer(content):
         filepath = match.group(1)
-        search = match.group(2)
-        replace = match.group(3)
+        escape_attr = match.group(2)  # "html" or None
+        search = match.group(3)
+        replace = match.group(4)
 
         edits.append(
             EditBlock(
@@ -77,6 +82,7 @@ def parse_edits(content: str) -> list[EditBlock]:
                 replace=replace,
                 start_pos=match.start(),
                 end_pos=match.end(),
+                escape_html=(escape_attr == "html"),
             )
         )
 
@@ -94,6 +100,12 @@ def execute_edit(vfs: "VFS", edit: EditBlock) -> dict[str, Any]:
     filepath = edit.file
     search = edit.search
     replace = edit.replace
+
+    # Unescape HTML entities if escape="html" was specified
+    # This allows editing files that contain <search>, <edit>, etc.
+    if edit.escape_html:
+        search = html.unescape(search)
+        replace = html.unescape(replace)
 
     # Read current state from VFS
     try:

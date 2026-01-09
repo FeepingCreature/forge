@@ -1192,17 +1192,9 @@ class AIChatWidget(QWidget):
 
         # Build success feedback for the AI, including meaningful output from tools
         success_parts = []
-        display_outputs = []  # Collect outputs to show in UI
         
         for i, cmd in enumerate(commands):
             result = results[i]
-            side_effects = result.get("side_effects", [])
-            
-            # Collect display output for UI
-            if SideEffect.HAS_DISPLAY_OUTPUT in side_effects:
-                output = result.get("display_output", "")
-                if output:
-                    display_outputs.append((cmd.tool_name, output))
             
             # For tools with meaningful output, include it
             if cmd.tool_name == "run_tests":
@@ -1218,13 +1210,14 @@ class AIChatWidget(QWidget):
                 success_parts.append(f"✓ {cmd.tool_name}")
 
         success_content = "Commands executed:\n" + "\n".join(success_parts)
-        
-        # Show display outputs in the UI (not sent to AI, just for user visibility)
-        for tool_name, output in display_outputs:
-            # Truncate very long outputs for display
-            if len(output) > 5000:
-                output = output[:5000] + "\n... (truncated)"
-            self._add_system_message(f"📋 **{tool_name} output:**\n```\n{output}\n```")
+
+        # Store inline results on the assistant message for rendering
+        # This allows render_markdown to show results in the widgets
+        if self.messages and self.messages[-1]["role"] == "assistant":
+            self.messages[-1]["_inline_results"] = results
+
+        # Update display to show results in widgets
+        self._update_chat_display(scroll_to_bottom=True)
 
         # Add to prompt manager so AI sees it
         self.session_manager.append_user_message(success_content)
@@ -2251,7 +2244,9 @@ class AIChatWidget(QWidget):
                 # Render content with markdown, handling any <edit> blocks as diffs
                 from forge.ui.tool_rendering import render_markdown
 
-                content = render_markdown(content_md)
+                # Pass inline results if available (for showing execution results in widgets)
+                inline_results = msg.get("_inline_results")
+                content = render_markdown(content_md, inline_results=inline_results)
 
                 html_parts.append(f"""
                 <div class="message {role}" {msg_id}>

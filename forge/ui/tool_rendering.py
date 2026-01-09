@@ -950,8 +950,18 @@ def render_think_html(args: dict[str, object], result: dict[str, object] | None 
     """
 
 
-def render_run_tests_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:
-    """Render run_tests tool call as HTML."""
+def render_run_tests_html(
+    args: dict[str, object],
+    result: dict[str, object] | None = None,
+    widget_id: str | None = None,
+) -> str:
+    """Render run_tests tool call as HTML.
+    
+    Args:
+        args: Tool arguments (pattern, verbose)
+        result: Execution result (None if streaming/pending)
+        widget_id: Unique ID for this widget (for in-place updates)
+    """
     pattern = args.get("pattern", "")
     verbose = args.get("verbose", False)
 
@@ -985,8 +995,11 @@ def render_run_tests_html(args: dict[str, object], result: dict[str, object] | N
             escaped_output = html.escape(str(output))
             output_html = f'<pre class="line-excerpt" style="max-height: 300px; overflow-y: auto;">{escaped_output}</pre>'
 
+    # Add unique ID if provided (for in-place updates of inline tools)
+    id_attr = f'id="{widget_id}"' if widget_id else ""
+
     return f"""
-    <div class="tool-card{streaming_class}">
+    <div class="tool-card{streaming_class}" {id_attr}>
         <div class="tool-card-header">
             <span class="tool-icon">🧪</span>
             <span class="tool-name">run_tests</span>
@@ -1021,7 +1034,10 @@ REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
 REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 
-def render_markdown(content: str) -> str:
+def render_markdown(
+    content: str,
+    inline_results: list[dict[str, object]] | None = None,
+) -> str:
     """
     Render markdown content to HTML, handling inline commands as tool cards.
 
@@ -1032,6 +1048,8 @@ def render_markdown(content: str) -> str:
 
     Args:
         content: Markdown text that may contain inline commands
+        inline_results: Optional list of execution results for inline commands,
+                       indexed by command order in the content
 
     Returns:
         HTML string with markdown rendered and inline commands as tool cards
@@ -1043,6 +1061,7 @@ def render_markdown(content: str) -> str:
     inline_tools = discover_inline_tools()
     result_parts = []
     pos = 0
+    command_index = 0
 
     while pos < len(content):
         # Find the earliest matching inline command from current position
@@ -1074,21 +1093,44 @@ def render_markdown(content: str) -> str:
                 md.markdown(text_before, extensions=["fenced_code", "codehilite", "tables"])
             )
 
-        # Render the inline command
+        # Get result for this command if available
+        result = None
+        if inline_results and command_index < len(inline_results):
+            result = inline_results[command_index]
+
+        # Render the inline command with its index and result
         args = earliest_module.parse_inline_match(earliest_match)
-        tool_html = _render_inline_command_html(earliest_tool, args, is_streaming=False)
+        tool_html = _render_inline_command_html(
+            earliest_tool, args, is_streaming=False, command_index=command_index, result=result
+        )
         result_parts.append(tool_html)
 
         # Continue after this command
         pos = earliest_match.end()
+        command_index += 1
 
     return "".join(result_parts)
 
 
 def _render_inline_command_html(
-    tool_name: str, args: dict[str, object], is_streaming: bool = False
+    tool_name: str,
+    args: dict[str, object],
+    is_streaming: bool = False,
+    command_index: int | None = None,
+    result: dict[str, object] | None = None,
 ) -> str:
-    """Render an inline command as HTML based on tool type."""
+    """Render an inline command as HTML based on tool type.
+    
+    Args:
+        tool_name: Name of the tool
+        args: Tool arguments
+        is_streaming: Whether still streaming
+        command_index: Index of this command (for generating widget IDs)
+        result: Execution result (for updating widget after execution)
+    """
+    # Generate widget ID for tools that support in-place updates
+    widget_id = f"inline-tool-{command_index}" if command_index is not None else None
+    
     if tool_name == "edit":
         return render_diff_html(
             filepath=str(args.get("filepath", "")),
@@ -1102,13 +1144,13 @@ def _render_inline_command_html(
     elif tool_name == "delete_file":
         return render_delete_file_html(args, is_streaming=is_streaming)
     elif tool_name == "commit":
-        return render_commit_html(args, result=None if is_streaming else {"success": True})
+        return render_commit_html(args, result=result if result else (None if is_streaming else {"success": True}))
     elif tool_name == "run_tests":
-        return render_run_tests_html(args, result=None)
+        return render_run_tests_html(args, result=result, widget_id=widget_id)
     elif tool_name == "check":
-        return _render_check_html(args, is_streaming=is_streaming)
+        return _render_check_html(args, is_streaming=is_streaming, result=result, widget_id=widget_id)
     elif tool_name == "think":
-        return render_think_html(args, result=None if is_streaming else {"success": True})
+        return render_think_html(args, result=result if result else (None if is_streaming else {"success": True}))
     elif tool_name == "rename_file":
         return _render_rename_file_html(args, is_streaming=is_streaming)
     else:
@@ -1116,17 +1158,46 @@ def _render_inline_command_html(
         return _render_generic_inline_html(tool_name, args, is_streaming=is_streaming)
 
 
-def _render_check_html(args: dict[str, object], is_streaming: bool = False) -> str:
-    """Render check tool as HTML."""
+def _render_check_html(
+    args: dict[str, object],
+    is_streaming: bool = False,
+    result: dict[str, object] | None = None,
+    widget_id: str | None = None,
+) -> str:
+    """Render check tool as HTML.
+    
+    Args:
+        args: Tool arguments
+        is_streaming: Whether still streaming
+        result: Execution result (None if streaming/pending)
+        widget_id: Unique ID for this widget (for in-place updates)
+    """
     streaming_class = " streaming" if is_streaming else ""
+    id_attr = f'id="{widget_id}"' if widget_id else ""
+    
+    body_html = "Running format, typecheck, and lint..."
+    if result:
+        if result.get("success"):
+            summary = result.get("summary", "All checks passed")
+            body_html = f'<span class="success-msg">✓ {html.escape(str(summary))}</span>'
+        else:
+            error = result.get("error", result.get("summary", "Check failed"))
+            body_html = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
+            
+        # Show output if available
+        output = result.get("display_output", "")
+        if output:
+            escaped_output = html.escape(str(output))
+            body_html += f'<pre class="line-excerpt" style="max-height: 300px; overflow-y: auto;">{escaped_output}</pre>'
+    
     return f"""
-    <div class="tool-card{streaming_class}">
+    <div class="tool-card{streaming_class}" {id_attr}>
         <div class="tool-card-header">
             <span class="tool-icon">✅</span>
             <span class="tool-name">check</span>
         </div>
         <div class="tool-card-body">
-            Running format, typecheck, and lint...
+            {body_html}
         </div>
     </div>
     """

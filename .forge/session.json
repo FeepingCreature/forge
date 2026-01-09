@@ -1,9 +1,6 @@
 {
   "active_files": [
-    "forge/git_backend/commit_types.py",
-    "CLAUDE.md",
-    "tools/check.py",
-    "tests/test_inline_edit.py"
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -1184,6 +1181,24 @@
       "streaming": true,
       "actual_cost": 0.47842875,
       "generation_id": "gen-1767951705-t5ddK7xQoxRoivkbiood"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767952144391.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767952144391.json",
+      "timestamp": 1767952144.3924937,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.48298375,
+      "generation_id": "gen-1767952144-8hy2VcSazypba6sx1uNm"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767952153438.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767952153438.json",
+      "timestamp": 1767952153.440142,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.59396,
+      "generation_id": "gen-1767952153-YeKuSoz1vkuUpa8ftzSa"
     }
   ],
   "messages": [
@@ -3703,6 +3718,39 @@
     {
       "role": "assistant",
       "content": "<check/>"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 96 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright, that should have produced some error output, but the bigger problem is that the result was not recognized as a tool failure so it didn't give you control back."
+    },
+    {
+      "role": "assistant",
+      "content": "I see two issues:\n\n1. The check tool's `passed` field was added, but `_process_inline_commands` needs to actually STOP the pipeline when `passed=False` (currently it just continues with a \u2717 message)\n2. The check output wasn't shown to me\n\nLet me fix the pipeline to stop on check/test failures:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"tools/check.py\", \"forge/git_backend/commit_types.py\", \"tests/test_inline_edit.py\", \"CLAUDE.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01JJEbWvfffQmQa4G4XxgiJv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JJEbWvfffQmQa4G4XxgiJv",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 1 files, removed 4 files from context\", \"remove\": [\"tools/check.py\", \"forge/git_backend/commit_types.py\", \"tests/test_inline_edit.py\", \"CLAUDE.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue now. Looking at `_process_inline_commands`, when `passed=False` for check/run_tests, the pipeline continues and just shows a \u2717 message. But it should STOP and let me fix it.\n\nThe fix is: when `passed=False` for check or run_tests, we should treat it as a failure and stop the pipeline:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Execute commands sequentially, stopping on first failure\n        vfs = self.session_manager.vfs\n        vfs.claim_thread()\n        try:\n            results, failed_index = execute_inline_commands(vfs, commands)\n        finally:\n            vfs.release_thread()\n\n        if failed_index is not None:\n</search>\n<replace>\n        # Execute commands sequentially, stopping on first failure\n        vfs = self.session_manager.vfs\n        vfs.claim_thread()\n        try:\n            results, failed_index = execute_inline_commands(vfs, commands)\n        finally:\n            vfs.release_thread()\n\n        # Check for tools that succeeded but have failing checks (run_tests, check)\n        # These should stop the pipeline so the AI can fix the issues\n        if failed_index is None:\n            for i, result in enumerate(results):\n                cmd = commands[i]\n                # run_tests and check have a 'passed' field separate from 'success'\n                # success=True means tool ran, passed=False means tests/checks failed\n                if cmd.tool_name in (\"run_tests\", \"check\") and not result.get(\"passed\", True):\n                    failed_index = i\n                    # Mark as failure so the error handling below kicks in\n                    result[\"success\"] = False\n                    result[\"error\"] = result.get(\"output\", \"Check/test failed\")\n                    break\n\n        if failed_index is not None:\n</replace>\n</edit>\n\n<commit message=\"Fix check/run_tests to stop pipeline on failure\n\nWhen run_tests or check have passed=False, treat it as a pipeline\nfailure so the AI gets control back to fix the issues. Previously\nthe pipeline continued and just showed a \u2717 message.\"/>\n\nDone! Now when `<check/>` or `<run_tests/>` fails (tests don't pass), the pipeline will stop and I'll get the error output so I can fix the issues."
     }
   ]
 }

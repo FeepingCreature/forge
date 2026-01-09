@@ -169,27 +169,47 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
     """
     Parse all inline commands from assistant message content.
 
-    Discovers inline tools dynamically and applies their patterns.
+    Parses front-to-back, finding the earliest matching command at each step.
+    This prevents matching commands inside code blocks, examples, or other commands.
+
     Returns list of InlineCommand objects in order of appearance.
     """
     inline_tools = discover_inline_tools()
-    commands: list[tuple[int, InlineCommand]] = []  # (start_pos, command) for sorting
+    commands: list[InlineCommand] = []
+    pos = 0
 
-    for tool_name, module in inline_tools.items():
-        pattern = module.get_inline_pattern()
-        for match in pattern.finditer(content):
-            args = module.parse_inline_match(match)
-            cmd = InlineCommand(
-                tool_name=tool_name,
-                args=args,
-                start_pos=match.start(),
-                end_pos=match.end(),
-            )
-            commands.append((match.start(), cmd))
+    while pos < len(content):
+        # Find the earliest matching command from current position
+        earliest_match: re.Match[str] | None = None
+        earliest_tool: str | None = None
+        earliest_module: Any = None
 
-    # Sort by position in text
-    commands.sort(key=lambda x: x[0])
-    return [cmd for _, cmd in commands]
+        for tool_name, module in inline_tools.items():
+            pattern = module.get_inline_pattern()
+            match = pattern.search(content, pos)
+            if match and (earliest_match is None or match.start() < earliest_match.start()):
+                earliest_match = match
+                earliest_tool = tool_name
+                earliest_module = module
+
+        if earliest_match is None:
+            # No more commands found
+            break
+
+        # Parse this command
+        args = earliest_module.parse_inline_match(earliest_match)
+        cmd = InlineCommand(
+            tool_name=earliest_tool,
+            args=args,
+            start_pos=earliest_match.start(),
+            end_pos=earliest_match.end(),
+        )
+        commands.append(cmd)
+
+        # Continue searching AFTER this command
+        pos = earliest_match.end()
+
+    return commands
 
 
 def execute_inline_commands(

@@ -943,6 +943,51 @@
       "streaming": true,
       "actual_cost": 0.11220575,
       "generation_id": "gen-1767950492-i17lowPfJwNC6ie1sqTv"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767950516337.json",
+      "response_file": "/tmp/forge_debug/response_1767950516337.json",
+      "timestamp": 1767950516.3372514,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001308,
+      "generation_id": "gen-1767950516-W41rArNSrP6pj3GPtbOo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767950649203.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767950649203.json",
+      "timestamp": 1767950649.2045758,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.11312675,
+      "generation_id": "gen-1767950649-eQuQ3XOjvchtfXQ7Wvkb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767950657415.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767950657415.json",
+      "timestamp": 1767950657.417114,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0440175,
+      "generation_id": "gen-1767950657-zLrTYEwNITp929i5ioPY"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767950664559.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767950664559.json",
+      "timestamp": 1767950664.5609076,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.041728,
+      "generation_id": "gen-1767950664-5n0QNsQTWPwfpw2GvlN9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767950669887.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767950669887.json",
+      "timestamp": 1767950669.8891943,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.44044625,
+      "generation_id": "gen-1767950670-Gp5WX71zOq14qrPrK5qG"
     }
   ],
   "messages": [
@@ -3070,6 +3115,57 @@
     {
       "role": "assistant",
       "content": "I see the `to_messages()` method - the stats are injected at the very end. I need to add a reminder about optimistic chaining there too. Let me add it:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        # Inject conversation recap and context stats as a FINAL user message\n        # This ensures they're always at the very end, right before the AI responds,\n        # and don't cache-invalidate any prior content (since they change every turn).\n        #\n        # We need to handle the case where the last message is already a user message\n        # (can't have two consecutive user messages for Anthropic API).\n        recap_block = self.format_conversation_recap()\n        stats_block = self.format_context_stats_block()\n        stats_content = [\n            {\"type\": \"text\", \"text\": recap_block},\n            {\"type\": \"text\", \"text\": stats_block},\n        ]\n</search>\n<replace>\n        # Inject conversation recap, context stats, and reminder as a FINAL user message\n        # This ensures they're always at the very end, right before the AI responds,\n        # and don't cache-invalidate any prior content (since they change every turn).\n        #\n        # We need to handle the case where the last message is already a user message\n        # (can't have two consecutive user messages for Anthropic API).\n        recap_block = self.format_conversation_recap()\n        stats_block = self.format_context_stats_block()\n        reminder_block = self._format_inline_command_reminder()\n        stats_content = [\n            {\"type\": \"text\", \"text\": recap_block},\n            {\"type\": \"text\", \"text\": stats_block},\n            {\"type\": \"text\", \"text\": reminder_block},\n        ]\n</replace>\n</edit>\n\nNow add the method that formats the reminder:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def format_context_stats_block(self) -> str:\n        \"\"\"\n        Format context stats as a compact XML block for injection into the prompt.\n\n        This gives the AI awareness of context size and session cost.\n        Includes a persistent context size label (small/moderate/large/etc).\n        \"\"\"\n</search>\n<replace>\n    def _format_inline_command_reminder(self) -> str:\n        \"\"\"\n        Format a reminder about optimistic chaining for inline commands.\n\n        This is injected at the very end of context so it's maximally salient.\n        \"\"\"\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nInline commands (`<edit>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n\n**Don't wait for results. Assume success and keep going:**\n\n```\n[make edits]\n<run_tests/>\n<commit message=\"Add feature X\"/>\n\nDone! Added feature X and tests pass.\n```\n\nNOT:\n```\n[make edits]\n<run_tests/>\n\nLet me wait for test results...  \u2190 WRONG: costs an extra response\n```\n\nChain everything optimistically. The pipeline handles failures for you.\"\"\"\n\n    def format_context_stats_block(self) -> str:\n        \"\"\"\n        Format context stats as a compact XML block for injection into the prompt.\n\n        This gives the AI awareness of context size and session cost.\n        Includes a persistent context size label (small/moderate/large/etc).\n        \"\"\"\n</replace>\n</edit>\n\n<run_tests pattern=\"test_prompt\"/>\n<commit message=\"Add inline command chaining reminder at end of context\n\nInject reminder about optimistic chaining after stats block.\nEmphasizes: don't wait for results, chain everything, pipeline handles failures.\"/>\n\nDone! Added the reminder back. It now appears at the very end of the context (after recap and stats), reminding to chain `<run_tests/>` and `<commit/>` optimistically without waiting for results."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 480a5673",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ah.\n\nThe edits were recognized, but I don't think your <commit-----\n\nOh. Lol.\nThis is my commit history right now:\n\"Did the thing.\"\n\"Add feature X\"\nAn empty commit \"Add inline command chaining reminder at end of context.\"\n\nI think the command parser has to be redone. It has to go front to back picking up the shortest matching regex and parsing only after it. It should not ever pick up commands inside other commands."
+    },
+    {
+      "role": "assistant",
+      "content": "Ha! Yes, that's a real problem. The parser is matching the `<commit message=\"Add feature X\"/>"
+    },
+    {
+      "role": "system",
+      "content": "\n\u274c `commit` failed:\n\nNo pending changes to commit",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Exactly! The example `<commit message=\"Add feature X\"/>"
+    },
+    {
+      "role": "system",
+      "content": "\n\u274c `commit` failed:\n\nNo pending changes to commit",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Right, the parser is picking up the example commits from my message! Let me fix the parser to go front-to-back and not match commands inside other commands:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/invocation.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Q8fgFNPJbRX7ZgtK1ydDHP",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Q8fgFNPJbRX7ZgtK1ydDHP",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/invocation.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the problem clearly. The `parse_inline_commands` function uses `finditer` on each pattern independently, which means it can match commands inside code blocks, examples, or other commands.\n\nThe fix is to parse front-to-back, finding the earliest matching command, executing it, then continuing from after that command's end position. This way we never match inside something we've already processed.\n\n<edit file=\"forge/tools/invocation.py\">\n<search>\ndef parse_inline_commands(content: str) -> list[InlineCommand]:\n    \"\"\"\n    Parse all inline commands from assistant message content.\n\n    Discovers inline tools dynamically and applies their patterns.\n    Returns list of InlineCommand objects in order of appearance.\n    \"\"\"\n    inline_tools = discover_inline_tools()\n    commands: list[tuple[int, InlineCommand]] = []  # (start_pos, command) for sorting\n\n    for tool_name, module in inline_tools.items():\n        pattern = module.get_inline_pattern()\n        for match in pattern.finditer(content):\n            args = module.parse_inline_match(match)\n            cmd = InlineCommand(\n                tool_name=tool_name,\n                args=args,\n                start_pos=match.start(),\n                end_pos=match.end(),\n            )\n            commands.append((match.start(), cmd))\n\n    # Sort by position in text\n    commands.sort(key=lambda x: x[0])\n    return [cmd for _, cmd in commands]\n</search>\n<replace>\ndef parse_inline_commands(content: str) -> list[InlineCommand]:\n    \"\"\"\n    Parse all inline commands from assistant message content.\n\n    Parses front-to-back, finding the earliest matching command at each step.\n    This prevents matching commands inside code blocks, examples, or other commands.\n\n    Returns list of InlineCommand objects in order of appearance.\n    \"\"\"\n    inline_tools = discover_inline_tools()\n    commands: list[InlineCommand] = []\n    pos = 0\n\n    while pos < len(content):\n        # Find the earliest matching command from current position\n        earliest_match: re.Match[str] | None = None\n        earliest_tool: str | None = None\n        earliest_module: Any = None\n\n        for tool_name, module in inline_tools.items():\n            pattern = module.get_inline_pattern()\n            match = pattern.search(content, pos)\n            if match and (earliest_match is None or match.start() < earliest_match.start()):\n                earliest_match = match\n                earliest_tool = tool_name\n                earliest_module = module\n\n        if earliest_match is None:\n            # No more commands found\n            break\n\n        # Parse this command\n        args = earliest_module.parse_inline_match(earliest_match)\n        cmd = InlineCommand(\n            tool_name=earliest_tool,\n            args=args,\n            start_pos=earliest_match.start(),\n            end_pos=earliest_match.end(),\n        )\n        commands.append(cmd)\n\n        # Continue searching AFTER this command\n        pos = earliest_match.end()\n\n    return commands\n</replace>\n</edit>\n\n<run_tests pattern=\"test_inline\"/>\n<commit message=\"Fix inline command parser to go front-to-back\n\nParse commands sequentially, always finding the earliest match from\ncurrent position. This prevents matching commands inside code blocks,\nexamples, or other commands (like example commits in documentation).\"/>\n\nDone! The parser now goes front-to-back, finding the earliest command at each position and then continuing from after that command ends. This means example commands in code blocks or documentation won't be matched because they'll be \"inside\" a prior command or text block."
     }
   ]
 }

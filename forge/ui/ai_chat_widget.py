@@ -1327,35 +1327,24 @@ class AIChatWidget(QWidget):
             return
 
         # All commands succeeded - process results for side effects
-        for i, res in enumerate(results):
-            cmd = commands[i]
-
-            # Handle file modifications
-            if cmd.tool_name == "edit":
-                filepath = cmd.args.get("file")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
-            elif cmd.tool_name == "write_file":
-                filepath = cmd.args.get("filepath")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
-                    if filepath not in self.session_manager.repo_summaries:
-                        if not hasattr(self, "_newly_created_files"):
-                            self._newly_created_files = set()
-                        self._newly_created_files.add(filepath)
-            elif cmd.tool_name == "delete_file":
-                filepath = cmd.args.get("filepath")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
+        for res in results:
+            side_effects = res.get("side_effects", [])
 
             # Handle FILES_MODIFIED side effect
-            side_effects = res.get("side_effects", [])
             if SideEffect.FILES_MODIFIED in side_effects:
                 for filepath in res.get("modified_files", []):
                     self.session_manager.file_was_modified(filepath, None)
 
-            # Handle mid-turn commits
-            if cmd.tool_name == "commit" and res.get("success"):
+            # Handle NEW_FILES_CREATED side effect (for summary generation)
+            if SideEffect.NEW_FILES_CREATED in side_effects:
+                if not hasattr(self, "_newly_created_files"):
+                    self._newly_created_files = set()
+                for filepath in res.get("new_files", []):
+                    if filepath not in self.session_manager.repo_summaries:
+                        self._newly_created_files.add(filepath)
+
+            # Handle MID_TURN_COMMIT side effect
+            if SideEffect.MID_TURN_COMMIT in side_effects:
                 commit_oid = res.get("commit", "")
                 if commit_oid:
                     self.mid_turn_commit.emit(commit_oid)
@@ -1488,38 +1477,25 @@ class AIChatWidget(QWidget):
         self.messages.append(tool_message)
         self.session_manager.append_tool_result(tool_call_id, result_json)
 
-        # Track modified files - we'll update the prompt manager AFTER all tool results
-        # are recorded. This avoids inserting FILE_CONTENT blocks between TOOL_RESULT
-        # blocks, which would violate Anthropic's API requirement that tool_use must be
-        # immediately followed by tool_result.
-        if result.get("success") and tool_name in ("write_file", "search_replace", "delete_file"):
-            filepath = tool_args.get("filepath")
-            if filepath:
-                if not hasattr(self, "_pending_file_updates"):
-                    self._pending_file_updates = []
-                self._pending_file_updates.append((filepath, tool_call_id))
-
-                # Track newly created files for summary generation
-                # write_file on a file that doesn't exist in repo summaries = new file
-                if (
-                    tool_name == "write_file"
-                    and filepath not in self.session_manager.repo_summaries
-                ):
-                    if not hasattr(self, "_newly_created_files"):
-                        self._newly_created_files = set()
-                    self._newly_created_files.add(filepath)
-
         # Handle side effects declared by tools
+        # We track file updates to apply AFTER all tool results are recorded,
+        # avoiding FILE_CONTENT blocks between TOOL_RESULT blocks (API requirement)
         side_effects = result.get("side_effects", [])
 
-        # Handle FILES_MODIFIED side effect (run_tests, check, etc.)
-        # These tools do VFS writeback and report which files actually changed
+        # Handle FILES_MODIFIED side effect
         if SideEffect.FILES_MODIFIED in side_effects:
-            modified_files = result.get("modified_files", [])
             if not hasattr(self, "_pending_file_updates"):
                 self._pending_file_updates = []
-            for filepath in modified_files:
+            for filepath in result.get("modified_files", []):
                 self._pending_file_updates.append((filepath, tool_call_id))
+
+        # Handle NEW_FILES_CREATED side effect (for summary generation)
+        if SideEffect.NEW_FILES_CREATED in side_effects:
+            if not hasattr(self, "_newly_created_files"):
+                self._newly_created_files = set()
+            for filepath in result.get("new_files", []):
+                if filepath not in self.session_manager.repo_summaries:
+                    self._newly_created_files.add(filepath)
 
         # Handle compact tool specially - it modifies the prompt manager
         if result.get("compact") and result.get("success"):

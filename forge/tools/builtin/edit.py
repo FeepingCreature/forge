@@ -32,6 +32,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.side_effects import SideEffect
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -285,7 +287,12 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
     # Write back to VFS
     vfs.write_file(filepath, new_content)
 
-    return {"success": True, "message": f"Replaced in {filepath}"}
+    return {
+        "success": True,
+        "message": f"Replaced in {filepath}",
+        "modified_files": [filepath],
+        "side_effects": [SideEffect.FILES_MODIFIED],
+    }
 
 
 def execute_edits(vfs: "VFS", edits: list[EditBlock]) -> tuple[list[dict[str, Any]], int | None]:

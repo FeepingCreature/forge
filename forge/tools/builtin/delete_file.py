@@ -5,6 +5,8 @@ Delete a file from VFS
 import re
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.side_effects import SideEffect
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -58,6 +60,11 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
 
     try:
         vfs.delete_file(filepath)
-        return {"success": True, "message": f"Deleted {filepath}"}
+        return {
+            "success": True,
+            "message": f"Deleted {filepath}",
+            "modified_files": [filepath],
+            "side_effects": [SideEffect.FILES_MODIFIED],
+        }
     except FileNotFoundError:
         return {"success": False, "error": f"File not found: {filepath}"}

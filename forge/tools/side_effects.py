@@ -22,6 +22,10 @@ class SideEffect(str, Enum):
     # Result must include "modified_files": [list of filepaths]
     FILES_MODIFIED = "files_modified"
 
+    # Marks that new files were created (for summary generation)
+    # Result must include "new_files": [list of filepaths]
+    NEW_FILES_CREATED = "new_files_created"
+
     # Marks that the tool has displayable output for the UI
     # Result must include "display_output": str (the content to show)
     HAS_DISPLAY_OUTPUT = "has_display_output"

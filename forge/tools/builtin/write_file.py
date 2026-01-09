@@ -5,6 +5,8 @@ Write a complete file to VFS (creates or overwrites)
 import re
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.side_effects import SideEffect
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -64,5 +66,21 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(filepath, str) or not isinstance(content, str):
         return {"success": False, "error": "filepath and content must be strings"}
 
+    # Check if this is a new file (for summary generation)
+    is_new = not vfs.file_exists(filepath)
+
     vfs.write_file(filepath, content)
-    return {"success": True, "message": f"Wrote {len(content)} bytes to {filepath}"}
+
+    side_effects = [SideEffect.FILES_MODIFIED]
+    result: dict[str, Any] = {
+        "success": True,
+        "message": f"Wrote {len(content)} bytes to {filepath}",
+        "modified_files": [filepath],
+        "side_effects": side_effects,
+    }
+
+    if is_new:
+        result["new_files"] = [filepath]
+        side_effects.append(SideEffect.NEW_FILES_CREATED)
+
+    return result

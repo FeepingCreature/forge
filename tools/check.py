@@ -20,6 +20,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": "<check/>",
         "function": {
             "name": "check",
             "description": """Run make check (format + typecheck + lint) on the current VFS state.

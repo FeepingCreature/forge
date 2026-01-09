@@ -12,6 +12,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<write file="path/to/file.py">\nfile content here\n</write>',
         "function": {
             "name": "write_file",
             "description": "Write complete file content to VFS. Creates new file or overwrites existing. Use for new files or complete rewrites.",

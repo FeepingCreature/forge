@@ -20,6 +20,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<run_tests/> or <run_tests pattern="test_foo" verbose="true"/>',
         "function": {
             "name": "run_tests",
             "description": """Run the project's test suite on the current VFS state.

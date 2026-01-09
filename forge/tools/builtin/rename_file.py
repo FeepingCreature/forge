@@ -12,6 +12,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<rename old="old/path.py" new="new/path.py"/>',
         "function": {
             "name": "rename_file",
             "description": "Rename or move a file in VFS. This reads the file content, writes it to the new path, and deletes the old path.",

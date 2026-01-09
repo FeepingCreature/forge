@@ -15,6 +15,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<commit message="Commit message here"/>',
         "function": {
             "name": "commit",
             "description": "Commit pending changes mid-turn with a descriptive message. Use this to create atomic commits for each logical change rather than one big commit at the end. After commit, you can continue making more changes.",

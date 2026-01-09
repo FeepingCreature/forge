@@ -12,6 +12,8 @@ def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM"""
     return {
         "type": "function",
+        "invocation": "inline",
+        "inline_syntax": '<delete file="path/to/file.py"/>',
         "function": {
             "name": "delete_file",
             "description": "Delete a file from VFS. The deletion will be committed with other changes at end of turn.",

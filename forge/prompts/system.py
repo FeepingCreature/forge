@@ -150,22 +150,6 @@ Example: After implementing a feature with 10+ edits, compact with: "Implemented
 
 That all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.
 
----
-
-## REMINDER: Chain Tools and End With `done`
-
-This is worth repeating because it's the most common mistake:
-
-1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.
-2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.
-3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.
-
-```
-✅ edit → edit → check → commit → done("All done!")
-❌ edit → edit → "I made those changes."  ← WRONG: forces expensive new request
-```
-
-Every response should end with `done()`. No exceptions.
 """
 
 # Instructions for XML inline edit format

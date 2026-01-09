@@ -807,6 +807,28 @@ class PromptManager:
 
         return "".join(lines)
 
+    def _format_tool_chaining_reminder(self) -> str:
+        """
+        Format a reminder about proper tool chaining for injection at the very end.
+
+        This is placed after recap and stats so it's the last thing the AI sees
+        before responding, making it maximally salient.
+        """
+        return """## REMINDER: Chain Tools and End With `done`
+
+This is worth repeating because it's the most common mistake:
+
+1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.
+2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.
+3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.
+
+```
+✅ edit → edit → check → commit → done("All done!")
+❌ edit → edit → "I made those changes."  ← WRONG: forces expensive new request
+```
+
+Every response should end with `done()`. No exceptions."""
+
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
@@ -932,7 +954,7 @@ class PromptManager:
             else:
                 i += 1
 
-        # Inject conversation recap and context stats as a FINAL user message
+        # Inject conversation recap, context stats, and reminder as a FINAL user message
         # This ensures they're always at the very end, right before the AI responds,
         # and don't cache-invalidate any prior content (since they change every turn).
         #
@@ -940,9 +962,11 @@ class PromptManager:
         # (can't have two consecutive user messages for Anthropic API).
         recap_block = self.format_conversation_recap()
         stats_block = self.format_context_stats_block()
+        reminder_block = self._format_tool_chaining_reminder()
         stats_content = [
             {"type": "text", "text": recap_block},
             {"type": "text", "text": stats_block},
+            {"type": "text", "text": reminder_block},
         ]
 
         if messages and messages[-1].get("role") == "user":

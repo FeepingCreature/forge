@@ -23,6 +23,33 @@
       "streaming": true,
       "actual_cost": 0.092986,
       "generation_id": "gen-1767946559-4f02jyUtdWSdr0DoHGDQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767946576371.json",
+      "response_file": "/tmp/forge_debug/response_1767946576371.json",
+      "timestamp": 1767946576.37147,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000147,
+      "generation_id": "gen-1767946576-GSMVpMcDAIhcs59jqTfz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767946586508.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767946586508.json",
+      "timestamp": 1767946586.5096097,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.103905,
+      "generation_id": "gen-1767946586-lnyH0DCHi9cbE555inrA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767946592056.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767946592056.json",
+      "timestamp": 1767946592.057449,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0553445,
+      "generation_id": "gen-1767946592-SvLBrMqqSPiV7ZsY0wRe"
     }
   ],
   "messages": [
@@ -78,6 +105,64 @@
     {
       "role": "assistant",
       "content": "Added a reinforcement section at the very end of `SYSTEM_PROMPT_BASE` in `forge/prompts/system.py`. The new \"REMINDER: Chain Tools and End With `done`\" section reiterates the three key points:\n\n1. Chain everything optimistically\n2. Never end without `done`\n3. Use `say()` to narrate mid-chain\n\nIt includes a visual example showing the right vs wrong pattern, and ends with the emphatic \"Every response should end with `done()`. No exceptions.\"\n\nThis placement ensures it's the last thing the AI reads before the edit format instructions, making it maximally salient."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 9a0bd124",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "no I mean, undo that, put it *all the way* at the end of the context. As a separate, last message."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll undo that change and instead inject it at the very end of the context, after the conversation recap and stats.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/system.py\"}",
+            "name": "undo_edit"
+          },
+          "id": "toolu_vrtx_01V881GzHrFY7YZT9ep1qCJd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01V881GzHrFY7YZT9ep1qCJd",
+      "content": "{\"error\": \"No pending changes to undo for: forge/prompts/system.py\", \"success\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `undo_edit`\n```json\n{\n  \"filepath\": \"forge/prompts/system.py\"\n}\n```\n**Result:**\n```json\n{\n  \"error\": \"No pending changes to undo for: forge/prompts/system.py\",\n  \"success\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The change was already committed, so I need to manually revert it. Let me restore the original system.py and then modify the prompt manager to inject the reminder at the very end of the context.\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n# Work In Progress\n\nThat all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.\n\n---\n\n## REMINDER: Chain Tools and End With `done`\n\nThis is worth repeating because it's the most common mistake:\n\n1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.\n2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.\n3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.\n\n```\n\u2705 edit \u2192 edit \u2192 check \u2192 commit \u2192 done(\"All done!\")\n\u274c edit \u2192 edit \u2192 \"I made those changes.\"  \u2190 WRONG: forces expensive new request\n```\n\nEvery response should end with `done()`. No exceptions.\n\"\"\"\n</search>\n<replace>\n# Work In Progress\n\nThat all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.\n\n\"\"\"\n</replace>\n</edit>\n\nNow let me add the reminder as a final injection in `to_messages()`:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        # Inject conversation recap and context stats as a FINAL user message\n        # This ensures they're always at the very end, right before the AI responds,\n        # and don't cache-invalidate any prior content (since they change every turn).\n        #\n        # We need to handle the case where the last message is already a user message\n        # (can't have two consecutive user messages for Anthropic API).\n        recap_block = self.format_conversation_recap()\n        stats_block = self.format_context_stats_block()\n        stats_content = [\n            {\"type\": \"text\", \"text\": recap_block},\n            {\"type\": \"text\", \"text\": stats_block},\n        ]\n\n        if messages and messages[-1].get(\"role\") == \"user\":\n            # Append to existing user message\n            messages[-1][\"content\"].extend(stats_content)\n        else:\n            # Add as new user message\n            messages.append({\"role\": \"user\", \"content\": stats_content})\n\n        return messages\n</search>\n<replace>\n        # Inject conversation recap, context stats, and reminder as a FINAL user message\n        # This ensures they're always at the very end, right before the AI responds,\n        # and don't cache-invalidate any prior content (since they change every turn).\n        #\n        # We need to handle the case where the last message is already a user message\n        # (can't have two consecutive user messages for Anthropic API).\n        recap_block = self.format_conversation_recap()\n        stats_block = self.format_context_stats_block()\n        reminder_block = self._format_tool_chaining_reminder()\n        stats_content = [\n            {\"type\": \"text\", \"text\": recap_block},\n            {\"type\": \"text\", \"text\": stats_block},\n            {\"type\": \"text\", \"text\": reminder_block},\n        ]\n\n        if messages and messages[-1].get(\"role\") == \"user\":\n            # Append to existing user message\n            messages[-1][\"content\"].extend(stats_content)\n        else:\n            # Add as new user message\n            messages.append({\"role\": \"user\", \"content\": stats_content})\n\n        return messages\n</replace>\n</edit>\n\nNow add the method that formats the reminder:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def format_context_stats_block(self) -> str:\n        \"\"\"\n        Format context stats as a compact XML block for injection into the prompt.\n\n        This gives the AI awareness of context size and session cost.\n        Includes a persistent context size label (small/moderate/large/etc).\n        \"\"\"\n</search>\n<replace>\n    def _format_tool_chaining_reminder(self) -> str:\n        \"\"\"\n        Format a reminder about proper tool chaining for injection at the very end.\n\n        This is placed after recap and stats so it's the last thing the AI sees\n        before responding, making it maximally salient.\n        \"\"\"\n        return \"\"\"## REMINDER: Chain Tools and End With `done`\n\nThis is worth repeating because it's the most common mistake:\n\n1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.\n2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.\n3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.\n\n```\n\u2705 edit \u2192 edit \u2192 check \u2192 commit \u2192 done(\"All done!\")\n\u274c edit \u2192 edit \u2192 \"I made those changes.\"  \u2190 WRONG: forces expensive new request\n```\n\nEvery response should end with `done()`. No exceptions.\"\"\"\n\n    def format_context_stats_block(self) -> str:\n        \"\"\"\n        Format context stats as a compact XML block for injection into the prompt.\n\n        This gives the AI awareness of context size and session cost.\n        Includes a persistent context size label (small/moderate/large/etc).\n        \"\"\"\n</replace>\n</edit>",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"message\": \"Done! I've:\\n\\n1. **Reverted** the addition to `SYSTEM_PROMPT_BASE` in `system.py`\\n2. **Added** `_format_tool_chaining_reminder()` method in `manager.py` that returns the reminder text\\n3. **Modified** `to_messages()` to inject the reminder as the very last content block\\n\\nNow the reminder appears at the absolute end of the context, after the conversation recap and stats, making it the last thing the AI sees before responding.\"}",
+            "name": "done"
+          },
+          "id": "toolu_vrtx_01EEZQEoSTcLyWkmWMz1Dxnw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EEZQEoSTcLyWkmWMz1Dxnw",
+      "content": "{\"done\": true, \"message\": \"Done! I've:\\n\\n1. **Reverted** the addition to `SYSTEM_PROMPT_BASE` in `system.py`\\n2. **Added** `_format_tool_chaining_reminder()` method in `manager.py` that returns the reminder text\\n3. **Modified** `to_messages()` to inject the reminder as the very last content block\\n\\nNow the reminder appears at the absolute end of the context, after the conversation recap and stats, making it the last thing the AI sees before responding.\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Done! I've:\n\n1. **Reverted** the addition to `SYSTEM_PROMPT_BASE` in `system.py`\n2. **Added** `_format_tool_chaining_reminder()` method in `manager.py` that returns the reminder text\n3. **Modified** `to_messages()` to inject the reminder as the very last content block\n\nNow the reminder appears at the absolute end of the context, after the conversation recap and stats, making it the last thing the AI sees before responding."
     }
   ]
 }

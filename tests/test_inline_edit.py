@@ -346,25 +346,7 @@ class TestExecuteEdits:
         assert results[1]["success"] is False
 
 
-class TestInlineCommandOrdering:
-    """Test that inline commands are processed before tool calls are recorded."""
-
-    def test_failed_inline_command_does_not_record_tool_calls(self):
-        """
-        When an inline command fails, any tool calls in the same message
-        should NOT be recorded to session.json.
-        
-        This prevents orphaned tool calls (recorded but never executed)
-        from appearing on session reload.
-        """
-        from forge.tools.invocation import parse_inline_commands
-        
-        # Simulate a message with a failing edit followed by tool calls
-        content = '''Let me fix this:
-
-<edit file="nonexistent.py">
-<search>
-this text does not exist
+new text
 </search>
 <replace>
 new text

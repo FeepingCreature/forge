@@ -220,11 +220,24 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             results["output"] = f"Command not found: {e}"
             results["summary"] = f"✗ Could not run {cmd_desc}: command not found"
 
-        # Write all text files back to VFS (it will track actual changes)
+        # Write all text files back to VFS and track which ones changed
+        modified_files = []
         for rel_path in vfs.list_files():
             file_path = tmpdir / rel_path
             if file_path.exists():
-                vfs.write_file(rel_path, file_path.read_text(encoding="utf-8"))
+                new_content = file_path.read_text(encoding="utf-8")
+                # Check if content actually changed
+                try:
+                    old_content = vfs.read_file(rel_path)
+                    if new_content != old_content:
+                        vfs.write_file(rel_path, new_content)
+                        modified_files.append(rel_path)
+                except (FileNotFoundError, KeyError):
+                    # File is new
+                    vfs.write_file(rel_path, new_content)
+                    modified_files.append(rel_path)
+        
+        results["modified_files"] = modified_files
 
     finally:
         # Clean up temp directory

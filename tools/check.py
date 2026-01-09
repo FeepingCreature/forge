@@ -163,6 +163,9 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         
         results["summary"] = "\n".join(summary_parts)
         
+        # Report modified files so context can be updated
+        results["modified_files"] = formatted_files
+        
     finally:
         # Clean up temp directory
         import shutil

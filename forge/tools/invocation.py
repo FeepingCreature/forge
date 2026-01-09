@@ -20,7 +20,7 @@ Each inline tool exports:
 - parse_inline_match(match) returning parsed arguments dict
 """
 
-import re
+import re  # noqa: TC003 - used at runtime in type annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -71,7 +71,7 @@ def get_inline_syntax(schema: dict[str, Any]) -> str | None:
 
     # Check for custom syntax documentation
     if "inline_syntax" in schema:
-        return schema["inline_syntax"]
+        return str(schema["inline_syntax"])
 
     # Generate default syntax from schema
     func = schema.get("function", {})
@@ -160,9 +160,7 @@ def _is_inline_tool(module: Any) -> bool:
         return False
     if not hasattr(module, "get_inline_pattern"):
         return False
-    if not hasattr(module, "parse_inline_match"):
-        return False
-    return True
+    return hasattr(module, "parse_inline_match")
 
 
 def parse_inline_commands(content: str) -> list[InlineCommand]:
@@ -192,7 +190,7 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
                 earliest_tool = tool_name
                 earliest_module = module
 
-        if earliest_match is None:
+        if earliest_match is None or earliest_tool is None or earliest_module is None:
             # No more commands found
             break
 

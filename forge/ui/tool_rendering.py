@@ -1058,7 +1058,7 @@ def render_markdown(content: str) -> str:
                 earliest_tool = tool_name
                 earliest_module = module
 
-        if earliest_match is None:
+        if earliest_match is None or earliest_tool is None or earliest_module is None:
             # No more commands - render remaining as markdown
             remaining = content[pos:].strip()
             if remaining:
@@ -1206,7 +1206,7 @@ def render_streaming_edits(content: str) -> str:
                 earliest_tool = tool_name
                 earliest_module = module
 
-        if earliest_match is None:
+        if earliest_match is None or earliest_tool is None or earliest_module is None:
             # No more complete commands - check for partial at the end
             remaining = content[pos:]
             if remaining:

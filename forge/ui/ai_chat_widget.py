@@ -1102,19 +1102,8 @@ class AIChatWidget(QWidget):
         finally:
             vfs.release_thread()
 
-        # Check for tools that succeeded but have failing checks (run_tests, check)
-        # These should stop the pipeline so the AI can fix the issues
-        if failed_index is None:
-            for i, result in enumerate(results):
-                cmd = commands[i]
-                # run_tests and check have a 'passed' field separate from 'success'
-                # success=True means tool ran, passed=False means tests/checks failed
-                if cmd.tool_name in ("run_tests", "check") and not result.get("passed", True):
-                    failed_index = i
-                    # Mark as failure so the error handling below kicks in
-                    result["success"] = False
-                    result["error"] = result.get("output", "Check/test failed")
-                    break
+        # No special handling needed - run_tests and check now set success=False
+        # when tests/checks fail, so they naturally stop the pipeline
 
         if failed_index is not None:
             # Command failed - truncate message AFTER the failed command
@@ -1196,26 +1185,10 @@ class AIChatWidget(QWidget):
             result = results[i]
             # For tools with meaningful output, include it
             if cmd.tool_name == "run_tests":
-                output = result.get("output", "")
-                summary = result.get("summary", "")
-                passed = result.get("passed", False)
-                if passed:
-                    success_parts.append(f"✓ run_tests: {summary}")
-                else:
-                    # Tests failed - show full output so AI can fix issues
-                    # Truncate if very long to avoid context explosion
-                    if len(output) > 5000:
-                        output = output[:5000] + "\n... (truncated)"
-                    success_parts.append(f"✗ run_tests: {summary}\n\n{output}")
+                summary = result.get("summary", "✓ Tests passed")
+                success_parts.append(f"✓ run_tests: {summary}")
             elif cmd.tool_name == "check":
-                output = result.get("output", "")
-                if result.get("passed"):
-                    success_parts.append("✓ check: All checks passed")
-                else:
-                    # Check failed - show full output so AI can fix issues
-                    if len(output) > 5000:
-                        output = output[:5000] + "\n... (truncated)"
-                    success_parts.append(f"✗ check failed:\n\n{output}")
+                success_parts.append("✓ check: All checks passed")
             elif cmd.tool_name == "commit":
                 commit_oid = result.get("commit", "")[:8]
                 success_parts.append(f"✓ commit: {commit_oid}")

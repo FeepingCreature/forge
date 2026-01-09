@@ -193,14 +193,14 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
                 output += "\n--- stderr ---\n" + result.stderr
 
             results["output"] = output
-            results["passed"] = result.returncode == 0
-            results["success"] = True
+            results["success"] = result.returncode == 0
 
             # Generate summary
-            if results["passed"]:
+            if results["success"]:
                 results["summary"] = f"✓ Tests passed ({cmd_desc})"
             else:
                 results["summary"] = f"✗ Tests failed ({cmd_desc})"
+                results["error"] = output  # Include full output as error
                 # Try to extract failure count from pytest output
                 if "pytest" in cmd_desc:
                     for line in output.splitlines():
@@ -213,7 +213,8 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         except subprocess.TimeoutExpired:
             results["output"] = "Test run timed out after 5 minutes"
             results["summary"] = "✗ Tests timed out"
-            results["success"] = True  # Tool succeeded, tests timed out
+            results["error"] = "Test run timed out after 5 minutes"
+            results["success"] = False
 
         except FileNotFoundError as e:
             results["output"] = f"Command not found: {e}"

@@ -135,17 +135,18 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         results["lint_output"] = lint_result.stdout + lint_result.stderr
         results["lint_passed"] = lint_result.returncode == 0
         
-        # Overall pass/fail (for display) and success (tool completed)
-        results["passed"] = results["typecheck_passed"] and results["lint_passed"]
-        results["success"] = True  # Tool succeeded even if checks failed
+        # Success means checks passed. Failure means checks failed.
+        checks_passed = results["typecheck_passed"] and results["lint_passed"]
+        results["success"] = checks_passed
         
-        # Build output for AI to see errors
-        output_parts = []
-        if not results["typecheck_passed"]:
-            output_parts.append(results["typecheck_output"])
-        if not results["lint_passed"]:
-            output_parts.append(results["lint_output"])
-        results["output"] = "\n".join(output_parts)
+        # Build error output if checks failed
+        if not checks_passed:
+            output_parts = []
+            if not results["typecheck_passed"]:
+                output_parts.append(results["typecheck_output"])
+            if not results["lint_passed"]:
+                output_parts.append(results["lint_output"])
+            results["error"] = "\n".join(output_parts)
         
         # Build summary message
         summary_parts = []

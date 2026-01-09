@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
 
-# Pattern: <conclusion>conclusion text</conclusion>
+# Pattern: <conclusion>conclusion</conclusion>
 _INLINE_PATTERN = re.compile(
     r"\s*<conclusion>\s*(.*?)\s*</conclusion>",
     re.DOTALL,

@@ -1,14 +1,13 @@
-"""
-Inline edit parsing and execution for flow-text edits.
+    replacement text
 
-This module handles <edit> blocks that appear in assistant message text,
-allowing edits to be made without tool calls (avoiding round-trip costs
-when the AI narrates after edits).
 
 Syntax:
     <edit file="path/to/file.py">
     <search>
     exact text to find
+    </search>
+    <replace>
+    replacement text
     </search>
     <replace>
     replacement text

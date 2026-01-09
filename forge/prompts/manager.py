@@ -809,25 +809,13 @@ class PromptManager:
 
     def _format_tool_chaining_reminder(self) -> str:
         """
-        Format a reminder about proper tool chaining for injection at the very end.
+        Format a reminder about inline commands for injection at the very end.
 
         This is placed after recap and stats so it's the last thing the AI sees
         before responding, making it maximally salient.
         """
-        return """## REMINDER: Chain Tools and End With `done`
-
-This is worth repeating because it's the most common mistake:
-
-1. **Chain everything optimistically** - Don't stop to check results. The pipeline handles errors.
-2. **Never end without `done`** - Plain text after tool results costs a full API round-trip.
-3. **Use `say()` to narrate mid-chain** - It's a tool call, so it continues the chain.
-
-```
-✅ run_tests() → say("Tests pass!") → commit() → done("All done!")
-❌ run_tests() ... "Tests passed, I'll commit now."  ← WRONG: forces expensive new request
-```
-
-Every response should end with `done()`. No exceptions."""
+        # With inline commands, no special reminder needed - just end naturally
+        return ""
 
     def format_context_stats_block(self) -> str:
         """

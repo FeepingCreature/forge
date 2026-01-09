@@ -7,6 +7,7 @@ This tool:
 3. Returns test output with pass/fail summary
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +15,28 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
+
+
+# Pattern: <run_tests/> or <run_tests pattern="..." verbose="true"/>
+_INLINE_PATTERN = re.compile(
+    r'<run_tests(?:\s+pattern="([^"]*)")?(?:\s+verbose="(true|false)")?\s*/?>',
+    re.DOTALL,
+)
+
+
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return _INLINE_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    args: dict[str, Any] = {}
+    if match.group(1):
+        args["pattern"] = match.group(1)
+    if match.group(2):
+        args["verbose"] = match.group(2) == "true"
+    return args
 
 
 def get_schema() -> dict[str, Any]:

@@ -153,6 +153,8 @@ That all said, this is a tool in progress- if any of your operations don't seem 
 """
 
 # Instructions for XML inline edit format
+# NOTE: This string uses HTML entities for the XML examples because this file
+# itself gets edited by the AI using <edit> blocks!
 EDIT_FORMAT_XML = """
 ## Making Edits
 
@@ -176,8 +178,14 @@ Rules:
 - Edits are applied in order; if one fails, later edits are skipped
 - After edits, you can continue talking - no round-trip cost
 
+Example:
+```
+I'll fix the bug in the calculate function:
+
+<edit file="utils.py">
+<search>
 def calculate(x):
-    return x * 3
+    return x * 2
 </search>
 <replace>
 def calculate(x):
@@ -186,6 +194,20 @@ def calculate(x):
 </edit>
 
 That should handle the edge case properly.
+```
+
+When editing files that contain XML-like syntax (e.g., `<search>` tags themselves),
+use `escape="html"` and HTML entities:
+
+```
+<edit file="prompts.py" escape="html">
+<search>
+content with &lt;tags&gt;
+</search>
+<replace>
+new content with &lt;tags&gt;
+</replace>
+</edit>
 ```
 """
 

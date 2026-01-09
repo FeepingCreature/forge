@@ -8,12 +8,30 @@ This tool:
 4. Returns errors and a list of files that were auto-formatted
 """
 
+import re
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
+
+
+# Pattern: <check/>
+_INLINE_PATTERN = re.compile(
+    r"<check\s*/?>",
+    re.DOTALL,
+)
+
+
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return _INLINE_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    return {}
 
 
 def get_schema() -> dict[str, Any]:

@@ -2,6 +2,7 @@
 Commit pending VFS changes mid-turn with a descriptive message.
 """
 
+import re
 from typing import TYPE_CHECKING, Any
 
 from forge.git_backend.commit_types import CommitType
@@ -9,6 +10,23 @@ from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
+
+
+# Pattern: <commit message="..."/>
+_INLINE_PATTERN = re.compile(
+    r'<commit\s+message="([^"]+)"\s*/?>',
+    re.DOTALL,
+)
+
+
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return _INLINE_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    return {"message": match.group(1)}
 
 
 def get_schema() -> dict[str, Any]:

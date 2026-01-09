@@ -8,10 +8,31 @@ to avoid bloating context - only the conclusion is kept.
 This gives you "out-loud thinking" without the context cost.
 """
 
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
+
+
+# Pattern: <conclusion>conclusion text</conclusion>
+_INLINE_PATTERN = re.compile(
+    r"\s*<conclusion>\s*(.*?)\s*</conclusion>",
+    re.DOTALL,
+)
+
+
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return _INLINE_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    return {
+        "scratchpad": match.group(1),
+        "conclusion": match.group(2),
+    }
 
 
 def get_schema() -> dict[str, Any]:

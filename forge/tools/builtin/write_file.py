@@ -2,10 +2,31 @@
 Write a complete file to VFS (creates or overwrites)
 """
 
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
+
+
+# Pattern: <write file="path">content</write>
+_INLINE_PATTERN = re.compile(
+    r'<write\s+file="([^"]+)">\n?(.*?)\n?</write>',
+    re.DOTALL,
+)
+
+
+def get_inline_pattern() -> re.Pattern[str]:
+    """Return compiled regex for inline invocation."""
+    return _INLINE_PATTERN
+
+
+def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match into tool arguments."""
+    return {
+        "filepath": match.group(1),
+        "content": match.group(2),
+    }
 
 
 def get_schema() -> dict[str, Any]:

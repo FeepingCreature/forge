@@ -1023,116 +1023,243 @@ REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 def render_markdown(content: str) -> str:
     """
-    Render markdown content to HTML, handling <edit> blocks as diff views.
+    Render markdown content to HTML, handling inline commands as tool cards.
 
     This is the canonical markdown renderer for assistant messages.
-    It handles both regular markdown and inline <edit> blocks.
+    It handles both regular markdown and inline commands (<edit>, <commit/>, etc.).
+
+    Uses front-to-back parsing to avoid matching commands inside code blocks.
 
     Args:
-        content: Markdown text that may contain <edit> blocks
+        content: Markdown text that may contain inline commands
 
     Returns:
-        HTML string with markdown rendered and edit blocks as diffs
+        HTML string with markdown rendered and inline commands as tool cards
     """
     import markdown as md
 
-    result_parts = []
-    last_end = 0
+    from forge.tools.invocation import discover_inline_tools
 
-    # Find and render complete edit blocks, running markdown on text between them
-    for match in EDIT_BLOCK_PATTERN.finditer(content):
-        # Add markdown-rendered text before this edit block
-        # Strip trailing whitespace that's just formatting around the edit tag
-        text_before = content[last_end : match.start()].rstrip()
+    inline_tools = discover_inline_tools()
+    result_parts = []
+    pos = 0
+
+    while pos < len(content):
+        # Find the earliest matching inline command from current position
+        earliest_match = None
+        earliest_tool = None
+        earliest_module = None
+
+        for tool_name, module in inline_tools.items():
+            pattern = module.get_inline_pattern()
+            match = pattern.search(content, pos)
+            if match and (earliest_match is None or match.start() < earliest_match.start()):
+                earliest_match = match
+                earliest_tool = tool_name
+                earliest_module = module
+
+        if earliest_match is None:
+            # No more commands - render remaining as markdown
+            remaining = content[pos:].strip()
+            if remaining:
+                result_parts.append(
+                    md.markdown(remaining, extensions=["fenced_code", "codehilite", "tables"])
+                )
+            break
+
+        # Render markdown text before this command
+        text_before = content[pos : earliest_match.start()].rstrip()
         if text_before:
             result_parts.append(
                 md.markdown(text_before, extensions=["fenced_code", "codehilite", "tables"])
             )
 
-        # Render the edit block as a diff
-        filepath = match.group(1)
-        search = match.group(2)
-        replace = match.group(3)
+        # Render the inline command
+        args = earliest_module.parse_inline_match(earliest_match)
+        tool_html = _render_inline_command_html(earliest_tool, args, is_streaming=False)
+        result_parts.append(tool_html)
 
-        diff_html = render_diff_html(
-            filepath=filepath,
-            search=search,
-            replace=replace,
-            is_streaming=False,
-            streaming_phase="replace",
-        )
-        result_parts.append(diff_html)
-        last_end = match.end()
-
-    # Render remaining text after last edit block
-    # Strip leading whitespace after edit blocks
-    remaining = content[last_end:].lstrip()
-    if remaining:
-        result_parts.append(
-            md.markdown(remaining, extensions=["fenced_code", "codehilite", "tables"])
-        )
+        # Continue after this command
+        pos = earliest_match.end()
 
     return "".join(result_parts)
+
+
+def _render_inline_command_html(
+    tool_name: str, args: dict[str, object], is_streaming: bool = False
+) -> str:
+    """Render an inline command as HTML based on tool type."""
+    if tool_name == "edit":
+        return render_diff_html(
+            filepath=str(args.get("filepath", "")),
+            search=str(args.get("search", "")),
+            replace=str(args.get("replace", "")),
+            is_streaming=is_streaming,
+            streaming_phase="replace",
+        )
+    elif tool_name == "write_file":
+        return render_write_file_html(args, is_streaming=is_streaming)
+    elif tool_name == "delete_file":
+        return render_delete_file_html(args, is_streaming=is_streaming)
+    elif tool_name == "commit":
+        return render_commit_html(args, result=None if is_streaming else {"success": True})
+    elif tool_name == "run_tests":
+        return render_run_tests_html(args, result=None)
+    elif tool_name == "check":
+        return _render_check_html(args, is_streaming=is_streaming)
+    elif tool_name == "think":
+        return render_think_html(args, result=None if is_streaming else {"success": True})
+    elif tool_name == "rename_file":
+        return _render_rename_file_html(args, is_streaming=is_streaming)
+    else:
+        # Generic card for unknown inline tools
+        return _render_generic_inline_html(tool_name, args, is_streaming=is_streaming)
+
+
+def _render_check_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render check tool as HTML."""
+    streaming_class = " streaming" if is_streaming else ""
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">✅</span>
+            <span class="tool-name">check</span>
+        </div>
+        <div class="tool-card-body">
+            Running format, typecheck, and lint...
+        </div>
+    </div>
+    """
+
+
+def _render_rename_file_html(args: dict[str, object], is_streaming: bool = False) -> str:
+    """Render rename_file tool as HTML."""
+    old_path = args.get("old_path", "")
+    new_path = args.get("new_path", "")
+    streaming_class = " streaming" if is_streaming else ""
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">📁</span>
+            <span class="tool-name">rename</span>
+        </div>
+        <div class="tool-card-body">
+            <code>{html.escape(str(old_path))}</code> → <code>{html.escape(str(new_path))}</code>
+        </div>
+    </div>
+    """
+
+
+def _render_generic_inline_html(
+    tool_name: str, args: dict[str, object], is_streaming: bool = False
+) -> str:
+    """Render a generic inline tool as HTML."""
+    streaming_class = " streaming" if is_streaming else ""
+    args_html = ", ".join(f"{k}={html.escape(str(v)[:50])}" for k, v in args.items())
+
+    return f"""
+    <div class="tool-card{streaming_class}">
+        <div class="tool-card-header">
+            <span class="tool-icon">⚙️</span>
+            <span class="tool-name">{html.escape(tool_name)}</span>
+        </div>
+        <div class="tool-card-body">
+            <code>{html.escape(args_html)}</code>
+        </div>
+    </div>
+    """
 
 
 def render_streaming_edits(content: str) -> str:
     """
-    Render streaming content with partial <edit> block support.
+    Render streaming content with partial inline command support.
 
-    Used during streaming to show edit blocks as they're being typed.
-    Text outside edit blocks is escaped (not markdown-rendered) for performance.
+    Used during streaming to show inline commands as they're being typed.
+    Text outside commands is escaped (not markdown-rendered) for performance.
+
+    Uses front-to-back parsing to avoid matching commands inside code blocks.
 
     Args:
-        content: Streaming text that may contain partial <edit> blocks
+        content: Streaming text that may contain partial inline commands
 
     Returns:
-        HTML with edit blocks rendered as diffs, other text escaped
+        HTML with inline commands rendered as tool cards, other text escaped
     """
-    result_parts = []
-    last_end = 0
+    from forge.tools.invocation import discover_inline_tools
 
-    # Find and render complete edit blocks
-    for match in EDIT_BLOCK_PATTERN.finditer(content):
-        # Escape text before this edit block, stripping trailing whitespace
-        # that's just formatting around the edit tag
-        text_before = content[last_end : match.start()].rstrip()
+    inline_tools = discover_inline_tools()
+    result_parts = []
+    pos = 0
+
+    while pos < len(content):
+        # Find the earliest matching complete inline command from current position
+        earliest_match = None
+        earliest_tool = None
+        earliest_module = None
+
+        for tool_name, module in inline_tools.items():
+            pattern = module.get_inline_pattern()
+            match = pattern.search(content, pos)
+            if match and (earliest_match is None or match.start() < earliest_match.start()):
+                earliest_match = match
+                earliest_tool = tool_name
+                earliest_module = module
+
+        if earliest_match is None:
+            # No more complete commands - check for partial at the end
+            remaining = content[pos:]
+            if remaining:
+                partial_html = _render_partial_inline_command(remaining, inline_tools)
+                if partial_html:
+                    # Find where the partial command starts
+                    partial_start = _find_partial_command_start(remaining, inline_tools)
+                    if partial_start is not None:
+                        text_before = remaining[:partial_start].rstrip()
+                        if text_before:
+                            result_parts.append(html.escape(text_before))
+                        result_parts.append(partial_html)
+                    else:
+                        result_parts.append(html.escape(remaining.rstrip()))
+                else:
+                    result_parts.append(html.escape(remaining.rstrip()))
+            break
+
+        # Escape text before this command
+        text_before = content[pos : earliest_match.start()].rstrip()
         if text_before:
             result_parts.append(html.escape(text_before))
 
-        # Render the edit block as a diff
-        filepath = match.group(1)
-        search = match.group(2)
-        replace = match.group(3)
+        # Render the complete inline command
+        args = earliest_module.parse_inline_match(earliest_match)
+        tool_html = _render_inline_command_html(earliest_tool, args, is_streaming=False)
+        result_parts.append(tool_html)
 
-        diff_html = render_diff_html(
-            filepath=filepath,
-            search=search,
-            replace=replace,
-            is_streaming=False,
-            streaming_phase="replace",
-        )
-        result_parts.append(diff_html)
-        last_end = match.end()
-
-    # Check for partial edit block at the end
-    remaining = content[last_end:]
-    if remaining:
-        partial_html = _render_partial_edit(remaining)
-        if partial_html:
-            # Find where the partial edit starts
-            edit_start = EDIT_START_PATTERN.search(remaining)
-            if edit_start:
-                # Escape text before the partial edit, stripping trailing whitespace
-                text_before = remaining[: edit_start.start()].rstrip()
-                if text_before:
-                    result_parts.append(html.escape(text_before))
-                result_parts.append(partial_html)
-            else:
-                result_parts.append(html.escape(remaining.rstrip()))
-        else:
-            result_parts.append(html.escape(remaining.rstrip()))
+        # Continue after this command
+        pos = earliest_match.end()
 
     return "".join(result_parts)
+
+
+def _find_partial_command_start(content: str, inline_tools: dict) -> int | None:
+    """Find the start position of a partial inline command, if any."""
+    # For now, just check for <edit which is the most common streaming case
+    edit_start = EDIT_START_PATTERN.search(content)
+    if edit_start:
+        return edit_start.start()
+    return None
+
+
+def _render_partial_inline_command(content: str, inline_tools: dict) -> str | None:
+    """
+    Try to render a partial/incomplete inline command during streaming.
+
+    Currently only handles partial <edit> blocks (most common case).
+    Returns HTML if a partial command is detected, None otherwise.
+    """
+    # Delegate to existing partial edit renderer for now
+    # Could be extended to handle other partial inline commands
+    return _render_partial_edit(content)
 
 
 def _render_partial_edit(content: str) -> str | None:

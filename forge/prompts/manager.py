@@ -806,16 +806,6 @@ class PromptManager:
 
         return "".join(lines)
 
-    def _format_tool_chaining_reminder(self) -> str:
-        """
-        Format a reminder about inline commands for injection at the very end.
-
-        This is placed after recap and stats so it's the last thing the AI sees
-        before responding, making it maximally salient.
-        """
-        # With inline commands, no special reminder needed - just end naturally
-        return ""
-
     def format_context_stats_block(self) -> str:
         """
         Format context stats as a compact XML block for injection into the prompt.
@@ -949,11 +939,9 @@ class PromptManager:
         # (can't have two consecutive user messages for Anthropic API).
         recap_block = self.format_conversation_recap()
         stats_block = self.format_context_stats_block()
-        reminder_block = self._format_tool_chaining_reminder()
         stats_content = [
             {"type": "text", "text": recap_block},
             {"type": "text", "text": stats_block},
-            {"type": "text", "text": reminder_block},
         ]
 
         if messages and messages[-1].get("role") == "user":

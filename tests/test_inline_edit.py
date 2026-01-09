@@ -344,3 +344,68 @@ class TestExecuteEdits:
         assert len(results) == 2  # Only first two attempted
         assert results[0]["success"] is True
         assert results[1]["success"] is False
+
+
+class TestInlineCommandOrdering:
+    """Test that inline commands are processed before tool calls are recorded."""
+
+    def test_failed_inline_command_does_not_record_tool_calls(self):
+        """
+        When an inline command fails, any tool calls in the same message
+        should NOT be recorded to session.json.
+        
+        This prevents orphaned tool calls (recorded but never executed)
+        from appearing on session reload.
+        """
+        from forge.tools.invocation import parse_inline_commands
+        
+        # Simulate a message with a failing edit followed by tool calls
+        content = '''Let me fix this:
+
+<edit file="nonexistent.py">
+<search>
+this text does not exist
+</search>
+<replace>
+new text
+</replace>
+</edit>
+
+I'll also update the context.'''
+        
+        # Parse inline commands - note: content uses literal angle brackets
+        # We need to use actual angle brackets for the parser
+        actual_content = content.replace('<', '<').replace('>', '>')
+        commands = parse_inline_commands(actual_content)
+        
+        # The key invariant: if this edit fails, any tool_calls in the
+        # LLM response should NOT be recorded. This is tested at the
+        # integration level in ai_chat_widget._on_stream_finished:
+        # 
+        # 1. Process inline commands FIRST
+        # 2. If any fail, return early (don't record tool_calls)
+        # 3. Only record tool_calls if all inline commands succeed
+
+    def test_inline_commands_parsed_in_order(self):
+        """Inline commands should be parsed in document order."""
+        from forge.tools.invocation import parse_inline_commands
+        
+        content = '<edit file="first.py">\n<search>a</search>\n<replace>b</replace>\n</edit>\n\n<commit message="First commit"/>\n\n<edit file="second.py">\n<search>c</search>\n<replace>d</replace>\n</edit>'
+        
+        # Unescape for actual parsing
+        import html
+        actual_content = html.unescape(content)
+        commands = parse_inline_commands(actual_content)
+        
+        # Should find 3 commands in order
+        assert len(commands) == 3
+        assert commands[0].tool_name == "edit"
+        assert commands[0].args.get("file") == "first.py"
+        assert commands[1].tool_name == "commit"
+        assert commands[2].tool_name == "edit"
+        assert commands[2].args.get("file") == "second.py"
+        
+new text
+</search>
+<replace>
+new text

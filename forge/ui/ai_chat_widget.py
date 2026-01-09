@@ -1026,25 +1026,25 @@ class AIChatWidget(QWidget):
             if result.get("tool_calls"):
                 self.messages[-1]["tool_calls"] = result["tool_calls"]
 
-        # Handle tool calls if present - MUST append BEFORE processing inline edits
-        # because inline edits inject a user message ("Edits applied"), and the assistant's
-        # tool_call message must come before that user message.
-        if result.get("tool_calls"):
-            # Include content with tool calls so AI sees its own reasoning
-            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
-
-        # Process inline commands (edit, commit, run_tests, etc.) AFTER tool calls are recorded
+        # Process inline commands FIRST (edit, commit, run_tests, etc.)
+        # If inline commands fail, we truncate and retry - tool calls should NOT be recorded
         if result.get("content"):
             cmd_result = self._process_inline_commands(result["content"])
             if cmd_result.get("had_commands"):
                 if cmd_result.get("failed"):
                     # Command failed - truncate message, inject error, continue conversation
+                    # DO NOT record tool_calls - they come after the failed command
                     return  # _process_inline_commands handles the continuation
                 else:
                     # All commands succeeded - update the stored content
                     result["content"] = cmd_result.get("clean_content", result["content"])
                     if self.messages and self.messages[-1]["role"] == "assistant":
                         self.messages[-1]["content"] = result["content"]
+
+        # Now it's safe to record tool calls - inline commands all succeeded (or there were none)
+        if result.get("tool_calls"):
+            # Include content with tool calls so AI sees its own reasoning
+            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
         # Execute tools if present - don't commit yet, AI will respond again
         if result.get("tool_calls"):

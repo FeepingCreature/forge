@@ -1102,6 +1102,20 @@ class AIChatWidget(QWidget):
         finally:
             vfs.release_thread()
 
+        # Check for tools that succeeded but have failing checks (run_tests, check)
+        # These should stop the pipeline so the AI can fix the issues
+        if failed_index is None:
+            for i, result in enumerate(results):
+                cmd = commands[i]
+                # run_tests and check have a 'passed' field separate from 'success'
+                # success=True means tool ran, passed=False means tests/checks failed
+                if cmd.tool_name in ("run_tests", "check") and not result.get("passed", True):
+                    failed_index = i
+                    # Mark as failure so the error handling below kicks in
+                    result["success"] = False
+                    result["error"] = result.get("output", "Check/test failed")
+                    break
+
         if failed_index is not None:
             # Command failed - truncate message AFTER the failed command
             failed_cmd = commands[failed_index]

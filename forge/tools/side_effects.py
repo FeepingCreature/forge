@@ -21,3 +21,7 @@ class SideEffect(str, Enum):
     # Marks that files were modified via VFS writeback
     # Result must include "modified_files": [list of filepaths]
     FILES_MODIFIED = "files_modified"
+
+    # Marks that the tool has displayable output for the UI
+    # Result must include "display_output": str (the content to show)
+    HAS_DISPLAY_OUTPUT = "has_display_output"

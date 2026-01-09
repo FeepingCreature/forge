@@ -239,10 +239,19 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
                     vfs.write_file(rel_path, new_content)
                     modified_files.append(rel_path)
         
-        # Declare side effect if files were modified
+        # Declare side effects
+        side_effects = []
+        
         if modified_files:
             results["modified_files"] = modified_files
-            results["side_effects"] = [SideEffect.FILES_MODIFIED]
+            side_effects.append(SideEffect.FILES_MODIFIED)
+        
+        # Always provide display output for the UI (test results are useful to see)
+        results["display_output"] = results.get("output", results.get("summary", ""))
+        side_effects.append(SideEffect.HAS_DISPLAY_OUTPUT)
+        
+        if side_effects:
+            results["side_effects"] = side_effects
 
     finally:
         # Clean up temp directory

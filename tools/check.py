@@ -165,10 +165,22 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         
         results["summary"] = "\n".join(summary_parts)
         
-        # Declare side effect if files were modified
+        # Declare side effects
+        side_effects = [SideEffect.HAS_DISPLAY_OUTPUT]
+        
+        # Build display output for UI (show check results)
+        display_parts = []
+        if results["typecheck_output"]:
+            display_parts.append(results["typecheck_output"])
+        if results["lint_output"]:
+            display_parts.append(results["lint_output"])
+        results["display_output"] = "\n".join(display_parts) if display_parts else results["summary"]
+        
         if formatted_files:
             results["modified_files"] = formatted_files
-            results["side_effects"] = [SideEffect.FILES_MODIFIED]
+            side_effects.append(SideEffect.FILES_MODIFIED)
+        
+        results["side_effects"] = side_effects
         
     finally:
         # Clean up temp directory

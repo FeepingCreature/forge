@@ -1192,14 +1192,25 @@ class AIChatWidget(QWidget):
 
         # Build success feedback for the AI, including meaningful output from tools
         success_parts = []
+        display_outputs = []  # Collect outputs to show in UI
+        
         for i, cmd in enumerate(commands):
             result = results[i]
+            side_effects = result.get("side_effects", [])
+            
+            # Collect display output for UI
+            if SideEffect.HAS_DISPLAY_OUTPUT in side_effects:
+                output = result.get("display_output", "")
+                if output:
+                    display_outputs.append((cmd.tool_name, output))
+            
             # For tools with meaningful output, include it
             if cmd.tool_name == "run_tests":
                 summary = result.get("summary", "✓ Tests passed")
                 success_parts.append(f"✓ run_tests: {summary}")
             elif cmd.tool_name == "check":
-                success_parts.append("✓ check: All checks passed")
+                summary = result.get("summary", "All checks passed")
+                success_parts.append(f"✓ check: {summary}")
             elif cmd.tool_name == "commit":
                 commit_oid = result.get("commit", "")[:8]
                 success_parts.append(f"✓ commit: {commit_oid}")
@@ -1207,6 +1218,13 @@ class AIChatWidget(QWidget):
                 success_parts.append(f"✓ {cmd.tool_name}")
 
         success_content = "Commands executed:\n" + "\n".join(success_parts)
+        
+        # Show display outputs in the UI (not sent to AI, just for user visibility)
+        for tool_name, output in display_outputs:
+            # Truncate very long outputs for display
+            if len(output) > 5000:
+                output = output[:5000] + "\n... (truncated)"
+            self._add_system_message(f"📋 **{tool_name} output:**\n```\n{output}\n```")
 
         # Add to prompt manager so AI sees it
         self.session_manager.append_user_message(success_content)
@@ -1316,6 +1334,9 @@ class AIChatWidget(QWidget):
                         self._newly_created_files = set()
                     self._newly_created_files.add(filepath)
 
+        # Handle side effects declared by tools
+        side_effects = result.get("side_effects", [])
+
         # Handle FILES_MODIFIED side effect (run_tests, check, etc.)
         # These tools do VFS writeback and report which files actually changed
         if SideEffect.FILES_MODIFIED in side_effects:
@@ -1340,8 +1361,6 @@ class AIChatWidget(QWidget):
         # Note: think tool scratchpad is kept in session for UI rendering,
         # but compacted on-the-fly when building API requests (in PromptManager.to_messages)
 
-        # Handle side effects declared by tools
-        side_effects = result.get("side_effects", [])
         if SideEffect.MID_TURN_COMMIT in side_effects:
             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)
             commit_oid = result.get("commit", "")

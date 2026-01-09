@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
+from forge.tools.invocation import execute_inline_commands, parse_inline_commands
 from forge.tools.side_effects import SideEffect
 from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import (
@@ -1032,16 +1033,16 @@ class AIChatWidget(QWidget):
             # Include content with tool calls so AI sees its own reasoning
             self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
 
-        # Process inline edits AFTER tool calls are recorded
+        # Process inline commands (edit, commit, run_tests, etc.) AFTER tool calls are recorded
         if result.get("content"):
-            edit_result = self._process_inline_edits(result["content"])
-            if edit_result.get("had_edits"):
-                if edit_result.get("failed"):
-                    # Edit failed - truncate message, inject error, continue conversation
-                    return  # _process_inline_edits handles the continuation
+            cmd_result = self._process_inline_commands(result["content"])
+            if cmd_result.get("had_commands"):
+                if cmd_result.get("failed"):
+                    # Command failed - truncate message, inject error, continue conversation
+                    return  # _process_inline_commands handles the continuation
                 else:
-                    # All edits succeeded - update the stored content (edits stripped)
-                    result["content"] = edit_result.get("clean_content", result["content"])
+                    # All commands succeeded - update the stored content
+                    result["content"] = cmd_result.get("clean_content", result["content"])
                     if self.messages and self.messages[-1]["role"] == "assistant":
                         self.messages[-1]["content"] = result["content"]
 
@@ -1078,35 +1079,33 @@ class AIChatWidget(QWidget):
 
         self._reset_input()
 
-    def _process_inline_edits(self, content: str) -> dict[str, Any]:
-        """Process <edit> blocks from assistant message content.
+    def _process_inline_commands(self, content: str) -> dict[str, Any]:
+        """Process inline commands (<edit>, <commit>, <run_tests>, etc.) from assistant message.
 
         Returns:
             {
-                "had_edits": bool,  # True if any <edit> blocks were found
-                "failed": bool,     # True if an edit failed
-                "clean_content": str,  # Content with edit blocks stripped
-                "error": str,       # Error message if failed
+                "had_commands": bool,  # True if any inline commands were found
+                "failed": bool,        # True if a command failed
+                "clean_content": str,  # Content unchanged (commands stay for rendering)
+                "error": str,          # Error message if failed
             }
         """
-        from forge.tools.builtin.edit import execute_edits, parse_edits
+        commands = parse_inline_commands(content)
+        if not commands:
+            return {"had_commands": False, "failed": False, "clean_content": content}
 
-        edits = parse_edits(content)
-        if not edits:
-            return {"had_edits": False, "failed": False, "clean_content": content}
-
-        # Execute edits sequentially, stopping on first failure
+        # Execute commands sequentially, stopping on first failure
         vfs = self.session_manager.vfs
         vfs.claim_thread()
         try:
-            results, failed_index = execute_edits(vfs, edits)
+            results, failed_index = execute_inline_commands(vfs, commands)
         finally:
             vfs.release_thread()
 
         if failed_index is not None:
-            # Edit failed - truncate message AFTER the failed edit (include it so AI sees what it tried)
-            failed_edit = edits[failed_index]
-            truncated_content = content[: failed_edit.end_pos]
+            # Command failed - truncate message AFTER the failed command
+            failed_cmd = commands[failed_index]
+            truncated_content = content[: failed_cmd.end_pos]
 
             # Update the assistant message to truncated version
             if self.messages and self.messages[-1]["role"] == "assistant":
@@ -1116,22 +1115,22 @@ class AIChatWidget(QWidget):
             error_result = results[failed_index]
             error_msg = error_result.get("error", "Unknown error")
 
-            # Add success messages for edits that worked
+            # Add success messages for commands that worked
             success_msgs = []
             for i, result in enumerate(results[:-1]):  # Exclude the failed one
                 if result.get("success"):
-                    success_msgs.append(f"✓ {edits[i].file}")
+                    cmd = commands[i]
+                    success_msgs.append(f"✓ {cmd.tool_name}")
 
             # Build the system message
             system_parts = []
             if success_msgs:
-                system_parts.append("Edits applied:\n" + "\n".join(success_msgs))
-            system_parts.append(f"\n❌ Edit failed for `{failed_edit.file}`:\n\n{error_msg}")
+                system_parts.append("Commands executed:\n" + "\n".join(success_msgs))
+            system_parts.append(f"\n❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}")
 
             error_content = "\n".join(system_parts)
 
             # Add truncated content to prompt manager (what the AI actually "said")
-            # This always includes the failed edit block so AI sees what it tried
             self.session_manager.append_assistant_message(truncated_content)
 
             # Add error as user message so AI sees it
@@ -1145,25 +1144,47 @@ class AIChatWidget(QWidget):
             tools = self.session_manager.tool_manager.discover_tools()
             self._continue_after_tools(tools)
 
-            return {"had_edits": True, "failed": True, "error": error_msg}
+            return {"had_commands": True, "failed": True, "error": error_msg}
 
-        # All edits succeeded - keep edit blocks in content for history/display
-        # They render as diff views in the chat
+        # All commands succeeded - process results for side effects
+        for i, result in enumerate(results):
+            cmd = commands[i]
 
-        # Build success feedback for the AI (but don't show as system message to user)
-        success_msgs = [f"✓ {edit.file}" for edit in edits]
-        success_content = "Edits applied:\n" + "\n".join(success_msgs)
+            # Handle file modifications
+            if cmd.tool_name == "edit":
+                filepath = cmd.args.get("file")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
+            elif cmd.tool_name == "write_file":
+                filepath = cmd.args.get("filepath")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
+                    # Track newly created files for summary generation
+                    if filepath not in self.session_manager.repo_summaries:
+                        if not hasattr(self, "_newly_created_files"):
+                            self._newly_created_files = set()
+                        self._newly_created_files.add(filepath)
+            elif cmd.tool_name == "delete_file":
+                filepath = cmd.args.get("filepath")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
 
-        # Add to prompt manager so AI sees it, but don't display as system message
-        # (similar to how builtin_tools_with_native_rendering suppress UI messages)
+            # Handle mid-turn commits
+            if cmd.tool_name == "commit" and result.get("success"):
+                commit_oid = result.get("commit", "")
+                if commit_oid:
+                    self.mid_turn_commit.emit(commit_oid)
+                self.session_manager.mark_mid_turn_commit()
+
+        # Build success feedback for the AI
+        success_msgs = [f"✓ {cmd.tool_name}" for cmd in commands]
+        success_content = "Commands executed:\n" + "\n".join(success_msgs)
+
+        # Add to prompt manager so AI sees it
         self.session_manager.append_user_message(success_content)
 
-        # Track modified files for context updates
-        for edit in edits:
-            self.session_manager.file_was_modified(edit.file, None)
-
-        # Return original content unchanged - edit blocks stay for rendering
-        return {"had_edits": True, "failed": False, "clean_content": content}
+        # Return original content unchanged - inline commands stay for rendering
+        return {"had_commands": True, "failed": False, "clean_content": content}
 
     def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error by feeding it back into the conversation"""

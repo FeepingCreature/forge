@@ -229,9 +229,7 @@ class ToolManager:
 
         return unapproved
 
-    def discover_tools(
-        self, force_refresh: bool = False
-    ) -> list[dict[str, Any]]:
+    def discover_tools(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Discover all APPROVED tools (built-in + user) and get their schemas.
 
         Only returns API tools (tools with invocation="api" or no invocation specified).
@@ -302,9 +300,7 @@ class ToolManager:
 
         return self._filter_inline_tools(tools)
 
-    def _filter_inline_tools(
-        self, tools: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _filter_inline_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Filter out inline tools - they use XML syntax, not API calls.
 
         Tools with invocation="inline" are handled by the inline command parser,

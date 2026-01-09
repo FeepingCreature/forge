@@ -183,6 +183,7 @@ new content with &lt;tags&gt;
 ```
 """
 
+
 def get_system_prompt() -> str:
     """Get the full system prompt with inline command format instructions."""
     return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML

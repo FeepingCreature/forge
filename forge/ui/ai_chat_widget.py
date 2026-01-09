@@ -1176,10 +1176,11 @@ class AIChatWidget(QWidget):
                 if filepath:
                     self.session_manager.file_was_modified(filepath, None)
 
-            # Handle tools that report modified_files (run_tests, check, etc.)
+            # Handle FILES_MODIFIED side effect (run_tests, check, etc.)
             # These tools do VFS writeback and report which files actually changed
-            if result.get("modified_files"):
-                for filepath in result["modified_files"]:
+            side_effects = result.get("side_effects", [])
+            if SideEffect.FILES_MODIFIED in side_effects:
+                for filepath in result.get("modified_files", []):
                     self.session_manager.file_was_modified(filepath, None)
 
             # Handle mid-turn commits
@@ -1315,12 +1316,13 @@ class AIChatWidget(QWidget):
                         self._newly_created_files = set()
                     self._newly_created_files.add(filepath)
 
-        # Handle tools that report modified_files (run_tests, check, etc.)
+        # Handle FILES_MODIFIED side effect (run_tests, check, etc.)
         # These tools do VFS writeback and report which files actually changed
-        if result.get("modified_files"):
+        if SideEffect.FILES_MODIFIED in side_effects:
+            modified_files = result.get("modified_files", [])
             if not hasattr(self, "_pending_file_updates"):
                 self._pending_file_updates = []
-            for filepath in result["modified_files"]:
+            for filepath in modified_files:
                 self._pending_file_updates.append((filepath, tool_call_id))
 
         # Handle compact tool specially - it modifies the prompt manager

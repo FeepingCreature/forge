@@ -17,3 +17,7 @@ class SideEffect(str, Enum):
 
     # Marks that a commit happened mid-turn, affecting end-of-turn commit type
     MID_TURN_COMMIT = "mid_turn_commit"
+
+    # Marks that files were modified via VFS writeback
+    # Result must include "modified_files": [list of filepaths]
+    FILES_MODIFIED = "files_modified"

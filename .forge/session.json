@@ -1,6 +1,8 @@
 {
   "active_files": [
+    "tools/check.py",
     "forge/session/manager.py",
+    "forge/tools/side_effects.py",
     "CLAUDE.md",
     "forge/tools/builtin/run_tests.py",
     "forge/ui/ai_chat_widget.py"
@@ -50,6 +52,42 @@
       "streaming": true,
       "actual_cost": 0.34611875,
       "generation_id": "gen-1767954159-jkHUOCQuVhQnRKIKgbw3"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954185699.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954185699.json",
+      "timestamp": 1767954185.7008138,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0356665,
+      "generation_id": "gen-1767954185-Rb1tudelib3SCkEnLCSr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954191138.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954191138.json",
+      "timestamp": 1767954191.1390862,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.040549,
+      "generation_id": "gen-1767954191-ty0tHW6dweoHOYJw8XRV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954196204.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954196204.json",
+      "timestamp": 1767954196.205387,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05247625,
+      "generation_id": "gen-1767954196-9VPWkf3gDTGQTw9bpYEk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954211019.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954211019.json",
+      "timestamp": 1767954211.0206046,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06621825,
+      "generation_id": "gen-1767954211-Glc16lJy22KIAgUyw29H"
     }
   ],
   "messages": [
@@ -150,6 +188,96 @@
     {
       "role": "assistant",
       "content": "<commit message=\"fix: update context when run_tests/check modify files via VFS writeback\n\nTools that do VFS writeback (run_tests, check) now report which files they\nmodified via a 'modified_files' list in their result. The UI layer picks\nthis up and notifies the session manager, ensuring the AI sees the updated\nfile contents in subsequent turns.\"/>\n\nDone! Fixed the bug where `run_tests` and `check` file modifications weren't being reflected in the AI context.\n\n**The problem:** Both tools write files back to VFS after executing (e.g., formatters run by `check`, or test fixtures modified during tests), but the UI layer only tracked modifications for `write_file`, `search_replace`, and `delete_file`.\n\n**The fix:**\n1. `run_tests.py` - Now tracks which files actually changed during writeback and returns `modified_files` list\n2. `check.py` - Already had `formatted_files`, now also returns it as `modified_files`\n3. `ai_chat_widget.py` - Both the API tool path (`_on_tool_finished`) and inline tool path (`_process_inline_commands`) now check for `modified_files` in tool results and call `file_was_modified()` for each"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 6c3c702a",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u26a0\ufe0f **Modified Tool Requires Approval: `check`**\n\nReview this tool carefully. Once approved, it will run autonomously.\n\n```python\n\"\"\"\nRun make check (format + typecheck + lint) on the current VFS state.\n\nThis tool:\n1. Materializes the VFS to a temp directory\n2. Runs `make format` then `make typecheck` then `make lint-check`\n3. Reads back any files modified by formatting and updates the VFS\n4. Returns errors and a list of files that were auto-formatted\n\"\"\"\n\nimport re\nimport subprocess\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING, Any\n\nif TYPE_CHECKING:\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n\n\n# Pattern: <check/>\n_INLINE_PATTERN = re.compile(\n    r\"<check\\s*/?>\",\n    re.DOTALL,\n)\n\n\ndef get_inline_pattern() -> re.Pattern[str]:\n    \"\"\"Return compiled regex for inline invocation.\"\"\"\n    return _INLINE_PATTERN\n\n\ndef parse_inline_match(match: re.Match[str]) -> dict[str, Any]:\n    \"\"\"Parse regex match into tool arguments.\"\"\"\n    return {}\n\n\ndef get_schema() -> dict[str, Any]:\n    \"\"\"Return tool schema for LLM\"\"\"\n    return {\n        \"type\": \"function\",\n        \"invocation\": \"inline\",\n        \"inline_syntax\": \"<check/>\",\n        \"function\": {\n            \"name\": \"check\",\n            \"description\": \"\"\"Run make check (format + typecheck + lint) on the current VFS state.\n\nThis materializes your changes to a temp directory, runs the checks, and:\n- Auto-applies any formatting changes back to the VFS\n- Returns type errors and lint errors for you to fix\n\nCall this before finishing to ensure your code passes all checks.\"\"\",\n            \"parameters\": {\n                \"type\": \"object\",\n                \"properties\": {},\n            },\n        },\n    }\n\n\ndef execute(vfs: \"WorkInProgressVFS\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Run make check and incorporate formatting changes\"\"\"\n    \n    # Materialize VFS to temp directory\n    tmpdir = vfs.materialize_to_tempdir()\n    \n    results: dict[str, Any] = {\n        \"success\": True,\n        \"formatted_files\": [],\n        \"format_diffs\": {},\n        \"typecheck_output\": \"\",\n        \"typecheck_passed\": False,\n        \"lint_output\": \"\",\n        \"lint_passed\": False,\n    }\n    \n    try:\n        # Capture file contents before formatting\n        py_files = list(tmpdir.rglob(\"*.py\"))\n        before_format: dict[str, str] = {}\n        for py_file in py_files:\n            rel_path = str(py_file.relative_to(tmpdir))\n            before_format[rel_path] = py_file.read_text(encoding=\"utf-8\", errors=\"replace\")\n        \n        # Run make format\n        format_result = subprocess.run(\n            [\"make\", \"format\"],\n            cwd=tmpdir,\n            capture_output=True,\n            text=True,\n            encoding=\"utf-8\",\n            errors=\"replace\",\n        )\n        \n        # Check which files changed and update VFS\n        formatted_files = []\n        format_diffs = {}\n        for py_file in py_files:\n            rel_path = str(py_file.relative_to(tmpdir))\n            if not py_file.exists():\n                continue\n            after_content = py_file.read_text(encoding=\"utf-8\", errors=\"replace\")\n            before_content = before_format.get(rel_path, \"\")\n            \n            if after_content != before_content:\n                formatted_files.append(rel_path)\n                # Update VFS with formatted content\n                vfs.write_file(rel_path, after_content)\n                # Generate a simple diff summary\n                format_diffs[rel_path] = _simple_diff(before_content, after_content)\n        \n        results[\"formatted_files\"] = formatted_files\n        results[\"format_diffs\"] = format_diffs\n        \n        # Run make typecheck\n        typecheck_result = subprocess.run(\n            [\"make\", \"typecheck\"],\n            cwd=tmpdir,\n            capture_output=True,\n            text=True,\n            encoding=\"utf-8\",\n            errors=\"replace\",\n        )\n        results[\"typecheck_output\"] = typecheck_result.stdout + typecheck_result.stderr\n        results[\"typecheck_passed\"] = typecheck_result.returncode == 0\n        \n        # Run make lint-check (not lint, since we already formatted)\n        lint_result = subprocess.run(\n            [\"make\", \"lint-check\"],\n            cwd=tmpdir,\n            capture_output=True,\n            text=True,\n            encoding=\"utf-8\",\n            errors=\"replace\",\n        )\n        results[\"lint_output\"] = lint_result.stdout + lint_result.stderr\n        results[\"lint_passed\"] = lint_result.returncode == 0\n        \n        # Success means checks passed. Failure means checks failed.\n        checks_passed = results[\"typecheck_passed\"] and results[\"lint_passed\"]\n        results[\"success\"] = checks_passed\n        \n        # Build error output if checks failed\n        if not checks_passed:\n            output_parts = []\n            if not results[\"typecheck_passed\"]:\n                output_parts.append(results[\"typecheck_output\"])\n            if not results[\"lint_passed\"]:\n                output_parts.append(results[\"lint_output\"])\n            results[\"error\"] = \"\\n\".join(output_parts)\n        \n        # Build summary message\n        summary_parts = []\n        if formatted_files:\n            summary_parts.append(f\"Formatted {len(formatted_files)} files: {', '.join(formatted_files)}\")\n        if results[\"typecheck_passed\"]:\n            summary_parts.append(\"\u2713 Type check passed\")\n        else:\n            summary_parts.append(\"\u2717 Type check failed\")\n        if results[\"lint_passed\"]:\n            summary_parts.append(\"\u2713 Lint passed\")\n        else:\n            summary_parts.append(\"\u2717 Lint failed\")\n        \n        results[\"summary\"] = \"\\n\".join(summary_parts)\n        \n        # Report modified files so context can be updated\n        results[\"modified_files\"] = formatted_files\n        \n    finally:\n        # Clean up temp directory\n        import shutil\n        shutil.rmtree(tmpdir, ignore_errors=True)\n    \n    return results\n\n\ndef _simple_diff(before: str, after: str) -> str:\n    \"\"\"Generate a simple unified diff between two strings\"\"\"\n    import difflib\n    \n    before_lines = before.splitlines(keepends=True)\n    after_lines = after.splitlines(keepends=True)\n    \n    diff = difflib.unified_diff(\n        before_lines,\n        after_lines,\n        fromfile=\"before\",\n        tofile=\"after\",\n        lineterm=\"\",\n    )\n    \n    return \"\".join(diff)\n\n```\n\n<div class=\"approval-buttons\"><button onclick=\"approveTool('check', this)\">\u2705 Approve</button><button onclick=\"rejectTool('check', this)\">\u274c Reject</button></div>"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Approved tool: `check`"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Tool approvals committed: afc69728"
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Can we use the tool quirks system to handle this?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea! Let me look at the side effects / quirks system to see how it works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"SideEffect|side_effects\", \"include_extensions\": [\".py\"], \"max_matches\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01VXeV6cmXdfdAcxg4mV39Jk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VXeV6cmXdfdAcxg4mV39Jk",
+      "content": "{\"message\": \"Found 6 matches\", \"output\": \"\\u2500\\u2500 forge/tools/builtin/commit.py:9 \\u2500\\u2500\\n       6 | from typing import TYPE_CHECKING, Any\\n       7 | \\n       8 | from forge.git_backend.commit_types import CommitType\\n>>>    9 | from forge.tools.side_effects import SideEffect\\n      10 | \\n      11 | if TYPE_CHECKING:\\n      12 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/tools/builtin/commit.py:93 \\u2500\\u2500\\n      90 |         \\\"success\\\": True,\\n      91 |         \\\"message\\\": f\\\"Committed: {summary}\\\",\\n      92 |         \\\"commit\\\": commit_oid[:12],\\n>>>   93 |         \\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT],\\n      94 |     }\\n      95 | \\n\\n\\u2500\\u2500 forge/tools/side_effects.py:12 \\u2500\\u2500\\n       9 | from enum import Enum\\n      10 | \\n      11 | \\n>>>   12 | class SideEffect(str, Enum):\\n      13 |     \\\"\\\"\\\"Side effects a tool can declare.\\n      14 | \\n      15 |     Inherits from str so it's JSON-serializable automatically.\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:27 \\u2500\\u2500\\n      24 | from forge.llm.client import LLMClient\\n      25 | from forge.session.manager import SessionManager\\n      26 | from forge.tools.invocation import execute_inline_commands, parse_inline_commands\\n>>>   27 | from forge.tools.side_effects import SideEffect\\n      28 | from forge.ui.editor_widget import SearchBar\\n      29 | from forge.ui.tool_rendering import (\\n      30 |     get_diff_styles,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1342 \\u2500\\u2500\\n    1339 |         # but compacted on-the-fly when building API requests (in PromptManager.to_messages)\\n    1340 | \\n    1341 |         # Handle side effects declared by tools\\n>>> 1342 |         side_effects = result.get(\\\"side_effects\\\", [])\\n    1343 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n    1344 |             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)\\n    1345 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1343 \\u2500\\u2500\\n    1340 | \\n    1341 |         # Handle side effects declared by tools\\n    1342 |         side_effects = result.get(\\\"side_effects\\\", [])\\n>>> 1343 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n    1344 |             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)\\n    1345 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n    1346 |             if commit_oid:\", \"success\": true, \"total_matches\": 6}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 15,\n  \"pattern\": \"SideEffect|side_effects\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 6 matches\",\n  \"output\": \"\\u2500\\u2500 forge/tools/builtin/commit.py:9 \\u2500\\u2500\\n       6 | from typing import TYPE_CHECKING, Any\\n       7 | \\n       8 | from forge.git_backend.commit_types import CommitType\\n>>>    9 | from forge.tools.side_effects import SideEffect\\n      10 | \\n      11 | if TYPE_CHECKING:\\n      12 |     from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/tools/builtin/commit.py:93 \\u2500\\u2500\\n      90 |         \\\"success\\\": True,\\n      91 |         \\\"message\\\": f\\\"Committed: {summary}\\\",\\n      92 |         \\\"commit\\\": commit_oid[:12],\\n>>>   93 |         \\\"side_effects\\\": [SideEffect.MID_TURN_COMMIT],\\n      94 |     }\\n      95 | \\n\\n\\u2500\\u2500 forge/tools/side_effects.py:12 \\u2500\\u2500\\n       9 | from enum import Enum\\n      10 | \\n      11 | \\n>>>   12 | class SideEffect(str, Enum):\\n      13 |     \\\"\\\"\\\"Side effects a tool can declare.\\n      14 | \\n      15 |     Inherits from str so it's JSON-serializable automatically.\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:27 \\u2500\\u2500\\n      24 | from forge.llm.client import LLMClient\\n      25 | from forge.session.manager import SessionManager\\n      26 | from forge.tools.invocation import execute_inline_commands, parse_inline_commands\\n>>>   27 | from forge.tools.side_effects import SideEffect\\n      28 | from forge.ui.editor_widget import SearchBar\\n      29 | from forge.ui.tool_rendering import (\\n      30 |     get_diff_styles,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1342 \\u2500\\u2500\\n    1339 |         # but compacted on-the-fly when building API requests (in PromptManager.to_messages)\\n    1340 | \\n    1341 |         # Handle side effects declared by tools\\n>>> 1342 |         side_effects = result.get(\\\"side_effects\\\", [])\\n    1343 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n    1344 |             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)\\n    1345 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1343 \\u2500\\u2500\\n    1340 | \\n    1341 |         # Handle side effects declared by tools\\n    1342 |         side_effects = result.get(\\\"side_effects\\\", [])\\n>>> 1343 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n    1344 |             # Emit signal to refresh UI (commit_oid is tool-specific, get from result)\\n    1345 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n    1346 |             if commit_oid:\",\n  \"success\": true,\n  \"total_matches\": 6\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the side effects system, I can see how it works - tools return a `side_effects` list that the UI layer handles generically. Let me add a `MODIFIED_FILES` side effect so any tool can declare file modifications.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/side_effects.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01P1hpG5CGQfvnZbkb2bJQs1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01P1hpG5CGQfvnZbkb2bJQs1",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/side_effects.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the side effects system. Let me refactor to use it properly. Instead of checking `modified_files` explicitly in the UI, tools should declare this as a side effect and the handling stays generic.\n\n<edit file=\"forge/tools/side_effects.py\">\n<search>\nclass SideEffect(str, Enum):\n    \"\"\"Side effects a tool can declare.\n\n    Inherits from str so it's JSON-serializable automatically.\n    \"\"\"\n\n    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\n    MID_TURN_COMMIT = \"mid_turn_commit\"\n</search>\n<replace>\nclass SideEffect(str, Enum):\n    \"\"\"Side effects a tool can declare.\n\n    Inherits from str so it's JSON-serializable automatically.\n    \"\"\"\n\n    # Marks that a commit happened mid-turn, affecting end-of-turn commit type\n    MID_TURN_COMMIT = \"mid_turn_commit\"\n\n    # Marks that files were modified via VFS writeback\n    # Result must include \"modified_files\": [list of filepaths]\n    FILES_MODIFIED = \"files_modified\"\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/run_tests.py\">\n<search>\n\"\"\"\nRun the project's test suite on the current VFS state.\n\nThis tool:\n1. Materializes the VFS to a temp directory\n2. Discovers and runs the test command (make test, pytest, etc.)\n3. Returns test output with pass/fail summary\n\"\"\"\n\nimport re\nimport subprocess\nimport sys\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING, Any\n\nif TYPE_CHECKING:\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n</search>\n<replace>\n\"\"\"\nRun the project's test suite on the current VFS state.\n\nThis tool:\n1. Materializes the VFS to a temp directory\n2. Discovers and runs the test command (make test, pytest, etc.)\n3. Returns test output with pass/fail summary\n\"\"\"\n\nimport re\nimport subprocess\nimport sys\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING, Any\n\nfrom forge.tools.side_effects import SideEffect\n\nif TYPE_CHECKING:\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/run_tests.py\">\n<search>\n        results[\"modified_files\"] = modified_files\n\n    finally:\n</search>\n<replace>\n        # Declare side effect if files were modified\n        if modified_files:\n            results[\"modified_files\"] = modified_files\n            results[\"side_effects\"] = [SideEffect.FILES_MODIFIED]\n\n    finally:\n</replace>\n</edit>\n\nNow update `tools/check.py` similarly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"tools/check.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01PEfFyUhYBjQDtz8vNVRxY4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PEfFyUhYBjQDtz8vNVRxY4",
+      "content": "{\"action\": \"update_context\", \"add\": [\"tools/check.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "<edit file=\"tools/check.py\">\n<search>\nimport re\nimport subprocess\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING, Any\n\nif TYPE_CHECKING:\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n</search>\n<replace>\nimport re\nimport subprocess\nfrom pathlib import Path\nfrom typing import TYPE_CHECKING, Any\n\nfrom forge.tools.side_effects import SideEffect\n\nif TYPE_CHECKING:\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n</replace>\n</edit>\n\n<edit file=\"tools/check.py\">\n<search>\n        # Report modified files so context can be updated\n        results[\"modified_files\"] = formatted_files\n        \n    finally:\n</search>\n<replace>\n        # Declare side effect if files were modified\n        if formatted_files:\n            results[\"modified_files\"] = formatted_files\n            results[\"side_effects\"] = [SideEffect.FILES_MODIFIED]\n        \n    finally:\n</replace>\n</edit>\n\nNow update the UI to handle this side effect generically instead of checking `modified_files` directly:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Handle tools that report modified_files (run_tests, check, etc.)\n        # These tools do VFS writeback and report which files actually changed\n        if result.get(\"modified_files\"):\n            if not hasattr(self, \"_pending_file_updates\"):\n                self._pending_file_updates = []\n            for filepath in result[\"modified_files\"]:\n                self._pending_file_updates.append((filepath, tool_call_id))\n</search>\n<replace>\n        # Handle FILES_MODIFIED side effect (run_tests, check, etc.)\n        # These tools do VFS writeback and report which files actually changed\n        if SideEffect.FILES_MODIFIED in side_effects:\n            modified_files = result.get(\"modified_files\", [])\n            if not hasattr(self, \"_pending_file_updates\"):\n                self._pending_file_updates = []\n            for filepath in modified_files:\n                self._pending_file_updates.append((filepath, tool_call_id))\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            # Handle tools that report modified_files (run_tests, check, etc.)\n            # These tools do VFS writeback and report which files actually changed\n            if result.get(\"modified_files\"):\n                for filepath in result[\"modified_files\"]:\n                    self.session_manager.file_was_modified(filepath, None)\n</search>\n<replace>\n            # Handle FILES_MODIFIED side effect (run_tests, check, etc.)\n            # These tools do VFS writeback and report which files actually changed\n            side_effects = result.get(\"side_effects\", [])\n            if SideEffect.FILES_MODIFIED in side_effects:\n                for filepath in result.get(\"modified_files\", []):\n                    self.session_manager.file_was_modified(filepath, None)\n</replace>\n</edit>\n\n<run_tests />"
     }
   ]
 }

@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.side_effects import SideEffect
+
 if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
@@ -237,7 +239,10 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
                     vfs.write_file(rel_path, new_content)
                     modified_files.append(rel_path)
         
-        results["modified_files"] = modified_files
+        # Declare side effect if files were modified
+        if modified_files:
+            results["modified_files"] = modified_files
+            results["side_effects"] = [SideEffect.FILES_MODIFIED]
 
     finally:
         # Clean up temp directory

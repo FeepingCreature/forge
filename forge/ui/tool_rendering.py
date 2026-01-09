@@ -1185,16 +1185,13 @@ def _render_check_html(
     if result:
         if result.get("success"):
             summary = result.get("summary", "All checks passed")
-            body_html = f'<span class="success-msg">✓ {html.escape(str(summary))}</span>'
+            # Use <pre> to preserve line breaks in summary
+            escaped_summary = html.escape(str(summary))
+            body_html = f'<pre class="success-msg" style="margin: 0; white-space: pre-wrap;">{escaped_summary}</pre>'
         else:
             error = result.get("error", result.get("summary", "Check failed"))
-            body_html = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
-
-        # Show output if available
-        output = result.get("display_output", "")
-        if output:
-            escaped_output = html.escape(str(output))
-            body_html += f'<pre class="line-excerpt" style="max-height: 300px; overflow-y: auto;">{escaped_output}</pre>'
+            escaped_error = html.escape(str(error))
+            body_html = f'<pre class="error-msg" style="margin: 0; white-space: pre-wrap;">{escaped_error}</pre>'
 
     return f"""
     <div class="tool-card{streaming_class}" {id_attr}>

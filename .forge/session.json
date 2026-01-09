@@ -3,9 +3,8 @@
     "CLAUDE.md",
     "forge/tools/builtin/run_tests.py",
     "forge/ui/ai_chat_widget.py",
-    "forge/tools/side_effects.py",
     "forge/ui/tool_rendering.py",
-    "forge/git_backend/commit_types.py"
+    "tools/check.py"
   ],
   "request_log_entries": [
     {
@@ -277,6 +276,96 @@
       "streaming": true,
       "actual_cost": 0.51267125,
       "generation_id": "gen-1767954931-DiKNBwdzmxt3nx1Papsk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1767954939517.json",
+      "response_file": "/tmp/forge_debug/response_1767954939517.json",
+      "timestamp": 1767954939.5173392,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000242,
+      "generation_id": "gen-1767954939-eJITYCvu0pkSyG5aF4ch"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954986968.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954986968.json",
+      "timestamp": 1767954986.9693089,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.534105,
+      "generation_id": "gen-1767954987-OsnMLTctteS7XJOPnKV6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954994993.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954994993.json",
+      "timestamp": 1767954994.9936943,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.29207375,
+      "generation_id": "gen-1767954995-C0PzjH059kRgQzXYwGnF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955008251.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955008251.json",
+      "timestamp": 1767955008.25244,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.052003,
+      "generation_id": "gen-1767955008-72dgQRmHCLBXtKej9nz1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955014456.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955014456.json",
+      "timestamp": 1767955014.458154,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.252282,
+      "generation_id": "gen-1767955014-FicxtIDL8zuWgG3v6BJH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955030564.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955030564.json",
+      "timestamp": 1767955030.5656512,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.409012,
+      "generation_id": "gen-1767955030-FhqeCwPzjnKmfyo4Hu5Y"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955112923.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955112923.json",
+      "timestamp": 1767955112.92449,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.10086475,
+      "generation_id": "gen-1767955113-QowIwtsJ6SabHRYUQEpa"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955128525.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955128525.json",
+      "timestamp": 1767955128.526761,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06562625,
+      "generation_id": "gen-1767955128-qejcl4ExnNgp7HC9mQqK"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955133938.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955133938.json",
+      "timestamp": 1767955133.939594,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06135125,
+      "generation_id": "gen-1767955134-vpYJOw1NAdyIDo2nberu"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767955139169.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767955139169.json",
+      "timestamp": 1767955139.1710916,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06810775,
+      "generation_id": "gen-1767955139-7c07O9G0PztekgWyfnKb"
     }
   ],
   "messages": [
@@ -790,6 +879,227 @@
           "side_effects": [
             "has_display_output",
             "files_modified"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c74f4394",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Perfect! The output isn't linebroken right, I get\n\u2713 Formatted 3 files: forge/ui/tool_rendering.py, forge/ui/ai_chat_widget.py, forge/tools/builtin/run_tests.py \u2713 Type check passed \u2713 Lint passed\nin one line, I think those should be inside the text field? But it basically works.\nThough it doesn't run on a background thread so it locks up the ui as it runs which is a bit awkward"
+    },
+    {
+      "role": "assistant",
+      "content": "Good feedback! Two issues to fix:\n\n1. **Line breaks in output** - The `display_output` is being built without proper line breaks between sections\n2. **Background thread** - `check` and `run_tests` block the UI when executed as inline commands\n\nLet me fix the line breaks first - that's in `check.py`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"tools/check.py\"], \"remove\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\", \"forge/tools/side_effects.py\", \"forge/git_backend/commit_types.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_014CkCkaFYKw29xnx2AFA2gw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014CkCkaFYKw29xnx2AFA2gw",
+      "content": "{\"action\": \"update_context\", \"add\": [\"tools/check.py\"], \"message\": \"Added 1 files, removed 4 files from context\", \"remove\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\", \"forge/tools/side_effects.py\", \"forge/git_backend/commit_types.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The `display_output` is using the summary which has `\\n` but the HTML rendering doesn't preserve those. Looking at `_render_check_html`, it should be using a `<pre>` tag for the output.\n\nBut actually the real issue is that `display_output` is set to the summary when there's no typecheck/lint output, and the summary has newlines that get collapsed in HTML.\n\nLet me fix both issues:\n\n1. Make `display_output` always use the summary (which is properly formatted with newlines)\n2. The background thread issue is more complex - let me look at how inline commands are executed\n\n<edit file=\"tools/check.py\">\n<search>\n        # Declare side effects\n        side_effects = [SideEffect.HAS_DISPLAY_OUTPUT]\n        \n        # Build display output for UI (show check results)\n        display_parts = []\n        if results[\"typecheck_output\"]:\n            display_parts.append(results[\"typecheck_output\"])\n        if results[\"lint_output\"]:\n            display_parts.append(results[\"lint_output\"])\n        results[\"display_output\"] = \"\\n\".join(display_parts) if display_parts else results[\"summary\"]\n</search>\n<replace>\n        # Declare side effects\n        side_effects = [SideEffect.HAS_DISPLAY_OUTPUT]\n        \n        # Build display output for UI - always use summary for clean display\n        # The summary already has proper formatting with newlines\n        results[\"display_output\"] = results[\"summary\"]\n</replace>\n</edit>\n\nNow let me look at how inline commands execute to understand the threading issue:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"execute_inline_commands|_process_inline_commands\", \"include_extensions\": [\".py\"], \"max_matches\": 8}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01KpY97AmXMFox83BYc4QeTt",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "success": true,
+          "message": "Replaced in tools/check.py"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KpY97AmXMFox83BYc4QeTt",
+      "content": "{\"message\": \"Found 6 matches\", \"output\": \"\\u2500\\u2500 forge/tools/invocation.py:213 \\u2500\\u2500\\n     210 |     return commands\\n     211 | \\n     212 | \\n>>>  213 | def execute_inline_commands(\\n     214 |     vfs: \\\"VFS\\\", commands: list[InlineCommand]\\n     215 | ) -> tuple[list[dict[str, Any]], int | None]:\\n     216 |     \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:26 \\u2500\\u2500\\n      23 | from forge.constants import SESSION_FILE\\n      24 | from forge.llm.client import LLMClient\\n      25 | from forge.session.manager import SessionManager\\n>>>   26 | from forge.tools.invocation import execute_inline_commands, parse_inline_commands\\n      27 | from forge.tools.side_effects import SideEffect\\n      28 | from forge.ui.editor_widget import SearchBar\\n      29 | from forge.ui.tool_rendering import (\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1032 \\u2500\\u2500\\n    1029 |         # Process inline commands FIRST (edit, commit, run_tests, etc.)\\n    1030 |         # If inline commands fail, we truncate and retry - tool calls should NOT be recorded\\n    1031 |         if result.get(\\\"content\\\"):\\n>>> 1032 |             cmd_result = self._process_inline_commands(result[\\\"content\\\"])\\n    1033 |             if cmd_result.get(\\\"had_commands\\\"):\\n    1034 |                 if cmd_result.get(\\\"failed\\\"):\\n    1035 |                     # Command failed - truncate message, inject error, continue conversation\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1041 \\u2500\\u2500\\n    1038 |                     # saved to session.json (which would break reload - tool_calls without results)\\n    1039 |                     if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n    1040 |                         self.messages[-1].pop(\\\"tool_calls\\\", None)\\n>>> 1041 |                     return  # _process_inline_commands handles the continuation\\n    1042 |                 else:\\n    1043 |                     # All commands succeeded - update the stored content\\n    1044 |                     result[\\\"content\\\"] = cmd_result.get(\\\"clean_content\\\", result[\\\"content\\\"])\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1086 \\u2500\\u2500\\n    1083 | \\n    1084 |         self._reset_input()\\n    1085 | \\n>>> 1086 |     def _process_inline_commands(self, content: str) -> dict[str, Any]:\\n    1087 |         \\\"\\\"\\\"Process inline commands (<edit>, <commit>, <run_tests>, etc.) from assistant message.\\n    1088 | \\n    1089 |         Returns:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1105 \\u2500\\u2500\\n    1102 |         vfs = self.session_manager.vfs\\n    1103 |         vfs.claim_thread()\\n    1104 |         try:\\n>>> 1105 |             results, failed_index = execute_inline_commands(vfs, commands)\\n    1106 |         finally:\\n    1107 |             vfs.release_thread()\\n    1108 | \", \"success\": true, \"total_matches\": 6}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 8,\n  \"pattern\": \"execute_inline_commands|_process_inline_commands\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 6 matches\",\n  \"output\": \"\\u2500\\u2500 forge/tools/invocation.py:213 \\u2500\\u2500\\n     210 |     return commands\\n     211 | \\n     212 | \\n>>>  213 | def execute_inline_commands(\\n     214 |     vfs: \\\"VFS\\\", commands: list[InlineCommand]\\n     215 | ) -> tuple[list[dict[str, Any]], int | None]:\\n     216 |     \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:26 \\u2500\\u2500\\n      23 | from forge.constants import SESSION_FILE\\n      24 | from forge.llm.client import LLMClient\\n      25 | from forge.session.manager import SessionManager\\n>>>   26 | from forge.tools.invocation import execute_inline_commands, parse_inline_commands\\n      27 | from forge.tools.side_effects import SideEffect\\n      28 | from forge.ui.editor_widget import SearchBar\\n      29 | from forge.ui.tool_rendering import (\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1032 \\u2500\\u2500\\n    1029 |         # Process inline commands FIRST (edit, commit, run_tests, etc.)\\n    1030 |         # If inline commands fail, we truncate and retry - tool calls should NOT be recorded\\n    1031 |         if result.get(\\\"content\\\"):\\n>>> 1032 |             cmd_result = self._process_inline_commands(result[\\\"content\\\"])\\n    1033 |             if cmd_result.get(\\\"had_commands\\\"):\\n    1034 |                 if cmd_result.get(\\\"failed\\\"):\\n    1035 |                     # Command failed - truncate message, inject error, continue conversation\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1041 \\u2500\\u2500\\n    1038 |                     # saved to session.json (which would break reload - tool_calls without results)\\n    1039 |                     if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n    1040 |                         self.messages[-1].pop(\\\"tool_calls\\\", None)\\n>>> 1041 |                     return  # _process_inline_commands handles the continuation\\n    1042 |                 else:\\n    1043 |                     # All commands succeeded - update the stored content\\n    1044 |                     result[\\\"content\\\"] = cmd_result.get(\\\"clean_content\\\", result[\\\"content\\\"])\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1086 \\u2500\\u2500\\n    1083 | \\n    1084 |         self._reset_input()\\n    1085 | \\n>>> 1086 |     def _process_inline_commands(self, content: str) -> dict[str, Any]:\\n    1087 |         \\\"\\\"\\\"Process inline commands (<edit>, <commit>, <run_tests>, etc.) from assistant message.\\n    1088 | \\n    1089 |         Returns:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:1105 \\u2500\\u2500\\n    1102 |         vfs = self.session_manager.vfs\\n    1103 |         vfs.claim_thread()\\n    1104 |         try:\\n>>> 1105 |             results, failed_index = execute_inline_commands(vfs, commands)\\n    1106 |         finally:\\n    1107 |             vfs.release_thread()\\n    1108 | \",\n  \"success\": true,\n  \"total_matches\": 6\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue - `execute_inline_commands` is called directly on the main thread. For long-running tools like `run_tests` and `check`, this blocks the UI.\n\nThe fix involves two parts:\n1. Fix the line breaks in HTML rendering (the `<pre>` tag is missing in some cases)\n2. Move inline command execution to a background thread\n\nLet me look at the rendering code and the inline command flow:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01FCfAjoJKYX2ukZ78bb3CAq",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FCfAjoJKYX2ukZ78bb3CAq",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue - the summary has `\\n` characters but HTML collapses them. The summary should display in a `<pre>` tag to preserve line breaks. Looking at `_render_check_html`, the `body_html` for success uses a `<span>` which doesn't preserve newlines.\n\nLet me fix the line break issue first, then address the background thread issue:\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\n    body_html = \"Running format, typecheck, and lint...\"\n    if result:\n        if result.get(\"success\"):\n            summary = result.get(\"summary\", \"All checks passed\")\n            body_html = f'<span class=\"success-msg\">\u2713 {html.escape(str(summary))}</span>'\n        else:\n            error = result.get(\"error\", result.get(\"summary\", \"Check failed\"))\n            body_html = f'<span class=\"error-msg\">\u2717 {html.escape(str(error))}</span>'\n\n        # Show output if available\n        output = result.get(\"display_output\", \"\")\n        if output:\n            escaped_output = html.escape(str(output))\n            body_html += f'<pre class=\"line-excerpt\" style=\"max-height: 300px; overflow-y: auto;\">{escaped_output}</pre>'\n</search>\n<replace>\n    body_html = \"Running format, typecheck, and lint...\"\n    if result:\n        if result.get(\"success\"):\n            summary = result.get(\"summary\", \"All checks passed\")\n            # Use <pre> to preserve line breaks in summary\n            escaped_summary = html.escape(str(summary))\n            body_html = f'<pre class=\"success-msg\" style=\"margin: 0; white-space: pre-wrap;\">{escaped_summary}</pre>'\n        else:\n            error = result.get(\"error\", result.get(\"summary\", \"Check failed\"))\n            escaped_error = html.escape(str(error))\n            body_html = f'<pre class=\"error-msg\" style=\"margin: 0; white-space: pre-wrap;\">{escaped_error}</pre>'\n</replace>\n</edit>\n\nNow for the background thread issue - I need to move inline command execution to a worker thread. Let me look at how to structure this. The problem is that `_process_inline_commands` is called synchronously in `_on_stream_finished`. We need to make it async like tool execution.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"line\": 1030, \"context\": 25}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01MMnjFShqQ6xvQKDUfCz5Gr",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "success": true,
+          "message": "Replaced in forge/ui/tool_rendering.py"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01MMnjFShqQ6xvQKDUfCz5Gr",
+      "content": "{\"content\": \"    1005 |         # Clean up thread\\n    1006 |         if self.stream_thread:\\n    1007 |             self.stream_thread.quit()\\n    1008 |             self.stream_thread.wait()\\n    1009 |             self.stream_thread = None\\n    1010 |             self.stream_worker = None\\n    1011 | \\n    1012 |         # Mark streaming as finished\\n    1013 |         self._is_streaming = False\\n    1014 |         self._streaming_tool_calls = []  # Clear streaming tool calls\\n    1015 | \\n    1016 |         # Finalize streaming content with proper markdown rendering\\n    1017 |         self._finalize_streaming_content()\\n    1018 | \\n    1019 |         # Handle the streaming message - update with final content and tool_calls if present\\n    1020 |         if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n    1021 |             # Update content if present in result\\n    1022 |             if result.get(\\\"content\\\"):\\n    1023 |                 self.messages[-1][\\\"content\\\"] = result[\\\"content\\\"]\\n    1024 | \\n    1025 |             # Add tool_calls if present\\n    1026 |             if result.get(\\\"tool_calls\\\"):\\n    1027 |                 self.messages[-1][\\\"tool_calls\\\"] = result[\\\"tool_calls\\\"]\\n    1028 | \\n    1029 |         # Process inline commands FIRST (edit, commit, run_tests, etc.)\\n>>> 1030 |         # If inline commands fail, we truncate and retry - tool calls should NOT be recorded\\n    1031 |         if result.get(\\\"content\\\"):\\n    1032 |             cmd_result = self._process_inline_commands(result[\\\"content\\\"])\\n    1033 |             if cmd_result.get(\\\"had_commands\\\"):\\n    1034 |                 if cmd_result.get(\\\"failed\\\"):\\n    1035 |                     # Command failed - truncate message, inject error, continue conversation\\n    1036 |                     # DO NOT record tool_calls - they come after the failed command\\n    1037 |                     # Also remove tool_calls from the assistant message so they don't get\\n    1038 |                     # saved to session.json (which would break reload - tool_calls without results)\\n    1039 |                     if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n    1040 |                         self.messages[-1].pop(\\\"tool_calls\\\", None)\\n    1041 |                     return  # _process_inline_commands handles the continuation\\n    1042 |                 else:\\n    1043 |                     # All commands succeeded - update the stored content\\n    1044 |                     result[\\\"content\\\"] = cmd_result.get(\\\"clean_content\\\", result[\\\"content\\\"])\\n    1045 |                     if self.messages and self.messages[-1][\\\"role\\\"] == \\\"assistant\\\":\\n    1046 |                         self.messages[-1][\\\"content\\\"] = result[\\\"content\\\"]\\n    1047 | \\n    1048 |         # Now it's safe to record tool calls - inline commands all succeeded (or there were none)\\n    1049 |         if result.get(\\\"tool_calls\\\"):\\n    1050 |             # Include content with tool calls so AI sees its own reasoning\\n    1051 |             self.session_manager.append_tool_call(result[\\\"tool_calls\\\"], result.get(\\\"content\\\") or \\\"\\\")\\n    1052 | \\n    1053 |         # Execute tools if present - don't commit yet, AI will respond again\\n    1054 |         if result.get(\\\"tool_calls\\\"):\\n    1055 |             self._execute_tool_calls(result[\\\"tool_calls\\\"])\", \"filepath\": \"forge/ui/ai_chat_widget.py\", \"range\": \"1005-1055\", \"success\": true, \"target_line\": 1030, \"total_lines\": 2518}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at this, moving inline command execution to a background thread is a significant refactor. Let me create an `InlineCommandWorker` similar to `ToolExecutionWorker`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\nclass ToolExecutionWorker(QObject):\n    \"\"\"Worker for executing tool calls in a background thread.\n\n    Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),\n    remaining tools are aborted and marked as such. This allows the AI to chain\n    tools like: search_replace \u2192 search_replace \u2192 check \u2192 commit \u2192 done\n\n    If all tools succeed, the chain completes. If any fails, the AI gets control\n    back to handle the error.\n\n    Claims VFS thread ownership while running, releases when done.\n    \"\"\"\n\n    tool_started = Signal(str, dict)  # Emitted when a tool starts (name, args)\n    tool_finished = Signal(\n        str, str, dict, dict\n    )  # Emitted when a tool finishes (tool_call_id, name, args, result)\n    all_finished = Signal(list)  # Emitted when all tools complete (list of results)\n    error = Signal(str)  # Emitted on error\n</search>\n<replace>\nclass InlineCommandWorker(QObject):\n    \"\"\"Worker for executing inline commands in a background thread.\n\n    Executes commands like <edit>, <run_tests/>, <check/>, <commit/> sequentially.\n    If any command fails, remaining commands are aborted.\n\n    Claims VFS thread ownership while running, releases when done.\n    \"\"\"\n\n    finished = Signal(list, object)  # Emitted when done (results, failed_index or None)\n    error = Signal(str)  # Emitted on error\n\n    def __init__(self, vfs: Any, commands: list) -> None:\n        super().__init__()\n        self.vfs = vfs\n        self.commands = commands\n\n    def run(self) -> None:\n        \"\"\"Execute inline commands sequentially.\"\"\"\n        from forge.tools.invocation import execute_inline_commands\n\n        self.vfs.claim_thread()\n        try:\n            results, failed_index = execute_inline_commands(self.vfs, self.commands)\n            self.finished.emit(results, failed_index)\n        except Exception as e:\n            import traceback\n\n            print(f\"\u274c InlineCommandWorker error: {e}\")\n            traceback.print_exc()\n            self.error.emit(str(e))\n        finally:\n            self.vfs.release_thread()\n\n\nclass ToolExecutionWorker(QObject):\n    \"\"\"Worker for executing tool calls in a background thread.\n\n    Executes tools SEQUENTIALLY as a pipeline. If any tool fails (success=False),\n    remaining tools are aborted and marked as such. This allows the AI to chain\n    tools like: search_replace \u2192 search_replace \u2192 check \u2192 commit \u2192 done\n\n    If all tools succeed, the chain completes. If any fails, the AI gets control\n    back to handle the error.\n\n    Claims VFS thread ownership while running, releases when done.\n    \"\"\"\n\n    tool_started = Signal(str, dict)  # Emitted when a tool starts (name, args)\n    tool_finished = Signal(\n        str, str, dict, dict\n    )  # Emitted when a tool finishes (tool_call_id, name, args, result)\n    all_finished = Signal(list)  # Emitted when all tools complete (list of results)\n    error = Signal(str)  # Emitted on error\n</replace>\n</edit>\n\nNow update `_on_stream_finished` to dispatch inline commands to background thread:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Process inline commands FIRST (edit, commit, run_tests, etc.)\n        # If inline commands fail, we truncate and retry - tool calls should NOT be recorded\n        if result.get(\"content\"):\n            cmd_result = self._process_inline_commands(result[\"content\"])\n            if cmd_result.get(\"had_commands\"):\n                if cmd_result.get(\"failed\"):\n                    # Command failed - truncate message, inject error, continue conversation\n                    # DO NOT record tool_calls - they come after the failed command\n                    # Also remove tool_calls from the assistant message so they don't get\n                    # saved to session.json (which would break reload - tool_calls without results)\n                    if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n                        self.messages[-1].pop(\"tool_calls\", None)\n                    return  # _process_inline_commands handles the continuation\n                else:\n                    # All commands succeeded - update the stored content\n                    result[\"content\"] = cmd_result.get(\"clean_content\", result[\"content\"])\n                    if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n                        self.messages[-1][\"content\"] = result[\"content\"]\n\n        # Now it's safe to record tool calls - inline commands all succeeded (or there were none)\n        if result.get(\"tool_calls\"):\n            # Include content with tool calls so AI sees its own reasoning\n            self.session_manager.append_tool_call(result[\"tool_calls\"], result.get(\"content\") or \"\")\n\n        # Execute tools if present - don't commit yet, AI will respond again\n        if result.get(\"tool_calls\"):\n            self._execute_tool_calls(result[\"tool_calls\"])\n            return\n</search>\n<replace>\n        # Process inline commands FIRST (edit, commit, run_tests, etc.)\n        # If inline commands fail, we truncate and retry - tool calls should NOT be recorded\n        if result.get(\"content\"):\n            commands = parse_inline_commands(result[\"content\"])\n            if commands:\n                # Store result for use after inline commands complete\n                self._pending_stream_result = result\n                self._start_inline_command_execution(commands)\n                return  # Will continue in _on_inline_commands_finished\n\n        # No inline commands - continue with tool calls\n        self._finish_stream_processing(result)\n</replace>\n</edit>\n\nNow add the helper methods for inline command execution:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:\n        \"\"\"Execute tool calls in background thread and continue conversation\"\"\"\n</search>\n<replace>\n    def _start_inline_command_execution(self, commands: list) -> None:\n        \"\"\"Start executing inline commands in background thread.\"\"\"\n        self.inline_thread = QThread()\n        self.inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)\n        self.inline_worker.moveToThread(self.inline_thread)\n\n        self.inline_worker.finished.connect(self._on_inline_commands_finished)\n        self.inline_worker.error.connect(self._on_inline_commands_error)\n        self.inline_thread.started.connect(self.inline_worker.run)\n\n        # Store commands for result processing\n        self._pending_inline_commands = commands\n\n        self.inline_thread.start()\n\n    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:\n        \"\"\"Handle inline command execution completion.\"\"\"\n        # Clean up thread\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n            self.inline_thread = None\n            self.inline_worker = None\n\n        commands = getattr(self, \"_pending_inline_commands\", [])\n        result = getattr(self, \"_pending_stream_result\", {})\n        content = result.get(\"content\", \"\")\n\n        if failed_index is not None:\n            # Command failed - truncate message AFTER the failed command\n            failed_cmd = commands[failed_index]\n            truncated_content = content[: failed_cmd.end_pos]\n\n            # Update the assistant message to truncated version\n            if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n                self.messages[-1][\"content\"] = truncated_content\n                self.messages[-1].pop(\"tool_calls\", None)\n\n            # Build error message for the AI\n            error_result = results[failed_index]\n            error_msg = error_result.get(\"error\", \"Unknown error\")\n\n            # Add success messages for commands that worked\n            success_msgs = []\n            for i, res in enumerate(results[:-1]):\n                if res.get(\"success\"):\n                    cmd = commands[i]\n                    success_msgs.append(f\"\u2713 {cmd.tool_name}\")\n\n            # Build the system message\n            system_parts = []\n            if success_msgs:\n                system_parts.append(\"Commands executed:\\n\" + \"\\n\".join(success_msgs))\n            system_parts.append(f\"\\n\u274c `{failed_cmd.tool_name}` failed:\\n\\n{error_msg}\")\n\n            error_content = \"\\n\".join(system_parts)\n\n            # Add truncated content to prompt manager\n            self.session_manager.append_assistant_message(truncated_content)\n\n            # Add error as user message so AI sees it\n            self._add_system_message(error_content)\n            self.session_manager.append_user_message(error_content)\n\n            # Update display\n            self._update_chat_display(scroll_to_bottom=True)\n\n            # Continue conversation so AI can react to the error\n            tools = self.session_manager.tool_manager.discover_tools()\n            self._continue_after_tools(tools)\n            return\n\n        # All commands succeeded - process results for side effects\n        for i, res in enumerate(results):\n            cmd = commands[i]\n\n            # Handle file modifications\n            if cmd.tool_name == \"edit\":\n                filepath = cmd.args.get(\"file\")\n                if filepath:\n                    self.session_manager.file_was_modified(filepath, None)\n            elif cmd.tool_name == \"write_file\":\n                filepath = cmd.args.get(\"filepath\")\n                if filepath:\n                    self.session_manager.file_was_modified(filepath, None)\n                    if filepath not in self.session_manager.repo_summaries:\n                        if not hasattr(self, \"_newly_created_files\"):\n                            self._newly_created_files = set()\n                        self._newly_created_files.add(filepath)\n            elif cmd.tool_name == \"delete_file\":\n                filepath = cmd.args.get(\"filepath\")\n                if filepath:\n                    self.session_manager.file_was_modified(filepath, None)\n\n            # Handle FILES_MODIFIED side effect\n            side_effects = res.get(\"side_effects\", [])\n            if SideEffect.FILES_MODIFIED in side_effects:\n                for filepath in res.get(\"modified_files\", []):\n                    self.session_manager.file_was_modified(filepath, None)\n\n            # Handle mid-turn commits\n            if cmd.tool_name == \"commit\" and res.get(\"success\"):\n                commit_oid = res.get(\"commit\", \"\")\n                if commit_oid:\n                    self.mid_turn_commit.emit(commit_oid)\n                self.session_manager.mark_mid_turn_commit()\n\n        # Build success feedback\n        success_parts = []\n        for i, cmd in enumerate(commands):\n            res = results[i]\n            if cmd.tool_name == \"run_tests\":\n                summary = res.get(\"summary\", \"\u2713 Tests passed\")\n                success_parts.append(f\"\u2713 run_tests: {summary}\")\n            elif cmd.tool_name == \"check\":\n                summary = res.get(\"summary\", \"All checks passed\")\n                success_parts.append(f\"\u2713 check: {summary}\")\n            elif cmd.tool_name == \"commit\":\n                commit_oid = res.get(\"commit\", \"\")[:8]\n                success_parts.append(f\"\u2713 commit: {commit_oid}\")\n            else:\n                success_parts.append(f\"\u2713 {cmd.tool_name}\")\n\n        success_content = \"Commands executed:\\n\" + \"\\n\".join(success_parts)\n\n        # Store inline results on the assistant message for rendering\n        if self.messages and self.messages[-1][\"role\"] == \"assistant\":\n            self.messages[-1][\"_inline_results\"] = results\n\n        # Update display to show results in widgets\n        self._update_chat_display(scroll_to_bottom=True)\n\n        # Add to prompt manager so AI sees it\n        self.session_manager.append_user_message(success_content)\n\n        # Continue with tool calls if any\n        self._finish_stream_processing(result)\n\n    def _on_inline_commands_error(self, error_msg: str) -> None:\n        \"\"\"Handle inline command execution error.\"\"\"\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n            self.inline_thread = None\n            self.inline_worker = None\n\n        self._add_system_message(f\"\u274c Inline command error: {error_msg}\")\n        self.ai_turn_finished.emit(\"\")\n        self._reset_input()\n\n    def _finish_stream_processing(self, result: dict[str, Any]) -> None:\n        \"\"\"Finish processing a stream result after inline commands (if any) complete.\"\"\"\n        # Record tool calls if present\n        if result.get(\"tool_calls\"):\n            self.session_manager.append_tool_call(\n                result[\"tool_calls\"], result.get(\"content\") or \"\"\n            )\n\n        # Execute tools if present\n        if result.get(\"tool_calls\"):\n            self._execute_tool_calls(result[\"tool_calls\"])\n            return\n\n        # This is a final text response with no tool calls\n        if result.get(\"content\"):\n            self.session_manager.append_assistant_message(result[\"content\"])\n\n        # Emit updated context stats\n        self._emit_context_stats()\n\n        # Generate summaries for newly created files\n        if hasattr(self, \"_newly_created_files\") and self._newly_created_files:\n            for filepath in self._newly_created_files:\n                self.session_manager.generate_summary_for_file(filepath)\n            self.summaries_ready.emit(self.session_manager.repo_summaries)\n            self._newly_created_files.clear()\n\n        # Commit now\n        commit_oid = self.session_manager.commit_ai_turn(self.messages)\n        self._add_system_message(f\"\u2705 Changes committed: {commit_oid[:8]}\")\n\n        # Emit signal that AI turn is finished\n        self.ai_turn_finished.emit(commit_oid)\n\n        # Show system notification\n        self._notify_turn_complete(commit_oid)\n\n        self._reset_input()\n\n    def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:\n        \"\"\"Execute tool calls in background thread and continue conversation\"\"\"\n</replace>\n</edit>\n\nNow remove the old `_process_inline_commands` method and the duplicate code at the end of `_on_stream_finished`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # This is a final text response with no tool calls\n        # Add to prompt manager\n        if result.get(\"content\"):\n            self.session_manager.append_assistant_message(result[\"content\"])\n\n        # Emit updated context stats (conversation tokens changed)\n        self._emit_context_stats()\n\n        # Generate summaries for any newly created files before committing\n        if hasattr(self, \"_newly_created_files\") and self._newly_created_files:\n            for filepath in self._newly_created_files:\n                self.session_manager.generate_summary_for_file(filepath)\n            # Emit updated summaries\n            self.summaries_ready.emit(self.session_manager.repo_summaries)\n            self._newly_created_files.clear()\n\n        # Commit now\n        commit_oid = self.session_manager.commit_ai_turn(self.messages)\n        self._add_system_message(f\"\u2705 Changes committed: {commit_oid[:8]}\")\n\n        # Emit signal that AI turn is finished\n        self.ai_turn_finished.emit(commit_oid)\n\n        # Show system notification\n        self._notify_turn_complete(commit_oid)\n\n        self._reset_input()\n\n    def _process_inline_commands(self, content: str) -> dict[str, Any]:\n</search>\n<replace>\n    def _process_inline_commands(self, content: str) -> dict[str, Any]:\n</replace>\n</edit>\n\nAlso need to clean up the inline thread on cancel:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Clean up tool thread if active\n        # The tool thread claims VFS ownership, so we must wait for it to finish\n        # and release ownership before we can touch the VFS\n        if self.tool_thread and self.tool_thread.isRunning():\n            self.tool_thread.quit()\n            self.tool_thread.wait(3000)  # Wait longer - tool needs to release VFS\n            if self.tool_thread.isRunning():\n                self.tool_thread.terminate()\n            self.tool_thread = None\n            self.tool_worker = None\n</search>\n<replace>\n        # Clean up inline command thread if active\n        if hasattr(self, \"inline_thread\") and self.inline_thread and self.inline_thread.isRunning():\n            self.inline_thread.quit()\n            self.inline_thread.wait(3000)\n            if self.inline_thread.isRunning():\n                self.inline_thread.terminate()\n            self.inline_thread = None\n            self.inline_worker = None\n\n        # Clean up tool thread if active\n        # The tool thread claims VFS ownership, so we must wait for it to finish\n        # and release ownership before we can touch the VFS\n        if self.tool_thread and self.tool_thread.isRunning():\n            self.tool_thread.quit()\n            self.tool_thread.wait(3000)  # Wait longer - tool needs to release VFS\n            if self.tool_thread.isRunning():\n                self.tool_thread.terminate()\n            self.tool_thread = None\n            self.tool_worker = None\n</replace>\n</edit>\n\n<check/>"
+    },
+    {
+      "role": "system",
+      "content": "Commands executed:\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\n\u274c `check` failed:\n\nmypy --explicit-package-bases forge/ main.py\nforge/ui/ai_chat_widget.py:1274: error: Incompatible types in assignment (expression has type \"None\", variable has type \"QThread\")  [assignment]\nforge/ui/ai_chat_widget.py:1275: error: Incompatible types in assignment (expression has type \"None\", variable has type \"InlineCommandWorker\")  [assignment]\nforge/ui/ai_chat_widget.py:1396: error: Incompatible types in assignment (expression has type \"None\", variable has type \"QThread\")  [assignment]\nforge/ui/ai_chat_widget.py:1397: error: Incompatible types in assignment (expression has type \"None\", variable has type \"InlineCommandWorker\")  [assignment]\nforge/ui/ai_chat_widget.py:1729: error: Incompatible types in assignment (expression has type \"None\", variable has type \"QThread\")  [assignment]\nforge/ui/ai_chat_widget.py:1730: error: Incompatible types in assignment (expression has type \"None\", variable has type \"InlineCommandWorker\")  [assignment]\nFound 6 errors in 1 file (checked 76 source files)\nmake: *** [Makefile:5: typecheck] Error 1\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to fix the type errors - the `inline_thread` and `inline_worker` attributes need to be typed as `Optional`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Clean up thread\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n            self.inline_thread = None\n            self.inline_worker = None\n</search>\n<replace>\n        # Clean up thread\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n        self.inline_thread = None\n        self.inline_worker = None\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n            self.inline_thread = None\n            self.inline_worker = None\n\n        self._add_system_message(f\"\u274c Inline command error: {error_msg}\")\n</search>\n<replace>\n        if hasattr(self, \"inline_thread\") and self.inline_thread:\n            self.inline_thread.quit()\n            self.inline_thread.wait()\n        self.inline_thread = None\n        self.inline_worker = None\n\n        self._add_system_message(f\"\u274c Inline command error: {error_msg}\")\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Clean up inline command thread if active\n        if hasattr(self, \"inline_thread\") and self.inline_thread and self.inline_thread.isRunning():\n            self.inline_thread.quit()\n            self.inline_thread.wait(3000)\n            if self.inline_thread.isRunning():\n                self.inline_thread.terminate()\n            self.inline_thread = None\n            self.inline_worker = None\n</search>\n<replace>\n        # Clean up inline command thread if active\n        if hasattr(self, \"inline_thread\") and self.inline_thread and self.inline_thread.isRunning():\n            self.inline_thread.quit()\n            self.inline_thread.wait(3000)\n            if self.inline_thread.isRunning():\n                self.inline_thread.terminate()\n        self.inline_thread = None\n        self.inline_worker = None\n</replace>\n</edit>\n\nNow I need to add proper type annotations to the class. Let me add them to `__init__`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"line\": 280, \"context\": 20}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_0125wgqEioR8tt8tzwFSTpRY",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "success": true,
+          "message": "Replaced in forge/ui/ai_chat_widget.py"
+        },
+        {
+          "success": true,
+          "message": "Replaced in forge/ui/ai_chat_widget.py"
+        },
+        {
+          "success": true,
+          "message": "Replaced in forge/ui/ai_chat_widget.py"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_0125wgqEioR8tt8tzwFSTpRY",
+      "content": "{\"content\": \"     260 |                 self.results.append(\\n     261 |                     {\\n     262 |                         \\\"tool_call\\\": tool_call,\\n     263 |                         \\\"args\\\": tool_args,\\n     264 |                         \\\"result\\\": result,\\n     265 |                     }\\n     266 |                 )\\n     267 | \\n     268 |                 # Check if this tool failed - stop processing remaining tools\\n     269 |                 # Tools signal failure by returning success=False\\n     270 |                 # The AI will only see this failed result (not unattempted ones)\\n     271 |                 if not result.get(\\\"success\\\", True):\\n     272 |                     break\\n     273 | \\n     274 |             self.all_finished.emit(self.results)\\n     275 | \\n     276 |         except Exception as e:\\n     277 |             import traceback\\n     278 | \\n     279 |             print(f\\\"\\u274c ToolExecutionWorker error: {e}\\\")\\n>>>  280 |             traceback.print_exc()\\n     281 |             self.error.emit(str(e))\\n     282 |         finally:\\n     283 |             # Always release VFS ownership\\n     284 |             self.session_manager.vfs.release_thread()\\n     285 | \\n     286 | \\n     287 | class ExternalLinkPage(QWebEnginePage):\\n     288 |     \\\"\\\"\\\"Custom page that opens links in external browser instead of navigating in-place\\\"\\\"\\\"\\n     289 | \\n     290 |     def acceptNavigationRequest(\\n     291 |         self, url: QUrl | str, nav_type: QWebEnginePage.NavigationType, is_main_frame: bool\\n     292 |     ) -> bool:\\n     293 |         # Allow initial page load and JavaScript-driven updates\\n     294 |         if nav_type == QWebEnginePage.NavigationType.NavigationTypeTyped:\\n     295 |             return True\\n     296 | \\n     297 |         # For link clicks, open externally\\n     298 |         if nav_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:\\n     299 |             # Convert to QUrl if string\\n     300 |             if isinstance(url, str):\", \"filepath\": \"forge/ui/ai_chat_widget.py\", \"range\": \"260-300\", \"success\": true, \"target_line\": 280, \"total_lines\": 2705}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at where the `inline_thread` is first assigned to understand the pattern:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"line\": 1253, \"context\": 10}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01FCeiZkb6Sjk6ChNb5FU95U",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01FCeiZkb6Sjk6ChNb5FU95U",
+      "content": "{\"content\": \"    1243 |         self._add_system_message(f\\\"\\u274c {error_msg}\\\")\\n    1244 | \\n    1245 |         # Add to conversation so AI sees it and can react\\n    1246 |         # Using \\\"user\\\" role since that's what the AI will respond to\\n    1247 |         self.add_message(\\\"user\\\", error_content)\\n    1248 |         self.session_manager.append_user_message(error_content)\\n    1249 | \\n    1250 |         # Continue the conversation - AI will see the error and can respond\\n    1251 |         self._process_llm_request()\\n    1252 | \\n>>> 1253 |     def _start_inline_command_execution(self, commands: list) -> None:\\n    1254 |         \\\"\\\"\\\"Start executing inline commands in background thread.\\\"\\\"\\\"\\n    1255 |         self.inline_thread = QThread()\\n    1256 |         self.inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)\\n    1257 |         self.inline_worker.moveToThread(self.inline_thread)\\n    1258 | \\n    1259 |         self.inline_worker.finished.connect(self._on_inline_commands_finished)\\n    1260 |         self.inline_worker.error.connect(self._on_inline_commands_error)\\n    1261 |         self.inline_thread.started.connect(self.inline_worker.run)\\n    1262 | \\n    1263 |         # Store commands for result processing\", \"filepath\": \"forge/ui/ai_chat_widget.py\", \"range\": \"1243-1263\", \"success\": true, \"target_line\": 1253, \"total_lines\": 2705}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the pattern - these need to be `Optional` types. Let me initialize them in `__init__` so mypy knows they can be `None`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"line\": 400, \"context\": 15}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01Urshvi4rt8w2W6ud8sGZnV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Urshvi4rt8w2W6ud8sGZnV",
+      "content": "{\"content\": \"     385 |         self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info\\n     386 |         self.handled_approvals: set[str] = set()  # Tools that have been approved/rejected\\n     387 | \\n     388 |         # Streaming worker\\n     389 |         self.stream_thread: QThread | None = None\\n     390 |         self.stream_worker: StreamWorker | None = None\\n     391 |         self._is_streaming = False\\n     392 |         self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls\\n     393 |         self._cancel_requested = False  # Track if user requested cancellation\\n     394 | \\n     395 |         # Track ALL executed tool IDs across the entire turn (reset on new user message)\\n     396 |         self._turn_executed_tool_ids: set[str] = set()\\n     397 | \\n     398 |         # Tool execution worker\\n     399 |         self.tool_thread: QThread | None = None\\n>>>  400 |         self.tool_worker: ToolExecutionWorker | None = None\\n     401 | \\n     402 |         # Queued message (user typed while AI was running)\\n     403 |         self._queued_message: str | None = None\\n     404 | \\n     405 |         # Summary worker\\n     406 |         self.summary_thread: QThread | None = None\\n     407 |         self.summary_worker: SummaryWorker | None = None\\n     408 |         self._summaries_ready = False  # Track if summaries have been generated\\n     409 | \\n     410 |         # Web channel bridge for JavaScript communication\\n     411 |         self.bridge = ChatBridge(self)\\n     412 |         self.channel = QWebChannel()\\n     413 |         self.channel.registerObject(\\\"bridge\\\", self.bridge)\\n     414 | \\n     415 |         # Get session manager from workspace (branch-level ownership)\", \"filepath\": \"forge/ui/ai_chat_widget.py\", \"range\": \"385-415\", \"success\": true, \"target_line\": 400, \"total_lines\": 2705}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to add the `inline_thread` and `inline_worker` initializations to `__init__`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Tool execution worker\n        self.tool_thread: QThread | None = None\n        self.tool_worker: ToolExecutionWorker | None = None\n\n        # Queued message (user typed while AI was running)\n</search>\n<replace>\n        # Tool execution worker\n        self.tool_thread: QThread | None = None\n        self.tool_worker: ToolExecutionWorker | None = None\n\n        # Inline command execution worker\n        self.inline_thread: QThread | None = None\n        self.inline_worker: InlineCommandWorker | None = None\n\n        # Queued message (user typed while AI was running)\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"fix: run inline commands (run_tests, check) on background thread\n\n- Add InlineCommandWorker for background execution of inline commands\n- UI no longer locks up during run_tests/check execution\n- Fix line breaks in check output by using <pre> tag\n- Clean up display_output to use summary for cleaner display\"/>\n\nDone! The changes:\n\n1. **Line breaks fixed** - Check output now uses `<pre>` tag to preserve newlines\n2. **Background thread** - `InlineCommandWorker` executes `run_tests`, `check`, and other inline commands in a background thread, so the UI stays responsive",
+      "_inline_results": [
+        {
+          "success": true,
+          "message": "Replaced in forge/ui/ai_chat_widget.py"
+        },
+        {
+          "success": true,
+          "formatted_files": [],
+          "format_diffs": {},
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 76 source files\n",
+          "typecheck_passed": true,
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "display_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 76 source files\n\nruff check forge/ main.py\nAll checks passed!\n",
+          "side_effects": [
+            "has_display_output"
+          ]
+        },
+        {
+          "success": true,
+          "message": "Committed: 3 file(s) modified/created",
+          "commit": "735d245f56ab",
+          "side_effects": [
+            "mid_turn_commit"
           ]
         }
       ]

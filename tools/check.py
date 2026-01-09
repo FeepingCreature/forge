@@ -168,13 +168,9 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         # Declare side effects
         side_effects = [SideEffect.HAS_DISPLAY_OUTPUT]
         
-        # Build display output for UI (show check results)
-        display_parts = []
-        if results["typecheck_output"]:
-            display_parts.append(results["typecheck_output"])
-        if results["lint_output"]:
-            display_parts.append(results["lint_output"])
-        results["display_output"] = "\n".join(display_parts) if display_parts else results["summary"]
+        # Build display output for UI - always use summary for clean display
+        # The summary already has proper formatting with newlines
+        results["display_output"] = results["summary"]
         
         if formatted_files:
             results["modified_files"] = formatted_files

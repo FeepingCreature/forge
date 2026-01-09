@@ -144,6 +144,41 @@ class StreamWorker(QObject):
             self.error.emit(str(e))
 
 
+class InlineCommandWorker(QObject):
+    """Worker for executing inline commands in a background thread.
+
+    Executes commands like <edit>, <run_tests/>, <check/>, <commit/> sequentially.
+    If any command fails, remaining commands are aborted.
+
+    Claims VFS thread ownership while running, releases when done.
+    """
+
+    finished = Signal(list, object)  # Emitted when done (results, failed_index or None)
+    error = Signal(str)  # Emitted on error
+
+    def __init__(self, vfs: Any, commands: list) -> None:
+        super().__init__()
+        self.vfs = vfs
+        self.commands = commands
+
+    def run(self) -> None:
+        """Execute inline commands sequentially."""
+        from forge.tools.invocation import execute_inline_commands
+
+        self.vfs.claim_thread()
+        try:
+            results, failed_index = execute_inline_commands(self.vfs, self.commands)
+            self.finished.emit(results, failed_index)
+        except Exception as e:
+            import traceback
+
+            print(f"❌ InlineCommandWorker error: {e}")
+            traceback.print_exc()
+            self.error.emit(str(e))
+        finally:
+            self.vfs.release_thread()
+
+
 class ToolExecutionWorker(QObject):
     """Worker for executing tool calls in a background thread.
 
@@ -363,6 +398,10 @@ class AIChatWidget(QWidget):
         # Tool execution worker
         self.tool_thread: QThread | None = None
         self.tool_worker: ToolExecutionWorker | None = None
+
+        # Inline command execution worker
+        self.inline_thread: QThread | None = None
+        self.inline_worker: InlineCommandWorker | None = None
 
         # Queued message (user typed while AI was running)
         self._queued_message: str | None = None
@@ -1029,59 +1068,15 @@ class AIChatWidget(QWidget):
         # Process inline commands FIRST (edit, commit, run_tests, etc.)
         # If inline commands fail, we truncate and retry - tool calls should NOT be recorded
         if result.get("content"):
-            cmd_result = self._process_inline_commands(result["content"])
-            if cmd_result.get("had_commands"):
-                if cmd_result.get("failed"):
-                    # Command failed - truncate message, inject error, continue conversation
-                    # DO NOT record tool_calls - they come after the failed command
-                    # Also remove tool_calls from the assistant message so they don't get
-                    # saved to session.json (which would break reload - tool_calls without results)
-                    if self.messages and self.messages[-1]["role"] == "assistant":
-                        self.messages[-1].pop("tool_calls", None)
-                    return  # _process_inline_commands handles the continuation
-                else:
-                    # All commands succeeded - update the stored content
-                    result["content"] = cmd_result.get("clean_content", result["content"])
-                    if self.messages and self.messages[-1]["role"] == "assistant":
-                        self.messages[-1]["content"] = result["content"]
+            commands = parse_inline_commands(result["content"])
+            if commands:
+                # Store result for use after inline commands complete
+                self._pending_stream_result = result
+                self._start_inline_command_execution(commands)
+                return  # Will continue in _on_inline_commands_finished
 
-        # Now it's safe to record tool calls - inline commands all succeeded (or there were none)
-        if result.get("tool_calls"):
-            # Include content with tool calls so AI sees its own reasoning
-            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
-
-        # Execute tools if present - don't commit yet, AI will respond again
-        if result.get("tool_calls"):
-            self._execute_tool_calls(result["tool_calls"])
-            return
-
-        # This is a final text response with no tool calls
-        # Add to prompt manager
-        if result.get("content"):
-            self.session_manager.append_assistant_message(result["content"])
-
-        # Emit updated context stats (conversation tokens changed)
-        self._emit_context_stats()
-
-        # Generate summaries for any newly created files before committing
-        if hasattr(self, "_newly_created_files") and self._newly_created_files:
-            for filepath in self._newly_created_files:
-                self.session_manager.generate_summary_for_file(filepath)
-            # Emit updated summaries
-            self.summaries_ready.emit(self.session_manager.repo_summaries)
-            self._newly_created_files.clear()
-
-        # Commit now
-        commit_oid = self.session_manager.commit_ai_turn(self.messages)
-        self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
-
-        # Emit signal that AI turn is finished
-        self.ai_turn_finished.emit(commit_oid)
-
-        # Show system notification
-        self._notify_turn_complete(commit_oid)
-
-        self._reset_input()
+        # No inline commands - continue with tool calls
+        self._finish_stream_processing(result)
 
     def _process_inline_commands(self, content: str) -> dict[str, Any]:
         """Process inline commands (<edit>, <commit>, <run_tests>, etc.) from assistant message.
@@ -1258,6 +1253,193 @@ class AIChatWidget(QWidget):
 
         # Continue the conversation - AI will see the error and can respond
         self._process_llm_request()
+
+    def _start_inline_command_execution(self, commands: list) -> None:
+        """Start executing inline commands in background thread."""
+        self.inline_thread = QThread()
+        self.inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)
+        self.inline_worker.moveToThread(self.inline_thread)
+
+        self.inline_worker.finished.connect(self._on_inline_commands_finished)
+        self.inline_worker.error.connect(self._on_inline_commands_error)
+        self.inline_thread.started.connect(self.inline_worker.run)
+
+        # Store commands for result processing
+        self._pending_inline_commands = commands
+
+        self.inline_thread.start()
+
+    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:
+        """Handle inline command execution completion."""
+        # Clean up thread
+        if hasattr(self, "inline_thread") and self.inline_thread:
+            self.inline_thread.quit()
+            self.inline_thread.wait()
+        self.inline_thread = None
+        self.inline_worker = None
+
+        commands = getattr(self, "_pending_inline_commands", [])
+        result = getattr(self, "_pending_stream_result", {})
+        content = result.get("content", "")
+
+        if failed_index is not None:
+            # Command failed - truncate message AFTER the failed command
+            failed_cmd = commands[failed_index]
+            truncated_content = content[: failed_cmd.end_pos]
+
+            # Update the assistant message to truncated version
+            if self.messages and self.messages[-1]["role"] == "assistant":
+                self.messages[-1]["content"] = truncated_content
+                self.messages[-1].pop("tool_calls", None)
+
+            # Build error message for the AI
+            error_result = results[failed_index]
+            error_msg = error_result.get("error", "Unknown error")
+
+            # Add success messages for commands that worked
+            success_msgs = []
+            for i, res in enumerate(results[:-1]):
+                if res.get("success"):
+                    cmd = commands[i]
+                    success_msgs.append(f"✓ {cmd.tool_name}")
+
+            # Build the system message
+            system_parts = []
+            if success_msgs:
+                system_parts.append("Commands executed:\n" + "\n".join(success_msgs))
+            system_parts.append(f"\n❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}")
+
+            error_content = "\n".join(system_parts)
+
+            # Add truncated content to prompt manager
+            self.session_manager.append_assistant_message(truncated_content)
+
+            # Add error as user message so AI sees it
+            self._add_system_message(error_content)
+            self.session_manager.append_user_message(error_content)
+
+            # Update display
+            self._update_chat_display(scroll_to_bottom=True)
+
+            # Continue conversation so AI can react to the error
+            tools = self.session_manager.tool_manager.discover_tools()
+            self._continue_after_tools(tools)
+            return
+
+        # All commands succeeded - process results for side effects
+        for i, res in enumerate(results):
+            cmd = commands[i]
+
+            # Handle file modifications
+            if cmd.tool_name == "edit":
+                filepath = cmd.args.get("file")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
+            elif cmd.tool_name == "write_file":
+                filepath = cmd.args.get("filepath")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
+                    if filepath not in self.session_manager.repo_summaries:
+                        if not hasattr(self, "_newly_created_files"):
+                            self._newly_created_files = set()
+                        self._newly_created_files.add(filepath)
+            elif cmd.tool_name == "delete_file":
+                filepath = cmd.args.get("filepath")
+                if filepath:
+                    self.session_manager.file_was_modified(filepath, None)
+
+            # Handle FILES_MODIFIED side effect
+            side_effects = res.get("side_effects", [])
+            if SideEffect.FILES_MODIFIED in side_effects:
+                for filepath in res.get("modified_files", []):
+                    self.session_manager.file_was_modified(filepath, None)
+
+            # Handle mid-turn commits
+            if cmd.tool_name == "commit" and res.get("success"):
+                commit_oid = res.get("commit", "")
+                if commit_oid:
+                    self.mid_turn_commit.emit(commit_oid)
+                self.session_manager.mark_mid_turn_commit()
+
+        # Build success feedback
+        success_parts = []
+        for i, cmd in enumerate(commands):
+            res = results[i]
+            if cmd.tool_name == "run_tests":
+                summary = res.get("summary", "✓ Tests passed")
+                success_parts.append(f"✓ run_tests: {summary}")
+            elif cmd.tool_name == "check":
+                summary = res.get("summary", "All checks passed")
+                success_parts.append(f"✓ check: {summary}")
+            elif cmd.tool_name == "commit":
+                commit_oid = res.get("commit", "")[:8]
+                success_parts.append(f"✓ commit: {commit_oid}")
+            else:
+                success_parts.append(f"✓ {cmd.tool_name}")
+
+        success_content = "Commands executed:\n" + "\n".join(success_parts)
+
+        # Store inline results on the assistant message for rendering
+        if self.messages and self.messages[-1]["role"] == "assistant":
+            self.messages[-1]["_inline_results"] = results
+
+        # Update display to show results in widgets
+        self._update_chat_display(scroll_to_bottom=True)
+
+        # Add to prompt manager so AI sees it
+        self.session_manager.append_user_message(success_content)
+
+        # Continue with tool calls if any
+        self._finish_stream_processing(result)
+
+    def _on_inline_commands_error(self, error_msg: str) -> None:
+        """Handle inline command execution error."""
+        if hasattr(self, "inline_thread") and self.inline_thread:
+            self.inline_thread.quit()
+            self.inline_thread.wait()
+        self.inline_thread = None
+        self.inline_worker = None
+
+        self._add_system_message(f"❌ Inline command error: {error_msg}")
+        self.ai_turn_finished.emit("")
+        self._reset_input()
+
+    def _finish_stream_processing(self, result: dict[str, Any]) -> None:
+        """Finish processing a stream result after inline commands (if any) complete."""
+        # Record tool calls if present
+        if result.get("tool_calls"):
+            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
+
+        # Execute tools if present
+        if result.get("tool_calls"):
+            self._execute_tool_calls(result["tool_calls"])
+            return
+
+        # This is a final text response with no tool calls
+        if result.get("content"):
+            self.session_manager.append_assistant_message(result["content"])
+
+        # Emit updated context stats
+        self._emit_context_stats()
+
+        # Generate summaries for newly created files
+        if hasattr(self, "_newly_created_files") and self._newly_created_files:
+            for filepath in self._newly_created_files:
+                self.session_manager.generate_summary_for_file(filepath)
+            self.summaries_ready.emit(self.session_manager.repo_summaries)
+            self._newly_created_files.clear()
+
+        # Commit now
+        commit_oid = self.session_manager.commit_ai_turn(self.messages)
+        self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
+
+        # Emit signal that AI turn is finished
+        self.ai_turn_finished.emit(commit_oid)
+
+        # Show system notification
+        self._notify_turn_complete(commit_oid)
+
+        self._reset_input()
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread and continue conversation"""
@@ -1541,6 +1723,15 @@ class AIChatWidget(QWidget):
                 self.stream_thread.terminate()
             self.stream_thread = None
             self.stream_worker = None
+
+        # Clean up inline command thread if active
+        if hasattr(self, "inline_thread") and self.inline_thread and self.inline_thread.isRunning():
+            self.inline_thread.quit()
+            self.inline_thread.wait(3000)
+            if self.inline_thread.isRunning():
+                self.inline_thread.terminate()
+        self.inline_thread = None
+        self.inline_worker = None
 
         # Clean up tool thread if active
         # The tool thread claims VFS ownership, so we must wait for it to finish

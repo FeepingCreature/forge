@@ -956,7 +956,7 @@ def render_run_tests_html(
     widget_id: str | None = None,
 ) -> str:
     """Render run_tests tool call as HTML.
-    
+
     Args:
         args: Tool arguments (pattern, verbose)
         result: Execution result (None if streaming/pending)
@@ -1120,7 +1120,7 @@ def _render_inline_command_html(
     result: dict[str, object] | None = None,
 ) -> str:
     """Render an inline command as HTML based on tool type.
-    
+
     Args:
         tool_name: Name of the tool
         args: Tool arguments
@@ -1130,7 +1130,7 @@ def _render_inline_command_html(
     """
     # Generate widget ID for tools that support in-place updates
     widget_id = f"inline-tool-{command_index}" if command_index is not None else None
-    
+
     if tool_name == "edit":
         return render_diff_html(
             filepath=str(args.get("filepath", "")),
@@ -1144,13 +1144,19 @@ def _render_inline_command_html(
     elif tool_name == "delete_file":
         return render_delete_file_html(args, is_streaming=is_streaming)
     elif tool_name == "commit":
-        return render_commit_html(args, result=result if result else (None if is_streaming else {"success": True}))
+        return render_commit_html(
+            args, result=result if result else (None if is_streaming else {"success": True})
+        )
     elif tool_name == "run_tests":
         return render_run_tests_html(args, result=result, widget_id=widget_id)
     elif tool_name == "check":
-        return _render_check_html(args, is_streaming=is_streaming, result=result, widget_id=widget_id)
+        return _render_check_html(
+            args, is_streaming=is_streaming, result=result, widget_id=widget_id
+        )
     elif tool_name == "think":
-        return render_think_html(args, result=result if result else (None if is_streaming else {"success": True}))
+        return render_think_html(
+            args, result=result if result else (None if is_streaming else {"success": True})
+        )
     elif tool_name == "rename_file":
         return _render_rename_file_html(args, is_streaming=is_streaming)
     else:
@@ -1165,7 +1171,7 @@ def _render_check_html(
     widget_id: str | None = None,
 ) -> str:
     """Render check tool as HTML.
-    
+
     Args:
         args: Tool arguments
         is_streaming: Whether still streaming
@@ -1174,7 +1180,7 @@ def _render_check_html(
     """
     streaming_class = " streaming" if is_streaming else ""
     id_attr = f'id="{widget_id}"' if widget_id else ""
-    
+
     body_html = "Running format, typecheck, and lint..."
     if result:
         if result.get("success"):
@@ -1183,13 +1189,13 @@ def _render_check_html(
         else:
             error = result.get("error", result.get("summary", "Check failed"))
             body_html = f'<span class="error-msg">✗ {html.escape(str(error))}</span>'
-            
+
         # Show output if available
         output = result.get("display_output", "")
         if output:
             escaped_output = html.escape(str(output))
             body_html += f'<pre class="line-excerpt" style="max-height: 300px; overflow-y: auto;">{escaped_output}</pre>'
-    
+
     return f"""
     <div class="tool-card{streaming_class}" {id_attr}>
         <div class="tool-card-header">

@@ -1192,10 +1192,10 @@ class AIChatWidget(QWidget):
 
         # Build success feedback for the AI, including meaningful output from tools
         success_parts = []
-        
+
         for i, cmd in enumerate(commands):
             result = results[i]
-            
+
             # For tools with meaningful output, include it
             if cmd.tool_name == "run_tests":
                 summary = result.get("summary", "✓ Tests passed")

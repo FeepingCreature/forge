@@ -1,9 +1,10 @@
 {
   "active_files": [
-    "forge/ui/tool_rendering.py",
-    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md",
+    "forge/tools/builtin/run_tests.py",
+    "forge/ui/ai_chat_widget.py",
     "forge/tools/side_effects.py",
+    "forge/ui/tool_rendering.py",
     "forge/git_backend/commit_types.py"
   ],
   "request_log_entries": [
@@ -267,6 +268,15 @@
       "streaming": true,
       "actual_cost": 0.1650405,
       "generation_id": "gen-1767954636-rRdOK3lf1bhGiy3d8IXS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1767954931273.json",
+      "response_file": "/tmp/forge_debug/response_stream_1767954931273.json",
+      "timestamp": 1767954931.2749014,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.51267125,
+      "generation_id": "gen-1767954931-DiKNBwdzmxt3nx1Papsk"
     }
   ],
   "messages": [
@@ -740,6 +750,49 @@
     {
       "role": "assistant",
       "content": "Let me fix the search text with the actual content:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Build success feedback for the AI, including meaningful output from tools\n        success_parts = []\n        display_outputs = []  # Collect outputs to show in UI\n        \n        for i, cmd in enumerate(commands):\n            result = results[i]\n            side_effects = result.get(\"side_effects\", [])\n            \n            # Collect display output for UI\n            if SideEffect.HAS_DISPLAY_OUTPUT in side_effects:\n                output = result.get(\"display_output\", \"\")\n                if output:\n                    display_outputs.append((cmd.tool_name, output))\n            \n            # For tools with meaningful output, include it\n            if cmd.tool_name == \"run_tests\":\n</search>\n<replace>\n        # Build success feedback for the AI, including meaningful output from tools\n        success_parts = []\n        \n        for i, cmd in enumerate(commands):\n            result = results[i]\n            \n            # For tools with meaningful output, include it\n            if cmd.tool_name == \"run_tests\":\n</replace>\n</edit>\n\n<commit message=\"feat: show inline tool results in widgets instead of system messages\n\n- Add widget_id parameter to render_run_tests_html and _render_check_html\n- Update render_markdown to accept inline_results and pass to renderers\n- Store _inline_results on assistant message after inline command execution\n- Widgets now show test output/check results directly in the tool card\"/>\n\nDone! Now when `run_tests` or `check` execute as inline commands, their output will appear directly in the widget that was already rendered in the assistant's message, rather than as a separate system message."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 96 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright I've restarted. Try it by invoking check!"
+    },
+    {
+      "role": "assistant",
+      "content": "<check/>",
+      "_inline_results": [
+        {
+          "success": true,
+          "formatted_files": [
+            "forge/ui/tool_rendering.py",
+            "forge/ui/ai_chat_widget.py",
+            "forge/tools/builtin/run_tests.py"
+          ],
+          "format_diffs": {
+            "forge/ui/tool_rendering.py": "--- before+++ after@@ -956,7 +956,7 @@     widget_id: str | None = None,\n ) -> str:\n     \"\"\"Render run_tests tool call as HTML.\n-    \n+\n     Args:\n         args: Tool arguments (pattern, verbose)\n         result: Execution result (None if streaming/pending)\n@@ -1120,7 +1120,7 @@     result: dict[str, object] | None = None,\n ) -> str:\n     \"\"\"Render an inline command as HTML based on tool type.\n-    \n+\n     Args:\n         tool_name: Name of the tool\n         args: Tool arguments\n@@ -1130,7 +1130,7 @@     \"\"\"\n     # Generate widget ID for tools that support in-place updates\n     widget_id = f\"inline-tool-{command_index}\" if command_index is not None else None\n-    \n+\n     if tool_name == \"edit\":\n         return render_diff_html(\n             filepath=str(args.get(\"filepath\", \"\")),\n@@ -1144,13 +1144,19 @@     elif tool_name == \"delete_file\":\n         return render_delete_file_html(args, is_streaming=is_streaming)\n     elif tool_name == \"commit\":\n-        return render_commit_html(args, result=result if result else (None if is_streaming else {\"success\": True}))\n+        return render_commit_html(\n+            args, result=result if result else (None if is_streaming else {\"success\": True})\n+        )\n     elif tool_name == \"run_tests\":\n         return render_run_tests_html(args, result=result, widget_id=widget_id)\n     elif tool_name == \"check\":\n-        return _render_check_html(args, is_streaming=is_streaming, result=result, widget_id=widget_id)\n+        return _render_check_html(\n+            args, is_streaming=is_streaming, result=result, widget_id=widget_id\n+        )\n     elif tool_name == \"think\":\n-        return render_think_html(args, result=result if result else (None if is_streaming else {\"success\": True}))\n+        return render_think_html(\n+            args, result=result if result else (None if is_streaming else {\"success\": True})\n+        )\n     elif tool_name == \"rename_file\":\n         return _render_rename_file_html(args, is_streaming=is_streaming)\n     else:\n@@ -1165,7 +1171,7 @@     widget_id: str | None = None,\n ) -> str:\n     \"\"\"Render check tool as HTML.\n-    \n+\n     Args:\n         args: Tool arguments\n         is_streaming: Whether still streaming\n@@ -1174,7 +1180,7 @@     \"\"\"\n     streaming_class = \" streaming\" if is_streaming else \"\"\n     id_attr = f'id=\"{widget_id}\"' if widget_id else \"\"\n-    \n+\n     body_html = \"Running format, typecheck, and lint...\"\n     if result:\n         if result.get(\"success\"):\n@@ -1183,13 +1189,13 @@         else:\n             error = result.get(\"error\", result.get(\"summary\", \"Check failed\"))\n             body_html = f'<span class=\"error-msg\">\u2717 {html.escape(str(error))}</span>'\n-            \n+\n         # Show output if available\n         output = result.get(\"display_output\", \"\")\n         if output:\n             escaped_output = html.escape(str(output))\n             body_html += f'<pre class=\"line-excerpt\" style=\"max-height: 300px; overflow-y: auto;\">{escaped_output}</pre>'\n-    \n+\n     return f\"\"\"\n     <div class=\"tool-card{streaming_class}\" {id_attr}>\n         <div class=\"tool-card-header\">\n",
+            "forge/ui/ai_chat_widget.py": "--- before+++ after@@ -1192,10 +1192,10 @@ \n         # Build success feedback for the AI, including meaningful output from tools\n         success_parts = []\n-        \n+\n         for i, cmd in enumerate(commands):\n             result = results[i]\n-            \n+\n             # For tools with meaningful output, include it\n             if cmd.tool_name == \"run_tests\":\n                 summary = result.get(\"summary\", \"\u2713 Tests passed\")\n",
+            "forge/tools/builtin/run_tests.py": "--- before+++ after@@ -238,18 +238,18 @@                     # File is new\n                     vfs.write_file(rel_path, new_content)\n                     modified_files.append(rel_path)\n-        \n+\n         # Declare side effects\n         side_effects = []\n-        \n+\n         if modified_files:\n             results[\"modified_files\"] = modified_files\n             side_effects.append(SideEffect.FILES_MODIFIED)\n-        \n+\n         # Always provide display output for the UI (test results are useful to see)\n         results[\"display_output\"] = results.get(\"output\", results.get(\"summary\", \"\"))\n         side_effects.append(SideEffect.HAS_DISPLAY_OUTPUT)\n-        \n+\n         if side_effects:\n             results[\"side_effects\"] = side_effects\n \n"
+          },
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 76 source files\n",
+          "typecheck_passed": true,
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "summary": "Formatted 3 files: forge/ui/tool_rendering.py, forge/ui/ai_chat_widget.py, forge/tools/builtin/run_tests.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "display_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 76 source files\n\nruff check forge/ main.py\nAll checks passed!\n",
+          "modified_files": [
+            "forge/ui/tool_rendering.py",
+            "forge/ui/ai_chat_widget.py",
+            "forge/tools/builtin/run_tests.py"
+          ],
+          "side_effects": [
+            "has_display_output",
+            "files_modified"
+          ]
+        }
+      ]
     }
   ]
 }

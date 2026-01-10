@@ -38,7 +38,9 @@ class SessionManager:
         self._repo = repo
 
         # Prompt manager for cache-optimized prompt construction
-        self.prompt_manager = PromptManager()
+        # Pass tool schemas so inline tool documentation gets generated
+        tool_schemas = self.tool_manager.discover_tools()
+        self.prompt_manager = PromptManager(tool_schemas=tool_schemas)
 
         # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()

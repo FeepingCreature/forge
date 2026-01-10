@@ -46,12 +46,14 @@ class PromptManager:
     - to_messages: Convert to API format with cache_control on last block
     """
 
-    def __init__(self, system_prompt: str | None = None) -> None:
+    def __init__(
+        self, system_prompt: str | None = None, tool_schemas: list[dict] | None = None
+    ) -> None:
         self.blocks: list[ContentBlock] = []
 
         # Generate system prompt if not provided
         if system_prompt is None:
-            system_prompt = get_system_prompt()
+            system_prompt = get_system_prompt(tool_schemas)
         self.system_prompt = system_prompt
 
         # Rolling counter for user-friendly tool call IDs

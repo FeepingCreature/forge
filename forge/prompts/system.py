@@ -184,10 +184,63 @@ new content with &lt;tags&gt;
 """
 
 
-def get_system_prompt() -> str:
-    """Get the full system prompt with inline command format instructions."""
-    return SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
+def get_system_prompt(tool_schemas: list[dict] | None = None) -> str:
+    """Get the full system prompt with inline command format instructions.
+
+    Args:
+        tool_schemas: List of tool schemas from ToolManager.discover_tools().
+                     If provided, generates documentation for all inline tools.
+    """
+    prompt = SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
+
+    # If tool schemas provided, add documentation for other inline tools
+    if tool_schemas:
+        inline_docs = _generate_inline_tool_docs(tool_schemas)
+        if inline_docs:
+            prompt += inline_docs
+
+    return prompt
 
 
-# Keep SYSTEM_PROMPT for backwards compatibility
+def _generate_inline_tool_docs(tool_schemas: list[dict]) -> str:
+    """Generate documentation for inline tools (excluding edit which is documented above)."""
+    # Collect inline tools that aren't 'edit' (already documented in EDIT_FORMAT_XML)
+    inline_tools = []
+    for schema in tool_schemas:
+        if schema.get("invocation") == "inline" and schema.get("inline_syntax"):
+            func = schema.get("function", {})
+            name = func.get("name", "")
+            if name != "edit":  # edit is already documented
+                inline_tools.append(
+                    {
+                        "name": name,
+                        "syntax": schema["inline_syntax"],
+                        "description": func.get("description", ""),
+                    }
+                )
+
+    if not inline_tools:
+        return ""
+
+    # Build documentation section
+    lines = [
+        "",
+        "## Other Inline Commands",
+        "",
+        "In addition to `<edit>` blocks, you can use these inline commands:",
+        "",
+    ]
+
+    for tool in inline_tools:
+        lines.append(f"**{tool['name']}**: `{tool['syntax']}`")
+        if tool["description"]:
+            # Take first sentence of description
+            desc = tool["description"].split(".")[0] + "."
+            lines.append(f"  {desc}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# Keep SYSTEM_PROMPT for backwards compatibility (without dynamic tool docs)
 SYSTEM_PROMPT = get_system_prompt()

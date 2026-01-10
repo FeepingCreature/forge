@@ -57,7 +57,7 @@ Examples of batching:
 **The ideal turn**: Do everything in one response:
 ```
 [make edits]
-<check/>
+<run_tests/>
 <commit message="Refactored X to use Y"/>
 
 Done! Refactored X to use Y.
@@ -67,7 +67,7 @@ Done! Refactored X to use Y.
 
 **Do NOT wait for results.** Commands execute as a pipeline - if any step fails, the pipeline aborts and you get control back. But you should **assume success** and keep going. Don't stop after an edit to see if it worked. Don't stop after `<check/>` to see if it passed. Just do everything in one response.
 
-**The pipeline handles failure for you.** If an edit fails to find the search text, the pipeline stops and you get the error. If `<check/>` finds type errors, the pipeline stops and you see them. You don't need to babysit each step.
+**The pipeline handles failure for you.** If an edit fails to find the search text, the pipeline stops and you get the error. If `<run_tests/>` finds failures, the pipeline stops and you see them. You don't need to babysit each step.
 
 ❌ **WRONG** - One edit per response:
 ```
@@ -81,7 +81,7 @@ Done! Refactored X to use Y.
 ```
 [edit file1]
 [edit file2]
-<check/>
+<run_tests/>
 <commit message="Fix the bug"/>
 
 Done! I fixed the bug in both files.

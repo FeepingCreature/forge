@@ -1117,12 +1117,33 @@ class AIChatWidget(QWidget):
             error_result = results[failed_index]
             error_msg = error_result.get("error", "Unknown error")
 
-            # Add success messages for commands that worked
+            # Process side effects for SUCCESSFUL commands before the failure
+            # This ensures the AI sees modified files even when a later command fails
             success_msgs = []
             for i, result in enumerate(results[:-1]):  # Exclude the failed one
                 if result.get("success"):
                     cmd = commands[i]
                     success_msgs.append(f"✓ {cmd.tool_name}")
+
+                    # Handle side effects for this successful command
+                    side_effects = result.get("side_effects", [])
+
+                    if SideEffect.FILES_MODIFIED in side_effects:
+                        for filepath in result.get("modified_files", []):
+                            self.session_manager.file_was_modified(filepath, None)
+
+                    if SideEffect.NEW_FILES_CREATED in side_effects:
+                        if not hasattr(self, "_newly_created_files"):
+                            self._newly_created_files = set()
+                        for filepath in result.get("new_files", []):
+                            if filepath not in self.session_manager.repo_summaries:
+                                self._newly_created_files.add(filepath)
+
+                    if SideEffect.MID_TURN_COMMIT in side_effects:
+                        commit_oid = result.get("commit", "")
+                        if commit_oid:
+                            self.mid_turn_commit.emit(commit_oid)
+                        self.session_manager.mark_mid_turn_commit()
 
             # Build the system message
             system_parts = []
@@ -1286,12 +1307,33 @@ class AIChatWidget(QWidget):
             error_result = results[failed_index]
             error_msg = error_result.get("error", "Unknown error")
 
-            # Add success messages for commands that worked
+            # Process side effects for SUCCESSFUL commands before the failure
+            # This ensures the AI sees modified files even when a later command fails
             success_msgs = []
-            for i, res in enumerate(results[:-1]):
+            for i, res in enumerate(results[:-1]):  # Exclude the failed one
                 if res.get("success"):
                     cmd = commands[i]
                     success_msgs.append(f"✓ {cmd.tool_name}")
+
+                    # Handle side effects for this successful command
+                    side_effects = res.get("side_effects", [])
+
+                    if SideEffect.FILES_MODIFIED in side_effects:
+                        for filepath in res.get("modified_files", []):
+                            self.session_manager.file_was_modified(filepath, None)
+
+                    if SideEffect.NEW_FILES_CREATED in side_effects:
+                        if not hasattr(self, "_newly_created_files"):
+                            self._newly_created_files = set()
+                        for filepath in res.get("new_files", []):
+                            if filepath not in self.session_manager.repo_summaries:
+                                self._newly_created_files.add(filepath)
+
+                    if SideEffect.MID_TURN_COMMIT in side_effects:
+                        commit_oid = res.get("commit", "")
+                        if commit_oid:
+                            self.mid_turn_commit.emit(commit_oid)
+                        self.session_manager.mark_mid_turn_commit()
 
             # Build the system message
             system_parts = []

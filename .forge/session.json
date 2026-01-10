@@ -1,8 +1,8 @@
 {
   "active_files": [
-    "forge/ui/ai_chat_widget.py",
+    "forge/git_backend/commit_types.py",
     "CLAUDE.md",
-    "forge/git_backend/commit_types.py"
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -85,6 +85,33 @@
       "streaming": true,
       "actual_cost": 0.28404,
       "generation_id": "gen-1768069406-0D8e5oOLpbfN6zW0tU4r"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768069463806.json",
+      "response_file": "/tmp/forge_debug/response_1768069463806.json",
+      "timestamp": 1768069463.8071792,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003201,
+      "generation_id": "gen-1768069464-gh1wTRNLgTdT2r1qlC37"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768069482443.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768069482443.json",
+      "timestamp": 1768069482.44398,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.44388125,
+      "generation_id": "gen-1768069482-HP057fgGrEic6f25g9bR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768069535299.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768069535299.json",
+      "timestamp": 1768069535.300401,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.39537625,
+      "generation_id": "gen-1768069535-z2pBmhlFrcL2x9g3Sdmc"
     }
   ],
   "messages": [
@@ -335,6 +362,62 @@
           "success": true,
           "summary": "\u2713 Tests passed (pytest)",
           "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 96 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Nice! Can we pull the side effect handling out into a shared function?"
+    },
+    {
+      "role": "assistant",
+      "content": "Absolutely! Let me extract the side effect handling into a shared function. This will make the code DRY and ensure consistent handling across all three paths.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\nfrom forge.constants import SESSION_FILE\nfrom forge.llm.client import LLMClient\nfrom forge.session.manager import SessionManager\nfrom forge.tools.invocation import execute_inline_commands, parse_inline_commands\nfrom forge.tools.side_effects import SideEffect\n</search>\n<replace>\nfrom forge.constants import SESSION_FILE\nfrom forge.llm.client import LLMClient\nfrom forge.session.manager import SessionManager\nfrom forge.tools.invocation import InlineCommand, execute_inline_commands, parse_inline_commands\nfrom forge.tools.side_effects import SideEffect\n</replace>\n</edit>\n\nNow let me add the helper method to the `AIChatWidget` class. I'll add it near the other helper methods:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _emit_context_stats(self) -> None:\n        \"\"\"Emit context stats for status bar updates\"\"\"\n        stats = self.session_manager.get_active_files_with_stats()\n        self.context_stats_updated.emit(stats)\n</search>\n<replace>\n    def _emit_context_stats(self) -> None:\n        \"\"\"Emit context stats for status bar updates\"\"\"\n        stats = self.session_manager.get_active_files_with_stats()\n        self.context_stats_updated.emit(stats)\n\n    def _process_tool_side_effects(\n        self, result: dict[str, Any], cmd: InlineCommand | None = None\n    ) -> None:\n        \"\"\"Process side effects from a tool execution result.\n\n        This handles FILES_MODIFIED, NEW_FILES_CREATED, and MID_TURN_COMMIT\n        side effects consistently across inline and API tool execution paths.\n\n        Args:\n            result: The tool execution result dict\n            cmd: Optional InlineCommand (for commit tool detection)\n        \"\"\"\n        side_effects = result.get(\"side_effects\", [])\n\n        # Handle FILES_MODIFIED - notify session manager so AI sees updated content\n        if SideEffect.FILES_MODIFIED in side_effects:\n            for filepath in result.get(\"modified_files\", []):\n                self.session_manager.file_was_modified(filepath, None)\n\n        # Handle NEW_FILES_CREATED - track for summary generation\n        if SideEffect.NEW_FILES_CREATED in side_effects:\n            if not hasattr(self, \"_newly_created_files\"):\n                self._newly_created_files = set()\n            for filepath in result.get(\"new_files\", []):\n                if filepath not in self.session_manager.repo_summaries:\n                    self._newly_created_files.add(filepath)\n\n        # Handle MID_TURN_COMMIT - emit signal and mark in session\n        if SideEffect.MID_TURN_COMMIT in side_effects:\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n            self.session_manager.mark_mid_turn_commit()\n        # Also check for inline commit tool (which may not declare the side effect)\n        elif cmd and cmd.tool_name == \"commit\" and result.get(\"success\"):\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n            self.session_manager.mark_mid_turn_commit()\n</replace>\n</edit>\n\nNow let me update `_process_inline_commands` to use the helper:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            # Process side effects for SUCCESSFUL commands before the failure\n            # This ensures the AI sees modified files even when a later command fails\n            success_msgs = []\n            for i, result in enumerate(results[:-1]):  # Exclude the failed one\n                if result.get(\"success\"):\n                    cmd = commands[i]\n                    success_msgs.append(f\"\u2713 {cmd.tool_name}\")\n\n                    # Handle side effects for this successful command\n                    side_effects = result.get(\"side_effects\", [])\n\n                    if SideEffect.FILES_MODIFIED in side_effects:\n                        for filepath in result.get(\"modified_files\", []):\n                            self.session_manager.file_was_modified(filepath, None)\n\n                    if SideEffect.NEW_FILES_CREATED in side_effects:\n                        if not hasattr(self, \"_newly_created_files\"):\n                            self._newly_created_files = set()\n                        for filepath in result.get(\"new_files\", []):\n                            if filepath not in self.session_manager.repo_summaries:\n                                self._newly_created_files.add(filepath)\n\n                    if SideEffect.MID_TURN_COMMIT in side_effects:\n                        commit_oid = result.get(\"commit\", \"\")\n                        if commit_oid:\n                            self.mid_turn_commit.emit(commit_oid)\n                        self.session_manager.mark_mid_turn_commit()\n\n            # Build the system message\n</search>\n<replace>\n            # Process side effects for SUCCESSFUL commands before the failure\n            # This ensures the AI sees modified files even when a later command fails\n            success_msgs = []\n            for i, result in enumerate(results[:-1]):  # Exclude the failed one\n                if result.get(\"success\"):\n                    cmd = commands[i]\n                    success_msgs.append(f\"\u2713 {cmd.tool_name}\")\n                    self._process_tool_side_effects(result, cmd)\n\n            # Build the system message\n</replace>\n</edit>\n\nNow update the success path in `_process_inline_commands`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # All commands succeeded - process results for side effects\n        for i, result in enumerate(results):\n            cmd = commands[i]\n\n            # Handle side effects declared by tools\n            side_effects = result.get(\"side_effects\", [])\n\n            # Handle FILES_MODIFIED side effect\n            if SideEffect.FILES_MODIFIED in side_effects:\n                for filepath in result.get(\"modified_files\", []):\n                    self.session_manager.file_was_modified(filepath, None)\n\n            # Handle NEW_FILES_CREATED side effect (for summary generation)\n            if SideEffect.NEW_FILES_CREATED in side_effects:\n                if not hasattr(self, \"_newly_created_files\"):\n                    self._newly_created_files = set()\n                for filepath in result.get(\"new_files\", []):\n                    if filepath not in self.session_manager.repo_summaries:\n                        self._newly_created_files.add(filepath)\n\n            # Handle mid-turn commits\n            if cmd.tool_name == \"commit\" and result.get(\"success\"):\n                commit_oid = result.get(\"commit\", \"\")\n                if commit_oid:\n                    self.mid_turn_commit.emit(commit_oid)\n                self.session_manager.mark_mid_turn_commit()\n\n        # Build success feedback for the AI, including meaningful output from tools\n</search>\n<replace>\n        # All commands succeeded - process results for side effects\n        for i, result in enumerate(results):\n            cmd = commands[i]\n            self._process_tool_side_effects(result, cmd)\n\n        # Build success feedback for the AI, including meaningful output from tools\n</replace>\n</edit>\n\nNow update `_on_inline_commands_finished` failure path:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            # Process side effects for SUCCESSFUL commands before the failure\n            # This ensures the AI sees modified files even when a later command fails\n            success_msgs = []\n            for i, res in enumerate(results[:-1]):  # Exclude the failed one\n                if res.get(\"success\"):\n                    cmd = commands[i]\n                    success_msgs.append(f\"\u2713 {cmd.tool_name}\")\n\n                    # Handle side effects for this successful command\n                    side_effects = res.get(\"side_effects\", [])\n\n                    if SideEffect.FILES_MODIFIED in side_effects:\n                        for filepath in res.get(\"modified_files\", []):\n                            self.session_manager.file_was_modified(filepath, None)\n\n                    if SideEffect.NEW_FILES_CREATED in side_effects:\n                        if not hasattr(self, \"_newly_created_files\"):\n                            self._newly_created_files = set()\n                        for filepath in res.get(\"new_files\", []):\n                            if filepath not in self.session_manager.repo_summaries:\n                                self._newly_created_files.add(filepath)\n\n                    if SideEffect.MID_TURN_COMMIT in side_effects:\n                        commit_oid = res.get(\"commit\", \"\")\n                        if commit_oid:\n                            self.mid_turn_commit.emit(commit_oid)\n                        self.session_manager.mark_mid_turn_commit()\n\n            # Build the system message\n            system_parts = []\n            if success_msgs:\n                system_parts.append(\"Commands executed:\\n\" + \"\\n\".join(success_msgs))\n            system_parts.append(f\"\\n\u274c `{failed_cmd.tool_name}` failed:\\n\\n{error_msg}\")\n\n            error_content = \"\\n\".join(system_parts)\n\n            # Add truncated content to prompt manager\n            self.session_manager.append_assistant_message(truncated_content)\n\n            # Add error as user message so AI sees it\n            self._add_system_message(error_content)\n            self.session_manager.append_user_message(error_content)\n\n            # Update display\n            self._update_chat_display(scroll_to_bottom=True)\n\n            # Continue conversation so AI can react to the error\n            tools = self.session_manager.tool_manager.discover_tools()\n            self._continue_after_tools(tools)\n            return\n\n        # All commands succeeded - process results for side effects\n        for res in results:\n            side_effects = res.get(\"side_effects\", [])\n\n            # Handle FILES_MODIFIED side effect\n            if SideEffect.FILES_MODIFIED in side_effects:\n                for filepath in res.get(\"modified_files\", []):\n                    self.session_manager.file_was_modified(filepath, None)\n\n            # Handle NEW_FILES_CREATED side effect (for summary generation)\n            if SideEffect.NEW_FILES_CREATED in side_effects:\n                if not hasattr(self, \"_newly_created_files\"):\n                    self._newly_created_files = set()\n                for filepath in res.get(\"new_files\", []):\n                    if filepath not in self.session_manager.repo_summaries:\n                        self._newly_created_files.add(filepath)\n\n            # Handle MID_TURN_COMMIT side effect\n            if SideEffect.MID_TURN_COMMIT in side_effects:\n                commit_oid = res.get(\"commit\", \"\")\n                if commit_oid:\n                    self.mid_turn_commit.emit(commit_oid)\n                self.session_manager.mark_mid_turn_commit()\n</search>\n<replace>\n            # Process side effects for SUCCESSFUL commands before the failure\n            # This ensures the AI sees modified files even when a later command fails\n            success_msgs = []\n            for i, res in enumerate(results[:-1]):  # Exclude the failed one\n                if res.get(\"success\"):\n                    cmd = commands[i]\n                    success_msgs.append(f\"\u2713 {cmd.tool_name}\")\n                    self._process_tool_side_effects(res, cmd)\n\n            # Build the system message\n            system_parts = []\n            if success_msgs:\n                system_parts.append(\"Commands executed:\\n\" + \"\\n\".join(success_msgs))\n            system_parts.append(f\"\\n\u274c `{failed_cmd.tool_name}` failed:\\n\\n{error_msg}\")\n\n            error_content = \"\\n\".join(system_parts)\n\n            # Add truncated content to prompt manager\n            self.session_manager.append_assistant_message(truncated_content)\n\n            # Add error as user message so AI sees it\n            self._add_system_message(error_content)\n            self.session_manager.append_user_message(error_content)\n\n            # Update display\n            self._update_chat_display(scroll_to_bottom=True)\n\n            # Continue conversation so AI can react to the error\n            tools = self.session_manager.tool_manager.discover_tools()\n            self._continue_after_tools(tools)\n            return\n\n        # All commands succeeded - process results for side effects\n        for i, res in enumerate(results):\n            cmd = commands[i]\n            self._process_tool_side_effects(res, cmd)\n</replace>\n</edit>\n\n<check/>"
+    },
+    {
+      "role": "system",
+      "content": "Commands executed:\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\u2713 edit\n\n\u274c `check` failed:\n\nruff check forge/ main.py\nSIM114 [*] Combine `if` branches using logical `or` operator\n   --> forge/ui/ai_chat_widget.py:808:9\n    |\n807 |           # Handle MID_TURN_COMMIT - emit signal and mark in session\n808 | /         if SideEffect.MID_TURN_COMMIT in side_effects:\n809 | |             commit_oid = result.get(\"commit\", \"\")\n810 | |             if commit_oid:\n811 | |                 self.mid_turn_commit.emit(commit_oid)\n812 | |             self.session_manager.mark_mid_turn_commit()\n813 | |         # Also check for inline commit tool (which may not declare the side effect)\n814 | |         elif cmd and cmd.tool_name == \"commit\" and result.get(\"success\"):\n815 | |             commit_oid = result.get(\"commit\", \"\")\n816 | |             if commit_oid:\n817 | |                 self.mid_turn_commit.emit(commit_oid)\n818 | |             self.session_manager.mark_mid_turn_commit()\n    | |_______________________________________________________^\n819 |\n820 |       def get_context_stats(self) -> dict[str, Any]:\n    |\nhelp: Combine `if` branches\n\nFound 1 error.\n[*] 1 fixable with the `--fix` option.\nmake: *** [Makefile:13: lint-check] Error 1\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch! Let me fix the lint error by combining the `if` branches:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Handle MID_TURN_COMMIT - emit signal and mark in session\n        if SideEffect.MID_TURN_COMMIT in side_effects:\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n            self.session_manager.mark_mid_turn_commit()\n        # Also check for inline commit tool (which may not declare the side effect)\n        elif cmd and cmd.tool_name == \"commit\" and result.get(\"success\"):\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n            self.session_manager.mark_mid_turn_commit()\n</search>\n<replace>\n        # Handle MID_TURN_COMMIT - emit signal and mark in session\n        # Check both the side effect declaration and inline commit tool success\n        is_mid_turn_commit = (\n            SideEffect.MID_TURN_COMMIT in side_effects\n            or (cmd and cmd.tool_name == \"commit\" and result.get(\"success\"))\n        )\n        if is_mid_turn_commit:\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n            self.session_manager.mark_mid_turn_commit()\n</replace>\n</edit>\n\n<check/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "Formatted 1 files: forge/ui/ai_chat_widget.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {
+            "forge/ui/ai_chat_widget.py": "--- before+++ after@@ -806,9 +806,8 @@ \n         # Handle MID_TURN_COMMIT - emit signal and mark in session\n         # Check both the side effect declaration and inline commit tool success\n-        is_mid_turn_commit = (\n-            SideEffect.MID_TURN_COMMIT in side_effects\n-            or (cmd and cmd.tool_name == \"commit\" and result.get(\"success\"))\n+        is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (\n+            cmd and cmd.tool_name == \"commit\" and result.get(\"success\")\n         )\n         if is_mid_turn_commit:\n             commit_oid = result.get(\"commit\", \"\")\n"
+          },
+          "formatted_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "has_display_output",
+            "files_modified"
+          ],
+          "success": true,
+          "summary": "Formatted 1 files: forge/ui/ai_chat_widget.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 75 source files\n",
+          "typecheck_passed": true
         }
       ]
     }

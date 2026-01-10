@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
-from forge.tools.invocation import execute_inline_commands, parse_inline_commands
+from forge.tools.invocation import InlineCommand, execute_inline_commands, parse_inline_commands
 from forge.tools.side_effects import SideEffect
 from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import (
@@ -777,6 +777,44 @@ class AIChatWidget(QWidget):
         stats = self.session_manager.get_active_files_with_stats()
         self.context_stats_updated.emit(stats)
 
+    def _process_tool_side_effects(
+        self, result: dict[str, Any], cmd: InlineCommand | None = None
+    ) -> None:
+        """Process side effects from a tool execution result.
+
+        This handles FILES_MODIFIED, NEW_FILES_CREATED, and MID_TURN_COMMIT
+        side effects consistently across inline and API tool execution paths.
+
+        Args:
+            result: The tool execution result dict
+            cmd: Optional InlineCommand (for commit tool detection)
+        """
+        side_effects = result.get("side_effects", [])
+
+        # Handle FILES_MODIFIED - notify session manager so AI sees updated content
+        if SideEffect.FILES_MODIFIED in side_effects:
+            for filepath in result.get("modified_files", []):
+                self.session_manager.file_was_modified(filepath, None)
+
+        # Handle NEW_FILES_CREATED - track for summary generation
+        if SideEffect.NEW_FILES_CREATED in side_effects:
+            if not hasattr(self, "_newly_created_files"):
+                self._newly_created_files = set()
+            for filepath in result.get("new_files", []):
+                if filepath not in self.session_manager.repo_summaries:
+                    self._newly_created_files.add(filepath)
+
+        # Handle MID_TURN_COMMIT - emit signal and mark in session
+        # Check both the side effect declaration and inline commit tool success
+        is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (
+            cmd and cmd.tool_name == "commit" and result.get("success")
+        )
+        if is_mid_turn_commit:
+            commit_oid = result.get("commit", "")
+            if commit_oid:
+                self.mid_turn_commit.emit(commit_oid)
+            self.session_manager.mark_mid_turn_commit()
+
     def get_context_stats(self) -> dict[str, Any]:
         """Get current context statistics"""
         return self.session_manager.get_active_files_with_stats()
@@ -1124,26 +1162,7 @@ class AIChatWidget(QWidget):
                 if result.get("success"):
                     cmd = commands[i]
                     success_msgs.append(f"✓ {cmd.tool_name}")
-
-                    # Handle side effects for this successful command
-                    side_effects = result.get("side_effects", [])
-
-                    if SideEffect.FILES_MODIFIED in side_effects:
-                        for filepath in result.get("modified_files", []):
-                            self.session_manager.file_was_modified(filepath, None)
-
-                    if SideEffect.NEW_FILES_CREATED in side_effects:
-                        if not hasattr(self, "_newly_created_files"):
-                            self._newly_created_files = set()
-                        for filepath in result.get("new_files", []):
-                            if filepath not in self.session_manager.repo_summaries:
-                                self._newly_created_files.add(filepath)
-
-                    if SideEffect.MID_TURN_COMMIT in side_effects:
-                        commit_oid = result.get("commit", "")
-                        if commit_oid:
-                            self.mid_turn_commit.emit(commit_oid)
-                        self.session_manager.mark_mid_turn_commit()
+                    self._process_tool_side_effects(result, cmd)
 
             # Build the system message
             system_parts = []
@@ -1172,29 +1191,7 @@ class AIChatWidget(QWidget):
         # All commands succeeded - process results for side effects
         for i, result in enumerate(results):
             cmd = commands[i]
-
-            # Handle side effects declared by tools
-            side_effects = result.get("side_effects", [])
-
-            # Handle FILES_MODIFIED side effect
-            if SideEffect.FILES_MODIFIED in side_effects:
-                for filepath in result.get("modified_files", []):
-                    self.session_manager.file_was_modified(filepath, None)
-
-            # Handle NEW_FILES_CREATED side effect (for summary generation)
-            if SideEffect.NEW_FILES_CREATED in side_effects:
-                if not hasattr(self, "_newly_created_files"):
-                    self._newly_created_files = set()
-                for filepath in result.get("new_files", []):
-                    if filepath not in self.session_manager.repo_summaries:
-                        self._newly_created_files.add(filepath)
-
-            # Handle mid-turn commits
-            if cmd.tool_name == "commit" and result.get("success"):
-                commit_oid = result.get("commit", "")
-                if commit_oid:
-                    self.mid_turn_commit.emit(commit_oid)
-                self.session_manager.mark_mid_turn_commit()
+            self._process_tool_side_effects(result, cmd)
 
         # Build success feedback for the AI, including meaningful output from tools
         success_parts = []
@@ -1314,26 +1311,7 @@ class AIChatWidget(QWidget):
                 if res.get("success"):
                     cmd = commands[i]
                     success_msgs.append(f"✓ {cmd.tool_name}")
-
-                    # Handle side effects for this successful command
-                    side_effects = res.get("side_effects", [])
-
-                    if SideEffect.FILES_MODIFIED in side_effects:
-                        for filepath in res.get("modified_files", []):
-                            self.session_manager.file_was_modified(filepath, None)
-
-                    if SideEffect.NEW_FILES_CREATED in side_effects:
-                        if not hasattr(self, "_newly_created_files"):
-                            self._newly_created_files = set()
-                        for filepath in res.get("new_files", []):
-                            if filepath not in self.session_manager.repo_summaries:
-                                self._newly_created_files.add(filepath)
-
-                    if SideEffect.MID_TURN_COMMIT in side_effects:
-                        commit_oid = res.get("commit", "")
-                        if commit_oid:
-                            self.mid_turn_commit.emit(commit_oid)
-                        self.session_manager.mark_mid_turn_commit()
+                    self._process_tool_side_effects(res, cmd)
 
             # Build the system message
             system_parts = []
@@ -1359,28 +1337,9 @@ class AIChatWidget(QWidget):
             return
 
         # All commands succeeded - process results for side effects
-        for res in results:
-            side_effects = res.get("side_effects", [])
-
-            # Handle FILES_MODIFIED side effect
-            if SideEffect.FILES_MODIFIED in side_effects:
-                for filepath in res.get("modified_files", []):
-                    self.session_manager.file_was_modified(filepath, None)
-
-            # Handle NEW_FILES_CREATED side effect (for summary generation)
-            if SideEffect.NEW_FILES_CREATED in side_effects:
-                if not hasattr(self, "_newly_created_files"):
-                    self._newly_created_files = set()
-                for filepath in res.get("new_files", []):
-                    if filepath not in self.session_manager.repo_summaries:
-                        self._newly_created_files.add(filepath)
-
-            # Handle MID_TURN_COMMIT side effect
-            if SideEffect.MID_TURN_COMMIT in side_effects:
-                commit_oid = res.get("commit", "")
-                if commit_oid:
-                    self.mid_turn_commit.emit(commit_oid)
-                self.session_manager.mark_mid_turn_commit()
+        for i, res in enumerate(results):
+            cmd = commands[i]
+            self._process_tool_side_effects(res, cmd)
 
         # Build success feedback
         success_parts = []

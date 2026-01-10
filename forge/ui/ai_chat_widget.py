@@ -1152,31 +1152,21 @@ class AIChatWidget(QWidget):
         for i, result in enumerate(results):
             cmd = commands[i]
 
-            # Handle file modifications
-            if cmd.tool_name == "edit":
-                filepath = cmd.args.get("file")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
-            elif cmd.tool_name == "write_file":
-                filepath = cmd.args.get("filepath")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
-                    # Track newly created files for summary generation
-                    if filepath not in self.session_manager.repo_summaries:
-                        if not hasattr(self, "_newly_created_files"):
-                            self._newly_created_files = set()
-                        self._newly_created_files.add(filepath)
-            elif cmd.tool_name == "delete_file":
-                filepath = cmd.args.get("filepath")
-                if filepath:
-                    self.session_manager.file_was_modified(filepath, None)
-
-            # Handle FILES_MODIFIED side effect (run_tests, check, etc.)
-            # These tools do VFS writeback and report which files actually changed
+            # Handle side effects declared by tools
             side_effects = result.get("side_effects", [])
+
+            # Handle FILES_MODIFIED side effect
             if SideEffect.FILES_MODIFIED in side_effects:
                 for filepath in result.get("modified_files", []):
                     self.session_manager.file_was_modified(filepath, None)
+
+            # Handle NEW_FILES_CREATED side effect (for summary generation)
+            if SideEffect.NEW_FILES_CREATED in side_effects:
+                if not hasattr(self, "_newly_created_files"):
+                    self._newly_created_files = set()
+                for filepath in result.get("new_files", []):
+                    if filepath not in self.session_manager.repo_summaries:
+                        self._newly_created_files.add(filepath)
 
             # Handle mid-turn commits
             if cmd.tool_name == "commit" and result.get("success"):
@@ -1531,7 +1521,6 @@ class AIChatWidget(QWidget):
         # they're rendered inline in the assistant message via _render_tool_calls_html
         builtin_tools_with_native_rendering = {
             "search_replace",
-            "write_file",
             "delete_file",
             "update_context",
             "grep_open",

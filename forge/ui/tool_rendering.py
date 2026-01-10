@@ -3,7 +3,6 @@ Tool visualization utilities for the AI chat widget.
 
 Provides HTML/CSS rendering for built-in tools:
 - search_replace: Live diff view as LLM streams search/replace params
-- write_file: File creation/overwrite indicator
 - delete_file: File deletion indicator
 - update_context: Context modification summary
 - grep_open: Search results with match counts
@@ -519,36 +518,6 @@ def render_completed_diff_html(filepath: str, search: str, replace: str) -> str:
 # =============================================================================
 
 
-def render_write_file_html(args: dict[str, object], is_streaming: bool = False) -> str:
-    """Render write_file tool call as HTML."""
-    filepath = args.get("filepath", "")
-    content = args.get("content", "")
-
-    escaped_filepath = html.escape(str(filepath)) if filepath else "..."
-    streaming_class = " streaming" if is_streaming else ""
-
-    # Show line count and size
-    if content and isinstance(content, str):
-        line_count = content.count("\n") + 1
-        byte_count = len(content)
-        stats = f"{line_count} lines, {byte_count} bytes"
-    else:
-        stats = "..."
-
-    return f"""
-    <div class="tool-card{streaming_class}">
-        <div class="tool-card-header">
-            <span class="tool-icon">📝</span>
-            <span class="tool-name">write_file</span>
-        </div>
-        <div class="tool-card-body">
-            <code class="filepath">{escaped_filepath}</code>
-            <div class="stats">{stats}</div>
-        </div>
-    </div>
-    """
-
-
 def render_delete_file_html(args: dict[str, object], is_streaming: bool = False) -> str:
     """Render delete_file tool call as HTML."""
     filepath = args.get("filepath", "")
@@ -744,8 +713,6 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
             is_streaming=True,
             streaming_phase=streaming_phase,
         )
-    elif name == "write_file":
-        return render_write_file_html(parsed, is_streaming=True)
     elif name == "delete_file":
         return render_delete_file_html(parsed, is_streaming=True)
     elif name == "update_context":
@@ -789,8 +756,6 @@ def render_completed_tool_html(
         search = args.get("search", "")
         replace = args.get("replace", "")
         return render_completed_diff_html(str(filepath), str(search), str(replace))
-    elif name == "write_file":
-        return render_write_file_html(args, is_streaming=False)
     elif name == "delete_file":
         return render_delete_file_html(args, is_streaming=False)
     elif name == "update_context":
@@ -1139,8 +1104,6 @@ def _render_inline_command_html(
             is_streaming=is_streaming,
             streaming_phase="replace",
         )
-    elif tool_name == "write_file":
-        return render_write_file_html(args, is_streaming=is_streaming)
     elif tool_name == "delete_file":
         return render_delete_file_html(args, is_streaming=is_streaming)
     elif tool_name == "commit":

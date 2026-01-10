@@ -5,7 +5,8 @@ Tools declare their preferred invocation mode. Inline tools use XML syntax
 embedded in assistant messages. API tools use function calling.
 
 Inline tools (no context change on success):
-- edit, write_file, delete_file, rename_file
+- edit (with search/replace for edits, or just content for whole-file write)
+- delete_file, rename_file
 - commit, check, run_tests
 - think
 
@@ -180,22 +181,34 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
         # Find the earliest matching command from current position
         earliest_match: re.Match[str] | None = None
         earliest_tool: str | None = None
-        earliest_module: Any = None
+        earliest_parser: Any = None  # The parse function to use
 
         for tool_name, module in inline_tools.items():
+            # Check primary pattern
             pattern = module.get_inline_pattern()
             match = pattern.search(content, pos)
             if match and (earliest_match is None or match.start() < earliest_match.start()):
                 earliest_match = match
                 earliest_tool = tool_name
-                earliest_module = module
+                earliest_parser = module.parse_inline_match
 
-        if earliest_match is None or earliest_tool is None or earliest_module is None:
+            # Check for secondary write pattern (edit tool supports both syntaxes)
+            if hasattr(module, "get_write_pattern"):
+                write_pattern = module.get_write_pattern()
+                write_match = write_pattern.search(content, pos)
+                if write_match and (
+                    earliest_match is None or write_match.start() < earliest_match.start()
+                ):
+                    earliest_match = write_match
+                    earliest_tool = tool_name
+                    earliest_parser = module.parse_write_match
+
+        if earliest_match is None or earliest_tool is None or earliest_parser is None:
             # No more commands found
             break
 
         # Parse this command
-        args = earliest_module.parse_inline_match(earliest_match)
+        args = earliest_parser(earliest_match)
         cmd = InlineCommand(
             tool_name=earliest_tool,
             args=args,

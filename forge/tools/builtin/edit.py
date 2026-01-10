@@ -98,7 +98,7 @@ class EditBlock:
     escape_html: bool = False
 
 
-# Regex to match <edit file="...">...</edit> blocks
+# Regex to match <edit file="...">...</edit> blocks with search/replace
 # Using DOTALL so . matches newlines
 # Key: use negative lookahead to prevent matching across </edit> boundaries
 # The (?:(?!</edit>).)*? pattern matches any char that's not the start of </edit>
@@ -111,10 +111,24 @@ EDIT_PATTERN = re.compile(
     re.DOTALL,
 )
 
+# Regex to match <edit file="...">content</edit> blocks (whole-file write)
+# This is for creating new files or completely replacing file content
+WRITE_PATTERN = re.compile(
+    r'<edit\s+file="([^"]+)"(?:\s+escape="(html)")?\s*>\n?'
+    r"((?:(?!<search>|</edit>).)*?)"  # Content that doesn't start with <search>
+    r"\n?</edit>",
+    re.DOTALL,
+)
+
 
 def get_inline_pattern() -> re.Pattern[str]:
     """Return compiled regex for inline invocation."""
     return EDIT_PATTERN
+
+
+def get_write_pattern() -> re.Pattern[str]:
+    """Return compiled regex for whole-file write invocation."""
+    return WRITE_PATTERN
 
 
 def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
@@ -124,6 +138,15 @@ def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
         "escape_html": match.group(2) == "html",
         "search": match.group(3),
         "replace": match.group(4),
+    }
+
+
+def parse_write_match(match: re.Match[str]) -> dict[str, Any]:
+    """Parse regex match for whole-file write into tool arguments."""
+    return {
+        "filepath": match.group(1),
+        "escape_html": match.group(2) == "html",
+        "content": match.group(3),
     }
 
 
@@ -182,11 +205,21 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     Execute an edit from parsed arguments.
 
     This is the standard tool execute interface.
+    Supports both search/replace edits and whole-file writes.
     """
     filepath = args.get("filepath", "")
+    escape_html = args.get("escape_html", False)
+
+    # Check if this is a whole-file write (has 'content' key, no 'search' key)
+    if "content" in args and "search" not in args:
+        content = args.get("content", "")
+        if escape_html:
+            content = html.unescape(content)
+        return _do_write(vfs, filepath, content)
+
+    # Standard search/replace edit
     search = args.get("search", "")
     replace = args.get("replace", "")
-    escape_html = args.get("escape_html", False)
 
     # Unescape HTML entities if escape="html" was specified
     if escape_html:
@@ -293,6 +326,33 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
         "modified_files": [filepath],
         "side_effects": [SideEffect.FILES_MODIFIED],
     }
+
+
+def _do_write(vfs: "VFS", filepath: str, content: str) -> dict[str, Any]:
+    """
+    Write complete file content (create or overwrite).
+    """
+    if not filepath or not isinstance(filepath, str):
+        return {"success": False, "error": "filepath must be a non-empty string"}
+
+    # Check if this is a new file (for summary generation)
+    is_new = not vfs.file_exists(filepath)
+
+    vfs.write_file(filepath, content)
+
+    side_effects = [SideEffect.FILES_MODIFIED]
+    result: dict[str, Any] = {
+        "success": True,
+        "message": f"Wrote {len(content)} bytes to {filepath}",
+        "modified_files": [filepath],
+        "side_effects": side_effects,
+    }
+
+    if is_new:
+        result["new_files"] = [filepath]
+        side_effects.append(SideEffect.NEW_FILES_CREATED)
+
+    return result
 
 
 def execute_edits(vfs: "VFS", edits: list[EditBlock]) -> tuple[list[dict[str, Any]], int | None]:

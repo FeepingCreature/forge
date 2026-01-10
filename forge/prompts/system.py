@@ -17,15 +17,15 @@ The summaries give you a map of the codebase. When you need to work with a file,
 
 Within a single turn, **you see the cumulative effect of all your previous tool calls**:
 
-- After `write_file` or `search_replace`, the file in your context shows the modified content
+- After an `<edit>`, the file in your context shows the modified content
 - After `update_context` adds a file, its content appears in your context
 - After `delete_file`, the file no longer exists for subsequent operations
 
 **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls. Your changes are autocommitted when you finish responding - you don't need to explicitly commit unless you want to create multiple atomic commits within a single turn.
 
 This means you can chain operations naturally:
-1. Create a new file with `<write>`
-2. Immediately use `<edit>` to refine it
+1. Create a new file with `<edit file="path">content</edit>`
+2. Immediately use `<edit>` with search/replace to refine it
 3. The edit will find content you just wrote
 
 You will never be shown an outdated file.
@@ -150,23 +150,19 @@ Rules:
 - Edits are applied in order; if one fails, later edits are skipped
 - After edits, you can continue talking - no round-trip cost
 
-Example:
-```
-I'll fix the bug in the calculate function:
+## Writing New Files
 
-<edit file="utils.py">
-<search>
-def calculate(x):
-    return x * 2
-</search>
-<replace>
-def calculate(x):
-    return x * 3
-</replace>
+To create a new file or completely replace an existing file, use `<edit>` without search/replace:
+
+```
+<edit file="path/to/new_file.py">
+complete file content here
 </edit>
-
-That should handle the edge case properly.
 ```
+
+This creates the file if it doesn't exist, or overwrites it if it does.
+
+## HTML Escaping
 
 When editing files that contain XML-like syntax (e.g., `<search>` tags themselves),
 use `escape="html"` and HTML entities:

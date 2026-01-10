@@ -109,6 +109,48 @@ import shutil
 shutil.rmtree(tmpdir, ignore_errors=True)
 ```
 
+## Calling the LLM (Scout Model)
+
+Custom tools can call the summarization/scout model for analysis tasks.
+Since Forge is installed as a package, you can import and use its LLM client:
+
+```python
+from typing import TYPE_CHECKING, Any
+
+from forge.config.settings import Settings
+from forge.llm.client import LLMClient
+
+if TYPE_CHECKING:
+    from forge.vfs.work_in_progress import WorkInProgressVFS
+
+
+def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
+    # Get API key and summarization model from settings
+    settings = Settings()
+    api_key = settings.get_api_key()
+    model = settings.get_summarization_model()
+
+    if not api_key:
+        return {"success": False, "error": "No API key configured"}
+
+    # Create client and make request
+    client = LLMClient(api_key, model)
+    messages = [{"role": "user", "content": "Your prompt here"}]
+    response = client.chat(messages)
+
+    # Extract response
+    choices = response.get("choices", [])
+    if not choices:
+        return {"success": False, "error": "No response from model"}
+
+    answer = choices[0].get("message", {}).get("content", "")
+    return {"success": True, "answer": answer}
+```
+
+The summarization model is typically a smaller/cheaper model (like Haiku) configured
+in settings. Use this for analysis, classification, or summarization tasks within
+your tool.
+
 ## Tool Approval
 
 Custom tools require user approval before they can be executed. When you create

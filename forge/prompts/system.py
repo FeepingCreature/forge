@@ -122,6 +122,10 @@ Example: After implementing a feature with 10+ edits, compact with: "Implemented
 
 That all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.
 
+# Discussing XML Syntax
+
+When you need to mention XML tags like `<edit>` or `<search>` in your prose (not as actual commands), use HTML entities to avoid the parser picking them up as real commands. For example, write `&lt;edit&gt;` to display `<edit>`.
+
 """
 
 # Instructions for XML inline edit format

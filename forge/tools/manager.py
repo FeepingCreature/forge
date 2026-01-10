@@ -40,9 +40,8 @@ class ToolManager:
         branch_name: str,
         tools_dir: str = "./tools",
     ) -> None:
-        # User tools directory (repo-specific)
+        # User tools directory path (repo-specific, accessed via VFS)
         self.tools_dir = Path(tools_dir)
-        self.tools_dir.mkdir(exist_ok=True)
 
         # Built-in tools directory (part of Forge)
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
@@ -97,11 +96,7 @@ class ToolManager:
         if self.vfs.file_exists(vfs_path):
             return self.vfs.read_file(vfs_path)
 
-        # Fall back to filesystem
-        tool_path = self.tools_dir / f"{tool_name}.py"
-        if tool_path.exists():
-            return tool_path.read_text()
-
+        # No filesystem fallback - VFS is the single source of truth
         return None
 
     def is_tool_approved(self, tool_name: str) -> bool:
@@ -176,60 +171,36 @@ class ToolManager:
         """
         Get list of unapproved tools (excludes built-in tools).
 
-        Checks both the filesystem AND the VFS for tools, so tools created
-        by the AI in the current session are discovered immediately.
+        Uses VFS exclusively to find tools - this includes both committed files
+        and pending changes from AI edits.
 
         Returns:
             List of (tool_name, current_code, is_new, old_code) tuples
         """
         unapproved: list[tuple[str, str, bool, str | None]] = []
-        seen_tools: set[str] = set()
 
-        # Check filesystem first (committed tools)
-        if self.tools_dir.exists():
-            for tool_file in self.tools_dir.iterdir():
-                if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
-                    tool_name = tool_file.stem
-                    seen_tools.add(tool_name)
-
-                    # Skip built-in tools
-                    if tool_name in self.BUILTIN_TOOLS:
-                        continue
-
-                    # Use _get_tool_content to check VFS first (includes pending changes)
-                    # This ensures AI edits to tools trigger re-approval
-                    current_code = self._get_tool_content(tool_name)
-                    if current_code is None:
-                        continue
-
-                    if not self.is_tool_approved(tool_name):
-                        # Check if it's new or modified
-                        is_new = tool_name not in self._approved_tools
-                        old_code = None
-
-                        # For modified tools, we don't have the old code easily accessible
-                        # Could read from git history, but for now just mark as modified
-                        unapproved.append((tool_name, current_code, is_new, old_code))
-
-        # Also check VFS for tools created in current session (not yet committed)
         # Normalize the tools_dir path (remove ./ prefix if present)
         tools_prefix = str(self.tools_dir).lstrip("./") + "/"
-        for filepath in self.vfs.get_pending_changes():
-            if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
-                tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
 
-                # Skip if already seen or built-in
-                if tool_name in seen_tools or tool_name in self.BUILTIN_TOOLS:
-                    continue
-                if tool_name == "__init__":
-                    continue
+        # Iterate ALL files in VFS (committed + pending), filter to tools directory
+        for filepath in self.vfs.list_files():
+            if not filepath.startswith(tools_prefix) or not filepath.endswith(".py"):
+                continue
 
-                seen_tools.add(tool_name)
-                current_code = self.vfs.read_file(filepath)
+            tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
 
-                if not self.is_tool_approved(tool_name):
-                    is_new = tool_name not in self._approved_tools
-                    unapproved.append((tool_name, current_code, is_new, None))
+            # Skip __init__ and built-in tools
+            if tool_name == "__init__" or tool_name in self.BUILTIN_TOOLS:
+                continue
+
+            # Read content from VFS (includes pending changes)
+            current_code = self.vfs.read_file(filepath)
+
+            if not self.is_tool_approved(tool_name):
+                # Check if it's new or modified
+                is_new = tool_name not in self._approved_tools
+                old_code = None
+                unapproved.append((tool_name, current_code, is_new, old_code))
 
         return unapproved
 
@@ -248,13 +219,12 @@ class ToolManager:
         tools: list[dict[str, Any]] = []
         self._schema_cache = {}
         self._tool_modules = {}
-        seen_tools: set[str] = set()
 
         # Load built-in tools first (always approved)
+        # Built-in tools are part of the Forge package, so we use filesystem here
         for tool_file in self.builtin_tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
                 tool_name = tool_file.stem
-                seen_tools.add(tool_name)
                 tool_module = self._load_tool_module(tool_name, is_builtin=True)
                 if tool_module and hasattr(tool_module, "get_schema"):
                     schema = tool_module.get_schema()
@@ -262,45 +232,27 @@ class ToolManager:
                     self._schema_cache[tool_name] = schema
                     self._tool_modules[tool_name] = tool_module
 
-        # Load user tools from filesystem (only if approved)
-        if self.tools_dir.exists():
-            for tool_file in self.tools_dir.iterdir():
-                if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
-                    tool_name = tool_file.stem
-                    seen_tools.add(tool_name)
-
-                    # Only include approved tools
-                    if not self.is_tool_approved(tool_name):
-                        continue
-
-                    tool_module = self._load_tool_module(tool_name, is_builtin=False)
-                    if tool_module and hasattr(tool_module, "get_schema"):
-                        schema = tool_module.get_schema()
-                        tools.append(schema)
-                        self._schema_cache[tool_name] = schema
-                        self._tool_modules[tool_name] = tool_module
-
-        # Also load user tools from VFS (for tools created in current session)
+        # Load user tools from VFS (includes committed + pending changes)
         tools_prefix = str(self.tools_dir).lstrip("./") + "/"
-        for filepath in self.vfs.get_pending_changes():
-            if filepath.startswith(tools_prefix) and filepath.endswith(".py"):
-                tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
+        for filepath in self.vfs.list_files():
+            if not filepath.startswith(tools_prefix) or not filepath.endswith(".py"):
+                continue
 
-                if tool_name in seen_tools or tool_name == "__init__":
-                    continue
+            tool_name = filepath[len(tools_prefix) : -3]  # Remove prefix and .py
 
-                seen_tools.add(tool_name)
+            if tool_name == "__init__":
+                continue
 
-                # Only include approved tools
-                if not self.is_tool_approved(tool_name):
-                    continue
+            # Only include approved tools
+            if not self.is_tool_approved(tool_name):
+                continue
 
-                tool_module = self._load_tool_module(tool_name, is_builtin=False)
-                if tool_module and hasattr(tool_module, "get_schema"):
-                    schema = tool_module.get_schema()
-                    tools.append(schema)
-                    self._schema_cache[tool_name] = schema
-                    self._tool_modules[tool_name] = tool_module
+            tool_module = self._load_tool_module(tool_name, is_builtin=False)
+            if tool_module and hasattr(tool_module, "get_schema"):
+                schema = tool_module.get_schema()
+                tools.append(schema)
+                self._schema_cache[tool_name] = schema
+                self._tool_modules[tool_name] = tool_module
 
         return self._filter_inline_tools(tools)
 
@@ -352,15 +304,10 @@ class ToolManager:
             tool_path = self.builtin_tools_dir / f"{tool_name}.py"
             return self._load_tool_module_from_path(tool_path, is_builtin=True)
 
-        # For user tools, try VFS first (includes pending changes), then disk
+        # For user tools, load from VFS (single source of truth)
         content = self._get_tool_content(tool_name)
         if content is not None:
             return self._load_tool_module_from_source(tool_name, content)
-
-        # Fallback to disk (shouldn't normally happen if _get_tool_content works)
-        tool_path = self.tools_dir / f"{tool_name}.py"
-        if tool_path.exists():
-            return self._load_tool_module_from_path(tool_path, is_builtin=False)
 
         return None
 

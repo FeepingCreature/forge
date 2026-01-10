@@ -1,9 +1,11 @@
 {
   "active_files": [
-    "forge/tools/builtin/scout.py",
+    "CLAUDE.md",
+    "forge/tools/manager.py",
+    "forge/ui/ai_chat_widget.py",
     "forge/git_backend/commit_types.py",
     "tools/check.py",
-    "CLAUDE.md",
+    "forge/tools/builtin/scout.py",
     "forge/tools/builtin/get_skill.py"
   ],
   "request_log_entries": [
@@ -42,6 +44,33 @@
       "streaming": true,
       "actual_cost": 0.03643025,
       "generation_id": "gen-1768077350-MSq2hgJA6S7oqvQpj1sh"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768077513458.json",
+      "response_file": "/tmp/forge_debug/response_1768077513458.json",
+      "timestamp": 1768077513.4584706,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002706,
+      "generation_id": "gen-1768077513-DWETlGexPhAOc3JTASUf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768077542162.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768077542162.json",
+      "timestamp": 1768077542.1630342,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1394225,
+      "generation_id": "gen-1768077542-QTlTKeFs0KWwNnZtYiUt"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768077547772.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768077547772.json",
+      "timestamp": 1768077547.7733138,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21941575,
+      "generation_id": "gen-1768077548-nSGonHfA9svxr3lruY25"
     }
   ],
   "messages": [
@@ -137,6 +166,59 @@
           ],
           "side_effects": [
             "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 95 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm! I think I may have hit an odd issue. Can you check that the approval workflow is run when a tool file is changed by an in-flow toolcall?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch - let me trace through the tool approval flow to see what happens when a tool file is modified during a session.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01VGZvkfiWVNjw9KLyewDse8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VGZvkfiWVNjw9KLyewDse8",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can trace through the flow. Let me look at where tool approval checks happen:\n\n1. **`ToolManager.is_tool_approved()`** - checks if a tool's hash matches the approved hash\n2. **`ToolManager._check_for_unapproved_tools()`** in `AIChatWidget` - called at init and after `_reset_input()`\n\nThe issue: When the AI modifies a tool file via an edit, the approval check happens in `_reset_input()` which calls `_check_for_unapproved_tools()`. But let me trace the hash calculation:\n\n```python\ndef _get_tool_content(self, tool_name: str) -> str | None:\n    \"\"\"Get tool content from VFS or filesystem\"\"\"\n    # Normalize path (remove ./ prefix if present)\n    tools_dir_str = str(self.tools_dir).lstrip(\"./\")\n    vfs_path = f\"{tools_dir_str}/{tool_name}.py\"\n\n    # Check VFS first (includes pending changes)\n    if self.vfs.file_exists(vfs_path):\n        return self.vfs.read_file(vfs_path)\n    ...\n```\n\nThis looks correct - it reads from VFS which includes pending changes. And `is_tool_approved()` uses `_get_tool_content()` to get the current hash.\n\nBut wait - there's a problem! Look at `_check_for_unapproved_tools()` in `AIChatWidget`:\n\n```python\ndef _check_for_unapproved_tools(self) -> None:\n    \"\"\"Check for unapproved tools and show approval requests in chat\"\"\"\n    unapproved = self.session_manager.tool_manager.get_unapproved_tools()\n```\n\nAnd `get_unapproved_tools()` in `ToolManager`:\n\n```python\ndef get_unapproved_tools(self) -> list[tuple[str, str, bool, str | None]]:\n    # Check filesystem first (committed tools)\n    if self.tools_dir.exists():\n        for tool_file in self.tools_dir.iterdir():\n            ...\n            current_code = tool_file.read_text()  # \u2190 READS FROM DISK!\n```\n\n**Found the bug!** When checking for unapproved tools after an AI edit:\n\n1. The AI modifies `tools/my_tool.py` via VFS (pending change, not on disk yet)\n2. `_reset_input()` calls `_check_for_unapproved_tools()`\n3. `get_unapproved_tools()` reads from the **filesystem** (`tool_file.read_text()`)\n4. But the modification is only in VFS pending changes, not committed to disk yet\n5. So the filesystem read gets the OLD content, and the hash matches the approved hash\n6. **The modified tool is NOT flagged as needing re-approval!**\n\nThe fix should make `get_unapproved_tools()` use `_get_tool_content()` (which checks VFS first) instead of reading directly from the filesystem:\n\n<edit file=\"forge/tools/manager.py\">\n<search>\n        # Check filesystem first (committed tools)\n        if self.tools_dir.exists():\n            for tool_file in self.tools_dir.iterdir():\n                if tool_file.suffix == \".py\" and tool_file.name != \"__init__.py\":\n                    tool_name = tool_file.stem\n                    seen_tools.add(tool_name)\n\n                    # Skip built-in tools\n                    if tool_name in self.BUILTIN_TOOLS:\n                        continue\n\n                    current_code = tool_file.read_text()\n\n                    if not self.is_tool_approved(tool_name):\n                        # Check if it's new or modified\n                        is_new = tool_name not in self._approved_tools\n                        old_code = None\n\n                        # For modified tools, we don't have the old code easily accessible\n                        # Could read from git history, but for now just mark as modified\n                        unapproved.append((tool_name, current_code, is_new, old_code))\n</search>\n<replace>\n        # Check filesystem first (committed tools)\n        if self.tools_dir.exists():\n            for tool_file in self.tools_dir.iterdir():\n                if tool_file.suffix == \".py\" and tool_file.name != \"__init__.py\":\n                    tool_name = tool_file.stem\n                    seen_tools.add(tool_name)\n\n                    # Skip built-in tools\n                    if tool_name in self.BUILTIN_TOOLS:\n                        continue\n\n                    # Use _get_tool_content to check VFS first (includes pending changes)\n                    # This ensures AI edits to tools trigger re-approval\n                    current_code = self._get_tool_content(tool_name)\n                    if current_code is None:\n                        continue\n\n                    if not self.is_tool_approved(tool_name):\n                        # Check if it's new or modified\n                        is_new = tool_name not in self._approved_tools\n                        old_code = None\n\n                        # For modified tools, we don't have the old code easily accessible\n                        # Could read from git history, but for now just mark as modified\n                        unapproved.append((tool_name, current_code, is_new, old_code))\n</replace>\n</edit>\n\n<commit message=\"Fix: tool modifications via AI edit now trigger re-approval\n\nThe bug: get_unapproved_tools() was reading tool files directly from the\nfilesystem, but AI edits are stored in VFS pending changes (not written\nto disk until commit). This meant modifying a tool via <edit> wouldn't\ntrigger the approval workflow.\n\nThe fix: Use _get_tool_content() which checks VFS first, ensuring that\npending changes are considered when checking if a tool needs approval.\">\n</commit>\n\nDone! The bug was that `get_unapproved_tools()` was reading directly from the filesystem with `tool_file.read_text()`, but AI edits live in VFS pending changes until committed. Now it uses `_get_tool_content()` which checks VFS first, so tool modifications via `<edit>` will properly trigger re-approval.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/manager.py",
+          "modified_files": [
+            "forge/tools/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "f4fb174bb303",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
           ],
           "success": true
         }

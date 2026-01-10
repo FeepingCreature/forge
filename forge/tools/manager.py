@@ -196,7 +196,11 @@ class ToolManager:
                     if tool_name in self.BUILTIN_TOOLS:
                         continue
 
-                    current_code = tool_file.read_text()
+                    # Use _get_tool_content to check VFS first (includes pending changes)
+                    # This ensures AI edits to tools trigger re-approval
+                    current_code = self._get_tool_content(tool_name)
+                    if current_code is None:
+                        continue
 
                     if not self.is_tool_approved(tool_name):
                         # Check if it's new or modified

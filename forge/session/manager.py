@@ -154,6 +154,8 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         ".class",
         ".o",
         ".a",
+        # Data files
+        ".json",
     }
 
     def _should_summarize(self, filepath: str) -> bool:

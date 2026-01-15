@@ -32,7 +32,19 @@ You will never be shown an outdated file.
 
 ## Tool Usage Guidelines
 
-### Finding Relevant Files
+### Understanding the Codebase
+
+**Use `scout` to explore and understand code.** Scout sends files to a smaller model to answer questions - it's faster and cheaper than loading files into your context.
+
+Good uses for scout:
+- "Which of these files handle authentication?"
+- "What patterns do these files use so I can match the style?"
+- "How does the error handling work across these modules?"
+- "Find the files that define or use the User class"
+
+Use scout when you need to understand code, find relevant files, or answer questions across many files. Only load files into your context when you need to edit them.
+
+### Finding Files to Edit
 
 Before making changes that affect multiple files, use `grep_open` to discover all relevant files:
 

@@ -1,7 +1,7 @@
 {
   "active_files": [
     "REFACTORING.md",
-    "forge/session/manager.py",
+    "forge/prompts/system.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -139,6 +139,33 @@
       "streaming": true,
       "actual_cost": 0.020165,
       "generation_id": "gen-1768505231-sjN3qRv9G9McfBLelmY1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768505240455.json",
+      "response_file": "/tmp/forge_debug/response_1768505240455.json",
+      "timestamp": 1768505240.4555886,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000137,
+      "generation_id": "gen-1768505240-3iFsKaUkKyT0nsX18adw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768505257529.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768505257529.json",
+      "timestamp": 1768505257.530926,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.064215,
+      "generation_id": "gen-1768505257-25NTdhsDCKjJGe9RjLfD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768505262289.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768505262289.json",
+      "timestamp": 1768505262.2910855,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0431975,
+      "generation_id": "gen-1768505263-FE1lCTrt4NCP1bAHqftV"
     }
   ],
   "messages": [
@@ -204,6 +231,51 @@
           "message": "Replaced in forge/session/manager.py",
           "modified_files": [
             "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 2c43aeb4",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "while you're at it can you add prompting to prefer scout over grep for situating yourself in a codebase? it's faster and cheaper."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll add that guidance to the system prompt. Let me check the current prompts file:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"], \"remove\": [\"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01JsnJcmoRkEk5s48b2hm41o",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01JsnJcmoRkEk5s48b2hm41o",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 1 files from context\", \"remove\": [\"forge/session/manager.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I can see the system prompt. I'll add guidance about using `scout` for codebase exploration in the \"Finding Relevant Files\" section:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n## Tool Usage Guidelines\n\n### Finding Relevant Files\n\nBefore making changes that affect multiple files, use `grep_open` to discover all relevant files:\n\n1. **Renaming a function/class?** First `grep_open` for the old name to find all call sites\n2. **Changing an API?** First `grep_open` for the function/method name to find all usages\n3. **Modifying a constant?** First `grep_open` for the constant name\n\nExample workflow for renaming `old_function` to `new_function`:\n1. Call `grep_open` with pattern=\"old_function\" - this adds all files using it to your context\n2. Review the matches to understand the scope of changes\n3. Make all edits in one response\n</search>\n<replace>\n## Tool Usage Guidelines\n\n### Understanding the Codebase\n\n**Use `scout` to explore and understand code.** Scout sends files to a smaller model to answer questions - it's faster and cheaper than loading files into your context.\n\nGood uses for scout:\n- \"Which of these files handle authentication?\"\n- \"What patterns do these files use so I can match the style?\"\n- \"How does the error handling work across these modules?\"\n- \"Find the files that define or use the User class\"\n\nUse scout when you need to understand code, find relevant files, or answer questions across many files. Only load files into your context when you need to edit them.\n\n### Finding Files to Edit\n\nBefore making changes that affect multiple files, use `grep_open` to discover all relevant files:\n\n1. **Renaming a function/class?** First `grep_open` for the old name to find all call sites\n2. **Changing an API?** First `grep_open` for the function/method name to find all usages\n3. **Modifying a constant?** First `grep_open` for the constant name\n\nExample workflow for renaming `old_function` to `new_function`:\n1. Call `grep_open` with pattern=\"old_function\" - this adds all files using it to your context\n2. Review the matches to understand the scope of changes\n3. Make all edits in one response\n</replace>\n</edit>\n\nDone! Added a new \"Understanding the Codebase\" section that promotes `scout` as the preferred tool for exploring and understanding code, with examples of good use cases. The section emphasizes that scout is faster and cheaper, and that files should only be loaded into context when you need to edit them.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
           ],
           "side_effects": [
             "files_modified"

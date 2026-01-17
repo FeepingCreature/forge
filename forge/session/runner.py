@@ -1114,9 +1114,13 @@ class SessionRunner(QObject):
                 if state in ready_states:
                     print(f"🔍 Race check: Child {branch} is ready! Scheduling resume.")
                     # A child is already ready! Resume immediately.
-                    # Use QTimer.singleShot to avoid recursion issues
-                    from PySide6.QtCore import QTimer
-                    QTimer.singleShot(0, lambda: self.send_message(""))
+                    # Use QMetaObject.invokeMethod with QueuedConnection to ensure
+                    # the call happens after the current call stack unwinds
+                    from PySide6.QtCore import QMetaObject, Qt, Q_ARG
+                    print(f"🔍 About to invoke _do_resume_from_wait via queued connection")
+                    QMetaObject.invokeMethod(
+                        self, "_do_resume_from_wait", Qt.ConnectionType.QueuedConnection
+                    )
                     break
 
     def get_session_metadata(self) -> dict[str, Any]:
@@ -1128,3 +1132,12 @@ class SessionRunner(QObject):
             "yield_message": self._yield_message,
             "pending_wait_call": self._pending_wait_call,
         }
+
+    def _do_resume_from_wait(self) -> None:
+        """Slot called via QueuedConnection to resume after wait_session."""
+        print(f"🔍 _do_resume_from_wait called! state={self._state}")
+        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            print(f"🔍 Calling send_message to resume")
+            self.send_message("")
+        else:
+            print(f"🔍 Not resuming: state={self._state}, pending={self._pending_wait_call}")

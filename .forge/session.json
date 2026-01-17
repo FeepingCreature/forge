@@ -1,8 +1,7 @@
 {
   "active_files": [
-    "forge/ui/ai_chat_widget.py",
-    "forge/session/runner.py",
-    "forge/session/registry.py"
+    "forge/ui/main_window.py",
+    "forge/ui/session_dropdown.py"
   ],
   "request_log_entries": [
     {
@@ -337,6 +336,51 @@
       "streaming": false,
       "actual_cost": 0.002463,
       "generation_id": "gen-1768668904-WVsQrULGASBJQZPDIUhy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768668907234.json",
+      "response_file": "/tmp/forge_debug/response_1768668907234.json",
+      "timestamp": 1768668907.234405,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000288,
+      "generation_id": "gen-1768668907-WUTN5nRzpJhboSmKrdWG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669033715.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669033715.json",
+      "timestamp": 1768669033.7172372,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.4654825,
+      "generation_id": "gen-1768669034-tzo1xw3CEN4BZ7IVjYq0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669050795.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669050795.json",
+      "timestamp": 1768669050.7972221,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.4622275,
+      "generation_id": "gen-1768669051-cA9sPu9uL3iWJZfo79EE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669058570.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669058570.json",
+      "timestamp": 1768669058.570785,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.37142,
+      "generation_id": "gen-1768669058-O88XULvlnijKVUzp2fi2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768669096472.json",
+      "response_file": "/tmp/forge_debug/response_1768669096472.json",
+      "timestamp": 1768669096.4727862,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003524,
+      "generation_id": "gen-1768669096-vQFVgOK3XrjbwxAuLy8V"
     }
   ],
   "messages": [
@@ -1285,6 +1329,96 @@
         {
           "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_s920lxmi\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.09s ==============================\n",
           "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_s920lxmi\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.09s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: b6251a84",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright! what's next?"
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the progress, we have:\n\n\u2705 **Done:**\n1. SessionRunner with full run loop, state management, event buffering\n2. AIChatWidget as a view over SessionRunner\n3. SessionRegistry singleton\n4. Attach/detach with event buffering\n\n\ud83d\udd32 **Next: Dropdown UI** - Replace \"+\" button with session overview\n\nLet me compact context first (it's extremely large), then build the dropdown:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"14\", \"to_id\": \"15\", \"summary\": \"Implemented attach/detach with event buffering in SessionRunner:\\n- Added SessionEvent classes (ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent, ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent, MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent)\\n- Added _event_buffer deque and _buffer_lock for thread-safe buffering\\n- Added attach() returning state snapshot, detach() clearing buffer, drain_buffer() for replay\\n- Changed all signal emissions to use _emit_event() which buffers when detached\\n- Created SessionRegistry in forge/session/registry.py with register/unregister/get/get_all/get_session_states/notify_parent\\n- Updated AIChatWidget to register with SESSION_REGISTRY and use _attach_to_runner() with _handle_runner_event() for buffered event replay\\n- Added detach_from_runner() method\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01JGmJdF3TAcsX1d2L4Ww374",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01JGmJdF3TAcsX1d2L4Ww374",
+      "content": "{\"compact\": true, \"from_id\": \"14\", \"success\": true, \"summary\": \"Implemented attach/detach with event buffering in SessionRunner:\\n- Added SessionEvent classes (ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent, ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent, MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent)\\n- Added _event_buffer deque and _buffer_lock for thread-safe buffering\\n- Added attach() returning state snapshot, detach() clearing buffer, drain_buffer() for replay\\n- Changed all signal emissions to use _emit_event() which buffers when detached\\n- Created SessionRegistry in forge/session/registry.py with register/unregister/get/get_all/get_session_states/notify_parent\\n- Updated AIChatWidget to register with SESSION_REGISTRY and use _attach_to_runner() with _handle_runner_event() for buffered event replay\\n- Added detach_from_runner() method\", \"to_id\": \"15\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me load main_window.py to add the dropdown UI:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\"], \"remove\": [\"forge/session/runner.py\", \"forge/session/registry.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01Nz4ZGgAQF5S2rfxehEwU3i",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Nz4ZGgAQF5S2rfxehEwU3i",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\"], \"message\": \"Added 1 files, removed 3 files from context\", \"remove\": [\"forge/session/runner.py\", \"forge/session/registry.py\", \"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see main_window.py. The dropdown should replace the \"+\" button in `_create_new_branch_button`. Let me create a session dropdown widget and integrate it:\n\n<edit file=\"forge/ui/session_dropdown.py\">\n\"\"\"\nSession dropdown widget - shows all sessions and their states.\n\nReplaces the simple \"+\" button with a dropdown that shows:\n- All registered sessions with their states (running, idle, waiting, etc.)\n- Parent/child relationships\n- Quick actions (new session, new branch)\n\"\"\"\n\nfrom typing import TYPE_CHECKING, Any\n\nfrom PySide6.QtCore import Qt, Signal\nfrom PySide6.QtWidgets import (\n    QFrame,\n    QHBoxLayout,\n    QLabel,\n    QMenu,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n    QWidgetAction,\n)\n\nif TYPE_CHECKING:\n    from forge.session.registry import SessionRegistry\n\n\n# State display configuration\nSTATE_ICONS = {\n    \"idle\": \"\u23f8\ufe0f\",\n    \"running\": \"\ud83d\udd04\",\n    \"waiting_approval\": \"\u26a0\ufe0f\",\n    \"waiting_input\": \"\ud83d\udcac\",\n    \"waiting_children\": \"\u23f3\",\n    \"completed\": \"\u2705\",\n    \"error\": \"\u274c\",\n}\n\nSTATE_LABELS = {\n    \"idle\": \"Idle\",\n    \"running\": \"Running\",\n    \"waiting_approval\": \"Needs Approval\",\n    \"waiting_input\": \"Waiting for Input\",\n    \"waiting_children\": \"Waiting on Children\",\n    \"completed\": \"Completed\",\n    \"error\": \"Error\",\n}\n\n\nclass SessionItemWidget(QFrame):\n    \"\"\"Widget displaying a single session in the dropdown.\"\"\"\n    \n    clicked = Signal(str)  # branch_name\n    \n    def __init__(self, branch_name: str, state_info: dict[str, Any], parent: QWidget | None = None):\n        super().__init__(parent)\n        self.branch_name = branch_name\n        self.state_info = state_info\n        \n        self.setFrameShape(QFrame.Shape.NoFrame)\n        self.setCursor(Qt.CursorShape.PointingHandCursor)\n        \n        layout = QHBoxLayout(self)\n        layout.setContentsMargins(8, 4, 8, 4)\n        layout.setSpacing(8)\n        \n        # State icon\n        state = state_info.get(\"state\", \"idle\")\n        icon = STATE_ICONS.get(state, \"\u2753\")\n        icon_label = QLabel(icon)\n        icon_label.setFixedWidth(20)\n        layout.addWidget(icon_label)\n        \n        # Branch name (with indentation for children)\n        name_text = branch_name\n        if state_info.get(\"is_child\"):\n            name_text = f\"\u21b3 {branch_name}\"\n        name_label = QLabel(name_text)\n        name_label.setStyleSheet(\"font-weight: bold;\")\n        layout.addWidget(name_label, stretch=1)\n        \n        # State text\n        state_text = STATE_LABELS.get(state, state)\n        state_label = QLabel(state_text)\n        state_label.setStyleSheet(\"color: #888; font-size: 11px;\")\n        layout.addWidget(state_label)\n        \n        # Hover effect\n        self.setStyleSheet(\"\"\"\n            SessionItemWidget:hover {\n                background-color: palette(highlight);\n            }\n        \"\"\")\n    \n    def mousePressEvent(self, event):\n        \"\"\"Handle click to select this session.\"\"\"\n        if event.button() == Qt.MouseButton.LeftButton:\n            self.clicked.emit(self.branch_name)\n        super().mousePressEvent(event)\n\n\nclass SessionDropdown(QWidget):\n    \"\"\"\n    Dropdown widget showing all sessions and their states.\n    \n    Replaces the \"+\" button in the corner of the branch tab widget.\n    \"\"\"\n    \n    # Signals\n    session_selected = Signal(str)  # branch_name - user wants to open/focus this session\n    new_session_requested = Signal()\n    new_branch_requested = Signal()\n    \n    def __init__(self, parent: QWidget | None = None):\n        super().__init__(parent)\n        \n        layout = QHBoxLayout(self)\n        layout.setContentsMargins(0, 0, 0, 0)\n        layout.setSpacing(4)\n        \n        # Main dropdown button\n        self.dropdown_btn = QPushButton(\"Sessions \u25be\")\n        self.dropdown_btn.setFixedHeight(24)\n        self.dropdown_btn.setToolTip(\"View all sessions\")\n        self.dropdown_btn.clicked.connect(self._show_dropdown)\n        layout.addWidget(self.dropdown_btn)\n        \n        # Connect to registry for live updates\n        from forge.session.registry import SESSION_REGISTRY\n        SESSION_REGISTRY.session_registered.connect(self._on_session_changed)\n        SESSION_REGISTRY.session_unregistered.connect(self._on_session_changed)\n        SESSION_REGISTRY.session_state_changed.connect(self._on_state_changed)\n        \n        self._update_button_text()\n    \n    def _update_button_text(self) -> None:\n        \"\"\"Update button text to show session count and any needing attention.\"\"\"\n        from forge.session.registry import SESSION_REGISTRY\n        \n        states = SESSION_REGISTRY.get_session_states()\n        total = len(states)\n        \n        # Count sessions needing attention\n        attention_states = {\"waiting_input\", \"waiting_approval\", \"error\"}\n        attention_count = sum(\n            1 for info in states.values() \n            if info.get(\"state\") in attention_states\n        )\n        \n        if attention_count > 0:\n            self.dropdown_btn.setText(f\"Sessions ({attention_count}!) \u25be\")\n            self.dropdown_btn.setStyleSheet(\"color: orange; font-weight: bold;\")\n        elif total > 0:\n            self.dropdown_btn.setText(f\"Sessions ({total}) \u25be\")\n            self.dropdown_btn.setStyleSheet(\"\")\n        else:\n            self.dropdown_btn.setText(\"Sessions \u25be\")\n            self.dropdown_btn.setStyleSheet(\"\")\n    \n    def _on_session_changed(self, branch_name: str) -> None:\n        \"\"\"Handle session registered/unregistered.\"\"\"\n        self._update_button_text()\n    \n    def _on_state_changed(self, branch_name: str, new_state: str) -> None:\n        \"\"\"Handle session state change.\"\"\"\n        self._update_button_text()\n    \n    def _show_dropdown(self) -> None:\n        \"\"\"Show the dropdown menu with all sessions.\"\"\"\n        from forge.session.registry import SESSION_REGISTRY\n        \n        menu = QMenu(self)\n        \n        # Get all session states\n        states = SESSION_REGISTRY.get_session_states()\n        \n        if states:\n            # Group by parent/child relationship\n            # First show top-level sessions (no parent)\n            top_level = {k: v for k, v in states.items() if not v.get(\"is_child\")}\n            \n            for branch_name, state_info in sorted(top_level.items()):\n                self._add_session_to_menu(menu, branch_name, state_info)\n                \n                # Add children indented\n                for child_name in state_info.get(\"children\", []):\n                    if child_name in states:\n                        self._add_session_to_menu(menu, child_name, states[child_name], indent=True)\n            \n            # Show orphan children (parent not in registry)\n            orphans = {k: v for k, v in states.items() \n                      if v.get(\"is_child\") and v.get(\"parent\") not in states}\n            if orphans:\n                menu.addSeparator()\n                orphan_label = QWidgetAction(menu)\n                label = QLabel(\"  Orphaned sessions:\")\n                label.setStyleSheet(\"color: #888; font-size: 11px;\")\n                orphan_label.setDefaultWidget(label)\n                menu.addAction(orphan_label)\n                for branch_name, state_info in sorted(orphans.items()):\n                    self._add_session_to_menu(menu, branch_name, state_info)\n        else:\n            no_sessions = menu.addAction(\"No active sessions\")\n            no_sessions.setEnabled(False)\n        \n        menu.addSeparator()\n        \n        # New session/branch actions\n        new_session = menu.addAction(\"\ud83e\udd16 New AI Session...\")\n        new_session.triggered.connect(self.new_session_requested.emit)\n        \n        new_branch = menu.addAction(\"\ud83c\udf3f New Branch...\")\n        new_branch.triggered.connect(self.new_branch_requested.emit)\n        \n        # Show menu below button\n        menu.exec(self.dropdown_btn.mapToGlobal(self.dropdown_btn.rect().bottomLeft()))\n    \n    def _add_session_to_menu(self, menu: QMenu, branch_name: str, state_info: dict[str, Any], indent: bool = False) -> None:\n        \"\"\"Add a session item to the menu.\"\"\"\n        state = state_info.get(\"state\", \"idle\")\n        icon = STATE_ICONS.get(state, \"\u2753\")\n        state_text = STATE_LABELS.get(state, state)\n        \n        prefix = \"    \" if indent else \"\"\n        child_marker = \"\u21b3 \" if state_info.get(\"is_child\") else \"\"\n        \n        action = menu.addAction(f\"{prefix}{icon} {child_marker}{branch_name}\")\n        action.setToolTip(f\"State: {state_text}\")\n        action.triggered.connect(lambda checked=False, bn=branch_name: self.session_selected.emit(bn))\n</edit>\n\nNow update main_window.py to use the SessionDropdown instead of the simple \"+\" button:\n\n<edit file=\"forge/ui/main_window.py\">\n<search>\n    def _create_new_branch_button(self) -> QWidget:\n        \"\"\"Create the '+' button for new branches\"\"\"\n        from PySide6.QtWidgets import QPushButton\n\n        btn = QPushButton(\"+\")\n        btn.setFixedSize(24, 24)\n        btn.setToolTip(\"New branch...\")\n        btn.clicked.connect(self._show_new_branch_dialog)\n        return btn\n</search>\n<replace>\n    def _create_new_branch_button(self) -> QWidget:\n        \"\"\"Create the session dropdown widget for the corner\"\"\"\n        from forge.ui.session_dropdown import SessionDropdown\n\n        self.session_dropdown = SessionDropdown()\n        self.session_dropdown.session_selected.connect(self._open_branch)\n        self.session_dropdown.new_session_requested.connect(self._new_ai_session)\n        self.session_dropdown.new_branch_requested.connect(self._new_feature_branch)\n        return self.session_dropdown\n</replace>\n</edit>\n\nNow let's run tests to make sure everything still works:\n\n<run_tests/>",
+      "_inline_results": [
+        {
+          "message": "Wrote 8305 bytes to forge/ui/session_dropdown.py",
+          "modified_files": [
+            "forge/ui/session_dropdown.py"
+          ],
+          "new_files": [
+            "forge/ui/session_dropdown.py"
+          ],
+          "side_effects": [
+            "files_modified",
+            "new_files_created"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/main_window.py",
+          "modified_files": [
+            "forge/ui/main_window.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_zb_pmmy4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.10s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_zb_pmmy4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.10s ==============================\n",
           "passed": false,
           "side_effects": [
             "has_display_output"

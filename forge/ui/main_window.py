@@ -124,14 +124,14 @@ class MainWindow(QMainWindow):
         COST_TRACKER.cost_updated.connect(self._update_cost_display)
 
     def _create_new_branch_button(self) -> QWidget:
-        """Create the '+' button for new branches"""
-        from PySide6.QtWidgets import QPushButton
+        """Create the session dropdown widget for the corner"""
+        from forge.ui.session_dropdown import SessionDropdown
 
-        btn = QPushButton("+")
-        btn.setFixedSize(24, 24)
-        btn.setToolTip("New branch...")
-        btn.clicked.connect(self._show_new_branch_dialog)
-        return btn
+        self.session_dropdown = SessionDropdown()
+        self.session_dropdown.session_selected.connect(self._open_branch)
+        self.session_dropdown.new_session_requested.connect(self._new_ai_session)
+        self.session_dropdown.new_branch_requested.connect(self._new_feature_branch)
+        return self.session_dropdown
 
     def _open_default_branch(self) -> None:
         """Open the default branch (usually main or master)"""

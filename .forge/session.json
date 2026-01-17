@@ -490,6 +490,24 @@
       "streaming": true,
       "actual_cost": 0.08161125,
       "generation_id": "gen-1768682142-lWudDwY9I3AEoz7C6U6R"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768682148155.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768682148155.json",
+      "timestamp": 1768682148.1570187,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.07658925,
+      "generation_id": "gen-1768682148-z1hHfTkPgk0xARlHBwex"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768682154353.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768682154353.json",
+      "timestamp": 1768682154.3544965,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0828945,
+      "generation_id": "gen-1768682154-tB4MriruzWWTNWn5nIVo"
     }
   ],
   "messages": [
@@ -1768,12 +1786,56 @@
       "role": "system",
       "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/add-view-menu-2\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"_yield\": true,\n  \"_yield_message\": \"Waiting on child sessions: ai/add-view-menu-2\",\n  \"message\": \"All child sessions still running. Current session will yield.\",\n  \"ready\": false,\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true,\n  \"waiting_on\": [\n    \"ai/add-view-menu-2\"\n  ]\n}\n```",
       "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_011RvJHLph4TeXtDdFAXLSHE",
+      "content": "{\"success\": true, \"branch\": \"ai/add-view-menu-2\", \"state\": \"idle\", \"message\": \"Task completed\", \"task\": \"\", \"ready\": true, \"merge_clean\": true}"
+    },
+    {
+      "role": "assistant",
+      "content": "The child session completed and merge is clean. Let me merge it in:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branch\": \"ai/add-view-menu-2\", \"delete_branch\": \"true\"}",
+            "name": "merge_session"
+          },
+          "id": "toolu_0139pUbSB2dzsAsxdLyRPhQn",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_0139pUbSB2dzsAsxdLyRPhQn",
+      "content": "{\"conflicts\": [], \"conflicts_committed\": false, \"merged\": true, \"message\": \"Merged child session 'ai/add-view-menu-2' (auto-resolved session.json). Deleted branch 'ai/add-view-menu-2'\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `merge_session`\n```json\n{\n  \"branch\": \"ai/add-view-menu-2\",\n  \"delete_branch\": \"true\"\n}\n```\n**Result:**\n```json\n{\n  \"conflicts\": [],\n  \"conflicts_committed\": false,\n  \"merged\": true,\n  \"message\": \"Merged child session 'ai/add-view-menu-2' (auto-resolved session.json). Deleted branch 'ai/add-view-menu-2'\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The child session completed and the View menu was added! Let me now commit all the multi-session fixes we made in this session:\n\n<commit message=\"Fix multi-session handling bugs and add View menu\n\n- spawn_session: auto-start child with instruction as first message\n- spawn_session: require branch_name and instruction params\n- AIChatWidget: reuse existing runner from registry (avoid duplicate runners)\n- AIChatWidget: setup UI before attaching to runner (fix attribute errors)\n- wait_session: add merge_clean=False for error state children\n- registry: use QTimer for notify_parent (avoid bogus empty message)\n- startup: restore 'error' state on session load\n- Add View menu with Show Mood Bar toggle (from child session)\"/>\n\nDone! The multi-session handling is now working. Key fixes:\n\n1. **spawn_session auto-starts child** - No need to call resume_session separately\n2. **Instruction is first message** - Child session now gets the instruction properly\n3. **Registry runner reuse** - When opening a spawned child session's tab, we reuse the existing runner instead of creating a duplicate\n4. **UI setup before attach** - Fixed attribute errors by setting up UI before attaching to runner (which may emit events immediately)\n\nThe child session also successfully added the View menu with a \"Show Mood Bar\" toggle. You can restart the app and test the full flow - spawning sessions should work smoothly now, and the View menu should be visible.",
+      "_inline_results": [
+        {
+          "commit": "cb77fa8dd5a9",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,
   "child_sessions": [
     "ai/add-view-menu-2"
   ],
-  "state": "waiting_children",
+  "state": "running",
   "yield_message": "Waiting on child sessions: ai/add-view-menu-2"
 }

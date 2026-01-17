@@ -33,6 +33,7 @@ from forge.ui.tool_rendering import (
 )
 
 if TYPE_CHECKING:
+    from forge.session.runner import SessionEvent
     from forge.ui.branch_workspace import BranchWorkspace
 
 
@@ -409,12 +410,16 @@ class AIChatWidget(QWidget):
         
         # Create SessionRunner - the authoritative owner of session state
         from forge.session.runner import SessionRunner
+        from forge.session.registry import SESSION_REGISTRY
         
         initial_messages = session_data.get("messages", []) if session_data else []
         self.runner = SessionRunner(self.session_manager, initial_messages)
         
-        # Connect runner signals to our handlers
-        self._connect_runner_signals()
+        # Register with global registry
+        SESSION_REGISTRY.register(self.branch_name, self.runner)
+        
+        # Attach to the runner (we're the UI now)
+        self._attach_to_runner()
 
         # Load existing session messages and restore prompt manager state
         if session_data:
@@ -478,6 +483,29 @@ class AIChatWidget(QWidget):
         self._update_chat_display()
         self._check_for_unapproved_tools()
     
+    def _attach_to_runner(self) -> None:
+        """Attach to the SessionRunner and sync state."""
+        from forge.session.runner import (
+            SessionEvent, ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent,
+            ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent,
+            MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent,
+        )
+        
+        # Get snapshot of current state
+        messages, streaming_content, streaming_tool_calls, is_streaming, state = self.runner.attach()
+        
+        # Connect signals BEFORE draining buffer
+        self._connect_runner_signals()
+        
+        # Drain any buffered events that occurred during attach
+        buffered_events = self.runner.drain_buffer()
+        for event in buffered_events:
+            self._handle_runner_event(event)
+        
+        # Update UI state from snapshot if runner was mid-stream
+        if is_streaming:
+            self._set_processing_ui(True)
+    
     def _connect_runner_signals(self) -> None:
         """Connect SessionRunner signals to our UI handlers."""
         # Streaming signals
@@ -497,6 +525,55 @@ class AIChatWidget(QWidget):
         self.runner.message_added.connect(self._on_runner_message_added)
         self.runner.message_updated.connect(self._on_runner_message_updated)
         self.runner.messages_truncated.connect(self._on_runner_messages_truncated)
+    
+    def _handle_runner_event(self, event: "SessionEvent") -> None:
+        """Handle a buffered event from the runner."""
+        from forge.session.runner import (
+            ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent,
+            ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent,
+            MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent,
+        )
+        
+        if isinstance(event, ChunkEvent):
+            self._on_runner_chunk(event.chunk)
+        elif isinstance(event, ToolCallDeltaEvent):
+            self._on_runner_tool_call_delta(event.index, event.tool_call)
+        elif isinstance(event, ToolStartedEvent):
+            self._on_runner_tool_started(event.tool_name, event.tool_args)
+        elif isinstance(event, ToolFinishedEvent):
+            self._on_runner_tool_finished(event.tool_call_id, event.tool_name, event.tool_args, event.result)
+        elif isinstance(event, StateChangedEvent):
+            self._on_runner_state_changed(event.state)
+        elif isinstance(event, TurnFinishedEvent):
+            self._on_runner_turn_finished(event.commit_oid)
+        elif isinstance(event, ErrorEvent):
+            self._on_runner_error(event.error)
+        elif isinstance(event, MessageAddedEvent):
+            self._on_runner_message_added(event.message)
+        elif isinstance(event, MessageUpdatedEvent):
+            self._on_runner_message_updated(event.index, event.message)
+        elif isinstance(event, MessagesTruncatedEvent):
+            self._on_runner_messages_truncated(event.new_length)
+    
+    def detach_from_runner(self) -> None:
+        """Detach from the runner (called when tab is closed)."""
+        if hasattr(self, 'runner'):
+            self.runner.detach()
+            
+            # Disconnect signals
+            try:
+                self.runner.chunk_received.disconnect(self._on_runner_chunk)
+                self.runner.tool_call_delta.disconnect(self._on_runner_tool_call_delta)
+                self.runner.tool_started.disconnect(self._on_runner_tool_started)
+                self.runner.tool_finished.disconnect(self._on_runner_tool_finished)
+                self.runner.state_changed.disconnect(self._on_runner_state_changed)
+                self.runner.turn_finished.disconnect(self._on_runner_turn_finished)
+                self.runner.error_occurred.disconnect(self._on_runner_error)
+                self.runner.message_added.disconnect(self._on_runner_message_added)
+                self.runner.message_updated.disconnect(self._on_runner_message_updated)
+                self.runner.messages_truncated.disconnect(self._on_runner_messages_truncated)
+            except RuntimeError:
+                pass  # Already disconnected
     
     # === Runner signal handlers ===
     

@@ -9,14 +9,93 @@ Key concepts:
 - SessionRunner owns: messages, streaming state, worker threads
 - AIChatWidget attaches/detaches without disrupting execution
 - Spawned child sessions run headlessly until user attaches a view
+
+Attach/Detach model:
+- When detached, events buffer up in a thread-safe queue
+- On attach: lock buffer, get snapshot, unlock, replay buffered events
+- Once buffer is drained, switch to direct signal emission
 """
 
+from collections import deque
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Protocol
 
 from PySide6.QtCore import QObject, QThread, Signal
 
 if TYPE_CHECKING:
     from forge.session.manager import SessionManager
+
+
+# Event types for buffering
+class SessionEvent:
+    """Base class for buffered session events."""
+    pass
+
+
+class ChunkEvent(SessionEvent):
+    """Streaming text chunk."""
+    def __init__(self, chunk: str):
+        self.chunk = chunk
+
+
+class ToolCallDeltaEvent(SessionEvent):
+    """Streaming tool call update."""
+    def __init__(self, index: int, tool_call: dict[str, Any]):
+        self.index = index
+        self.tool_call = tool_call
+
+
+class ToolStartedEvent(SessionEvent):
+    """Tool execution started."""
+    def __init__(self, tool_name: str, tool_args: dict[str, Any]):
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+
+
+class ToolFinishedEvent(SessionEvent):
+    """Tool execution finished."""
+    def __init__(self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]):
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+        self.result = result
+
+
+class StateChangedEvent(SessionEvent):
+    """Session state changed."""
+    def __init__(self, state: str):
+        self.state = state
+
+
+class TurnFinishedEvent(SessionEvent):
+    """AI turn completed."""
+    def __init__(self, commit_oid: str):
+        self.commit_oid = commit_oid
+
+
+class ErrorEvent(SessionEvent):
+    """Error occurred."""
+    def __init__(self, error: str):
+        self.error = error
+
+
+class MessageAddedEvent(SessionEvent):
+    """Message added."""
+    def __init__(self, message: dict[str, Any]):
+        self.message = message
+
+
+class MessageUpdatedEvent(SessionEvent):
+    """Message updated."""
+    def __init__(self, index: int, message: dict[str, Any]):
+        self.index = index
+        self.message = message
+
+
+class MessagesTruncatedEvent(SessionEvent):
+    """Messages truncated."""
+    def __init__(self, new_length: int):
+        self.new_length = new_length
 
 
 class SessionRunnerDelegate(Protocol):
@@ -122,6 +201,11 @@ class SessionRunner(QObject):
         self.streaming_tool_calls: list[dict[str, Any]] = []
         self.is_streaming: bool = False
         
+        # === ATTACH/DETACH STATE ===
+        self._attached = False
+        self._event_buffer: deque[SessionEvent] = deque()
+        self._buffer_lock = Lock()
+        
         # Execution state
         self._state = SessionState.IDLE
         self._cancel_requested = False
@@ -158,10 +242,10 @@ class SessionRunner(QObject):
     
     @state.setter
     def state(self, value: str) -> None:
-        """Set state and emit signal."""
+        """Set state and emit event."""
         if self._state != value:
             self._state = value
-            self.state_changed.emit(value)
+            self._emit_event(StateChangedEvent(value))
     
     @property
     def is_running(self) -> bool:
@@ -172,16 +256,16 @@ class SessionRunner(QObject):
     # All message mutations go through these methods to ensure signals are emitted
     
     def add_message(self, message: dict[str, Any]) -> int:
-        """Add a message and emit signal. Returns the index."""
+        """Add a message and emit event. Returns the index."""
         self.messages.append(message)
-        self.message_added.emit(message)
+        self._emit_event(MessageAddedEvent(message))
         return len(self.messages) - 1
     
     def update_message(self, index: int, updates: dict[str, Any]) -> None:
-        """Update a message at index and emit signal."""
+        """Update a message at index and emit event."""
         if 0 <= index < len(self.messages):
             self.messages[index].update(updates)
-            self.message_updated.emit(index, self.messages[index])
+            self._emit_event(MessageUpdatedEvent(index, self.messages[index]))
     
     def update_last_assistant_message(self, updates: dict[str, Any]) -> None:
         """Update the last assistant message (common pattern during streaming)."""
@@ -194,7 +278,7 @@ class SessionRunner(QObject):
         """Remove and return the last message."""
         if self.messages:
             msg = self.messages.pop()
-            self.messages_truncated.emit(len(self.messages))
+            self._emit_event(MessagesTruncatedEvent(len(self.messages)))
             return msg
         return None
     
@@ -202,7 +286,7 @@ class SessionRunner(QObject):
         """Truncate messages to new_length."""
         if new_length < len(self.messages):
             self.messages = self.messages[:new_length]
-            self.messages_truncated.emit(new_length)
+            self._emit_event(MessagesTruncatedEvent(new_length))
     
     # === STREAMING STATE ===
     
@@ -220,14 +304,14 @@ class SessionRunner(QObject):
         # Update the last message
         self.update_last_assistant_message({"content": self.streaming_content})
         # Emit for real-time UI update
-        self.chunk_received.emit(chunk)
+        self._emit_event(ChunkEvent(chunk))
     
     def update_streaming_tool_call(self, index: int, tool_call: dict[str, Any]) -> None:
         """Update a streaming tool call."""
         while len(self.streaming_tool_calls) <= index:
             self.streaming_tool_calls.append({})
         self.streaming_tool_calls[index] = tool_call
-        self.tool_call_delta.emit(index, tool_call)
+        self._emit_event(ToolCallDeltaEvent(index, tool_call))
     
     def finish_streaming(self, content: str | None, tool_calls: list[dict[str, Any]] | None) -> None:
         """Finalize streaming with final content and tool_calls."""
@@ -240,6 +324,86 @@ class SessionRunner(QObject):
         if updates:
             self.update_last_assistant_message(updates)
         self.streaming_tool_calls = []
+    
+    # === ATTACH/DETACH API ===
+    
+    def attach(self) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]], bool, str]:
+        """
+        Attach a UI to this runner.
+        
+        Returns a snapshot of current state for immediate rendering:
+        (messages, streaming_content, streaming_tool_calls, is_streaming, state)
+        
+        After calling attach(), connect to signals and call drain_buffer()
+        to replay any events that occurred during the attach process.
+        """
+        with self._buffer_lock:
+            self._attached = True
+            # Return snapshot of current state
+            return (
+                list(self.messages),  # Copy to avoid mutation during iteration
+                self.streaming_content,
+                list(self.streaming_tool_calls),
+                self.is_streaming,
+                self._state,
+            )
+    
+    def detach(self) -> None:
+        """
+        Detach UI from this runner.
+        
+        Events will buffer until another UI attaches.
+        """
+        with self._buffer_lock:
+            self._attached = False
+            self._event_buffer.clear()  # Clear any stale events
+    
+    def drain_buffer(self) -> list[SessionEvent]:
+        """
+        Drain and return all buffered events.
+        
+        Call this after attach() and connecting signals to replay
+        any events that occurred during the attach process.
+        
+        Returns list of events in order they occurred.
+        """
+        with self._buffer_lock:
+            events = list(self._event_buffer)
+            self._event_buffer.clear()
+            return events
+    
+    def _emit_event(self, event: SessionEvent) -> None:
+        """
+        Emit an event - either directly via signal or buffer if detached.
+        
+        This is the central dispatch point for all events.
+        """
+        with self._buffer_lock:
+            if not self._attached:
+                self._event_buffer.append(event)
+                return
+        
+        # Attached - emit directly via appropriate signal
+        if isinstance(event, ChunkEvent):
+            self.chunk_received.emit(event.chunk)
+        elif isinstance(event, ToolCallDeltaEvent):
+            self.tool_call_delta.emit(event.index, event.tool_call)
+        elif isinstance(event, ToolStartedEvent):
+            self.tool_started.emit(event.tool_name, event.tool_args)
+        elif isinstance(event, ToolFinishedEvent):
+            self.tool_finished.emit(event.tool_call_id, event.tool_name, event.tool_args, event.result)
+        elif isinstance(event, StateChangedEvent):
+            self.state_changed.emit(event.state)
+        elif isinstance(event, TurnFinishedEvent):
+            self.turn_finished.emit(event.commit_oid)
+        elif isinstance(event, ErrorEvent):
+            self.error_occurred.emit(event.error)
+        elif isinstance(event, MessageAddedEvent):
+            self.message_added.emit(event.message)
+        elif isinstance(event, MessageUpdatedEvent):
+            self.message_updated.emit(event.index, event.message)
+        elif isinstance(event, MessagesTruncatedEvent):
+            self.messages_truncated.emit(event.new_length)
     
     # === PUBLIC API ===
     
@@ -294,7 +458,7 @@ class SessionRunner(QObject):
         self.streaming_tool_calls = []
         
         self.state = SessionState.IDLE
-        self.error_occurred.emit("Cancelled by user")
+        self._emit_event(ErrorEvent("Cancelled by user"))
     
     def _cleanup_threads(self) -> None:
         """Clean up all worker threads."""
@@ -497,7 +661,7 @@ class SessionRunner(QObject):
         self._inline_worker = None
         
         self.state = SessionState.ERROR
-        self.error_occurred.emit(f"Inline command error: {error_msg}")
+        self._emit_event(ErrorEvent(f"Inline command error: {error_msg}"))
     
     def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:
         """Process side effects from tool execution."""
@@ -544,7 +708,7 @@ class SessionRunner(QObject):
         commit_oid = self.session_manager.commit_ai_turn(self.messages)
         
         self.state = SessionState.IDLE
-        self.turn_finished.emit(commit_oid)
+        self._emit_event(TurnFinishedEvent(commit_oid))
     
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread."""
@@ -570,7 +734,7 @@ class SessionRunner(QObject):
     
     def _on_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
         """Handle tool execution starting."""
-        self.tool_started.emit(tool_name, tool_args)
+        self._emit_event(ToolStartedEvent(tool_name, tool_args))
     
     def _on_tool_finished(
         self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
@@ -611,7 +775,7 @@ class SessionRunner(QObject):
             summary = result.get("summary", "")
             self.session_manager.compact_tool_results(from_id, to_id, summary)
         
-        self.tool_finished.emit(tool_call_id, tool_name, tool_args, result)
+        self._emit_event(ToolFinishedEvent(tool_call_id, tool_name, tool_args, result))
     
     def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
         """Handle all tools completed."""
@@ -659,7 +823,7 @@ class SessionRunner(QObject):
             self._tool_worker = None
         
         self.state = SessionState.ERROR
-        self.error_occurred.emit(f"Tool execution error: {error_msg}")
+        self._emit_event(ErrorEvent(f"Tool execution error: {error_msg}"))
     
     def _continue_after_tools(self) -> None:
         """Continue LLM conversation after tool execution."""

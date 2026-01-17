@@ -427,12 +427,17 @@ class SessionRunner(QObject):
 
     # === PUBLIC API ===
 
-    def send_message(self, text: str) -> bool:
+    def send_message(self, text: str, _trigger_only: bool = False) -> bool:
         """
         Send a user message to the AI.
 
         Returns True if message was accepted, False if session is busy.
         If busy but running, the message is queued for after current operation.
+
+        Args:
+            text: The message text
+            _trigger_only: If True, just start processing without adding a message
+                          (used when message is already in loaded session.json)
         """
         if self._state == SessionState.RUNNING:
             # Queue the message
@@ -450,9 +455,10 @@ class SessionRunner(QObject):
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
             return self._resume_pending_wait(text)
 
-        # Add message to conversation
-        self.add_message({"role": "user", "content": text})
-        self.session_manager.append_user_message(text)
+        # Add message to conversation (unless just triggering)
+        if not _trigger_only and text:
+            self.add_message({"role": "user", "content": text})
+            self.session_manager.append_user_message(text)
 
         # Reset turn tracking
         self._turn_executed_tool_ids = set()
@@ -782,6 +788,12 @@ class SessionRunner(QObject):
 
         self.state = SessionState.IDLE
         self._emit_event(TurnFinishedEvent(commit_oid))
+
+        # Notify parent if we have one (so it can resume if waiting)
+        if self._parent_session:
+            from forge.session.registry import SESSION_REGISTRY
+
+            SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread."""

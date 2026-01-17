@@ -116,6 +116,7 @@ def start_or_resume_session(
 
     # Check if already in registry
     runner = SESSION_REGISTRY.get(branch_name)
+    was_newly_loaded = False
 
     if not runner:
         # Load from disk
@@ -125,10 +126,18 @@ def start_or_resume_session(
 
         # Register it
         SESSION_REGISTRY.register(branch_name, runner)
+        was_newly_loaded = True
 
-    # Send message if provided
+    # Start the runner if message provided
+    # If newly loaded, the message is already in session.json (from resume_session)
+    # so we just need to trigger the run without adding another message
+    # If already in registry, send the actual message
     if message:
-        runner.send_message(message)
+        if was_newly_loaded:
+            # Message already in session.json, just trigger the run
+            runner.send_message("", _trigger_only=True)
+        else:
+            runner.send_message(message)
 
     return runner
 

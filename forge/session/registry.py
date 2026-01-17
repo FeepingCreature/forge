@@ -126,9 +126,14 @@ class SessionRegistry(QObject):
 
             for _branch, state in child_states.items():
                 if state in ready_states:
-                    # A child is ready - resume the parent
-                    # The parent will check wait_session results on next turn
-                    parent.state = SessionState.IDLE
+                    # A child is ready - actually resume the parent by re-executing
+                    # the pending wait_session call
+                    if parent._pending_wait_call:
+                        # Use send_message with empty string to trigger _resume_pending_wait
+                        parent.send_message("")
+                    else:
+                        # Fallback: just set to IDLE (shouldn't happen)
+                        parent.state = SessionState.IDLE
                     break
 
 

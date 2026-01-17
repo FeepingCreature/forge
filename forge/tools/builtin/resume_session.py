@@ -89,7 +89,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 "error": "Child session is already running",
             }
 
-        # Append message to child's conversation
+        # Append message to child's conversation and update state
         messages = session_data.get("messages", [])
         messages.append({"role": "user", "content": message})
         session_data["messages"] = messages

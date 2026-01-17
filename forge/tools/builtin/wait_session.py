@@ -22,38 +22,44 @@ if TYPE_CHECKING:
 def _check_merge_clean(repo: "ForgeRepository", parent_branch: str, child_branch: str) -> bool:
     """Check if merging child into parent would be clean (no conflicts)."""
     import pygit2
-    
+
     parent_ref = repo.repo.branches.get(parent_branch)
     child_ref = repo.repo.branches.get(child_branch)
-    
+
     if parent_ref is None or child_ref is None:
-        return False
-    
+        return False  # type: ignore[unreachable]
+
     parent_commit = parent_ref.peel(pygit2.Commit)
     child_commit = child_ref.peel(pygit2.Commit)
-    
+
     # Check merge analysis
     merge_result = repo.repo.merge_analysis(child_commit.id)
-    
+
     if merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
         return True  # Already up to date
     if merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
         return True  # Fast-forward possible
-    
+
     # Need to actually try the merge to check for conflicts
     # We do this in memory without committing
     try:
+        base_oid = repo.repo.merge_base(parent_commit.id, child_commit.id)
+        base_commit = repo.repo.get(base_oid)
+        if base_commit is None:
+            return False
         merge_index = repo.repo.merge_trees(
-            repo.repo.merge_base(parent_commit.id, child_commit.id),
+            base_commit.peel(pygit2.Tree),
             parent_commit.tree,
             child_commit.tree,
         )
         # Check for conflicts, excluding session.json (auto-resolved)
         if merge_index.conflicts:
-            for ancestor, ours, theirs in merge_index.conflicts:
-                path = (ours or theirs or ancestor).path
-                if path != ".forge/session.json":
-                    return False  # Real conflict
+            for _ancestor, ours, theirs in merge_index.conflicts:
+                entry = ours or theirs
+                if entry is not None:
+                    path = entry.path
+                    if path != ".forge/session.json":
+                        return False  # Real conflict
         return True  # No conflicts (or only session.json)
     except Exception:
         return False
@@ -89,47 +95,49 @@ def get_schema() -> dict[str, Any]:
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Check child sessions and wait if needed."""
     branches = args.get("branches", [])
-    
+
     if not branches:
         return {"success": False, "error": "At least one branch is required"}
-    
+
     repo = ctx.repo
     parent_branch = ctx.branch_name
-    
+
     # Check each child's state
     ready_children = []
     running_children = []
-    
+
     for branch in branches:
         if branch not in repo.repo.branches:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
-        
+
         try:
             child_vfs = ctx.get_branch_vfs(branch)
             session_content = child_vfs.read_file(SESSION_FILE)
             session_data = json.loads(session_content)
-            
+
             # Verify this is our child
             if session_data.get("parent_session") != parent_branch:
                 return {
                     "success": False,
                     "error": f"Branch '{branch}' is not a child of current session",
                 }
-            
+
             state = session_data.get("state", "idle")
             yield_message = session_data.get("yield_message")
-            
+
             if state in ("completed", "waiting_input", "waiting_children"):
                 # Check if merge would be clean
                 merge_clean = _check_merge_clean(repo, parent_branch, branch)
-                
-                ready_children.append({
-                    "branch": branch,
-                    "state": state,
-                    "message": yield_message,
-                    "task": session_data.get("task", ""),
-                    "merge_clean": merge_clean,
-                })
+
+                ready_children.append(
+                    {
+                        "branch": branch,
+                        "state": state,
+                        "message": yield_message,
+                        "task": session_data.get("task", ""),
+                        "merge_clean": merge_clean,
+                    }
+                )
             elif state == "running":
                 running_children.append(branch)
             elif state == "idle":
@@ -139,16 +147,18 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                     "error": f"Child session '{branch}' hasn't been started. Use resume_session first.",
                 }
             elif state == "error":
-                ready_children.append({
-                    "branch": branch,
-                    "state": "error",
-                    "message": yield_message or "Unknown error",
-                    "task": session_data.get("task", ""),
-                })
-                
+                ready_children.append(
+                    {
+                        "branch": branch,
+                        "state": "error",
+                        "message": yield_message or "Unknown error",
+                        "task": session_data.get("task", ""),
+                    }
+                )
+
         except (FileNotFoundError, json.JSONDecodeError) as e:
             return {"success": False, "error": f"Error reading session for '{branch}': {e}"}
-    
+
     # If any child is ready, return immediately
     if ready_children:
         child = ready_children[0]  # Return first ready child
@@ -161,7 +171,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "ready": True,
             "merge_clean": child["merge_clean"],
         }
-    
+
     # All children still running - we need to yield
     if running_children:
         return {
@@ -174,6 +184,6 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "_yield_message": f"Waiting on child sessions: {', '.join(running_children)}",
             "side_effects": [SideEffect.MID_TURN_COMMIT],  # Force commit before yield
         }
-    
+
     # No children found (shouldn't happen given earlier checks)
     return {"success": False, "error": "No valid child sessions found"}

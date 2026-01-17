@@ -54,11 +54,11 @@ def get_schema() -> dict[str, Any]:
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Create a child session branch."""
     import re
-    
+
     task = args.get("task", "")
     if not task:
         return {"success": False, "error": "Task description is required"}
-    
+
     # Generate branch name if not provided
     branch_name = args.get("branch_name")
     if not branch_name:
@@ -66,42 +66,42 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         sanitized = re.sub(r"[^a-zA-Z0-9]+", "-", task.lower())
         sanitized = sanitized.strip("-")[:30]
         branch_name = f"ai/{sanitized}"
-    
+
     # Get the repository and current branch from context
     repo = ctx.repo
     parent_branch = ctx.branch_name
-    
+
     try:
         # Get current branch HEAD
         parent_ref = repo.repo.branches.get(parent_branch)
         if parent_ref is None:
-            return {"success": False, "error": f"Parent branch '{parent_branch}' not found"}
-        
+            return {"success": False, "error": f"Parent branch '{parent_branch}' not found"}  # type: ignore[unreachable]
+
         parent_commit = parent_ref.peel(pygit2.Commit)
-        
+
         # Check if branch already exists
-        if branch_name in repo.repo.branches:
+        if branch_name in repo.repo.branches.local:
             return {"success": False, "error": f"Branch '{branch_name}' already exists"}
-        
+
         # Create the new branch
         repo.repo.branches.create(branch_name, parent_commit)
-        
+
         # Read current session to get parent info
         try:
             current_session_content = ctx.read_file(SESSION_FILE)
             current_session = json.loads(current_session_content)
         except (FileNotFoundError, json.JSONDecodeError):
             current_session = {}
-        
+
         # Update current session's child list
         child_sessions = current_session.get("child_sessions", [])
         if branch_name not in child_sessions:
             child_sessions.append(branch_name)
         current_session["child_sessions"] = child_sessions
-        
+
         # Write back to current session (will be committed with parent's next commit)
         ctx.write_file(SESSION_FILE, json.dumps(current_session, indent=2))
-        
+
         # Create initial session for child branch using context helper
         child_vfs = ctx.get_branch_vfs(branch_name)
         child_session = {
@@ -115,7 +115,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         }
         child_vfs.write_file(SESSION_FILE, json.dumps(child_session, indent=2))
         child_vfs.commit(f"Initialize child session: {task[:50]}")
-        
+
         return {
             "success": True,
             "branch": branch_name,
@@ -125,6 +125,6 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 f"Use resume_session('{branch_name}', 'your instructions') to start it."
             ),
         }
-        
+
     except Exception as e:
         return {"success": False, "error": str(e)}

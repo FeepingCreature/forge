@@ -14,10 +14,10 @@ from forge.git_backend.commit_types import CommitType, format_commit_message, pa
 
 class RepositorySignals(QObject):
     """Qt signals for repository changes."""
-    
+
     # Emitted when a branch is created or deleted
     branches_changed = Signal()
-    
+
     # Emitted when a commit is made (branch_name, commit_oid)
     commit_made = Signal(str, str)
 
@@ -89,7 +89,7 @@ class ForgeRepository:
 
         commit = head.peel(pygit2.Commit)
         self.repo.branches.create(branch_name, commit)
-        
+
         self.signals.branches_changed.emit()
 
         return branch_name
@@ -533,7 +533,7 @@ class ForgeRepository:
         # Get the branch reference and delete it
         branch = self.repo.branches.local[branch_name]
         branch.delete()
-        
+
         self.signals.branches_changed.emit()
 
     def move_branch(self, branch_name: str, target_oid: str) -> None:

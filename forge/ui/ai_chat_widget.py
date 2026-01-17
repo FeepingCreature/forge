@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 from forge.constants import SESSION_FILE
 from forge.llm.client import LLMClient
 from forge.session.manager import SessionManager
-from forge.tools.invocation import InlineCommand, execute_inline_commands, parse_inline_commands
+from forge.tools.invocation import InlineCommand
 from forge.tools.side_effects import SideEffect
 from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import (
@@ -357,13 +357,13 @@ class ChatBridge(QObject):
 
 class AIChatWidget(QWidget):
     """AI chat interface with rich markdown rendering.
-    
+
     This is a VIEW over a SessionRunner. The runner owns:
     - messages: The conversation history
     - streaming_content: Current streaming text
     - streaming_tool_calls: Current streaming tool calls
     - is_streaming: Whether we're streaming
-    
+
     This widget:
     - Renders the session state to HTML
     - Handles user input and forwards to runner
@@ -407,17 +407,17 @@ class AIChatWidget(QWidget):
 
         # Get session manager from workspace (branch-level ownership)
         self.session_manager = workspace.session_manager
-        
+
         # Create SessionRunner - the authoritative owner of session state
-        from forge.session.runner import SessionRunner
         from forge.session.registry import SESSION_REGISTRY
-        
+        from forge.session.runner import SessionRunner
+
         initial_messages = session_data.get("messages", []) if session_data else []
         self.runner = SessionRunner(self.session_manager, initial_messages)
-        
+
         # Register with global registry
         SESSION_REGISTRY.register(self.branch_name, self.runner)
-        
+
         # Attach to the runner (we're the UI now)
         self._attach_to_runner()
 
@@ -482,58 +482,61 @@ class AIChatWidget(QWidget):
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
-    
+
     def _attach_to_runner(self) -> None:
         """Attach to the SessionRunner and sync state."""
-        from forge.session.runner import (
-            SessionEvent, ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent,
-            ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent,
-            MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent,
-        )
-        
         # Get snapshot of current state
-        messages, streaming_content, streaming_tool_calls, is_streaming, state = self.runner.attach()
-        
+        messages, streaming_content, streaming_tool_calls, is_streaming, state = (
+            self.runner.attach()
+        )
+
         # Connect signals BEFORE draining buffer
         self._connect_runner_signals()
-        
+
         # Drain any buffered events that occurred during attach
         buffered_events = self.runner.drain_buffer()
         for event in buffered_events:
             self._handle_runner_event(event)
-        
+
         # Update UI state from snapshot if runner was mid-stream
         if is_streaming:
             self._set_processing_ui(True)
-    
+
     def _connect_runner_signals(self) -> None:
         """Connect SessionRunner signals to our UI handlers."""
         # Streaming signals
         self.runner.chunk_received.connect(self._on_runner_chunk)
         self.runner.tool_call_delta.connect(self._on_runner_tool_call_delta)
-        
+
         # Tool execution signals
         self.runner.tool_started.connect(self._on_runner_tool_started)
         self.runner.tool_finished.connect(self._on_runner_tool_finished)
-        
+
         # State signals
         self.runner.state_changed.connect(self._on_runner_state_changed)
         self.runner.turn_finished.connect(self._on_runner_turn_finished)
         self.runner.error_occurred.connect(self._on_runner_error)
-        
+
         # Message mutation signals (for UI sync)
         self.runner.message_added.connect(self._on_runner_message_added)
         self.runner.message_updated.connect(self._on_runner_message_updated)
         self.runner.messages_truncated.connect(self._on_runner_messages_truncated)
-    
+
     def _handle_runner_event(self, event: "SessionEvent") -> None:
         """Handle a buffered event from the runner."""
         from forge.session.runner import (
-            ChunkEvent, ToolCallDeltaEvent, ToolStartedEvent,
-            ToolFinishedEvent, StateChangedEvent, TurnFinishedEvent, ErrorEvent,
-            MessageAddedEvent, MessageUpdatedEvent, MessagesTruncatedEvent,
+            ChunkEvent,
+            ErrorEvent,
+            MessageAddedEvent,
+            MessagesTruncatedEvent,
+            MessageUpdatedEvent,
+            StateChangedEvent,
+            ToolCallDeltaEvent,
+            ToolFinishedEvent,
+            ToolStartedEvent,
+            TurnFinishedEvent,
         )
-        
+
         if isinstance(event, ChunkEvent):
             self._on_runner_chunk(event.chunk)
         elif isinstance(event, ToolCallDeltaEvent):
@@ -541,7 +544,9 @@ class AIChatWidget(QWidget):
         elif isinstance(event, ToolStartedEvent):
             self._on_runner_tool_started(event.tool_name, event.tool_args)
         elif isinstance(event, ToolFinishedEvent):
-            self._on_runner_tool_finished(event.tool_call_id, event.tool_name, event.tool_args, event.result)
+            self._on_runner_tool_finished(
+                event.tool_call_id, event.tool_name, event.tool_args, event.result
+            )
         elif isinstance(event, StateChangedEvent):
             self._on_runner_state_changed(event.state)
         elif isinstance(event, TurnFinishedEvent):
@@ -554,12 +559,12 @@ class AIChatWidget(QWidget):
             self._on_runner_message_updated(event.index, event.message)
         elif isinstance(event, MessagesTruncatedEvent):
             self._on_runner_messages_truncated(event.new_length)
-    
+
     def detach_from_runner(self) -> None:
         """Detach from the runner (called when tab is closed)."""
-        if hasattr(self, 'runner'):
+        if hasattr(self, "runner"):
             self.runner.detach()
-            
+
             # Disconnect signals
             try:
                 self.runner.chunk_received.disconnect(self._on_runner_chunk)
@@ -574,87 +579,87 @@ class AIChatWidget(QWidget):
                 self.runner.messages_truncated.disconnect(self._on_runner_messages_truncated)
             except RuntimeError:
                 pass  # Already disconnected
-    
+
     # === Runner signal handlers ===
-    
+
     def _on_runner_chunk(self, chunk: str) -> None:
         """Handle streaming chunk from runner."""
         self._append_streaming_chunk(chunk)
-    
+
     def _on_runner_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
         """Handle streaming tool call update from runner."""
         self._update_streaming_tool_calls()
-    
+
     def _on_runner_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
         """Handle tool execution starting."""
         # Could show a "running..." indicator here if desired
         pass
-    
+
     def _on_runner_tool_finished(
         self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
     ) -> None:
         """Handle individual tool completion from runner."""
         from forge.tools.side_effects import SideEffect
-        
+
         side_effects = result.get("side_effects", [])
-        
+
         # Handle MID_TURN_COMMIT - emit signal
         if SideEffect.MID_TURN_COMMIT in side_effects:
             commit_oid = result.get("commit", "")
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
-        
+
         # If tool modified context, emit signal to update UI
         if result.get("action") == "update_context":
             self.context_changed.emit(self.session_manager.active_files.copy())
             self._emit_context_stats()
-        
+
         # Display tool result (system messages for failures, etc.)
         self._display_tool_result(tool_name, tool_args, result)
-    
+
     def _on_runner_state_changed(self, state: str) -> None:
         """Handle runner state change."""
         from forge.session.runner import SessionState
-        
+
         if state == SessionState.RUNNING:
             self.ai_turn_started.emit()
             self._set_processing_ui(True)
         elif state in (SessionState.IDLE, SessionState.ERROR):
             self._set_processing_ui(False)
             self._check_for_unapproved_tools()
-    
+
     def _on_runner_turn_finished(self, commit_oid: str) -> None:
         """Handle turn completion from runner."""
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
         self.ai_turn_finished.emit(commit_oid)
         self._notify_turn_complete(commit_oid)
         self._emit_context_stats()
-        
+
         # Generate summaries for newly created files
         if self.runner._newly_created_files:
             for filepath in self.runner._newly_created_files:
                 self.session_manager.generate_summary_for_file(filepath)
             self.summaries_ready.emit(self.session_manager.repo_summaries)
-    
+
     def _on_runner_error(self, error_msg: str) -> None:
         """Handle error from runner."""
         self._add_system_message(f"❌ {error_msg}")
         self.ai_turn_finished.emit("")
-    
+
     def _on_runner_message_added(self, message: dict[str, Any]) -> None:
         """Handle message added to runner."""
         self._update_chat_display(scroll_to_bottom=True)
-    
+
     def _on_runner_message_updated(self, index: int, message: dict[str, Any]) -> None:
         """Handle message updated in runner."""
         # For streaming, we use direct JS updates, but this catches other cases
         if not self.runner.is_streaming:
             self._update_chat_display()
-    
+
     def _on_runner_messages_truncated(self, new_length: int) -> None:
         """Handle messages truncated in runner."""
         self._update_chat_display()
-    
+
     def _set_processing_ui(self, processing: bool) -> None:
         """Update UI for processing state."""
         if processing:
@@ -671,7 +676,7 @@ class AIChatWidget(QWidget):
             self.input_field.setPlaceholderText(
                 "Type your message... (Enter to send, Shift+Enter for new line)"
             )
-    
+
     def _display_tool_result(
         self, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
     ) -> None:
@@ -720,33 +725,34 @@ class AIChatWidget(QWidget):
                 f"```json\n{json.dumps(result, indent=2)}\n```",
             ]
             self._add_system_message("\n".join(tool_display_parts))
-    
+
     # === Property to access messages through runner ===
-    
+
     @property
     def messages(self) -> list[dict[str, Any]]:
         """Access messages through the runner (source of truth)."""
         return self.runner.messages
-    
+
     @property
     def streaming_content(self) -> str:
         """Access streaming content through the runner."""
         return self.runner.streaming_content
-    
+
     @property
     def _streaming_tool_calls(self) -> list[dict[str, Any]]:
         """Access streaming tool calls through the runner."""
         return self.runner.streaming_tool_calls
-    
+
     @property
     def _is_streaming(self) -> bool:
         """Access streaming state through the runner."""
         return self.runner.is_streaming
-    
+
     @property
     def is_processing(self) -> bool:
         """Check if runner is processing."""
         from forge.session.runner import SessionState
+
         return self.runner.state == SessionState.RUNNING
 
     def _setup_ui(self) -> None:
@@ -1196,8 +1202,6 @@ class AIChatWidget(QWidget):
         # Get optimized messages from prompt manager
         return self.session_manager.get_prompt_messages()
 
-
-
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
         if not self._streaming_tool_calls:
@@ -1271,10 +1275,6 @@ class AIChatWidget(QWidget):
         """
         self.chat_view.page().runJavaScript(js_code)
 
-
-
-
-
     def _cancel_ai_turn(self) -> None:
         """Cancel the current AI turn - abort streaming/tool execution and discard changes"""
         if not self.is_processing:
@@ -1282,7 +1282,7 @@ class AIChatWidget(QWidget):
 
         # Delegate to runner - it handles all the cleanup
         self.runner.cancel()
-        
+
         # Add cancellation notice
         self._add_system_message("🛑 AI turn cancelled by user")
 
@@ -1293,7 +1293,7 @@ class AIChatWidget(QWidget):
 
     def _reset_input(self) -> None:
         """Re-enable input after processing (if no pending approvals)"""
-        self.is_processing = False
+        # Note: is_processing is a read-only property, UI state is managed by _set_processing_ui
 
         # Hide cancel button, show send button
         self.cancel_button.setEnabled(False)
@@ -1314,9 +1314,9 @@ class AIChatWidget(QWidget):
             self.send_button.setEnabled(True)
 
             # Check if there's a queued message to send
-            if self._queued_message:
-                queued = self._queued_message
-                self._queued_message = None
+            if self.runner._queued_message:
+                queued = self.runner._queued_message
+                self.runner._queued_message = None
                 # Auto-send the queued message
                 self.input_field.setPlainText(queued)
                 self._send_message()

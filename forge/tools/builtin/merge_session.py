@@ -60,17 +60,17 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     branch = args.get("branch", "")
     delete_branch = args.get("delete_branch", True)
     allow_conflicts = args.get("allow_conflicts", False)
-    
+
     if not branch:
         return {"success": False, "error": "Branch name is required"}
-    
+
     repo = ctx.repo
     parent_branch = ctx.branch_name
-    
+
     # Check if branch exists
-    if branch not in repo.repo.branches:
+    if branch not in repo.repo.branches.local:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
-    
+
     try:
         # Verify this is our child
         child_vfs = ctx.get_branch_vfs(branch)
@@ -79,13 +79,13 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             session_data = json.loads(session_content)
         except (FileNotFoundError, json.JSONDecodeError):
             session_data = {}
-        
+
         if session_data.get("parent_session") != parent_branch:
             return {
                 "success": False,
                 "error": f"Branch '{branch}' is not a child of current session",
             }
-        
+
         # Check child state
         child_state = session_data.get("state", "idle")
         if child_state not in ("completed", "waiting_input"):
@@ -93,43 +93,43 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 "success": False,
                 "error": f"Child session is not ready for merge (state: {child_state})",
             }
-        
+
         # Get branch references
         parent_ref = repo.repo.branches.get(parent_branch)
         child_ref = repo.repo.branches.get(branch)
-        
+
         if parent_ref is None or child_ref is None:
-            return {"success": False, "error": "Could not find branch references"}
-        
+            return {"success": False, "error": "Could not find branch references"}  # type: ignore[unreachable]
+
         parent_commit = parent_ref.peel(pygit2.Commit)
         child_commit = child_ref.peel(pygit2.Commit)
-        
+
         # Perform the merge
         merge_result = repo.repo.merge_analysis(child_commit.id)
-        
+
+        conflicts: list[str] = []
+
         if merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
             # Already up to date
             result_msg = "Already up to date, no merge needed"
-            conflicts = []
         elif merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
             # Fast-forward merge
             parent_ref.set_target(child_commit.id)
             result_msg = f"Fast-forward merge to {str(child_commit.id)[:8]}"
-            conflicts = []
         else:
             # Regular merge needed
             repo.repo.merge(child_commit.id)
-            
+
             # Check for conflicts
             if repo.repo.index.conflicts:
                 # index.conflicts iterates as (ancestor, ours, theirs) tuples
-                conflict_paths = []
-                resolved_paths = []
-                
-                for ancestor, ours, theirs in repo.repo.index.conflicts:
+                conflict_paths: list[str] = []
+                resolved_paths: list[str] = []
+
+                for _ancestor, ours, theirs in repo.repo.index.conflicts:
                     if ours and theirs:
                         conflict_path = ours.path
-                        
+
                         # Auto-resolve session.json conflicts - keep parent's version
                         # Each branch has its own session state, we don't want to merge them
                         if conflict_path == SESSION_FILE:
@@ -137,17 +137,19 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             resolved_paths.append(conflict_path)
                             # The index will be updated below when we write the tree
                             continue
-                        
+
                         conflict_paths.append(conflict_path)
-                        
+
                         # Read both versions
-                        ours_blob = repo.repo.get(ours.id)
-                        theirs_blob = repo.repo.get(theirs.id)
-                        
-                        if ours_blob and theirs_blob:
+                        ours_obj = repo.repo.get(ours.id)
+                        theirs_obj = repo.repo.get(theirs.id)
+
+                        if ours_obj and theirs_obj:
+                            ours_blob = ours_obj.peel(pygit2.Blob)
+                            theirs_blob = theirs_obj.peel(pygit2.Blob)
                             ours_content = ours_blob.data.decode("utf-8", errors="replace")
                             theirs_content = theirs_blob.data.decode("utf-8", errors="replace")
-                            
+
                             # Write conflict markers (simple version)
                             conflict_content = (
                                 f"<<<<<<< {parent_branch}\n"
@@ -157,9 +159,9 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                                 f">>>>>>> {branch}\n"
                             )
                             ctx.write_file(conflict_path, conflict_content)
-                
+
                 conflicts = conflict_paths
-                
+
                 if conflicts:
                     if allow_conflicts:
                         # Commit with conflict markers - AI will resolve them
@@ -170,24 +172,30 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             if conflict_content:
                                 # Create blob and add to index
                                 blob_id = repo.repo.create_blob(conflict_content.encode("utf-8"))
-                                repo.repo.index.add(pygit2.IndexEntry(conflict_path, blob_id, pygit2.GIT_FILEMODE_BLOB))
-                        
+                                repo.repo.index.add(
+                                    pygit2.IndexEntry(
+                                        conflict_path, blob_id, pygit2.enums.FileMode.BLOB
+                                    )
+                                )
+
                         # Clear conflict entries
+                        import contextlib
+
                         for conflict_path in conflict_paths:
-                            try:
+                            with contextlib.suppress(KeyError):
                                 del repo.repo.index.conflicts[conflict_path]
-                            except KeyError:
-                                pass
-                        
+
                         # Also resolve session.json if it was in resolved_paths
                         for path in resolved_paths:
                             try:
                                 entry = parent_commit.tree[path]
-                                repo.repo.index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
+                                repo.repo.index.add(
+                                    pygit2.IndexEntry(path, entry.id, entry.filemode)
+                                )
                                 del repo.repo.index.conflicts[path]
                             except (KeyError, Exception):
                                 pass
-                        
+
                         # Create merge commit with conflicts
                         tree = repo.repo.index.write_tree()
                         author = pygit2.Signature("Forge", "forge@local")
@@ -199,7 +207,9 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             tree,
                             [parent_commit.id, child_commit.id],
                         )
-                        result_msg = f"Merged with {len(conflicts)} conflict(s) - resolve the <<<>>> markers"
+                        result_msg = (
+                            f"Merged with {len(conflicts)} conflict(s) - resolve the <<<>>> markers"
+                        )
                         # Don't delete branch when there are conflicts
                         delete_branch = False
                     else:
@@ -207,7 +217,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 elif resolved_paths:
                     # All conflicts were auto-resolved (just session.json)
                     # We need to resolve conflicts in the index properly
-                    
+
                     for path in resolved_paths:
                         # Get "ours" version from parent commit
                         try:
@@ -217,11 +227,11 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                         except KeyError:
                             # File doesn't exist in parent, remove from index
                             pass
-                    
+
                     # Remove conflict entries
                     for path in resolved_paths:
                         del repo.repo.index.conflicts[path]
-                    
+
                     # Write tree and create merge commit
                     tree = repo.repo.index.write_tree()
                     author = pygit2.Signature("Forge", "forge@local")
@@ -248,20 +258,20 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 )
                 conflicts = []
                 result_msg = f"Merged child session '{branch}'"
-        
+
         # Update our session to remove child from list
         try:
             our_session_content = ctx.read_file(SESSION_FILE)
             our_session = json.loads(our_session_content)
         except (FileNotFoundError, json.JSONDecodeError):
             our_session = {}
-        
+
         child_sessions = our_session.get("child_sessions", [])
         if branch in child_sessions:
             child_sessions.remove(branch)
         our_session["child_sessions"] = child_sessions
         ctx.write_file(SESSION_FILE, json.dumps(our_session, indent=2))
-        
+
         # Delete child branch if requested and no conflicts
         if delete_branch and not conflicts:
             try:
@@ -269,11 +279,11 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 result_msg += f". Deleted branch '{branch}'"
             except Exception as e:
                 result_msg += f". Could not delete branch: {e}"
-        
+
         # Success if no conflicts, OR if conflicts were allowed and committed
         success = len(conflicts) == 0 or (allow_conflicts and len(conflicts) > 0)
         merged = success
-        
+
         return {
             "success": success,
             "message": result_msg,
@@ -281,6 +291,6 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "merged": merged,
             "conflicts_committed": allow_conflicts and len(conflicts) > 0,
         }
-        
+
     except Exception as e:
         return {"success": False, "error": str(e)}

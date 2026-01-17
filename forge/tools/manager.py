@@ -316,7 +316,7 @@ class ToolManager:
     ) -> dict[str, Any]:
         """Execute a tool with VFS or ToolContext based on API version."""
         from forge.tools.context import ToolContext, get_tool_api_version
-        
+
         # Check if tool is approved
         if not self.is_tool_approved(tool_name):
             return {"error": f"Tool {tool_name} is not approved. Cannot execute."}
@@ -340,11 +340,11 @@ class ToolManager:
 
         # Detect API version and execute appropriately
         api_version = get_tool_api_version(tool_module.execute)
-        
+
         if api_version == 2:
             # v2: Pass ToolContext with full access
             from forge.session.registry import SESSION_REGISTRY
-            
+
             ctx = ToolContext(
                 vfs=self.vfs,
                 repo=self._repo,

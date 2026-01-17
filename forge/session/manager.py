@@ -316,6 +316,11 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Access the VFS through tool_manager - single source of truth for file content"""
         return self.tool_manager.vfs
 
+    @property
+    def repo(self) -> ForgeRepository:
+        """Access the git repository."""
+        return self._repo
+
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimate (3 chars per token average, more accurate for code)"""
         return len(text) // 3
@@ -358,8 +363,8 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         return self.prompt_manager.estimate_conversation_tokens()
 
     def commit_ai_turn(
-        self, 
-        messages: list[dict[str, Any]], 
+        self,
+        messages: list[dict[str, Any]],
         commit_message: str | None = None,
         session_metadata: dict[str, Any] | None = None,
     ) -> str:
@@ -658,7 +663,7 @@ Keep it under 72 characters."""
         session_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Get session data for persistence.
-        
+
         Args:
             messages: Conversation messages
             session_metadata: Optional metadata from SessionRunner (parent/child/state info)
@@ -669,14 +674,14 @@ Keep it under 72 characters."""
         }
         if messages is not None:
             data["messages"] = messages
-        
+
         # Add session spawn/wait metadata if provided
         if session_metadata:
             data["parent_session"] = session_metadata.get("parent_session")
             data["child_sessions"] = session_metadata.get("child_sessions", [])
             data["state"] = session_metadata.get("state", "idle")
             data["yield_message"] = session_metadata.get("yield_message")
-        
+
         return data
 
     def restore_request_log(self, session_data: dict[str, Any]) -> None:

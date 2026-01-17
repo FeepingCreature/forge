@@ -40,7 +40,7 @@ class MoodBar(QWidget):
         self.setMouseTracking(True)
 
         # Set fixed height for the bar
-        self.setFixedHeight(12)
+        self.setFixedHeight(24)
 
     def set_segments(self, segments: list[dict]) -> None:
         """Set segments to display.

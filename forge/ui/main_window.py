@@ -703,10 +703,11 @@ class MainWindow(QMainWindow):
         """Handle debug window being closed"""
         self._debug_window = None
 
-    def _toggle_mood_bar(self, checked: bool) -> None:
+    def _toggle_mood_bar(self) -> None:
         """Toggle mood bar visibility"""
-        self._mood_bar_visible = checked
-        self._mood_bar.setVisible(checked)
+        # Toggle state (action.isChecked() already reflects new state after click)
+        self._mood_bar_visible = self._mood_bar_action.isChecked()
+        self._mood_bar.setVisible(self._mood_bar_visible)
 
     def _on_git_changed(self) -> None:
         """Handle git branches changed - refresh git graph and dropdown."""

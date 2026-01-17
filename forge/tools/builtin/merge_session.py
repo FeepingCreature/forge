@@ -113,17 +113,24 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             
             # Check for conflicts
             if repo.repo.index.conflicts:
-                conflicts = [path for path, _ in repo.repo.index.conflicts]
-                result_msg = f"Merge has conflicts in {len(conflicts)} file(s)"
+                # index.conflicts iterates as (ancestor, ours, theirs) tuples
+                conflict_paths = []
+                resolved_paths = []
                 
-                # Write conflict markers to files so AI can resolve them
-                for conflict_entry in repo.repo.index.conflicts:
-                    if conflict_entry is None:
-                        continue
-                    # conflict_entry is (ancestor, ours, theirs)
-                    ancestor, ours, theirs = conflict_entry
+                for ancestor, ours, theirs in repo.repo.index.conflicts:
                     if ours and theirs:
-                        path = ours.path
+                        conflict_path = ours.path
+                        
+                        # Auto-resolve session.json conflicts - keep parent's version
+                        # Each branch has its own session state, we don't want to merge them
+                        if conflict_path == SESSION_FILE:
+                            # Keep ours (parent's session), resolve the conflict
+                            resolved_paths.append(conflict_path)
+                            # The index will be updated below when we write the tree
+                            continue
+                        
+                        conflict_paths.append(conflict_path)
+                        
                         # Read both versions
                         ours_blob = repo.repo.get(ours.id)
                         theirs_blob = repo.repo.get(theirs.id)
@@ -140,7 +147,42 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                                 f"{theirs_content}"
                                 f">>>>>>> {branch}\n"
                             )
-                            ctx.write_file(path, conflict_content)
+                            ctx.write_file(conflict_path, conflict_content)
+                
+                conflicts = conflict_paths
+                
+                if conflicts:
+                    result_msg = f"Merge has conflicts in {len(conflicts)} file(s)"
+                elif resolved_paths:
+                    # All conflicts were auto-resolved (just session.json)
+                    # We need to resolve conflicts in the index properly
+                    
+                    for path in resolved_paths:
+                        # Get "ours" version from parent commit
+                        try:
+                            entry = parent_commit.tree[path]
+                            # Add resolved file to index (removes conflict)
+                            repo.repo.index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
+                        except KeyError:
+                            # File doesn't exist in parent, remove from index
+                            pass
+                    
+                    # Remove conflict entries
+                    for path in resolved_paths:
+                        del repo.repo.index.conflicts[path]
+                    
+                    # Write tree and create merge commit
+                    tree = repo.repo.index.write_tree()
+                    author = pygit2.Signature("Forge", "forge@local")
+                    repo.repo.create_commit(
+                        f"refs/heads/{parent_branch}",
+                        author,
+                        author,
+                        f"Merge child session '{branch}'",
+                        tree,
+                        [parent_commit.id, child_commit.id],
+                    )
+                    result_msg = f"Merged child session '{branch}' (auto-resolved session.json)"
             else:
                 # No conflicts - create merge commit
                 tree = repo.repo.index.write_tree()

@@ -572,3 +572,135 @@ class TestFullSpawnWaitMergeFlow:
         assert wait_result.get("_yield") is True, "Should yield when child running"
         assert child_branch in wait_result.get("_yield_message", "")
         print(f"✓ Wait correctly yields when child still running")
+    
+    def test_merge_with_conflicts_and_markers(self, qtbot, forge_repo, temp_git_repo):
+        """
+        Test that merge with allow_conflicts=True commits conflict markers.
+        
+        Flow:
+        1. Parent creates shared.py with version A
+        2. Child modifies shared.py to version B  
+        3. Parent modifies shared.py to version C (creates conflict)
+        4. wait_session reports merge_clean=False
+        5. merge_session with allow_conflicts=True commits with <<<>>> markers
+        6. Verify conflict markers are in the file
+        """
+        from forge.vfs.work_in_progress import WorkInProgressVFS
+        from forge.tools.context import ToolContext
+        from forge.tools.builtin.spawn_session import execute as spawn_execute
+        from forge.tools.builtin.resume_session import execute as resume_execute
+        from forge.tools.builtin.wait_session import execute as wait_execute
+        from forge.tools.builtin.merge_session import execute as merge_execute
+        from forge.constants import SESSION_FILE
+        
+        # =====================================================================
+        # SETUP: Create parent session with shared.py
+        # =====================================================================
+        parent_branch = "main"
+        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
+        
+        # Create shared file that both will modify
+        parent_vfs.write_file("shared.py", "# Version A\nvalue = 1\n")
+        parent_vfs.write_file(SESSION_FILE, json.dumps({
+            "messages": [],
+            "child_sessions": [],
+            "state": "running",
+        }, indent=2))
+        parent_vfs.commit("Initial setup with shared.py")
+        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
+        
+        parent_ctx = ToolContext(
+            vfs=parent_vfs,
+            repo=forge_repo,
+            branch_name=parent_branch,
+        )
+        
+        # =====================================================================
+        # STEP 1: Spawn child
+        # =====================================================================
+        print("\n=== STEP 1: Spawn child ===")
+        spawn_result = spawn_execute(parent_ctx, {"task": "modify shared.py"})
+        assert spawn_result["success"], f"Spawn failed: {spawn_result}"
+        child_branch = spawn_result["branch"]
+        parent_vfs.commit("Record spawn")
+        print(f"Child branch: {child_branch}")
+        
+        # =====================================================================
+        # STEP 2: Child modifies shared.py to version B
+        # =====================================================================
+        print("\n=== STEP 2: Child modifies shared.py ===")
+        child_vfs = WorkInProgressVFS(forge_repo, child_branch)
+        child_vfs.write_file("shared.py", "# Version B - child's changes\nvalue = 2\nchild_added = True\n")
+        
+        child_session = json.loads(child_vfs.read_file(SESSION_FILE))
+        child_session["state"] = "completed"
+        child_session["yield_message"] = "Modified shared.py"
+        child_vfs.write_file(SESSION_FILE, json.dumps(child_session, indent=2))
+        child_vfs.commit("Child modifies shared.py")
+        print("Child committed version B")
+        
+        # =====================================================================
+        # STEP 3: Parent ALSO modifies shared.py (creates conflict)
+        # =====================================================================
+        print("\n=== STEP 3: Parent modifies shared.py (conflict!) ===")
+        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
+        parent_vfs.write_file("shared.py", "# Version C - parent's changes\nvalue = 3\nparent_added = True\n")
+        parent_vfs.commit("Parent modifies shared.py")
+        print("Parent committed version C - this will conflict!")
+        
+        # =====================================================================
+        # STEP 4: Wait should report merge_clean=False
+        # =====================================================================
+        print("\n=== STEP 4: Wait reports conflict ===")
+        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
+        parent_ctx = ToolContext(
+            vfs=parent_vfs,
+            repo=forge_repo,
+            branch_name=parent_branch,
+        )
+        
+        wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+        assert wait_result["success"], f"Wait failed: {wait_result}"
+        assert wait_result["ready"] is True
+        assert wait_result["merge_clean"] is False, "Should report merge conflict"
+        print(f"Wait result: ready={wait_result['ready']}, merge_clean={wait_result['merge_clean']}")
+        
+        # =====================================================================
+        # STEP 5: Merge with allow_conflicts=True
+        # =====================================================================
+        print("\n=== STEP 5: Merge with conflict markers ===")
+        merge_result = merge_execute(parent_ctx, {
+            "branch": child_branch,
+            "allow_conflicts": True,
+            "delete_branch": False,  # Keep branch since there are conflicts
+        })
+        
+        assert merge_result["success"], f"Merge should succeed with allow_conflicts: {merge_result}"
+        assert merge_result["conflicts_committed"] is True
+        assert "shared.py" in merge_result["conflicts"]
+        print(f"Merge result: {merge_result['message']}")
+        
+        # =====================================================================
+        # STEP 6: Verify conflict markers in file
+        # =====================================================================
+        print("\n=== STEP 6: Verify conflict markers ===")
+        
+        # Refresh VFS to see merged state
+        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
+        shared_content = parent_vfs.read_file("shared.py")
+        
+        print(f"shared.py content:\n{shared_content}")
+        
+        # Check for conflict markers
+        assert "<<<<<<<" in shared_content, "Should have <<<<<<< marker"
+        assert "=======" in shared_content, "Should have ======= marker"
+        assert ">>>>>>>" in shared_content, "Should have >>>>>>> marker"
+        
+        # Check both versions are present
+        assert "Version C" in shared_content or "parent's changes" in shared_content, \
+            "Parent's version should be in conflict"
+        assert "Version B" in shared_content or "child's changes" in shared_content, \
+            "Child's version should be in conflict"
+        
+        print("✓ Conflict markers correctly generated!")
+        print("\n=== TEST PASSED: Merge with conflict markers ===")

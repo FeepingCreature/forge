@@ -63,6 +63,25 @@ def load_or_create_runner(
     # Create runner
     runner = SessionRunner(session_manager, messages)
 
+    # Replay messages into prompt manager so LLM sees them
+    # SessionRunner.messages is for UI display, but PromptManager builds the actual LLM request
+    for msg in messages:
+        if msg.get("_ui_only"):
+            continue  # Skip UI-only messages (system notifications, etc.)
+        role = msg.get("role")
+        content = msg.get("content", "")
+        if role == "user":
+            session_manager.append_user_message(content)
+        elif role == "assistant":
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                session_manager.append_tool_call(tool_calls, content)
+            else:
+                session_manager.append_assistant_message(content)
+        elif role == "tool":
+            tool_call_id = msg.get("tool_call_id", "")
+            session_manager.append_tool_result(tool_call_id, content)
+
     # Restore parent/child relationships from session data
     if session_data.get("parent_session"):
         runner.set_parent(session_data["parent_session"])

@@ -147,11 +147,19 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             # idle means the turn finished - child is ready
             merge_clean = _check_merge_clean(repo, parent_branch, branch)
 
+            # Get the child's last assistant message - this is what the child said/did
+            last_response = None
+            for msg in reversed(live_runner.messages):
+                if msg.get("role") == "assistant" and not msg.get("_ui_only"):
+                    last_response = msg.get("content", "")
+                    break
+
             ready_children.append(
                 {
                     "branch": branch,
                     "state": state,
                     "message": yield_message or "Task completed",
+                    "last_response": last_response,  # What the child AI said
                     "task": task,
                     "merge_clean": merge_clean,
                 }
@@ -177,6 +185,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "branch": child["branch"],
             "state": child["state"],
             "message": child["message"],
+            "last_response": child.get("last_response"),  # What the child AI said
             "task": child["task"],
             "ready": True,
             "merge_clean": child["merge_clean"],

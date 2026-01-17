@@ -104,13 +104,15 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         ctx.write_file(SESSION_FILE, json.dumps(current_session, indent=2))
 
         # Create initial session for child branch using context helper
+        # Include the instruction as the first user message so the child
+        # session starts with context when loaded
         child_vfs = ctx.get_branch_vfs(branch_name)
         child_session: dict[str, Any] = {
-            "messages": [],
+            "messages": [{"role": "user", "content": instruction}],
             "active_files": [],
             "parent_session": parent_branch,
             "child_sessions": [],
-            "state": "idle",
+            "state": "running",  # Mark as running since we're about to start it
             "yield_message": None,
         }
         child_vfs.write_file(SESSION_FILE, json.dumps(child_session, indent=2))

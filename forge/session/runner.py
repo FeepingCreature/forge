@@ -20,7 +20,7 @@ from collections import deque
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Protocol
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 if TYPE_CHECKING:
     from forge.session.manager import SessionManager
@@ -1133,6 +1133,9 @@ class SessionRunner(QObject):
             "pending_wait_call": self._pending_wait_call,
         }
 
+    from PySide6.QtCore import Slot
+    
+    @Slot()
     def _do_resume_from_wait(self) -> None:
         """Slot called via QueuedConnection to resume after wait_session."""
         print(f"🔍 _do_resume_from_wait called! state={self._state}")

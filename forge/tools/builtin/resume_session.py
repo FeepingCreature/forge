@@ -100,11 +100,9 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         child_vfs.write_file(SESSION_FILE, json.dumps(session_data, indent=2))
         child_vfs.commit("Resume session with message from parent")
 
-        # TODO: Actually start the child's SessionRunner
-        # For now, we just update the state - the session registry will
-        # pick this up and start the runner when it sees state="running"
-
-        # Signal that this needs to trigger a session start
+        # Signal that SessionRunner should start the child session.
+        # The _start_session flag is picked up by _on_tools_all_finished()
+        # which calls _start_child_session() to actually load and run it.
         return {
             "success": True,
             "branch": branch,

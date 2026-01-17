@@ -80,8 +80,9 @@ def load_or_create_runner(
 
     # Restore state (but don't change from IDLE if it was running -
     # that means we crashed mid-run and should let user decide)
+    # Also restore "error" state so UI can show appropriate status.
     stored_state = session_data.get("state", "idle")
-    if stored_state in ("waiting_input", "waiting_children", "completed"):
+    if stored_state in ("waiting_input", "waiting_children", "completed", "error"):
         runner._state = stored_state
 
     return runner

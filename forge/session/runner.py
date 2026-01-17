@@ -229,7 +229,10 @@ class SessionRunner(QObject):
         # Queued message (injected mid-turn)
         self._queued_message: str | None = None
 
-        # Pending wait_session call (re-executed on resume instead of recording stale result)
+        # Pending wait_session call - stores call info to re-execute on resume.
+        # Structure: {"tool_call_id": str, "tool_name": "wait_session", "tool_args": dict}
+        # Set when wait_session yields (_yield=True), cleared when re-executed or completed.
+        # This allows us to re-check child states when waking up instead of using stale results.
         self._pending_wait_call: dict[str, Any] | None = None
 
         # Pending file updates (applied after tool results recorded)
@@ -1122,6 +1125,17 @@ class SessionRunner(QObject):
         }
 
     def _do_resume_from_wait(self) -> None:
-        """Slot called via QueuedConnection to resume after wait_session."""
+        """Slot called via QTimer to resume after wait_session.
+
+        Called when:
+        - A child completes and notify_parent() detects we're waiting
+        - yield_waiting() detects a child is already ready (race fix)
+
+        Must be idempotent - multiple children completing simultaneously
+        could trigger multiple calls. The state check ensures only the first
+        call actually triggers the resume (send_message changes state to RUNNING).
+        """
+        # State check provides idempotency - once we call send_message(""),
+        # state changes to RUNNING so subsequent calls are no-ops
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
             self.send_message("")

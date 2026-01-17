@@ -126,11 +126,13 @@ class SessionRegistry(QObject):
 
             for _branch, state in child_states.items():
                 if state in ready_states:
-                    # A child is ready - actually resume the parent by re-executing
-                    # the pending wait_session call
+                    # A child is ready - trigger resume via QTimer to avoid reentrancy
+                    # issues. This schedules _do_resume_from_wait to run after the
+                    # current call stack unwinds.
                     if parent._pending_wait_call:
-                        # Use send_message with empty string to trigger _resume_pending_wait
-                        parent.send_message("")
+                        from PySide6.QtCore import QTimer
+
+                        QTimer.singleShot(0, parent._do_resume_from_wait)
                     else:
                         # Fallback: just set to IDLE (shouldn't happen)
                         parent.state = SessionState.IDLE

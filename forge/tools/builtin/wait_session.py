@@ -165,6 +165,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                     "state": "error",
                     "message": yield_message or "Unknown error",
                     "task": task,
+                    "merge_clean": False,  # Can't merge if child errored
                 }
             )
 

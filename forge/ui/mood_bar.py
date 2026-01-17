@@ -6,12 +6,24 @@ from PySide6.QtCore import QEvent, QRect
 from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QToolTip, QWidget
 
+# Color scheme for different message/block types
+MOOD_COLORS = {
+    "system": "#6366f1",  # Indigo - system prompt
+    "summaries": "#8b5cf6",  # Violet - file summaries
+    "file": "#06b6d4",  # Cyan - file contents
+    "user": "#f59e0b",  # Amber - user messages
+    "assistant": "#10b981",  # Emerald - assistant messages
+    "tool_call": "#ec4899",  # Pink - tool calls
+    "tool_result": "#f97316",  # Orange - tool results
+    "empty": "#374151",  # Gray - unused space
+}
+
 
 class MoodBar(QWidget):
     """
     A horizontal bar widget that shows token usage with colored segments.
 
-    Each segment represents a content type (system prompt, summaries, files, conversation)
+    Each segment represents a prompt block (system, summaries, files, messages)
     with proportional widths based on token counts.
     """
 
@@ -22,19 +34,22 @@ class MoodBar(QWidget):
         self._segment_rects: list[tuple[QRect, dict]] = []  # For hit testing
 
         # Empty/unused color
-        self._empty_color = QColor("#374151")
+        self._empty_color = QColor(MOOD_COLORS["empty"])
 
         # Enable mouse tracking for tooltips
         self.setMouseTracking(True)
+
+        # Set fixed height for the bar
+        self.setFixedHeight(12)
 
     def set_segments(self, segments: list[dict]) -> None:
         """Set segments to display.
 
         Each segment dict has:
-        - name: str (e.g., "System prompt")
+        - name: str (e.g., "User message", "Assistant response")
+        - type: str (system/summaries/file/user/assistant/tool_call/tool_result)
         - tokens: int
-        - color: str (hex color)
-        - details: str (optional, for tooltip)
+        - details: str (optional, content preview for tooltip)
         """
         self._segments = segments
         self._total_tokens = sum(s.get("tokens", 0) for s in segments)
@@ -44,7 +59,6 @@ class MoodBar(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         """Draw the colored segments."""
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         rect = self.rect()
         width = rect.width()
@@ -58,36 +72,36 @@ class MoodBar(QWidget):
             painter.fillRect(rect, self._empty_color)
             return
 
-        x = 0
+        x = 0.0  # Use float for precise positioning
         for segment in self._segments:
             tokens = segment.get("tokens", 0)
             if tokens == 0:
                 continue
 
-            # Calculate proportional width
+            # Calculate proportional width (use float for precision)
             proportion = tokens / self._total_tokens
-            segment_width = int(width * proportion)
+            segment_width = width * proportion
 
             # Ensure at least 1px for non-zero segments
-            if segment_width == 0 and tokens > 0:
+            if segment_width < 1 and tokens > 0:
                 segment_width = 1
 
-            # Don't exceed remaining width
-            segment_width = min(segment_width, width - x)
+            # Get color based on segment type
+            seg_type = segment.get("type", "empty")
+            color = QColor(MOOD_COLORS.get(seg_type, MOOD_COLORS["empty"]))
 
-            if segment_width > 0:
-                color = QColor(segment.get("color", "#374151"))
-                segment_rect = QRect(x, 0, segment_width, height)
-                painter.fillRect(segment_rect, color)
+            # Draw segment
+            segment_rect = QRect(int(x), 0, max(1, int(segment_width)), height)
+            painter.fillRect(segment_rect, color)
 
-                # Store for hit testing
-                self._segment_rects.append((segment_rect, segment))
+            # Store for hit testing
+            self._segment_rects.append((segment_rect, segment))
 
-                x += segment_width
+            x += segment_width
 
         # Fill any remaining space with empty color
-        if x < width:
-            painter.fillRect(QRect(x, 0, width - x, height), self._empty_color)
+        if int(x) < width:
+            painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
 
     def event(self, event: QEvent) -> bool:
         """Handle tooltip events for segment-specific tooltips."""
@@ -113,7 +127,10 @@ class MoodBar(QWidget):
 
                     tooltip = f"{name}: {token_str} tokens ({percent:.1f}%)"
                     if details:
-                        tooltip += f"\n{details}"
+                        # Truncate long details
+                        if len(details) > 200:
+                            details = details[:200] + "..."
+                        tooltip += f"\n\n{details}"
 
                     QToolTip.showText(help_event.globalPos(), tooltip, self)
                     return True

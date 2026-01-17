@@ -104,6 +104,14 @@ class BranchTabWidget(QWidget):
 
         # Note: Ctrl+E is handled by ActionRegistry in main_window
 
+    def get_ai_chat_widget(self) -> QWidget | None:
+        """Get the AI chat widget, if one is attached.
+
+        Returns the AIChatWidget if one is attached, None otherwise.
+        Callers can import AIChatWidget for type checking if needed.
+        """
+        return getattr(self, "_chat_widget", None)
+
     def add_ai_chat_tab(self, chat_widget: QWidget) -> int:
         """
         Add the AI chat as the first tab.

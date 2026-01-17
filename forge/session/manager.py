@@ -369,6 +369,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Estimate tokens used by conversation history (excluding file content)"""
         return self.prompt_manager.estimate_conversation_tokens()
 
+    def get_mood_bar_segments(self) -> list[dict[str, Any]]:
+        """Get per-block token breakdown for mood bar visualization."""
+        return self.prompt_manager.get_mood_bar_segments()
+
     def commit_ai_turn(
         self,
         messages: list[dict[str, Any]],

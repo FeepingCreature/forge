@@ -111,6 +111,10 @@ class MainWindow(QMainWindow):
         tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tab_bar.customContextMenuRequested.connect(self._show_branch_context_menu)
 
+        # Mood bar for token usage visualization (full width, above tabs)
+        self._mood_bar = MoodBar()
+        layout.addWidget(self._mood_bar)
+
         layout.addWidget(self.branch_tabs)
 
         # Status bar
@@ -122,12 +126,6 @@ class MainWindow(QMainWindow):
         self.context_label = QLabel("~0")
         self.context_label.setToolTip("Context token usage (updates after first AI message)")
         self.status_bar.addPermanentWidget(self.context_label)
-
-        # Mood bar for token usage visualization
-        self._mood_bar = MoodBar()
-        self._mood_bar.setFixedHeight(20)
-        self._mood_bar.setMinimumWidth(200)
-        self.status_bar.addPermanentWidget(self._mood_bar)
 
         # Cost display (right side of status bar, bold)
         self.cost_label = QLabel("<b>$0.0000</b>")
@@ -986,21 +984,20 @@ class MainWindow(QMainWindow):
         self.context_label.setText(text)
         self.context_label.setToolTip(tooltip)
 
-        # Update mood bar with token breakdown
-        # Note: system_tokens comes from prompt manager stats if available
-        system_tokens = stats.get("system_tokens", 0)
-        self._update_mood_bar(system_tokens, summary_tokens, file_tokens, conversation_tokens)
+        # Update mood bar with detailed segment breakdown
+        self._update_mood_bar(branch_widget)
 
-    def _update_mood_bar(
-        self, system_tokens: int, summary_tokens: int, file_tokens: int, conversation_tokens: int
-    ) -> None:
-        """Update the mood bar with token usage breakdown."""
-        segments = [
-            {"name": "System", "tokens": system_tokens, "color": "#6366f1"},
-            {"name": "Summaries", "tokens": summary_tokens, "color": "#8b5cf6"},
-            {"name": "Files", "tokens": file_tokens, "color": "#06b6d4"},
-            {"name": "Conversation", "tokens": conversation_tokens, "color": "#10b981"},
-        ]
+    def _update_mood_bar(self, branch_widget: BranchTabWidget) -> None:
+        """Update the mood bar with detailed token usage breakdown from PromptManager."""
+        from forge.ui.ai_chat_widget import AIChatWidget
+
+        # Get the AI chat widget to access session manager
+        chat_widget = branch_widget.get_ai_chat_widget()
+        if not isinstance(chat_widget, AIChatWidget):
+            return
+
+        # Get segments directly from prompt manager (not stats dict)
+        segments = chat_widget.session_manager.get_mood_bar_segments()
         self._mood_bar.set_segments(segments)
 
     def _get_model_context_limit(self, model: str) -> int | None:

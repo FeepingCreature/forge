@@ -622,6 +622,107 @@ class PromptManager:
                 return len(block.content) // 3
         return 0
 
+    def get_mood_bar_segments(self) -> list[dict[str, Any]]:
+        """
+        Get per-block token breakdown for mood bar visualization.
+
+        Returns a list of segments, each with:
+        - name: Human-readable name
+        - type: Block type for coloring (system/summaries/file/user/assistant/tool_call/tool_result)
+        - tokens: Estimated token count
+        - details: Content preview for tooltip
+        """
+        segments: list[dict[str, Any]] = []
+
+        for block in self.blocks:
+            if block.deleted:
+                continue
+
+            # Estimate ~3 chars per token
+            tokens = len(block.content) // 3
+
+            if block.block_type == BlockType.SYSTEM:
+                segments.append(
+                    {
+                        "name": "System prompt",
+                        "type": "system",
+                        "tokens": tokens,
+                        "details": f"{len(block.content)} chars",
+                    }
+                )
+
+            elif block.block_type == BlockType.SUMMARIES:
+                segments.append(
+                    {
+                        "name": "File summaries",
+                        "type": "summaries",
+                        "tokens": tokens,
+                        "details": f"{len(block.content)} chars",
+                    }
+                )
+
+            elif block.block_type == BlockType.FILE_CONTENT:
+                filepath = block.metadata.get("filepath", "unknown")
+                segments.append(
+                    {
+                        "name": f"File: {filepath}",
+                        "type": "file",
+                        "tokens": tokens,
+                        "details": filepath,
+                    }
+                )
+
+            elif block.block_type == BlockType.USER_MESSAGE:
+                preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
+                segments.append(
+                    {
+                        "name": "User message",
+                        "type": "user",
+                        "tokens": tokens,
+                        "details": preview,
+                    }
+                )
+
+            elif block.block_type == BlockType.ASSISTANT_MESSAGE:
+                preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
+                segments.append(
+                    {
+                        "name": "Assistant",
+                        "type": "assistant",
+                        "tokens": tokens,
+                        "details": preview,
+                    }
+                )
+
+            elif block.block_type == BlockType.TOOL_CALL:
+                tool_calls = block.metadata.get("tool_calls", [])
+                # Add tokens for tool call JSON
+                for tc in tool_calls:
+                    tokens += len(json.dumps(tc)) // 3
+                tool_names = [tc.get("function", {}).get("name", "?") for tc in tool_calls]
+                segments.append(
+                    {
+                        "name": f"Tool call: {', '.join(tool_names)}",
+                        "type": "tool_call",
+                        "tokens": tokens,
+                        "details": ", ".join(tool_names),
+                    }
+                )
+
+            elif block.block_type == BlockType.TOOL_RESULT:
+                user_id = block.metadata.get("user_id", "?")
+                preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
+                segments.append(
+                    {
+                        "name": f"Tool result #{user_id}",
+                        "type": "tool_result",
+                        "tokens": tokens,
+                        "details": preview,
+                    }
+                )
+
+        return segments
+
     def get_context_stats(self) -> dict[str, Any]:
         """
         Get detailed statistics about context usage.

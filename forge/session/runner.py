@@ -905,10 +905,13 @@ class SessionRunner(QObject):
                 # DON'T record this tool result - we'll re-execute when we wake up
                 # Store the call so we can replay it
                 tool_call_id = tool_call.get("id")
+                # Note: ToolExecutionWorker stores args under "args" key, not "tool_args"
+                stored_args = r.get("args", {})
+                print(f"🔄 Storing pending wait call: tool_args={stored_args}")
                 self._pending_wait_call = {
                     "tool_call_id": tool_call_id,
                     "tool_name": tool_call.get("function", {}).get("name"),
-                    "tool_args": r.get("tool_args", {}),
+                    "tool_args": stored_args,
                 }
                 # Remove the tool result message we just added (it's stale)
                 # Must remove from BOTH messages list AND prompt_manager

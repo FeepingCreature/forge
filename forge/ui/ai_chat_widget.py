@@ -233,18 +233,23 @@ class ToolExecutionWorker(QObject):
                 # In that case, wrap it so the model sees what it produced
                 try:
                     tool_args = json.loads(arguments_str) if arguments_str else {}
+                    print(f"🔧 Tool {tool_name} raw args: {tool_args}")
 
                     # Fix doubly-encoded JSON: if a string value is itself valid JSON,
                     # parse it. This handles cases like {"branches": "[\"branch-name\"]"}
                     # where the LLM incorrectly stringified an array.
                     for key, value in tool_args.items():
                         if isinstance(value, str) and value.startswith(("[", "{")):
+                            print(f"🔧 Found stringified JSON in {key}: {value!r}")
                             try:
                                 parsed = json.loads(value)
                                 if isinstance(parsed, (list, dict)):
                                     tool_args[key] = parsed
-                            except json.JSONDecodeError:
-                                pass  # Not valid JSON, keep as string
+                                    print(f"🔧 Parsed {key} to: {parsed}")
+                            except json.JSONDecodeError as e:
+                                print(f"🔧 Failed to parse {key}: {e}")
+                    
+                    print(f"🔧 Tool {tool_name} final args: {tool_args}")
 
                 except json.JSONDecodeError as e:
                     # Wrap invalid JSON so it gets sent back to the model

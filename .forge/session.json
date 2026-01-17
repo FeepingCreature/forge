@@ -1,5 +1,7 @@
 {
-  "active_files": [],
+  "active_files": [
+    "forge/tools/builtin/spawn_session.py"
+  ],
   "request_log_entries": [
     {
       "request_file": "/tmp/forge_debug/request_stream_1768666201962.json",
@@ -1332,6 +1334,69 @@
       "streaming": true,
       "actual_cost": 0.3284825,
       "generation_id": "gen-1768673008-7xSpdGvdt0RKlpUc69s4"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673036752.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673036752.json",
+      "timestamp": 1768673036.7536838,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03517725,
+      "generation_id": "gen-1768673036-bCxXhHlHSMZk7ISAw6FR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673044614.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673044614.json",
+      "timestamp": 1768673044.6157203,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.041097,
+      "generation_id": "gen-1768673044-43qvkSqcUENnboXVNOnN"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673055810.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673055810.json",
+      "timestamp": 1768673055.8116982,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0427855,
+      "generation_id": "gen-1768673056-C8WSdtpHqhzOpv0DC0o2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673065521.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673065521.json",
+      "timestamp": 1768673065.5218177,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03292625,
+      "generation_id": "gen-1768673065-Qpw5lahHB83kRfCumvaK"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673066286.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673066286.json",
+      "timestamp": 1768673066.2872195,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03510825,
+      "generation_id": "gen-1768673066-92PWERdfO1297xQ6QiXu"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768673070280.json",
+      "response_file": "/tmp/forge_debug/response_1768673070280.json",
+      "timestamp": 1768673070.2803116,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00035,
+      "generation_id": "gen-1768673070-XAgudoXs4Ss6POGy7rUC"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768673072641.json",
+      "response_file": "/tmp/forge_debug/response_1768673072641.json",
+      "timestamp": 1768673072.6415627,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000133,
+      "generation_id": "gen-1768673072-ZdSYDxLaVSJ8HNFUJWI5"
     }
   ],
   "messages": [
@@ -4714,10 +4779,114 @@
     {
       "role": "assistant",
       "content": "Great, the session spawn feature is complete and working! Let me give you a quick summary of where we are:\n\n## Session Spawn Feature - Complete \u2705\n\n**Tools:**\n- `spawn_session` - Creates child AI session on new branch\n- `resume_session` - Starts/resumes child with a message\n- `wait_session` - Waits for children, yields if none ready, re-executes on resume\n- `merge_session` - Merges child back, handles conflicts with `<<<>>>` markers\n\n**Infrastructure:**\n- `SessionRunner` - Headless AI execution with attach/detach and event buffering\n- `SessionRegistry` - Global singleton tracking all runners\n- `SessionDropdown` - UI showing all sessions with live state updates\n- `ToolContext` API v2 - Clean context for session-aware tools\n\n**Key behaviors:**\n- Pending `wait_session` calls are stored and re-executed on resume (not stale results)\n- Session metadata (parent/child/state) persists to git\n- Doubly-encoded JSON in tool args is auto-parsed (the fix we just tested)\n\n**Tests pass**, **lint/mypy pass**.\n\nIs there anything else you'd like to verify or work on?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 5545346e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "alright! try to use spawn_session to create a ses--- wait hang on. Can you add a parameter to let you define the branch name yourself?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea! Let me add an optional `branch_name` parameter to `spawn_session`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/spawn_session.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01KYYfvSEuPYPzt8kXAP4bJ4",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KYYfvSEuPYPzt8kXAP4bJ4",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/spawn_session.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the file, I see `branch_name` is already in the schema and implementation! It was added earlier. Let me verify it works by spawning a session:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"task\": \"Test child session for verification\", \"branch_name\": \"ai/test-child-session\"}",
+            "name": "spawn_session"
+          },
+          "id": "toolu_017tsEbpVQjffbKo9iAnHr6H",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_017tsEbpVQjffbKo9iAnHr6H",
+      "content": "{\"branch\": \"ai/test-child-session\", \"message\": \"Created child session on branch 'ai/test-child-session'. Use resume_session('ai/test-child-session', 'your instructions') to start it.\", \"success\": true, \"task\": \"Test child session for verification\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `spawn_session`\n```json\n{\n  \"branch_name\": \"ai/test-child-session\",\n  \"task\": \"Test child session for verification\"\n}\n```\n**Result:**\n```json\n{\n  \"branch\": \"ai/test-child-session\",\n  \"message\": \"Created child session on branch 'ai/test-child-session'. Use resume_session('ai/test-child-session', 'your instructions') to start it.\",\n  \"success\": true,\n  \"task\": \"Test child session for verification\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "It worked! The child session was created on `ai/test-child-session`. Now let me try resuming it with a task:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branch\": \"ai/test-child-session\", \"message\": \"Please create a simple hello world Python script at hello.py that prints \\\"Hello from child session!\\\"\"}",
+            "name": "resume_session"
+          },
+          "id": "toolu_01EbrVnoeeAAtmRPpvXB8KUJ",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EbrVnoeeAAtmRPpvXB8KUJ",
+      "content": "{\"_start_message\": \"Please create a simple hello world Python script at hello.py that prints \\\"Hello from child session!\\\"\", \"_start_session\": \"ai/test-child-session\", \"branch\": \"ai/test-child-session\", \"message\": \"Resumed child session 'ai/test-child-session'. Use wait_session to check for completion.\", \"state\": \"running\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `resume_session`\n```json\n{\n  \"branch\": \"ai/test-child-session\",\n  \"message\": \"Please create a simple hello world Python script at hello.py that prints \\\"Hello from child session!\\\"\"\n}\n```\n**Result:**\n```json\n{\n  \"_start_message\": \"Please create a simple hello world Python script at hello.py that prints \\\"Hello from child session!\\\"\",\n  \"_start_session\": \"ai/test-child-session\",\n  \"branch\": \"ai/test-child-session\",\n  \"message\": \"Resumed child session 'ai/test-child-session'. Use wait_session to check for completion.\",\n  \"state\": \"running\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "The child session was created and resumed. The `_start_session` flag in the result means the SessionRunner should pick it up and start running it.\n\nNow let me wait on it to see if it completes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branches\": \"[\\\"ai/test-child-session\\\"]\"}",
+            "name": "wait_session"
+          },
+          "id": "toolu_01Btj2BY492kJfjDfeThJdE7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Btj2BY492kJfjDfeThJdE7",
+      "content": "{\"_yield\": true, \"_yield_message\": \"Waiting on child sessions: ai/test-child-session\", \"message\": \"All child sessions still running. Current session will yield.\", \"ready\": false, \"side_effects\": [\"mid_turn_commit\"], \"success\": true, \"waiting_on\": [\"ai/test-child-session\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/test-child-session\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"_yield\": true,\n  \"_yield_message\": \"Waiting on child sessions: ai/test-child-session\",\n  \"message\": \"All child sessions still running. Current session will yield.\",\n  \"ready\": false,\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true,\n  \"waiting_on\": [\n    \"ai/test-child-session\"\n  ]\n}\n```",
+      "_ui_only": true
     }
   ],
   "parent_session": null,
   "child_sessions": [],
-  "state": "running",
-  "yield_message": null
+  "state": "waiting_children",
+  "yield_message": "Waiting on child sessions: ai/test-child-session"
 }

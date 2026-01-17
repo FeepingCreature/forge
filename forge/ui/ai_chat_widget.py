@@ -448,39 +448,11 @@ class AIChatWidget(QWidget):
         # Load existing session messages and restore prompt manager state
         if session_data:
             # Restore messages to prompt manager (runner already has them)
-            for msg in self.runner.messages:
-                if msg.get("_ui_only"):
-                    continue  # Skip UI-only messages
-                role = msg.get("role")
-                content = msg.get("content", "")
-                if role == "user":
-                    self.session_manager.append_user_message(content)
-                elif role == "assistant":
-                    if "tool_calls" in msg:
-                        # Pass both tool_calls and content (content may be the AI's reasoning)
-                        self.session_manager.append_tool_call(msg["tool_calls"], content)
+            from forge.session.startup import replay_messages_to_prompt_manager
 
-                        # Replay compact tool calls - apply compaction immediately
-                        for tc in msg["tool_calls"]:
-                            func = tc.get("function", {})
-                            if func.get("name") == "compact":
-                                try:
-                                    args = json.loads(func.get("arguments", "{}"))
-                                    from_id = args.get("from_id", "")
-                                    to_id = args.get("to_id", "")
-                                    summary = args.get("summary", "")
-                                    if from_id and to_id:
-                                        compacted, _ = self.session_manager.compact_tool_results(
-                                            from_id, to_id, summary
-                                        )
-                                        print(f"📦 Replayed compaction: {compacted} tool result(s)")
-                                except (json.JSONDecodeError, TypeError):
-                                    pass  # Malformed args, skip
-                    elif content:
-                        self.session_manager.append_assistant_message(content)
-                elif role == "tool":
-                    tool_call_id = msg.get("tool_call_id", "")
-                    self.session_manager.append_tool_result(tool_call_id, content)
+            replay_messages_to_prompt_manager(
+                self.runner.messages, self.session_manager, replay_compaction=True
+            )
             # Note: active_files are restored by MainWindow opening file tabs
             # The file_opened signals will sync them to SessionManager
 

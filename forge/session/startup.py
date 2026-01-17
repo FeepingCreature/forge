@@ -12,7 +12,65 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
+    from forge.session.manager import SessionManager
     from forge.session.runner import SessionRunner
+
+
+def replay_messages_to_prompt_manager(
+    messages: list[dict[str, Any]],
+    session_manager: "SessionManager",
+    replay_compaction: bool = False,
+) -> None:
+    """
+    Replay messages into the prompt manager so the LLM sees them.
+
+    SessionRunner.messages is for UI display, but PromptManager builds the actual
+    LLM request. When loading a session from disk or attaching to an existing runner,
+    we need to replay messages so they're in the prompt.
+
+    Args:
+        messages: List of message dicts from session.json or runner.messages
+        session_manager: The SessionManager whose prompt_manager to populate
+        replay_compaction: If True, replay compact tool calls to re-apply compaction
+    """
+    import json
+
+    for msg in messages:
+        if msg.get("_ui_only"):
+            continue  # Skip UI-only messages (system notifications, etc.)
+
+        role = msg.get("role")
+        content = msg.get("content", "")
+
+        if role == "user":
+            session_manager.append_user_message(content)
+        elif role == "assistant":
+            tool_calls = msg.get("tool_calls", [])
+            if tool_calls:
+                session_manager.append_tool_call(tool_calls, content)
+
+                # Replay compact tool calls if requested
+                if replay_compaction:
+                    for tc in tool_calls:
+                        func = tc.get("function", {})
+                        if func.get("name") == "compact":
+                            try:
+                                args = json.loads(func.get("arguments", "{}"))
+                                from_id = args.get("from_id", "")
+                                to_id = args.get("to_id", "")
+                                summary = args.get("summary", "")
+                                if from_id and to_id:
+                                    compacted, _ = session_manager.compact_tool_results(
+                                        from_id, to_id, summary
+                                    )
+                                    print(f"📦 Replayed compaction: {compacted} tool result(s)")
+                            except (json.JSONDecodeError, TypeError):
+                                pass  # Malformed args, skip
+            elif content:
+                session_manager.append_assistant_message(content)
+        elif role == "tool":
+            tool_call_id = msg.get("tool_call_id", "")
+            session_manager.append_tool_result(tool_call_id, content)
 
 
 def load_or_create_runner(
@@ -64,23 +122,7 @@ def load_or_create_runner(
     runner = SessionRunner(session_manager, messages)
 
     # Replay messages into prompt manager so LLM sees them
-    # SessionRunner.messages is for UI display, but PromptManager builds the actual LLM request
-    for msg in messages:
-        if msg.get("_ui_only"):
-            continue  # Skip UI-only messages (system notifications, etc.)
-        role = msg.get("role")
-        content = msg.get("content", "")
-        if role == "user":
-            session_manager.append_user_message(content)
-        elif role == "assistant":
-            tool_calls = msg.get("tool_calls", [])
-            if tool_calls:
-                session_manager.append_tool_call(tool_calls, content)
-            else:
-                session_manager.append_assistant_message(content)
-        elif role == "tool":
-            tool_call_id = msg.get("tool_call_id", "")
-            session_manager.append_tool_result(tool_call_id, content)
+    replay_messages_to_prompt_manager(messages, session_manager)
 
     # Restore parent/child relationships from session data
     if session_data.get("parent_session"):

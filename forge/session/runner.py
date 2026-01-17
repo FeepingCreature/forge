@@ -1038,23 +1038,10 @@ class SessionRunner(QObject):
 
     def _rebuild_prompt_manager(self) -> None:
         """Rebuild prompt manager state from current messages."""
-        self.session_manager.prompt_manager.clear_conversation()
+        from forge.session.startup import replay_messages_to_prompt_manager
 
-        for msg in self.messages:
-            if msg.get("_ui_only"):
-                continue
-            role = msg.get("role")
-            content = msg.get("content", "")
-            if role == "user":
-                self.session_manager.append_user_message(content)
-            elif role == "assistant":
-                if "tool_calls" in msg:
-                    self.session_manager.append_tool_call(msg["tool_calls"], content)
-                elif content:
-                    self.session_manager.append_assistant_message(content)
-            elif role == "tool":
-                tool_call_id = msg.get("tool_call_id", "")
-                self.session_manager.append_tool_result(tool_call_id, content)
+        self.session_manager.prompt_manager.clear_conversation()
+        replay_messages_to_prompt_manager(self.messages, self.session_manager)
 
     # --- Child Session Management ---
 

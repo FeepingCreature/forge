@@ -355,7 +355,19 @@ class ChatBridge(QObject):
 
 
 class AIChatWidget(QWidget):
-    """AI chat interface with rich markdown rendering"""
+    """AI chat interface with rich markdown rendering.
+    
+    This is a VIEW over a SessionRunner. The runner owns:
+    - messages: The conversation history
+    - streaming_content: Current streaming text
+    - streaming_tool_calls: Current streaming tool calls
+    - is_streaming: Whether we're streaming
+    
+    This widget:
+    - Renders the session state to HTML
+    - Handles user input and forwards to runner
+    - Manages UI-specific state (approvals, summaries UI)
+    """
 
     # Signals for AI turn lifecycle
     ai_turn_started = Signal()  # Emitted when AI turn begins
@@ -375,36 +387,12 @@ class AIChatWidget(QWidget):
         # Get branch info from workspace
         self.workspace = workspace
         self.branch_name = workspace.branch_name
-        self.messages: list[dict[str, Any]] = []
         self.settings = workspace._settings
         self.repo = workspace._repo
-        self.is_processing = False
-        self.streaming_content = ""
 
         # Tool approval tracking - initialize BEFORE any method calls
         self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info
         self.handled_approvals: set[str] = set()  # Tools that have been approved/rejected
-
-        # Streaming worker
-        self.stream_thread: QThread | None = None
-        self.stream_worker: StreamWorker | None = None
-        self._is_streaming = False
-        self._streaming_tool_calls: list[dict[str, Any]] = []  # Track streaming tool calls
-        self._cancel_requested = False  # Track if user requested cancellation
-
-        # Track ALL executed tool IDs across the entire turn (reset on new user message)
-        self._turn_executed_tool_ids: set[str] = set()
-
-        # Tool execution worker
-        self.tool_thread: QThread | None = None
-        self.tool_worker: ToolExecutionWorker | None = None
-
-        # Inline command execution worker
-        self.inline_thread: QThread | None = None
-        self.inline_worker: InlineCommandWorker | None = None
-
-        # Queued message (user typed while AI was running)
-        self._queued_message: str | None = None
 
         # Summary worker
         self.summary_thread: QThread | None = None
@@ -418,12 +406,20 @@ class AIChatWidget(QWidget):
 
         # Get session manager from workspace (branch-level ownership)
         self.session_manager = workspace.session_manager
+        
+        # Create SessionRunner - the authoritative owner of session state
+        from forge.session.runner import SessionRunner
+        
+        initial_messages = session_data.get("messages", []) if session_data else []
+        self.runner = SessionRunner(self.session_manager, initial_messages)
+        
+        # Connect runner signals to our handlers
+        self._connect_runner_signals()
 
         # Load existing session messages and restore prompt manager state
         if session_data:
-            self.messages = session_data.get("messages", [])
-            # Restore messages to prompt manager
-            for msg in self.messages:
+            # Restore messages to prompt manager (runner already has them)
+            for msg in self.runner.messages:
                 if msg.get("_ui_only"):
                     continue  # Skip UI-only messages
                 role = msg.get("role")
@@ -476,10 +472,205 @@ class AIChatWidget(QWidget):
             self._start_summary_generation()
         else:
             # Summaries already exist (restored session) - emit initial context stats
+            self._summaries_ready = True
             self._emit_context_stats()
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
+    
+    def _connect_runner_signals(self) -> None:
+        """Connect SessionRunner signals to our UI handlers."""
+        # Streaming signals
+        self.runner.chunk_received.connect(self._on_runner_chunk)
+        self.runner.tool_call_delta.connect(self._on_runner_tool_call_delta)
+        
+        # Tool execution signals
+        self.runner.tool_started.connect(self._on_runner_tool_started)
+        self.runner.tool_finished.connect(self._on_runner_tool_finished)
+        
+        # State signals
+        self.runner.state_changed.connect(self._on_runner_state_changed)
+        self.runner.turn_finished.connect(self._on_runner_turn_finished)
+        self.runner.error_occurred.connect(self._on_runner_error)
+        
+        # Message mutation signals (for UI sync)
+        self.runner.message_added.connect(self._on_runner_message_added)
+        self.runner.message_updated.connect(self._on_runner_message_updated)
+        self.runner.messages_truncated.connect(self._on_runner_messages_truncated)
+    
+    # === Runner signal handlers ===
+    
+    def _on_runner_chunk(self, chunk: str) -> None:
+        """Handle streaming chunk from runner."""
+        self._append_streaming_chunk(chunk)
+    
+    def _on_runner_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
+        """Handle streaming tool call update from runner."""
+        self._update_streaming_tool_calls()
+    
+    def _on_runner_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Handle tool execution starting."""
+        # Could show a "running..." indicator here if desired
+        pass
+    
+    def _on_runner_tool_finished(
+        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """Handle individual tool completion from runner."""
+        from forge.tools.side_effects import SideEffect
+        
+        side_effects = result.get("side_effects", [])
+        
+        # Handle MID_TURN_COMMIT - emit signal
+        if SideEffect.MID_TURN_COMMIT in side_effects:
+            commit_oid = result.get("commit", "")
+            if commit_oid:
+                self.mid_turn_commit.emit(commit_oid)
+        
+        # If tool modified context, emit signal to update UI
+        if result.get("action") == "update_context":
+            self.context_changed.emit(self.session_manager.active_files.copy())
+            self._emit_context_stats()
+        
+        # Display tool result (system messages for failures, etc.)
+        self._display_tool_result(tool_name, tool_args, result)
+    
+    def _on_runner_state_changed(self, state: str) -> None:
+        """Handle runner state change."""
+        from forge.session.runner import SessionState
+        
+        if state == SessionState.RUNNING:
+            self.ai_turn_started.emit()
+            self._set_processing_ui(True)
+        elif state in (SessionState.IDLE, SessionState.ERROR):
+            self._set_processing_ui(False)
+            self._check_for_unapproved_tools()
+    
+    def _on_runner_turn_finished(self, commit_oid: str) -> None:
+        """Handle turn completion from runner."""
+        self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
+        self.ai_turn_finished.emit(commit_oid)
+        self._notify_turn_complete(commit_oid)
+        self._emit_context_stats()
+        
+        # Generate summaries for newly created files
+        if self.runner._newly_created_files:
+            for filepath in self.runner._newly_created_files:
+                self.session_manager.generate_summary_for_file(filepath)
+            self.summaries_ready.emit(self.session_manager.repo_summaries)
+    
+    def _on_runner_error(self, error_msg: str) -> None:
+        """Handle error from runner."""
+        self._add_system_message(f"❌ {error_msg}")
+        self.ai_turn_finished.emit("")
+    
+    def _on_runner_message_added(self, message: dict[str, Any]) -> None:
+        """Handle message added to runner."""
+        self._update_chat_display(scroll_to_bottom=True)
+    
+    def _on_runner_message_updated(self, index: int, message: dict[str, Any]) -> None:
+        """Handle message updated in runner."""
+        # For streaming, we use direct JS updates, but this catches other cases
+        if not self.runner.is_streaming:
+            self._update_chat_display()
+    
+    def _on_runner_messages_truncated(self, new_length: int) -> None:
+        """Handle messages truncated in runner."""
+        self._update_chat_display()
+    
+    def _set_processing_ui(self, processing: bool) -> None:
+        """Update UI for processing state."""
+        if processing:
+            self.send_button.setEnabled(False)
+            self.send_button.hide()
+            self.cancel_button.setEnabled(True)
+            self.cancel_button.show()
+            self.input_field.setPlaceholderText("Type here to queue message for next turn...")
+        else:
+            self.cancel_button.setEnabled(False)
+            self.cancel_button.hide()
+            self.send_button.show()
+            self.send_button.setEnabled(True)
+            self.input_field.setPlaceholderText(
+                "Type your message... (Enter to send, Shift+Enter for new line)"
+            )
+    
+    def _display_tool_result(
+        self, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """Display tool result in chat (system messages for failures, etc.)."""
+        # Built-in tools with native rendering don't need system messages on success
+        builtin_tools_with_native_rendering = {
+            "search_replace",
+            "delete_file",
+            "update_context",
+            "grep_open",
+            "get_lines",
+            "compact",
+            "commit",
+            "think",
+            "run_tests",
+        }
+
+        if tool_name in builtin_tools_with_native_rendering and result.get("success"):
+            # Success case - tool call is already rendered inline
+            pass
+        elif tool_name == "search_replace" and not result.get("success"):
+            # search_replace failure - show error and add file to context
+            tool_display_parts = [
+                f"🔧 **Tool call:** `{tool_name}`",
+                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                "**Result:**",
+                f"```json\n{json.dumps(result, indent=2)}\n```",
+            ]
+            filepath = tool_args.get("filepath")
+            if filepath and filepath not in self.session_manager.active_files:
+                self.session_manager.add_active_file(filepath)
+                tool_display_parts.append(
+                    f"\n📂 Added `{filepath}` to context so you can see its actual content"
+                )
+            self._add_system_message("\n".join(tool_display_parts))
+        elif tool_name in builtin_tools_with_native_rendering and not result.get("success"):
+            # Other built-in tool failure - show error
+            error_msg = result.get("error", "Unknown error")
+            self._add_system_message(f"❌ **{tool_name}** failed: {error_msg}")
+        else:
+            # Unknown tool - show full JSON
+            tool_display_parts = [
+                f"🔧 **Tool call:** `{tool_name}`",
+                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
+                "**Result:**",
+                f"```json\n{json.dumps(result, indent=2)}\n```",
+            ]
+            self._add_system_message("\n".join(tool_display_parts))
+    
+    # === Property to access messages through runner ===
+    
+    @property
+    def messages(self) -> list[dict[str, Any]]:
+        """Access messages through the runner (source of truth)."""
+        return self.runner.messages
+    
+    @property
+    def streaming_content(self) -> str:
+        """Access streaming content through the runner."""
+        return self.runner.streaming_content
+    
+    @property
+    def _streaming_tool_calls(self) -> list[dict[str, Any]]:
+        """Access streaming tool calls through the runner."""
+        return self.runner.streaming_tool_calls
+    
+    @property
+    def _is_streaming(self) -> bool:
+        """Access streaming state through the runner."""
+        return self.runner.is_streaming
+    
+    @property
+    def is_processing(self) -> bool:
+        """Check if runner is processing."""
+        from forge.session.runner import SessionState
+        return self.runner.state == SessionState.RUNNING
 
     def _setup_ui(self) -> None:
         """Setup the chat UI"""
@@ -885,7 +1076,8 @@ class AIChatWidget(QWidget):
 
         # If processing, queue the message instead of sending
         if self.is_processing:
-            self._queued_message = text
+            # Queue in runner
+            self.runner._queued_message = text
             self.input_field.clear()
             # Add queued message indicator via JavaScript to avoid disrupting streaming
             self._append_queued_message_indicator(text)
@@ -906,30 +1098,12 @@ class AIChatWidget(QWidget):
         if not self._check_workdir_state():
             return  # User cancelled or workdir has uncommitted changes
 
-        # Normal message flow - add to both UI messages and prompt manager
-        self.add_message("user", text)
-        self.session_manager.append_user_message(text)
         self.input_field.clear()
 
-        # Show cancel button, but keep input enabled for queuing
-        self.is_processing = True
-        self._cancel_requested = False
-        self.send_button.setEnabled(False)
-        self.send_button.hide()
-        self.cancel_button.setEnabled(True)
-        self.cancel_button.show()
-
-        # Keep input enabled but change placeholder to show it will be queued
-        self.input_field.setPlaceholderText("Type here to queue message for next turn...")
-
-        # Emit signal that AI turn is starting
-        self.ai_turn_started.emit()
-
-        # Reset turn-level tracking for new turn
-        self._turn_executed_tool_ids = set()
-
-        # Send to LLM
-        self._process_llm_request()
+        # Send message through runner - it handles everything
+        if not self.runner.send_message(text):
+            self._add_system_message("⚠️ Cannot send message - session is busy")
+            return
 
     def _build_prompt_messages(self) -> list[dict[str, Any]]:
         """
@@ -945,64 +1119,7 @@ class AIChatWidget(QWidget):
         # Get optimized messages from prompt manager
         return self.session_manager.get_prompt_messages()
 
-    def _process_llm_request(self) -> None:
-        """Process LLM request with streaming support"""
-        api_key = self.session_manager.settings.get_api_key()
-        # Initialize LLM client
-        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        client = LLMClient(api_key, model)
 
-        # Build complete prompt with fresh context
-        messages_with_context = self._build_prompt_messages()
-
-        # Discover available API tools (inline tools are handled separately)
-        tools = self.session_manager.tool_manager.discover_tools()
-
-        # Start streaming in a separate thread
-        self.streaming_content = ""
-        self._streaming_tool_calls = []  # Reset streaming tool calls
-        self._start_streaming_message()
-
-        self.stream_thread = QThread()
-        self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
-        self.stream_worker.moveToThread(self.stream_thread)
-
-        # Connect signals
-        self.stream_worker.chunk_received.connect(self._on_stream_chunk)
-        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
-        self.stream_worker.finished.connect(self._on_stream_finished)
-        self.stream_worker.error.connect(self._on_stream_error)
-        self.stream_thread.started.connect(self.stream_worker.run)
-
-        # Start the thread
-        self.stream_thread.start()
-
-    def _start_streaming_message(self) -> None:
-        """Add a placeholder message for streaming content"""
-        self.messages.append({"role": "assistant", "content": ""})
-        self._is_streaming = True
-        self._update_chat_display()
-
-    def _on_stream_chunk(self, chunk: str) -> None:
-        """Handle a streaming chunk"""
-        self.streaming_content += chunk
-        # Update the last message with accumulated content (for final state)
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["content"] = self.streaming_content
-        # Append raw chunk to streaming element - no markdown re-render
-        self._append_streaming_chunk(chunk)
-
-    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
-        """Handle a streaming tool call update"""
-        # Ensure we have enough slots
-        while len(self._streaming_tool_calls) <= index:
-            self._streaming_tool_calls.append({})
-
-        # Update the tool call at this index
-        self._streaming_tool_calls[index] = tool_call
-
-        # Update the streaming display to show tool call progress
-        self._update_streaming_tool_calls()
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
@@ -1077,659 +1194,24 @@ class AIChatWidget(QWidget):
         """
         self.chat_view.page().runJavaScript(js_code)
 
-    def _on_stream_finished(self, result: dict[str, Any]) -> None:
-        """Handle stream completion"""
-        # Clean up thread
-        if self.stream_thread:
-            self.stream_thread.quit()
-            self.stream_thread.wait()
-            self.stream_thread = None
-            self.stream_worker = None
 
-        # Mark streaming as finished
-        self._is_streaming = False
-        self._streaming_tool_calls = []  # Clear streaming tool calls
 
-        # Finalize streaming content with proper markdown rendering
-        self._finalize_streaming_content()
 
-        # Handle the streaming message - update with final content and tool_calls if present
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            # Update content if present in result
-            if result.get("content"):
-                self.messages[-1]["content"] = result["content"]
-
-            # Add tool_calls if present
-            if result.get("tool_calls"):
-                self.messages[-1]["tool_calls"] = result["tool_calls"]
-
-        # Process inline commands FIRST (edit, commit, run_tests, etc.)
-        # If inline commands fail, we truncate and retry - tool calls should NOT be recorded
-        if result.get("content"):
-            commands = parse_inline_commands(result["content"])
-            if commands:
-                # Store result for use after inline commands complete
-                self._pending_stream_result = result
-                self._start_inline_command_execution(commands)
-                return  # Will continue in _on_inline_commands_finished
-
-        # No inline commands - continue with tool calls
-        self._finish_stream_processing(result)
-
-    def _process_inline_commands(self, content: str) -> dict[str, Any]:
-        """Process inline commands (<edit>, <commit>, <run_tests>, etc.) from assistant message.
-
-        Returns:
-            {
-                "had_commands": bool,  # True if any inline commands were found
-                "failed": bool,        # True if a command failed
-                "clean_content": str,  # Content unchanged (commands stay for rendering)
-                "error": str,          # Error message if failed
-            }
-        """
-        commands = parse_inline_commands(content)
-        if not commands:
-            return {"had_commands": False, "failed": False, "clean_content": content}
-
-        # Execute commands sequentially, stopping on first failure
-        vfs = self.session_manager.vfs
-        vfs.claim_thread()
-        try:
-            results, failed_index = execute_inline_commands(vfs, commands)
-        finally:
-            vfs.release_thread()
-
-        # No special handling needed - run_tests and check now set success=False
-        # when tests/checks fail, so they naturally stop the pipeline
-
-        if failed_index is not None:
-            # Command failed - truncate message AFTER the failed command
-            failed_cmd = commands[failed_index]
-            truncated_content = content[: failed_cmd.end_pos]
-
-            # Update the assistant message to truncated version
-            if self.messages and self.messages[-1]["role"] == "assistant":
-                self.messages[-1]["content"] = truncated_content
-
-            # Build error message for the AI
-            error_result = results[failed_index]
-            error_msg = error_result.get("error", "Unknown error")
-
-            # Process side effects for SUCCESSFUL commands before the failure
-            # This ensures the AI sees modified files even when a later command fails
-            success_msgs = []
-            for i, result in enumerate(results[:-1]):  # Exclude the failed one
-                if result.get("success"):
-                    cmd = commands[i]
-                    success_msgs.append(f"✓ {cmd.tool_name}")
-                    self._process_tool_side_effects(result, cmd)
-
-            # Build the system message
-            system_parts = []
-            if success_msgs:
-                system_parts.append("Commands executed:\n" + "\n".join(success_msgs))
-            system_parts.append(f"\n❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}")
-
-            error_content = "\n".join(system_parts)
-
-            # Add truncated content to prompt manager (what the AI actually "said")
-            self.session_manager.append_assistant_message(truncated_content)
-
-            # Add error as user message so AI sees it
-            self._add_system_message(error_content)
-            self.session_manager.append_user_message(error_content)
-
-            # Update display
-            self._update_chat_display(scroll_to_bottom=True)
-
-            # Continue conversation so AI can react to the error
-            tools = self.session_manager.tool_manager.discover_tools()
-            self._continue_after_tools(tools)
-
-            return {"had_commands": True, "failed": True, "error": error_msg}
-
-        # All commands succeeded - process results for side effects
-        for i, result in enumerate(results):
-            cmd = commands[i]
-            self._process_tool_side_effects(result, cmd)
-
-        # Build success feedback for the AI, including meaningful output from tools
-        success_parts = []
-
-        for i, cmd in enumerate(commands):
-            result = results[i]
-
-            # For tools with meaningful output, include it
-            if cmd.tool_name == "run_tests":
-                summary = result.get("summary", "✓ Tests passed")
-                success_parts.append(f"✓ run_tests: {summary}")
-            elif cmd.tool_name == "check":
-                summary = result.get("summary", "All checks passed")
-                success_parts.append(f"✓ check: {summary}")
-            elif cmd.tool_name == "commit":
-                commit_oid = result.get("commit", "")[:8]
-                success_parts.append(f"✓ commit: {commit_oid}")
-            else:
-                success_parts.append(f"✓ {cmd.tool_name}")
-
-        success_content = "Commands executed:\n" + "\n".join(success_parts)
-
-        # Store inline results on the assistant message for rendering
-        # This allows render_markdown to show results in the widgets
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["_inline_results"] = results
-
-        # Update display to show results in widgets
-        self._update_chat_display(scroll_to_bottom=True)
-
-        # Add to prompt manager so AI sees it
-        self.session_manager.append_user_message(success_content)
-
-        # Return original content unchanged - inline commands stay for rendering
-        return {"had_commands": True, "failed": False, "clean_content": content}
-
-    def _on_stream_error(self, error_msg: str) -> None:
-        """Handle streaming error by feeding it back into the conversation"""
-        # Clean up thread
-        if self.stream_thread:
-            self.stream_thread.quit()
-            self.stream_thread.wait()
-            self.stream_thread = None
-            self.stream_worker = None
-
-        # Mark streaming as finished
-        self._is_streaming = False
-
-        # Remove the empty streaming message placeholder if present
-        if (
-            self.messages
-            and self.messages[-1].get("role") == "assistant"
-            and not self.messages[-1].get("content")
-        ):
-            self.messages.pop()
-
-        # Build error message for both display and LLM
-        error_content = f"**Error from LLM provider:**\n\n```\n{error_msg}\n```\n\nPlease acknowledge this error and adjust your approach if needed."
-
-        # Add to UI display
-        self._add_system_message(f"❌ {error_msg}")
-
-        # Add to conversation so AI sees it and can react
-        # Using "user" role since that's what the AI will respond to
-        self.add_message("user", error_content)
-        self.session_manager.append_user_message(error_content)
-
-        # Continue the conversation - AI will see the error and can respond
-        self._process_llm_request()
-
-    def _start_inline_command_execution(self, commands: list) -> None:
-        """Start executing inline commands in background thread."""
-        self.inline_thread = QThread()
-        self.inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)
-        self.inline_worker.moveToThread(self.inline_thread)
-
-        self.inline_worker.finished.connect(self._on_inline_commands_finished)
-        self.inline_worker.error.connect(self._on_inline_commands_error)
-        self.inline_thread.started.connect(self.inline_worker.run)
-
-        # Store commands for result processing
-        self._pending_inline_commands = commands
-
-        self.inline_thread.start()
-
-    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:
-        """Handle inline command execution completion."""
-        # Clean up thread
-        if hasattr(self, "inline_thread") and self.inline_thread:
-            self.inline_thread.quit()
-            self.inline_thread.wait()
-        self.inline_thread = None
-        self.inline_worker = None
-
-        commands = getattr(self, "_pending_inline_commands", [])
-        result = getattr(self, "_pending_stream_result", {})
-        content = result.get("content", "")
-
-        if failed_index is not None:
-            # Command failed - truncate message AFTER the failed command
-            failed_cmd = commands[failed_index]
-            truncated_content = content[: failed_cmd.end_pos]
-
-            # Update the assistant message to truncated version
-            if self.messages and self.messages[-1]["role"] == "assistant":
-                self.messages[-1]["content"] = truncated_content
-                self.messages[-1].pop("tool_calls", None)
-
-            # Build error message for the AI
-            error_result = results[failed_index]
-            error_msg = error_result.get("error", "Unknown error")
-
-            # Process side effects for SUCCESSFUL commands before the failure
-            # This ensures the AI sees modified files even when a later command fails
-            success_msgs = []
-            for i, res in enumerate(results[:-1]):  # Exclude the failed one
-                if res.get("success"):
-                    cmd = commands[i]
-                    success_msgs.append(f"✓ {cmd.tool_name}")
-                    self._process_tool_side_effects(res, cmd)
-
-            # Build the system message
-            system_parts = []
-            if success_msgs:
-                system_parts.append("Commands executed:\n" + "\n".join(success_msgs))
-            system_parts.append(f"\n❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}")
-
-            error_content = "\n".join(system_parts)
-
-            # Add truncated content to prompt manager
-            self.session_manager.append_assistant_message(truncated_content)
-
-            # Add error as user message so AI sees it
-            self._add_system_message(error_content)
-            self.session_manager.append_user_message(error_content)
-
-            # Update display
-            self._update_chat_display(scroll_to_bottom=True)
-
-            # Continue conversation so AI can react to the error
-            tools = self.session_manager.tool_manager.discover_tools()
-            self._continue_after_tools(tools)
-            return
-
-        # All commands succeeded - process results for side effects
-        for i, res in enumerate(results):
-            cmd = commands[i]
-            self._process_tool_side_effects(res, cmd)
-
-        # Build success feedback
-        success_parts = []
-        for i, cmd in enumerate(commands):
-            res = results[i]
-            if cmd.tool_name == "run_tests":
-                summary = res.get("summary", "✓ Tests passed")
-                success_parts.append(f"✓ run_tests: {summary}")
-            elif cmd.tool_name == "check":
-                summary = res.get("summary", "All checks passed")
-                success_parts.append(f"✓ check: {summary}")
-            elif cmd.tool_name == "commit":
-                commit_oid = res.get("commit", "")[:8]
-                success_parts.append(f"✓ commit: {commit_oid}")
-            else:
-                success_parts.append(f"✓ {cmd.tool_name}")
-
-        success_content = "Commands executed:\n" + "\n".join(success_parts)
-
-        # Store inline results on the assistant message for rendering
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["_inline_results"] = results
-
-        # Update display to show results in widgets
-        self._update_chat_display(scroll_to_bottom=True)
-
-        # Add to prompt manager so AI sees it
-        self.session_manager.append_user_message(success_content)
-
-        # Continue with tool calls if any
-        self._finish_stream_processing(result)
-
-    def _on_inline_commands_error(self, error_msg: str) -> None:
-        """Handle inline command execution error."""
-        if hasattr(self, "inline_thread") and self.inline_thread:
-            self.inline_thread.quit()
-            self.inline_thread.wait()
-        self.inline_thread = None
-        self.inline_worker = None
-
-        self._add_system_message(f"❌ Inline command error: {error_msg}")
-        self.ai_turn_finished.emit("")
-        self._reset_input()
-
-    def _finish_stream_processing(self, result: dict[str, Any]) -> None:
-        """Finish processing a stream result after inline commands (if any) complete."""
-        # Record tool calls if present
-        if result.get("tool_calls"):
-            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
-
-        # Execute tools if present
-        if result.get("tool_calls"):
-            self._execute_tool_calls(result["tool_calls"])
-            return
-
-        # This is a final text response with no tool calls
-        if result.get("content"):
-            self.session_manager.append_assistant_message(result["content"])
-
-        # Emit updated context stats
-        self._emit_context_stats()
-
-        # Generate summaries for newly created files
-        if hasattr(self, "_newly_created_files") and self._newly_created_files:
-            for filepath in self._newly_created_files:
-                self.session_manager.generate_summary_for_file(filepath)
-            self.summaries_ready.emit(self.session_manager.repo_summaries)
-            self._newly_created_files.clear()
-
-        # Commit now
-        commit_oid = self.session_manager.commit_ai_turn(self.messages)
-        self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
-
-        # Emit signal that AI turn is finished
-        self.ai_turn_finished.emit(commit_oid)
-
-        # Show system notification
-        self._notify_turn_complete(commit_oid)
-
-        self._reset_input()
-
-    def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Execute tool calls in background thread and continue conversation"""
-        # Store tools for later use in _on_tools_all_finished
-        self._pending_tools = self.session_manager.tool_manager.discover_tools()
-
-        # Create and start tool execution worker
-        self.tool_thread = QThread()
-        self.tool_worker = ToolExecutionWorker(
-            tool_calls,
-            self.session_manager.tool_manager,
-            self.session_manager,
-        )
-        self.tool_worker.moveToThread(self.tool_thread)
-
-        # Connect signals
-        self.tool_worker.tool_started.connect(self._on_tool_started)
-        self.tool_worker.tool_finished.connect(self._on_tool_finished)
-        self.tool_worker.all_finished.connect(self._on_tools_all_finished)
-        self.tool_worker.error.connect(self._on_tool_error)
-        self.tool_thread.started.connect(self.tool_worker.run)
-
-        # Start the thread
-        self.tool_thread.start()
-
-    def _on_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
-        """Handle tool execution starting"""
-        # Could show a "running..." indicator here if desired
-        pass
-
-    def _on_tool_finished(
-        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
-    ) -> None:
-        """Handle individual tool execution completion (called from main thread via signal)"""
-        # This is called on the main thread, so UI updates are safe
-        # tool_call_id is passed directly from the worker, no need to search
-
-        # Add tool result to messages
-        result_json = json.dumps(result)
-        tool_message = {
-            "role": "tool",
-            "tool_call_id": tool_call_id,
-            "content": result_json,
-            "_skip_display": True,
-        }
-        self.messages.append(tool_message)
-        self.session_manager.append_tool_result(tool_call_id, result_json)
-
-        # Handle side effects declared by tools
-        # We track file updates to apply AFTER all tool results are recorded,
-        # avoiding FILE_CONTENT blocks between TOOL_RESULT blocks (API requirement)
-        side_effects = result.get("side_effects", [])
-
-        # Handle FILES_MODIFIED side effect
-        if SideEffect.FILES_MODIFIED in side_effects:
-            if not hasattr(self, "_pending_file_updates"):
-                self._pending_file_updates = []
-            for filepath in result.get("modified_files", []):
-                self._pending_file_updates.append((filepath, tool_call_id))
-
-        # Handle NEW_FILES_CREATED side effect (for summary generation)
-        if SideEffect.NEW_FILES_CREATED in side_effects:
-            if not hasattr(self, "_newly_created_files"):
-                self._newly_created_files = set()
-            for filepath in result.get("new_files", []):
-                if filepath not in self.session_manager.repo_summaries:
-                    self._newly_created_files.add(filepath)
-
-        # Handle compact tool specially - it modifies the prompt manager
-        if result.get("compact") and result.get("success"):
-            from_id = result.get("from_id", "")
-            to_id = result.get("to_id", "")
-            summary = result.get("summary", "")
-            compacted, error = self.session_manager.compact_tool_results(from_id, to_id, summary)
-            print(f"📦 Compacted {compacted} tool result(s)")
-            # Update the result to include any error
-            if error:
-                result["error"] = error
-                result["success"] = False
-
-        # Note: think tool scratchpad is kept in session for UI rendering,
-        # but compacted on-the-fly when building API requests (in PromptManager.to_messages)
-
-        if SideEffect.MID_TURN_COMMIT in side_effects:
-            # Emit signal to refresh UI (commit_oid is tool-specific, get from result)
-            commit_oid = result.get("commit", "")
-            if commit_oid:
-                self.mid_turn_commit.emit(commit_oid)
-            # Mark that we had a mid-turn commit so end-of-turn session commit
-            # becomes FOLLOW_UP (suffix) instead of PREPARE (prefix)
-            self.session_manager.mark_mid_turn_commit()
-
-        # If tool modified context, emit signal to update UI
-        if result.get("action") == "update_context":
-            self.context_changed.emit(self.session_manager.active_files.copy())
-            self._emit_context_stats()
-
-        # Display tool result
-        # Built-in tools with native rendering don't need system messages on success -
-        # they're rendered inline in the assistant message via _render_tool_calls_html
-        builtin_tools_with_native_rendering = {
-            "search_replace",
-            "delete_file",
-            "update_context",
-            "grep_open",
-            "get_lines",
-            "compact",
-            "commit",
-            "think",
-            "run_tests",
-        }
-
-        if tool_name in builtin_tools_with_native_rendering and result.get("success"):
-            # Success case - tool call is already rendered inline, no system message needed
-            pass
-        elif tool_name == "search_replace" and not result.get("success"):
-            # search_replace failure - show error and add file to context
-            tool_display_parts = [
-                f"🔧 **Tool call:** `{tool_name}`",
-                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                "**Result:**",
-                f"```json\n{json.dumps(result, indent=2)}\n```",
-            ]
-            filepath = tool_args.get("filepath")
-            if filepath and filepath not in self.session_manager.active_files:
-                self.session_manager.add_active_file(filepath)
-                tool_display_parts.append(
-                    f"\n📂 Added `{filepath}` to context so you can see its actual content"
-                )
-            self._add_system_message("\n".join(tool_display_parts))
-        elif tool_name in builtin_tools_with_native_rendering and not result.get("success"):
-            # Other built-in tool failure - show error
-            error_msg = result.get("error", "Unknown error")
-            self._add_system_message(f"❌ **{tool_name}** failed: {error_msg}")
-        else:
-            # Unknown tool - show full JSON
-            tool_display_parts = [
-                f"🔧 **Tool call:** `{tool_name}`",
-                f"```json\n{json.dumps(tool_args, indent=2)}\n```",
-                "**Result:**",
-                f"```json\n{json.dumps(result, indent=2)}\n```",
-            ]
-            self._add_system_message("\n".join(tool_display_parts))
-
-    def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
-        """Handle all tools completed - continue conversation, end turn, or send queued message"""
-        # Clean up thread
-        if self.tool_thread:
-            self.tool_thread.quit()
-            self.tool_thread.wait()
-            self.tool_thread = None
-            self.tool_worker = None
-
-        # Track executed tool IDs from THIS batch
-        batch_executed_ids = {r["tool_call"]["id"] for r in results}
-
-        # Add to turn-level tracking (accumulates across all tool batches in the turn)
-        self._turn_executed_tool_ids.update(batch_executed_ids)
-
-        # Filter out unattempted tool calls from the assistant message.
-        # If we broke out of the loop early (tool failure), the assistant message
-        # still has ALL tool_calls but we only have results for the executed ones.
-        # The API requires every tool_call to have a corresponding tool result.
-        #
-        # IMPORTANT: Use turn-level tracking, not just this batch!
-        # A turn may have multiple tool batches (AI responds, tools run, AI responds again, etc.)
-        # We must preserve tool calls from earlier batches that were already executed.
-        executed_tool_ids = self._turn_executed_tool_ids
-
-        # Find the assistant message with tool_calls (search backwards)
-        for msg in reversed(self.messages):
-            if msg.get("role") == "assistant" and "tool_calls" in msg:
-                original_count = len(msg["tool_calls"])
-                msg["tool_calls"] = [
-                    tc for tc in msg["tool_calls"] if tc.get("id") in executed_tool_ids
-                ]
-                if len(msg["tool_calls"]) < original_count:
-                    dropped = original_count - len(msg["tool_calls"])
-                    print(f"📦 Dropped {dropped} unattempted tool call(s) from assistant message")
-                break
-
-        # Also filter in PromptManager - it recorded all tool_calls initially
-        self.session_manager.prompt_manager.filter_tool_calls(executed_tool_ids)
-
-        # NOW it's safe to update file contents in the prompt manager.
-        # All tool_result blocks have been recorded, so adding FILE_CONTENT
-        # blocks won't break the tool_use -> tool_result adjacency requirement.
-        if hasattr(self, "_pending_file_updates"):
-            for filepath, tool_call_id in self._pending_file_updates:
-                self.session_manager.file_was_modified(filepath, tool_call_id)
-            self._pending_file_updates = []
-
-        # Check if user queued a message - if so, inject it now instead of continuing
-        if self._queued_message:
-            queued = self._queued_message
-            self._queued_message = None
-
-            # Add the queued message to conversation, marked as part of current turn
-            # This prevents it from starting a new visual turn block
-            self.messages.append({"role": "user", "content": queued, "_mid_turn": True})
-            self._update_chat_display(scroll_to_bottom=True)
-            self.session_manager.append_user_message(queued)
-
-            # Continue with the queued message (AI will see tool results + new message)
-            tools = getattr(self, "_pending_tools", [])
-            self._continue_after_tools(tools)
-        else:
-            # No queued message - continue conversation with tool results
-            tools = getattr(self, "_pending_tools", [])
-            self._continue_after_tools(tools)
-
-    def _on_tool_error(self, error_msg: str) -> None:
-        """Handle tool execution error"""
-        # Clean up thread
-        if self.tool_thread:
-            self.tool_thread.quit()
-            self.tool_thread.wait()
-            self.tool_thread = None
-            self.tool_worker = None
-
-        self._add_system_message(f"❌ Tool execution error: {error_msg}")
-
-        # Emit signal that AI turn is finished (with empty string indicating no commit)
-        self.ai_turn_finished.emit("")
-        self._reset_input()
-
-    def _continue_after_tools(self, tools: list[dict[str, Any]]) -> None:
-        """Continue LLM conversation after tool execution (in background thread) with streaming"""
-        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        api_key = self.session_manager.settings.get_api_key()
-        client = LLMClient(api_key, model)
-
-        # Rebuild prompt with fresh context (in case update_context changed active files)
-        messages_with_context = self._build_prompt_messages()
-
-        # Start streaming (same as initial request)
-        self.streaming_content = ""
-        self._streaming_tool_calls = []  # Reset streaming tool calls
-        self._start_streaming_message()
-
-        self.stream_thread = QThread()
-        self.stream_worker = StreamWorker(client, messages_with_context, tools or None)
-        self.stream_worker.moveToThread(self.stream_thread)
-
-        # Connect signals - use the same handlers as initial streaming
-        self.stream_worker.chunk_received.connect(self._on_stream_chunk)
-        self.stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
-        self.stream_worker.finished.connect(self._on_stream_finished)
-        self.stream_worker.error.connect(self._on_stream_error)
-        self.stream_thread.started.connect(self.stream_worker.run)
-
-        # Start the thread
-        self.stream_thread.start()
 
     def _cancel_ai_turn(self) -> None:
         """Cancel the current AI turn - abort streaming/tool execution and discard changes"""
         if not self.is_processing:
             return
 
-        self._cancel_requested = True
-
-        # Clean up streaming thread if active
-        if self.stream_thread and self.stream_thread.isRunning():
-            self.stream_thread.quit()
-            self.stream_thread.wait(1000)  # Wait up to 1 second
-            if self.stream_thread.isRunning():
-                self.stream_thread.terminate()
-            self.stream_thread = None
-            self.stream_worker = None
-
-        # Clean up inline command thread if active
-        if hasattr(self, "inline_thread") and self.inline_thread and self.inline_thread.isRunning():
-            self.inline_thread.quit()
-            self.inline_thread.wait(3000)
-            if self.inline_thread.isRunning():
-                self.inline_thread.terminate()
-        self.inline_thread = None
-        self.inline_worker = None
-
-        # Clean up tool thread if active
-        # The tool thread claims VFS ownership, so we must wait for it to finish
-        # and release ownership before we can touch the VFS
-        if self.tool_thread and self.tool_thread.isRunning():
-            self.tool_thread.quit()
-            self.tool_thread.wait(3000)  # Wait longer - tool needs to release VFS
-            if self.tool_thread.isRunning():
-                self.tool_thread.terminate()
-            self.tool_thread = None
-            self.tool_worker = None
-
-        # Clear streaming state
-        self._is_streaming = False
-        self._streaming_tool_calls = []
-
-        # Discard pending VFS changes by creating a fresh VFS
-        # This is safer than clear_pending_changes() because it doesn't require
-        # the old VFS to be in a valid state (thread ownership, etc.)
-        self.session_manager.tool_manager.vfs = self.session_manager._create_fresh_vfs()
-
-        # Remove the incomplete assistant message if present
-        if self.messages and self.messages[-1].get("role") == "assistant":
-            self.messages.pop()
-
+        # Delegate to runner - it handles all the cleanup
+        self.runner.cancel()
+        
         # Add cancellation notice
         self._add_system_message("🛑 AI turn cancelled by user")
 
         # Emit signal that AI turn is finished (no commit)
         self.ai_turn_finished.emit("")
 
-        self._reset_input()
         self._update_chat_display()
 
     def _reset_input(self) -> None:
@@ -1764,13 +1246,13 @@ class AIChatWidget(QWidget):
 
     def add_message(self, role: str, content: str) -> None:
         """Add a message to the chat (becomes part of conversation history)"""
-        self.messages.append({"role": role, "content": content})
+        self.runner.add_message({"role": role, "content": content})
         self._update_chat_display(scroll_to_bottom=True)
 
     def _add_system_message(self, content: str) -> None:
         """Add a system/UI feedback message (display only, not sent to LLM)"""
         # Use a special marker to distinguish UI messages from real system messages
-        self.messages.append({"role": "system", "content": content, "_ui_only": True})
+        self.runner.add_message({"role": "system", "content": content, "_ui_only": True})
         self._update_chat_display(scroll_to_bottom=True)
 
     def _get_conversation_messages(self) -> list[dict[str, Any]]:
@@ -2434,40 +1916,12 @@ class AIChatWidget(QWidget):
 
     def _handle_rewind(self, message_index: int) -> None:
         """Handle rewind request - truncate conversation to message_index"""
-        # Don't allow rewind while processing
-        if self.is_processing:
+        if self.runner.rewind_to_message(message_index):
+            self._add_system_message(f"⏪ Rewound conversation to message {message_index + 1}")
+            self._update_chat_display()
+            self._emit_context_stats()
+        else:
             self._add_system_message("⚠️ Cannot rewind while AI is processing")
-            return
-
-        # Validate index
-        if message_index < 0 or message_index >= len(self.messages):
-            return
-
-        # Truncate messages (keep everything up to and including target)
-        self.messages = self.messages[: message_index + 1]
-
-        # Rebuild prompt manager state from scratch
-        self.session_manager.prompt_manager.clear_conversation()
-
-        for msg in self.messages:
-            if msg.get("_ui_only"):
-                continue
-            role = msg.get("role")
-            content = msg.get("content", "")
-            if role == "user":
-                self.session_manager.append_user_message(content)
-            elif role == "assistant":
-                if "tool_calls" in msg:
-                    self.session_manager.append_tool_call(msg["tool_calls"], content)
-                elif content:
-                    self.session_manager.append_assistant_message(content)
-            elif role == "tool":
-                tool_call_id = msg.get("tool_call_id", "")
-                self.session_manager.append_tool_result(tool_call_id, content)
-
-        self._add_system_message(f"⏪ Rewound conversation to message {message_index + 1}")
-        self._update_chat_display()
-        self._emit_context_stats()
 
     def _handle_rewind_to_commit(self, commit_oid: str) -> None:
         """Handle rewind to a specific commit - reset VFS and reload session"""
@@ -2480,88 +1934,22 @@ class AIChatWidget(QWidget):
         self._handle_rewind(message_index)
 
     def _handle_revert_turn(self, first_message_index: int) -> None:
-        """Handle reverting a turn and all following turns.
-
-        This truncates the conversation to just before the specified turn,
-        and rebuilds the prompt manager state.
-        """
-        # Don't allow revert while processing
-        if self.is_processing:
+        """Handle reverting a turn and all following turns."""
+        if self.runner.revert_turn(first_message_index):
+            self._add_system_message("⏪ Reverted to before this turn")
+            self._update_chat_display()
+            self._emit_context_stats()
+        else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
-            return
-
-        # Validate index
-        if first_message_index < 1 or first_message_index >= len(self.messages):
-            return
-
-        # Truncate messages to just before this turn (exclude the first message of the turn)
-        self.messages = self.messages[:first_message_index]
-
-        # Rebuild prompt manager state from scratch
-        self.session_manager.prompt_manager.clear_conversation()
-
-        for msg in self.messages:
-            if msg.get("_ui_only"):
-                continue
-            role = msg.get("role")
-            content = msg.get("content", "")
-            if role == "user":
-                self.session_manager.append_user_message(content)
-            elif role == "assistant":
-                if "tool_calls" in msg:
-                    self.session_manager.append_tool_call(msg["tool_calls"], content)
-                elif content:
-                    self.session_manager.append_assistant_message(content)
-            elif role == "tool":
-                tool_call_id = msg.get("tool_call_id", "")
-                self.session_manager.append_tool_result(tool_call_id, content)
-
-        self._add_system_message("⏪ Reverted to before this turn")
-        self._update_chat_display()
-        self._emit_context_stats()
 
     def _handle_revert_to_turn(self, first_message_index: int) -> None:
-        """Handle reverting TO a turn (keep this turn, undo later turns).
-
-        This truncates the conversation to after the specified turn completes.
-        """
-        # Don't allow revert while processing
-        if self.is_processing:
+        """Handle reverting TO a turn (keep this turn, undo later turns)."""
+        if self.runner.revert_to_turn(first_message_index):
+            self._add_system_message("⏪ Reverted to after this turn")
+            self._update_chat_display()
+            self._emit_context_stats()
+        else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
-            return
-
-        # Find the end of this turn (next user message or end of messages)
-        end_idx = len(self.messages)
-        for i in range(first_message_index + 1, len(self.messages)):
-            if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
-                end_idx = i
-                break
-
-        # Truncate to end of this turn
-        self.messages = self.messages[:end_idx]
-
-        # Rebuild prompt manager state from scratch
-        self.session_manager.prompt_manager.clear_conversation()
-
-        for msg in self.messages:
-            if msg.get("_ui_only"):
-                continue
-            role = msg.get("role")
-            content = msg.get("content", "")
-            if role == "user":
-                self.session_manager.append_user_message(content)
-            elif role == "assistant":
-                if "tool_calls" in msg:
-                    self.session_manager.append_tool_call(msg["tool_calls"], content)
-                elif content:
-                    self.session_manager.append_assistant_message(content)
-            elif role == "tool":
-                tool_call_id = msg.get("tool_call_id", "")
-                self.session_manager.append_tool_result(tool_call_id, content)
-
-        self._add_system_message("⏪ Reverted to after this turn")
-        self._update_chat_display()
-        self._emit_context_stats()
 
     def _handle_fork_from_turn(self, first_message_index: int, before: bool = True) -> None:
         """Handle forking from a turn.

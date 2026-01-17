@@ -82,6 +82,12 @@ class SessionRunner(QObject):
     
     Signals are used for thread-safe communication with optional UI.
     If no UI is attached, signals simply aren't connected.
+    
+    This is the authoritative owner of:
+    - messages: The conversation history
+    - streaming_content: Current streaming text accumulator
+    - streaming_tool_calls: Current streaming tool calls
+    - is_streaming: Whether we're currently streaming
     """
     
     # Signals for UI attachment (optional - headless runs ignore these)
@@ -93,6 +99,11 @@ class SessionRunner(QObject):
     error_occurred = Signal(str)
     state_changed = Signal(str)  # SessionState value
     
+    # Signal for messages list changes (for UI sync)
+    message_added = Signal(dict)  # The message that was added
+    message_updated = Signal(int, dict)  # index, updated message
+    messages_truncated = Signal(int)  # new length after truncation
+    
     # Signal for tool approval (requires UI interaction)
     approval_needed = Signal(str, dict)  # tool_name, tool_info
     
@@ -103,16 +114,17 @@ class SessionRunner(QObject):
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
+        
+        # === AUTHORITATIVE SESSION STATE ===
+        # These are the source of truth - UI reads from here
         self.messages: list[dict[str, Any]] = messages or []
+        self.streaming_content: str = ""
+        self.streaming_tool_calls: list[dict[str, Any]] = []
+        self.is_streaming: bool = False
         
         # Execution state
         self._state = SessionState.IDLE
         self._cancel_requested = False
-        
-        # Streaming state
-        self._is_streaming = False
-        self._streaming_content = ""
-        self._streaming_tool_calls: list[dict[str, Any]] = []
         
         # Tool execution tracking (across all batches in a turn)
         self._turn_executed_tool_ids: set[str] = set()
@@ -156,6 +168,81 @@ class SessionRunner(QObject):
         """Check if session is actively processing."""
         return self._state == SessionState.RUNNING
     
+    # === MESSAGE MANAGEMENT ===
+    # All message mutations go through these methods to ensure signals are emitted
+    
+    def add_message(self, message: dict[str, Any]) -> int:
+        """Add a message and emit signal. Returns the index."""
+        self.messages.append(message)
+        self.message_added.emit(message)
+        return len(self.messages) - 1
+    
+    def update_message(self, index: int, updates: dict[str, Any]) -> None:
+        """Update a message at index and emit signal."""
+        if 0 <= index < len(self.messages):
+            self.messages[index].update(updates)
+            self.message_updated.emit(index, self.messages[index])
+    
+    def update_last_assistant_message(self, updates: dict[str, Any]) -> None:
+        """Update the last assistant message (common pattern during streaming)."""
+        for i in range(len(self.messages) - 1, -1, -1):
+            if self.messages[i].get("role") == "assistant":
+                self.update_message(i, updates)
+                return
+    
+    def pop_last_message(self) -> dict[str, Any] | None:
+        """Remove and return the last message."""
+        if self.messages:
+            msg = self.messages.pop()
+            self.messages_truncated.emit(len(self.messages))
+            return msg
+        return None
+    
+    def truncate_messages(self, new_length: int) -> None:
+        """Truncate messages to new_length."""
+        if new_length < len(self.messages):
+            self.messages = self.messages[:new_length]
+            self.messages_truncated.emit(new_length)
+    
+    # === STREAMING STATE ===
+    
+    def start_streaming(self) -> None:
+        """Start a new streaming response."""
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
+        self.is_streaming = True
+        # Add placeholder message
+        self.add_message({"role": "assistant", "content": ""})
+    
+    def append_streaming_chunk(self, chunk: str) -> None:
+        """Append a chunk to streaming content."""
+        self.streaming_content += chunk
+        # Update the last message
+        self.update_last_assistant_message({"content": self.streaming_content})
+        # Emit for real-time UI update
+        self.chunk_received.emit(chunk)
+    
+    def update_streaming_tool_call(self, index: int, tool_call: dict[str, Any]) -> None:
+        """Update a streaming tool call."""
+        while len(self.streaming_tool_calls) <= index:
+            self.streaming_tool_calls.append({})
+        self.streaming_tool_calls[index] = tool_call
+        self.tool_call_delta.emit(index, tool_call)
+    
+    def finish_streaming(self, content: str | None, tool_calls: list[dict[str, Any]] | None) -> None:
+        """Finalize streaming with final content and tool_calls."""
+        self.is_streaming = False
+        updates: dict[str, Any] = {}
+        if content:
+            updates["content"] = content
+        if tool_calls:
+            updates["tool_calls"] = tool_calls
+        if updates:
+            self.update_last_assistant_message(updates)
+        self.streaming_tool_calls = []
+    
+    # === PUBLIC API ===
+    
     def send_message(self, text: str) -> bool:
         """
         Send a user message to the AI.
@@ -172,7 +259,7 @@ class SessionRunner(QObject):
             return False
         
         # Add message to conversation
-        self.messages.append({"role": "user", "content": text})
+        self.add_message({"role": "user", "content": text})
         self.session_manager.append_user_message(text)
         
         # Reset turn tracking
@@ -200,7 +287,11 @@ class SessionRunner(QObject):
         
         # Remove incomplete assistant message
         if self.messages and self.messages[-1].get("role") == "assistant":
-            self.messages.pop()
+            self.pop_last_message()
+        
+        self.is_streaming = False
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
         
         self.state = SessionState.IDLE
         self.error_occurred.emit("Cancelled by user")
@@ -235,13 +326,8 @@ class SessionRunner(QObject):
         messages = self.session_manager.get_prompt_messages()
         tools = self.session_manager.tool_manager.discover_tools()
         
-        # Reset streaming state
-        self._streaming_content = ""
-        self._streaming_tool_calls = []
-        self._is_streaming = True
-        
-        # Add placeholder message
-        self.messages.append({"role": "assistant", "content": ""})
+        # Start streaming
+        self.start_streaming()
         
         # Start streaming in thread
         self._stream_thread = QThread()
@@ -259,17 +345,11 @@ class SessionRunner(QObject):
     
     def _on_stream_chunk(self, chunk: str) -> None:
         """Handle streaming text chunk."""
-        self._streaming_content += chunk
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["content"] = self._streaming_content
-        self.chunk_received.emit(chunk)
+        self.append_streaming_chunk(chunk)
     
     def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
         """Handle streaming tool call update."""
-        while len(self._streaming_tool_calls) <= index:
-            self._streaming_tool_calls.append({})
-        self._streaming_tool_calls[index] = tool_call
-        self.tool_call_delta.emit(index, tool_call)
+        self.update_streaming_tool_call(index, tool_call)
     
     def _on_stream_finished(self, result: dict[str, Any]) -> None:
         """Handle stream completion."""
@@ -280,15 +360,8 @@ class SessionRunner(QObject):
             self._stream_thread = None
             self._stream_worker = None
         
-        self._is_streaming = False
-        self._streaming_tool_calls = []
-        
-        # Update message
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            if result.get("content"):
-                self.messages[-1]["content"] = result["content"]
-            if result.get("tool_calls"):
-                self.messages[-1]["tool_calls"] = result["tool_calls"]
+        # Finalize streaming
+        self.finish_streaming(result.get("content"), result.get("tool_calls"))
         
         # Process inline commands first
         if result.get("content"):
@@ -310,7 +383,9 @@ class SessionRunner(QObject):
             self._stream_thread = None
             self._stream_worker = None
         
-        self._is_streaming = False
+        self.is_streaming = False
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
         
         # Remove empty assistant message
         if (
@@ -318,11 +393,11 @@ class SessionRunner(QObject):
             and self.messages[-1].get("role") == "assistant"
             and not self.messages[-1].get("content")
         ):
-            self.messages.pop()
+            self.pop_last_message()
         
         # Feed error back to conversation
         error_content = f"**Error from LLM provider:**\n\n```\n{error_msg}\n```"
-        self.messages.append({"role": "user", "content": error_content})
+        self.add_message({"role": "user", "content": error_content})
         self.session_manager.append_user_message(error_content)
         
         # Retry
@@ -360,9 +435,12 @@ class SessionRunner(QObject):
             failed_cmd = commands[failed_index]
             truncated_content = content[: failed_cmd.end_pos]
             
-            if self.messages and self.messages[-1]["role"] == "assistant":
-                self.messages[-1]["content"] = truncated_content
-                self.messages[-1].pop("tool_calls", None)
+            self.update_last_assistant_message({"content": truncated_content})
+            # Remove tool_calls if present
+            for i in range(len(self.messages) - 1, -1, -1):
+                if self.messages[i].get("role") == "assistant":
+                    self.messages[i].pop("tool_calls", None)
+                    break
             
             error_result = results[failed_index]
             error_msg = error_result.get("error", "Unknown error")
@@ -375,7 +453,7 @@ class SessionRunner(QObject):
             # Add error to conversation
             error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
             self.session_manager.append_assistant_message(truncated_content)
-            self.messages.append({"role": "user", "content": error_content, "_ui_only": True})
+            self.add_message({"role": "user", "content": error_content, "_ui_only": True})
             self.session_manager.append_user_message(error_content)
             
             # Continue so AI can fix
@@ -386,8 +464,7 @@ class SessionRunner(QObject):
         for i, res in enumerate(results):
             self._process_tool_side_effects(res, commands[i])
         
-        if self.messages and self.messages[-1]["role"] == "assistant":
-            self.messages[-1]["_inline_results"] = results
+        self.update_last_assistant_message({"_inline_results": results})
         
         # Build success feedback
         success_parts = []
@@ -504,7 +581,7 @@ class SessionRunner(QObject):
         
         # Add tool result to messages
         result_json = json.dumps(result)
-        self.messages.append({
+        self.add_message({
             "role": "tool",
             "tool_call_id": tool_call_id,
             "content": result_json,
@@ -568,7 +645,7 @@ class SessionRunner(QObject):
         if self._queued_message:
             queued = self._queued_message
             self._queued_message = None
-            self.messages.append({"role": "user", "content": queued, "_mid_turn": True})
+            self.add_message({"role": "user", "content": queued, "_mid_turn": True})
             self.session_manager.append_user_message(queued)
         
         self._continue_after_tools()
@@ -587,6 +664,82 @@ class SessionRunner(QObject):
     def _continue_after_tools(self) -> None:
         """Continue LLM conversation after tool execution."""
         self._process_llm_request()
+    
+    # === REWIND/TRUNCATE OPERATIONS ===
+    
+    def rewind_to_message(self, message_index: int) -> bool:
+        """Rewind conversation to a specific message index.
+        
+        Returns True if successful, False if invalid state or index.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+        
+        if message_index < 0 or message_index >= len(self.messages):
+            return False
+        
+        # Truncate messages
+        self.truncate_messages(message_index + 1)
+        
+        # Rebuild prompt manager state
+        self._rebuild_prompt_manager()
+        
+        return True
+    
+    def revert_turn(self, first_message_index: int) -> bool:
+        """Revert a turn and all following turns.
+        
+        Returns True if successful.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+        
+        if first_message_index < 1 or first_message_index >= len(self.messages):
+            return False
+        
+        # Truncate to before this turn
+        self.truncate_messages(first_message_index)
+        self._rebuild_prompt_manager()
+        return True
+    
+    def revert_to_turn(self, first_message_index: int) -> bool:
+        """Revert TO a turn (keep this turn, undo later).
+        
+        Returns True if successful.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+        
+        # Find end of this turn
+        end_idx = len(self.messages)
+        for i in range(first_message_index + 1, len(self.messages)):
+            if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+                end_idx = i
+                break
+        
+        self.truncate_messages(end_idx)
+        self._rebuild_prompt_manager()
+        return True
+    
+    def _rebuild_prompt_manager(self) -> None:
+        """Rebuild prompt manager state from current messages."""
+        self.session_manager.prompt_manager.clear_conversation()
+        
+        for msg in self.messages:
+            if msg.get("_ui_only"):
+                continue
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                self.session_manager.append_user_message(content)
+            elif role == "assistant":
+                if "tool_calls" in msg:
+                    self.session_manager.append_tool_call(msg["tool_calls"], content)
+                elif content:
+                    self.session_manager.append_assistant_message(content)
+            elif role == "tool":
+                tool_call_id = msg.get("tool_call_id", "")
+                self.session_manager.append_tool_result(tool_call_id, content)
     
     # --- Child Session Management ---
     

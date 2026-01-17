@@ -134,6 +134,10 @@ class SessionDropdown(QWidget):
         SESSION_REGISTRY.session_unregistered.connect(self._on_session_changed)
         SESSION_REGISTRY.session_state_changed.connect(self._on_state_changed)
 
+        # Also listen for branch changes from the repo (for newly spawned sessions)
+        if self.repo:
+            self.repo.signals.branches_changed.connect(self._on_branches_changed)
+
         self._update_button_text()
 
     def _update_button_text(self) -> None:
@@ -165,6 +169,10 @@ class SessionDropdown(QWidget):
 
     def _on_state_changed(self, branch_name: str, new_state: str) -> None:
         """Handle session state change."""
+        self._update_button_text()
+
+    def _on_branches_changed(self) -> None:
+        """Handle branch created/deleted in the repo."""
         self._update_button_text()
 
     def _show_dropdown(self) -> None:

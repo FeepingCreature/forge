@@ -57,6 +57,8 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Merge child session into current branch."""
+    from forge.session.registry import SESSION_REGISTRY
+
     branch = args.get("branch", "")
     delete_branch = args.get("delete_branch", True)
     allow_conflicts = args.get("allow_conflicts", False)
@@ -72,23 +74,34 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
     try:
-        # Verify this is our child
-        child_vfs = ctx.get_branch_vfs(branch)
-        try:
-            session_content = child_vfs.read_file(SESSION_FILE)
-            session_data = json.loads(session_content)
-        except (FileNotFoundError, json.JSONDecodeError):
-            session_data = {}
+        # Check registry for live state (source of truth for running sessions)
+        live_runner = SESSION_REGISTRY.get(branch)
 
-        if session_data.get("parent_session") != parent_branch:
+        if live_runner is not None:
+            # Live runner - use its state directly
+            child_state = str(live_runner.state)
+            parent_session = live_runner._parent_session
+            print(f"🔍 merge_session: {branch} LIVE state={child_state}")
+        else:
+            # No live runner - read from session.json
+            child_vfs = ctx.get_branch_vfs(branch)
+            try:
+                session_content = child_vfs.read_file(SESSION_FILE)
+                session_data = json.loads(session_content)
+            except (FileNotFoundError, json.JSONDecodeError):
+                session_data = {}
+            child_state = session_data.get("state", "idle")
+            parent_session = session_data.get("parent_session")
+            print(f"🔍 merge_session: {branch} PERSISTED state={child_state}")
+
+        if parent_session != parent_branch:
             return {
                 "success": False,
                 "error": f"Branch '{branch}' is not a child of current session",
             }
 
-        # Check child state
-        child_state = session_data.get("state", "idle")
-        if child_state not in ("completed", "waiting_input"):
+        # Check child state - idle means turn finished, so it's ready
+        if child_state not in ("completed", "waiting_input", "idle"):
             return {
                 "success": False,
                 "error": f"Child session is not ready for merge (state: {child_state})",

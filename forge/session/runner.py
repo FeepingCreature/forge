@@ -439,8 +439,11 @@ class SessionRunner(QObject):
             _trigger_only: If True, just start processing without adding a message
                           (used when message is already in loaded session.json)
         """
+        print(f"📨 send_message called: text={text!r}, state={self._state}, _trigger_only={_trigger_only}")
+        
         if self._state == SessionState.RUNNING:
             # Queue the message
+            print(f"📨 State is RUNNING, queuing message")
             self._queued_message = text
             return True
 
@@ -449,10 +452,12 @@ class SessionRunner(QObject):
             SessionState.WAITING_INPUT,
             SessionState.WAITING_CHILDREN,
         ):
+            print(f"📨 State {self._state} not allowed, returning False")
             return False
 
         # Check if we're resuming from a pending wait_session call
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            print(f"📨 Resuming from pending wait call")
             return self._resume_pending_wait(text)
 
         # Add message to conversation (unless just triggering)
@@ -483,6 +488,7 @@ class SessionRunner(QObject):
         self._pending_wait_call = None
 
         if not pending:
+            print(f"📨 _resume_pending_wait: no pending call!")
             return False
 
         # Re-execute the wait_session tool
@@ -490,10 +496,13 @@ class SessionRunner(QObject):
         tool_args = pending["tool_args"]
         tool_call_id = pending["tool_call_id"]
 
+        print(f"📨 _resume_pending_wait: re-executing {tool_name} with args={tool_args}")
+
         self.state = SessionState.RUNNING
 
         # Execute synchronously (wait_session is fast - just checks state)
         result = self.session_manager.tool_manager.execute_tool(tool_name, tool_args)
+        print(f"📨 _resume_pending_wait: got result={result}")
 
         # If still yielding (no children ready yet), go back to waiting
         if result.get("_yield"):

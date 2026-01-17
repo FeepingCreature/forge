@@ -1,13 +1,13 @@
 {
   "active_files": [
     "forge/git_backend/commit_types.py",
-    "forge/tools/builtin/wait_session.py",
-    "forge/session/runner.py",
-    "forge/ui/session_dropdown.py",
     "tests/test_session_spawn.py",
     "forge/session/registry.py",
-    "forge/tools/builtin/spawn_session.py",
-    "CLAUDE.md"
+    "forge/tools/builtin/wait_session.py",
+    "forge/session/runner.py",
+    "CLAUDE.md",
+    "forge/ui/session_dropdown.py",
+    "forge/tools/builtin/spawn_session.py"
   ],
   "request_log_entries": [
     {
@@ -216,6 +216,24 @@
       "streaming": true,
       "actual_cost": 0.04666825,
       "generation_id": "gen-1768681290-njA2lDDKfO8EyHeD1F2c"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768681350340.json",
+      "response_file": "/tmp/forge_debug/response_1768681350340.json",
+      "timestamp": 1768681350.340862,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003395,
+      "generation_id": "gen-1768681350-IjZ9Cxb7AqE17kjCVEIx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768681407794.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768681407794.json",
+      "timestamp": 1768681407.7960355,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.4533525,
+      "generation_id": "gen-1768681408-z8rgvrZqpgiy1VCSf23n"
     }
   ],
   "messages": [
@@ -788,6 +806,45 @@
     {
       "role": "assistant",
       "content": "I need to add a type annotation for `child_session`:\n\n<edit file=\"forge/tools/builtin/spawn_session.py\">\n<search>\n        # Create initial session for child branch using context helper\n        child_vfs = ctx.get_branch_vfs(branch_name)\n        child_session = {\n            \"messages\": [],\n            \"active_files\": [],\n            \"parent_session\": parent_branch,\n            \"child_sessions\": [],\n            \"state\": \"idle\",\n            \"yield_message\": None,\n        }\n</search>\n<replace>\n        # Create initial session for child branch using context helper\n        child_vfs = ctx.get_branch_vfs(branch_name)\n        child_session: dict[str, Any] = {\n            \"messages\": [],\n            \"active_files\": [],\n            \"parent_session\": parent_branch,\n            \"child_sessions\": [],\n            \"state\": \"idle\",\n            \"yield_message\": None,\n        }\n</replace>\n</edit>\n\n<check/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/spawn_session.py",
+          "modified_files": [
+            "forge/tools/builtin/spawn_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 84 source files\n",
+          "typecheck_passed": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Note that it's probably helpful for subsessions to give *very* detailed instructions- they cannot see your context. You may want to add that to the tool instructions."
+    },
+    {
+      "role": "assistant",
+      "content": "Good point! Child sessions can't see the parent's context, so detailed instructions are crucial. Let me update the tool description to emphasize this:\n\n<edit file=\"forge/tools/builtin/spawn_session.py\">\n<search>\ndef get_schema() -> dict[str, Any]:\n    \"\"\"Return tool schema for LLM.\"\"\"\n    return {\n        \"name\": \"spawn_session\",\n        \"description\": (\n            \"Create a child AI session on a new branch and start it immediately. \"\n            \"The child works independently on the given instruction. Use wait_session \"\n            \"later to check on progress or get results. The child inherits the current \"\n            \"codebase state and can make its own commits.\"\n        ),\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"branch_name\": {\n                    \"type\": \"string\",\n                    \"description\": (\n                        \"Branch name for the child session (e.g., 'ai/fix-login-bug'). \"\n                        \"Use 'ai/' prefix by convention.\"\n                    ),\n                },\n                \"instruction\": {\n                    \"type\": \"string\",\n                    \"description\": (\n                        \"The instruction for the child session. This is sent as the \"\n                        \"initial message to the child AI.\"\n                    ),\n                },\n            },\n            \"required\": [\"branch_name\", \"instruction\"],\n        },\n    }\n</search>\n<replace>\ndef get_schema() -> dict[str, Any]:\n    \"\"\"Return tool schema for LLM.\"\"\"\n    return {\n        \"name\": \"spawn_session\",\n        \"description\": (\n            \"Create a child AI session on a new branch and start it immediately. \"\n            \"The child works independently on the given instruction. Use wait_session \"\n            \"later to check on progress or get results. The child inherits the current \"\n            \"codebase state and can make its own commits.\\n\\n\"\n            \"IMPORTANT: The child session has NO context from the parent - it starts fresh \"\n            \"with only the instruction you provide. Be very detailed and explicit in your \"\n            \"instructions, including: what files to look at, what problem to solve, what \"\n            \"approach to take, and what the expected outcome is.\"\n        ),\n        \"input_schema\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"branch_name\": {\n                    \"type\": \"string\",\n                    \"description\": (\n                        \"Branch name for the child session (e.g., 'ai/fix-login-bug'). \"\n                        \"Use 'ai/' prefix by convention.\"\n                    ),\n                },\n                \"instruction\": {\n                    \"type\": \"string\",\n                    \"description\": (\n                        \"Detailed instruction for the child session. Be explicit - include \"\n                        \"relevant file paths, the specific problem/task, context the child \"\n                        \"needs to understand, and what 'done' looks like. The child cannot \"\n                        \"see your conversation history.\"\n                    ),\n                },\n            },\n            \"required\": [\"branch_name\", \"instruction\"],\n        },\n    }\n</replace>\n</edit>\n\n<check/>",
       "_inline_results": [
         {
           "message": "Replaced in forge/tools/builtin/spawn_session.py",

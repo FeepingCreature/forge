@@ -27,7 +27,11 @@ def get_schema() -> dict[str, Any]:
             "Create a child AI session on a new branch and start it immediately. "
             "The child works independently on the given instruction. Use wait_session "
             "later to check on progress or get results. The child inherits the current "
-            "codebase state and can make its own commits."
+            "codebase state and can make its own commits.\n\n"
+            "IMPORTANT: The child session has NO context from the parent - it starts fresh "
+            "with only the instruction you provide. Be very detailed and explicit in your "
+            "instructions, including: what files to look at, what problem to solve, what "
+            "approach to take, and what the expected outcome is."
         ),
         "input_schema": {
             "type": "object",
@@ -42,8 +46,10 @@ def get_schema() -> dict[str, Any]:
                 "instruction": {
                     "type": "string",
                     "description": (
-                        "The instruction for the child session. This is sent as the "
-                        "initial message to the child AI."
+                        "Detailed instruction for the child session. Be explicit - include "
+                        "relevant file paths, the specific problem/task, context the child "
+                        "needs to understand, and what 'done' looks like. The child cannot "
+                        "see your conversation history."
                     ),
                 },
             },

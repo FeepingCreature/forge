@@ -120,7 +120,7 @@ class SessionRegistry(QObject):
         if not parent:
             print(f"⚠️ notify_parent: parent {child._parent_session} not in registry")
             return
-        
+
         print(f"📣 notify_parent: child={child_branch}, parent={child._parent_session}, parent.state={parent.state}")
 
         from forge.session.runner import SessionState
@@ -130,7 +130,7 @@ class SessionRegistry(QObject):
             # A child is "ready" if it's completed or waiting for input
             child_states = self.get_children_states(child._parent_session)
             ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
-            
+
             print(f"📣 Parent is WAITING_CHILDREN, child_states={child_states}")
 
             for branch, state in child_states.items():
@@ -139,11 +139,11 @@ class SessionRegistry(QObject):
                     # A child is ready - actually resume the parent by re-executing
                     # the pending wait_session call
                     if parent._pending_wait_call:
-                        print(f"📣 Parent has _pending_wait_call, calling send_message('')")
+                        print("📣 Parent has _pending_wait_call, calling send_message('')")
                         # Use send_message with empty string to trigger _resume_pending_wait
                         parent.send_message("")
                     else:
-                        print(f"⚠️ Parent has no _pending_wait_call! Setting to IDLE as fallback")
+                        print("⚠️ Parent has no _pending_wait_call! Setting to IDLE as fallback")
                         # Fallback: just set to IDLE (shouldn't happen)
                         parent.state = SessionState.IDLE
                     break

@@ -493,7 +493,7 @@ class SessionRunner(QObject):
         self.state = SessionState.RUNNING
 
         # Execute synchronously (wait_session is fast - just checks state)
-        result = self.session_manager.tool_manager.execute_tool(tool_name, **tool_args)
+        result = self.session_manager.tool_manager.execute_tool(tool_name, tool_args)
 
         # If still yielding (no children ready yet), go back to waiting
         if result.get("_yield"):
@@ -923,7 +923,7 @@ class SessionRunner(QObject):
                 if branch_name not in self._child_sessions:
                     self._child_sessions.append(branch_name)
                 self._start_child_session(branch_name, result.get("_start_message", ""))
-            
+
             # Check for _spawned_child flag (from spawn_session)
             if result.get("_spawned_child"):
                 branch_name = result["_spawned_child"]

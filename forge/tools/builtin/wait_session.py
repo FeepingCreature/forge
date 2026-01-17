@@ -95,6 +95,8 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Check child sessions and wait if needed."""
+    from forge.session.registry import SESSION_REGISTRY
+
     branches = args.get("branches", [])
 
     if not branches:
@@ -122,6 +124,11 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
         try:
+            # First check the live registry - it has the most up-to-date state
+            # The registry is updated immediately when a session finishes, but
+            # session.json is only updated on commit which may lag behind.
+            live_runner = SESSION_REGISTRY.get(branch)
+            
             child_vfs = ctx.get_branch_vfs(branch)
             session_content = child_vfs.read_file(SESSION_FILE)
             session_data = json.loads(session_content)
@@ -133,8 +140,15 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                     "error": f"Branch '{branch}' is not a child of current session",
                 }
 
-            state = session_data.get("state", "idle")
-            yield_message = session_data.get("yield_message")
+            # Prefer live state from registry, fall back to persisted state
+            if live_runner is not None:
+                state = live_runner.state
+                yield_message = live_runner._yield_message
+                print(f"🔍 wait_session: Using LIVE state for {branch}: {state}")
+            else:
+                state = session_data.get("state", "idle")
+                yield_message = session_data.get("yield_message")
+                print(f"🔍 wait_session: Using PERSISTED state for {branch}: {state}")
 
             if state in ("completed", "waiting_input", "waiting_children"):
                 # Check if merge would be clean

@@ -1,8 +1,6 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "forge/session/runner.py",
-    "forge/git_backend/commit_types.py"
+    "forge/tools/builtin/wait_session.py"
   ],
   "request_log_entries": [
     {
@@ -2218,6 +2216,24 @@
       "streaming": true,
       "actual_cost": 0.0590045,
       "generation_id": "gen-1768679519-es0xqDSqIeexrdFdWzw2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768679565902.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768679565902.json",
+      "timestamp": 1768679565.904017,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.61047625,
+      "generation_id": "gen-1768679566-Xu8eVl0F7dd8y6x0bXQg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768679581271.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768679581271.json",
+      "timestamp": 1768679581.2723758,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.5676025,
+      "generation_id": "gen-1768679581-4fkLRmUFfTCCl8758hxF"
     }
   ],
   "messages": [
@@ -7641,12 +7657,74 @@
       "role": "system",
       "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/test-v8\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"_yield\": true,\n  \"_yield_message\": \"Waiting on child sessions: ai/test-v8\",\n  \"message\": \"All child sessions still running. Current session will yield.\",\n  \"ready\": false,\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true,\n  \"waiting_on\": [\n    \"ai/test-v8\"\n  ]\n}\n```",
       "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "\ud83d\udce6\u0000 Block 353: 1 tool calls: [('wait_session', 'toolu_01PTeUvwwhr5GhDHFojkzhYa')] \n\ud83d\udd04\u0000 Storing pending wait call: tool_args={'branches': ['ai/test-v8']} \n\ud83d\uddd1\u0000  PromptManager: Removed tool result for toolu_01PTeUvwwhr5GhDHFojkzhYa \n\ud83d\udd0d\u0000 Race check: _child_sessions=['ai/test-v8'] \n\ud83d\udd0d\u0000 Race check: child_states={'ai/test-v8': 'idle'} \n\ud83d\udd0d\u0000 Race check: Child ai/test-v8 is ready! Scheduling resume. \n\ud83d\udd0d\u0000 About to invoke _do_resume_from_wait via queued connection \n\ud83d\udd0d\u0000 _do_resume_from_wait called! state=waiting_children \n\ud83d\udd0d\u0000 Calling send_message to resume \n\ud83d\udce8\u0000 send_message called: text='', state=waiting_children, _trigger_only=False \n\ud83d\udce8\u0000 Resuming from pending wait call \n\ud83d\udce8\u0000 _resume_pending_wait: re-executing wait_session with args={'branches': ['ai/test-v8']} \n\ud83d\udce8\u0000 _resume_pending_wait: got result={'success': True, 'ready': False, 'waiting_on': ['ai/test-v8'], 'message': 'All child sessions still running. Current session will yield.', '_yield': True, '\n_yield_message': 'Waiting on child sessions: ai/test-v8', 'side_effects': [<SideEffect.MID_TURN_COMMIT: 'mid_turn_commit'>]}\n\nbut then nothing happens again"
+    },
+    {
+      "role": "assistant",
+      "content": "I see the problem clearly now. The wait_session is being re-executed, but it's returning `ready: False` again because the child's state in the **registry** is `idle`, but the `wait_session` tool is checking the **session.json file** on disk, which still says `running`!\n\nThe registry shows `{'ai/test-v8': 'idle'}` but wait_session reads from the git commit and sees the child as still running.\n\nThe fix: `wait_session` should check the **registry** first for live sessions, not just the persisted session.json.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/wait_session.py\"], \"remove\": [\"forge/session/runner.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01UC3zgBfYiwe4vyx6wGY5s9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UC3zgBfYiwe4vyx6wGY5s9",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/wait_session.py\"], \"message\": \"Added 1 files, removed 3 files from context\", \"remove\": [\"forge/session/runner.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the problem now. The `wait_session` tool reads from **session.json on disk** which still says `state: \"running\"`, but the **registry** knows the child is `idle`. The tool needs to check the registry first for live sessions!\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Check child sessions and wait if needed.\"\"\"\n    branches = args.get(\"branches\", [])\n\n    if not branches:\n        return {\"success\": False, \"error\": \"At least one branch is required\"}\n\n    # Validate branches is actually a list, not a stringified JSON\n    if isinstance(branches, str):\n        return {\n            \"success\": False,\n            \"error\": (\n                f\"'branches' must be an array, not a string. \"\n                f'Got: {branches!r}. Use [\"branch-name\"] not \"[\\\\\"branch-name\\\\\"]\"'\n            ),\n        }\n\n    repo = ctx.repo\n    parent_branch = ctx.branch_name\n\n    # Check each child's state\n    ready_children = []\n    running_children = []\n\n    for branch in branches:\n        if branch not in repo.repo.branches:\n            return {\"success\": False, \"error\": f\"Branch '{branch}' does not exist\"}\n\n        try:\n            child_vfs = ctx.get_branch_vfs(branch)\n            session_content = child_vfs.read_file(SESSION_FILE)\n            session_data = json.loads(session_content)\n\n            # Verify this is our child\n            if session_data.get(\"parent_session\") != parent_branch:\n                return {\n                    \"success\": False,\n                    \"error\": f\"Branch '{branch}' is not a child of current session\",\n                }\n\n            state = session_data.get(\"state\", \"idle\")\n            yield_message = session_data.get(\"yield_message\")\n</search>\n<replace>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Check child sessions and wait if needed.\"\"\"\n    from forge.session.registry import SESSION_REGISTRY\n\n    branches = args.get(\"branches\", [])\n\n    if not branches:\n        return {\"success\": False, \"error\": \"At least one branch is required\"}\n\n    # Validate branches is actually a list, not a stringified JSON\n    if isinstance(branches, str):\n        return {\n            \"success\": False,\n            \"error\": (\n                f\"'branches' must be an array, not a string. \"\n                f'Got: {branches!r}. Use [\"branch-name\"] not \"[\\\\\"branch-name\\\\\"]\"'\n            ),\n        }\n\n    repo = ctx.repo\n    parent_branch = ctx.branch_name\n\n    # Check each child's state\n    ready_children = []\n    running_children = []\n\n    for branch in branches:\n        if branch not in repo.repo.branches:\n            return {\"success\": False, \"error\": f\"Branch '{branch}' does not exist\"}\n\n        try:\n            # First check the live registry - it has the most up-to-date state\n            # The registry is updated immediately when a session finishes, but\n            # session.json is only updated on commit which may lag behind.\n            live_runner = SESSION_REGISTRY.get(branch)\n            \n            child_vfs = ctx.get_branch_vfs(branch)\n            session_content = child_vfs.read_file(SESSION_FILE)\n            session_data = json.loads(session_content)\n\n            # Verify this is our child\n            if session_data.get(\"parent_session\") != parent_branch:\n                return {\n                    \"success\": False,\n                    \"error\": f\"Branch '{branch}' is not a child of current session\",\n                }\n\n            # Prefer live state from registry, fall back to persisted state\n            if live_runner is not None:\n                state = live_runner.state\n                yield_message = live_runner._yield_message\n                print(f\"\ud83d\udd0d wait_session: Using LIVE state for {branch}: {state}\")\n            else:\n                state = session_data.get(\"state\", \"idle\")\n                yield_message = session_data.get(\"yield_message\")\n                print(f\"\ud83d\udd0d wait_session: Using PERSISTED state for {branch}: {state}\")\n</replace>\n</edit>\n\n<run_tests/>\n\n<commit message=\"fix: wait_session checks live registry state before persisted session.json\n\nThe registry is updated immediately when a session finishes, but\nsession.json is only updated on commit. This caused wait_session\nto see 'running' even after the child completed, because it was\nreading the stale persisted state.\n\nNow wait_session checks SESSION_REGISTRY first for live runners,\nfalling back to session.json for sessions that aren't currently\nloaded.\"/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_f38q_fuw\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 64 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 73%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 64 passed in 0.25s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_f38q_fuw\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 64 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 73%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 64 passed in 0.25s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "a442eccd1d02",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,
-  "child_sessions": [
-    "ai/test-v8"
-  ],
-  "state": "waiting_children",
-  "yield_message": "Waiting on child sessions: ai/test-v8"
+  "child_sessions": [],
+  "state": "running",
+  "yield_message": null
 }

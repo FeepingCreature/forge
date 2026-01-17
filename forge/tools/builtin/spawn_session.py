@@ -99,7 +99,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
         # Create initial session for child branch using context helper
         child_vfs = ctx.get_branch_vfs(branch_name)
-        child_session = {
+        child_session: dict[str, Any] = {
             "messages": [],
             "active_files": [],
             "parent_session": parent_branch,

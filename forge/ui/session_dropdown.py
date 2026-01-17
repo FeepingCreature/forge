@@ -173,7 +173,7 @@ class SessionDropdown(QWidget):
 
     def _on_branches_changed(self) -> None:
         """Handle branch created/deleted in the repo.
-        
+
         This ensures newly spawned session branches appear in the dropdown.
         The dropdown menu is rebuilt each time it's shown, so we just need
         to update the button text here - the new branches will appear when

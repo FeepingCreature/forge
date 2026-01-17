@@ -123,66 +123,62 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         if branch not in repo.repo.branches:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-        try:
-            # First check the live registry - it has the most up-to-date state
-            # The registry is updated immediately when a session finishes, but
-            # session.json is only updated on commit which may lag behind.
-            live_runner = SESSION_REGISTRY.get(branch)
-            
-            child_vfs = ctx.get_branch_vfs(branch)
-            session_content = child_vfs.read_file(SESSION_FILE)
-            session_data = json.loads(session_content)
-
-            # Verify this is our child
-            if session_data.get("parent_session") != parent_branch:
-                return {
-                    "success": False,
-                    "error": f"Branch '{branch}' is not a child of current session",
-                }
-
-            # Prefer live state from registry, fall back to persisted state
-            if live_runner is not None:
-                state = live_runner.state
-                yield_message = live_runner._yield_message
-                print(f"🔍 wait_session: Using LIVE state for {branch}: {state}")
-            else:
+        # Check registry first for live state (most up-to-date)
+        # Fall back to session.json for tests and recovery scenarios
+        live_runner = SESSION_REGISTRY.get(branch)
+        
+        if live_runner is not None:
+            # Live runner - use its state directly
+            state = str(live_runner.state)
+            yield_message = live_runner._yield_message
+            task = ""
+            parent_session = live_runner._parent_session
+            print(f"🔍 wait_session: {branch} LIVE state={state}")
+        else:
+            # No live runner - read from session.json
+            try:
+                child_vfs = ctx.get_branch_vfs(branch)
+                session_content = child_vfs.read_file(SESSION_FILE)
+                session_data = json.loads(session_content)
                 state = session_data.get("state", "idle")
                 yield_message = session_data.get("yield_message")
-                print(f"🔍 wait_session: Using PERSISTED state for {branch}: {state}")
+                task = session_data.get("task", "")
+                parent_session = session_data.get("parent_session")
+                print(f"🔍 wait_session: {branch} PERSISTED state={state}")
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                return {"success": False, "error": f"Error reading session for '{branch}': {e}"}
 
-            if state in ("completed", "waiting_input", "waiting_children"):
-                # Check if merge would be clean
-                merge_clean = _check_merge_clean(repo, parent_branch, branch)
+        # Verify this is our child
+        if parent_session != parent_branch:
+            return {
+                "success": False,
+                "error": f"Branch '{branch}' is not a child of current session",
+            }
+        
+        if state in ("completed", "waiting_input", "waiting_children", "idle"):
+            # idle means the turn finished - child is ready
+            merge_clean = _check_merge_clean(repo, parent_branch, branch)
 
-                ready_children.append(
-                    {
-                        "branch": branch,
-                        "state": state,
-                        "message": yield_message,
-                        "task": session_data.get("task", ""),
-                        "merge_clean": merge_clean,
-                    }
-                )
-            elif state == "running":
-                running_children.append(branch)
-            elif state == "idle":
-                # Child hasn't been started yet
-                return {
-                    "success": False,
-                    "error": f"Child session '{branch}' hasn't been started. Use resume_session first.",
+            ready_children.append(
+                {
+                    "branch": branch,
+                    "state": state,
+                    "message": yield_message or "Task completed",
+                    "task": task,
+                    "merge_clean": merge_clean,
                 }
-            elif state == "error":
-                ready_children.append(
-                    {
-                        "branch": branch,
-                        "state": "error",
-                        "message": yield_message or "Unknown error",
-                        "task": session_data.get("task", ""),
-                    }
-                )
-
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            return {"success": False, "error": f"Error reading session for '{branch}': {e}"}
+            )
+        elif state == "running":
+            running_children.append(branch)
+        elif state == "error":
+            ready_children.append(
+                {
+                    "branch": branch,
+                    "state": "error",
+                    "message": yield_message or "Unknown error",
+                    "task": task,
+                }
+            )
 
     # If any child is ready, return immediately
     if ready_children:

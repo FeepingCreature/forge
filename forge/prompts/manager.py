@@ -613,6 +613,15 @@ class PromptManager:
                     total += len(json.dumps(tc)) // 3
         return total
 
+    def estimate_system_tokens(self) -> int:
+        """
+        Estimate tokens used by the system prompt.
+        """
+        for block in self.blocks:
+            if block.block_type == BlockType.SYSTEM and not block.deleted:
+                return len(block.content) // 3
+        return 0
+
     def get_context_stats(self) -> dict[str, Any]:
         """
         Get detailed statistics about context usage.

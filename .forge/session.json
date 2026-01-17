@@ -1,12 +1,5 @@
 {
-  "active_files": [
-    "forge/ui/ai_chat_widget.py",
-    "forge/tools/builtin/merge_session.py",
-    "forge/tools/builtin/spawn_session.py",
-    "forge/git_backend/commit_types.py",
-    "forge/tools/builtin/wait_session.py",
-    "CLAUDE.md"
-  ],
+  "active_files": [],
   "request_log_entries": [
     {
       "request_file": "/tmp/forge_debug/request_stream_1768666201962.json",
@@ -1303,6 +1296,42 @@
       "streaming": true,
       "actual_cost": 0.169811,
       "generation_id": "gen-1768672920-nZZnV8d7EAGM1oiz52UM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768672966383.json",
+      "response_file": "/tmp/forge_debug/response_1768672966383.json",
+      "timestamp": 1768672966.3838596,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003758,
+      "generation_id": "gen-1768672966-iDWbdpFZi7fDumS13pLC"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768672984435.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768672984435.json",
+      "timestamp": 1768672984.437398,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.50582875,
+      "generation_id": "gen-1768672984-cRQB3YHwxbp2cqpGfVlJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768672996797.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768672996797.json",
+      "timestamp": 1768672996.7990906,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.052677,
+      "generation_id": "gen-1768672997-m9xlKTpJsnrbdvV7gkmb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768673008069.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768673008069.json",
+      "timestamp": 1768673008.0706918,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3284825,
+      "generation_id": "gen-1768673008-7xSpdGvdt0RKlpUc69s4"
     }
   ],
   "messages": [
@@ -4627,6 +4656,64 @@
           "test_command": "pytest"
         }
       ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 88 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "test: try to tool call wait_session with a branch. it does *not* have to exist, I can see if it's parsed correctly."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll call wait_session to test if the argument parsing is working correctly now:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branches\": \"[\\\"ai/test-branch-does-not-exist\\\"]\"}",
+            "name": "wait_session"
+          },
+          "id": "toolu_012hcgqZodWNSF8D64xvgmFu",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_012hcgqZodWNSF8D64xvgmFu",
+      "content": "{\"error\": \"Branch 'ai/test-branch-does-not-exist' does not exist\", \"success\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/test-branch-does-not-exist\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"error\": \"Branch 'ai/test-branch-does-not-exist' does not exist\",\n  \"success\": false\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "It worked! The error message shows it correctly parsed `[\"ai/test-branch-does-not-exist\"]` as an array and then tried to look up that branch (which doesn't exist, as expected).\n\nBefore my fix, it would have failed with `'branches' must be an array, not a string` because the LLM was sending `\"[\\\"ai/test-branch-does-not-exist\\\"]\"` (a stringified array). The doubly-encoded JSON fix in `ToolExecutionWorker` is working.\n\nLet me clean up context since we're at 92k tokens:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/tools/builtin/spawn_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/tools/builtin/merge_session.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01QuUtU1Nxx5C6sQ7XnjkQx9",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01QuUtU1Nxx5C6sQ7XnjkQx9",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 6 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/tools/builtin/spawn_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/tools/builtin/merge_session.py\", \"forge/git_backend/commit_types.py\", \"CLAUDE.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Great, the session spawn feature is complete and working! Let me give you a quick summary of where we are:\n\n## Session Spawn Feature - Complete \u2705\n\n**Tools:**\n- `spawn_session` - Creates child AI session on new branch\n- `resume_session` - Starts/resumes child with a message\n- `wait_session` - Waits for children, yields if none ready, re-executes on resume\n- `merge_session` - Merges child back, handles conflicts with `<<<>>>` markers\n\n**Infrastructure:**\n- `SessionRunner` - Headless AI execution with attach/detach and event buffering\n- `SessionRegistry` - Global singleton tracking all runners\n- `SessionDropdown` - UI showing all sessions with live state updates\n- `ToolContext` API v2 - Clean context for session-aware tools\n\n**Key behaviors:**\n- Pending `wait_session` calls are stored and re-executed on resume (not stale results)\n- Session metadata (parent/child/state) persists to git\n- Doubly-encoded JSON in tool args is auto-parsed (the fix we just tested)\n\n**Tests pass**, **lint/mypy pass**.\n\nIs there anything else you'd like to verify or work on?"
     }
   ],
   "parent_session": null,

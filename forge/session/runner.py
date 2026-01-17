@@ -919,7 +919,16 @@ class SessionRunner(QObject):
             # Check for _start_session flag (from resume_session)
             if result.get("_start_session"):
                 branch_name = result["_start_session"]
+                # Track this child in our list
+                if branch_name not in self._child_sessions:
+                    self._child_sessions.append(branch_name)
                 self._start_child_session(branch_name, result.get("_start_message", ""))
+            
+            # Check for _spawned_child flag (from spawn_session)
+            if result.get("_spawned_child"):
+                branch_name = result["_spawned_child"]
+                if branch_name not in self._child_sessions:
+                    self._child_sessions.append(branch_name)
 
         # Check for queued message
         if self._queued_message:
@@ -1087,13 +1096,16 @@ class SessionRunner(QObject):
         if waiting_type == "children" and self._pending_wait_call:
             from forge.session.registry import SESSION_REGISTRY
 
+            print(f"🔍 Race check: _child_sessions={self._child_sessions}")
             child_states = SESSION_REGISTRY.get_children_states(
                 self.session_manager.branch_name
             )
+            print(f"🔍 Race check: child_states={child_states}")
             ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
 
-            for _branch, state in child_states.items():
+            for branch, state in child_states.items():
                 if state in ready_states:
+                    print(f"🔍 Race check: Child {branch} is ready! Scheduling resume.")
                     # A child is already ready! Resume immediately.
                     # Use QTimer.singleShot to avoid recursion issues
                     from PySide6.QtCore import QTimer

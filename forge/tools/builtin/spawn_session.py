@@ -124,6 +124,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 f"Created child session on branch '{branch_name}'. "
                 f"Use resume_session('{branch_name}', 'your instructions') to start it."
             ),
+            # Flag for SessionRunner to track this child
+            "_spawned_child": branch_name,
         }
 
     except Exception as e:

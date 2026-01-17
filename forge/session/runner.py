@@ -830,51 +830,21 @@ class SessionRunner(QObject):
     
     def _start_child_session(self, branch_name: str, message: str) -> None:
         """Start or resume a child session."""
-        from forge.session.registry import SESSION_REGISTRY
+        from forge.session.startup import start_or_resume_session
         
-        child_runner = SESSION_REGISTRY.get(branch_name)
-        if child_runner:
-            # Child already registered - send message to resume
-            child_runner.send_message(message)
-        else:
-            # Child not registered - need to create runner for it
-            # This happens when resuming a session that was persisted but not loaded
-            self._load_and_start_child(branch_name, message)
-    
-    def _load_and_start_child(self, branch_name: str, message: str) -> None:
-        """Load a child session from disk and start it."""
-        from forge.session.registry import SESSION_REGISTRY
-        from forge.session.manager import SessionManager
-        
-        # Load session from the child branch
-        child_session_manager = SessionManager.load_session(
+        runner = start_or_resume_session(
             self.session_manager.repo,
             branch_name,
             self.session_manager.settings,
+            message=message,
         )
         
-        if not child_session_manager:
-            # No session exists - this shouldn't happen if spawn_session worked
+        if not runner:
             self.add_message({
                 "role": "system",
                 "content": f"⚠️ Could not load session for branch {branch_name}",
                 "_ui_only": True,
             })
-            return
-        
-        # Load session data to get messages
-        session_data = child_session_manager.load_session_data()
-        messages = session_data.get("messages", []) if session_data else []
-        
-        # Create runner for child
-        child_runner = SessionRunner(child_session_manager, messages)
-        child_runner.set_parent(self.session_manager.branch_name)
-        
-        # Register with global registry
-        SESSION_REGISTRY.register(branch_name, child_runner)
-        
-        # Send the message to start it
-        child_runner.send_message(message)
     
     def _on_tool_error(self, error_msg: str) -> None:
         """Handle tool execution error."""

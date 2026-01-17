@@ -82,7 +82,8 @@ def get_schema() -> dict[str, Any]:
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "List of child session branch names to wait on. "
+                        "Array of child session branch names to wait on. "
+                        'Example: ["ai/my-task", "ai/other-task"]. '
                         "Returns when ANY of them is ready."
                     ),
                 },
@@ -98,6 +99,16 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
     if not branches:
         return {"success": False, "error": "At least one branch is required"}
+
+    # Validate branches is actually a list, not a stringified JSON
+    if isinstance(branches, str):
+        return {
+            "success": False,
+            "error": (
+                f"'branches' must be an array, not a string. "
+                f'Got: {branches!r}. Use ["branch-name"] not "[\\"branch-name\\"]"'
+            ),
+        }
 
     repo = ctx.repo
     parent_branch = ctx.branch_name

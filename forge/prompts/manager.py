@@ -631,12 +631,24 @@ class PromptManager:
         - type: Block type for coloring (system/summaries/file/user/assistant/tool_call/tool_result)
         - tokens: Estimated token count
         - details: Content preview for tooltip
+
+        Uses the same ordering as to_messages() for cache optimization:
+        1. System prompt
+        2. Conversation + files
+        3. Summaries (at end to minimize cache invalidation)
         """
         segments: list[dict[str, Any]] = []
 
-        for block in self.blocks:
-            if block.deleted:
-                continue
+        # Use same reordering as to_messages() for accurate display
+        active_blocks = [b for b in self.blocks if not b.deleted]
+        system_blocks = [b for b in active_blocks if b.block_type == BlockType.SYSTEM]
+        summary_blocks = [b for b in active_blocks if b.block_type == BlockType.SUMMARIES]
+        other_blocks = [
+            b for b in active_blocks if b.block_type not in (BlockType.SYSTEM, BlockType.SUMMARIES)
+        ]
+        ordered_blocks = system_blocks + other_blocks + summary_blocks
+
+        for block in ordered_blocks:
 
             # Estimate ~3 chars per token
             tokens = len(block.content) // 3

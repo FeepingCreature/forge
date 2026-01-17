@@ -1078,6 +1078,25 @@ class SessionRunner(QObject):
 
             SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
 
+        # RACE CONDITION FIX: If we're waiting on children, immediately check
+        # if any are already done. The child might have completed between when
+        # we called wait_session and when we got here.
+        if waiting_type == "children" and self._pending_wait_call:
+            from forge.session.registry import SESSION_REGISTRY
+
+            child_states = SESSION_REGISTRY.get_children_states(
+                self.session_manager.branch_name
+            )
+            ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
+
+            for _branch, state in child_states.items():
+                if state in ready_states:
+                    # A child is already ready! Resume immediately.
+                    # Use QTimer.singleShot to avoid recursion issues
+                    from PySide6.QtCore import QTimer
+                    QTimer.singleShot(0, lambda: self.send_message(""))
+                    break
+
     def get_session_metadata(self) -> dict[str, Any]:
         """Get metadata for session.json persistence."""
         return {

@@ -648,14 +648,31 @@ Keep it under 72 characters."""
         # Pass summaries and file info to prompt manager (including beyond-budget files)
         self.prompt_manager.set_summaries(self.repo_summaries, file_sizes, files_beyond_budget)
 
-    def get_session_data(self, messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """Get session data for persistence"""
+    def get_session_data(
+        self,
+        messages: list[dict[str, Any]] | None = None,
+        session_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Get session data for persistence.
+        
+        Args:
+            messages: Conversation messages
+            session_metadata: Optional metadata from SessionRunner (parent/child/state info)
+        """
         data: dict[str, Any] = {
             "active_files": list(self.active_files),
             "request_log_entries": [entry.to_dict() for entry in REQUEST_LOG.get_entries()],
         }
         if messages is not None:
             data["messages"] = messages
+        
+        # Add session spawn/wait metadata if provided
+        if session_metadata:
+            data["parent_session"] = session_metadata.get("parent_session")
+            data["child_sessions"] = session_metadata.get("child_sessions", [])
+            data["state"] = session_metadata.get("state", "idle")
+            data["yield_message"] = session_metadata.get("yield_message")
+        
         return data
 
     def restore_request_log(self, session_data: dict[str, Any]) -> None:

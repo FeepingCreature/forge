@@ -109,21 +109,12 @@ class SessionRegistry(QObject):
         If parent is waiting on children, this may resume it.
         """
         child = self._runners.get(child_branch)
-        if not child:
-            print(f"⚠️ notify_parent: child {child_branch} not in registry")
-            return
-        if not child._parent_session:
-            print(f"⚠️ notify_parent: child {child_branch} has no _parent_session set")
+        if not child or not child._parent_session:
             return
 
         parent = self._runners.get(child._parent_session)
         if not parent:
-            print(f"⚠️ notify_parent: parent {child._parent_session} not in registry")
             return
-
-        print(
-            f"📣 notify_parent: child={child_branch}, parent={child._parent_session}, parent.state={parent.state}"
-        )
 
         from forge.session.runner import SessionState
 
@@ -133,24 +124,17 @@ class SessionRegistry(QObject):
             child_states = self.get_children_states(child._parent_session)
             ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
 
-            print(f"📣 Parent is WAITING_CHILDREN, child_states={child_states}")
-
-            for branch, state in child_states.items():
+            for _branch, state in child_states.items():
                 if state in ready_states:
-                    print(f"📣 Child {branch} is ready (state={state}), resuming parent")
                     # A child is ready - actually resume the parent by re-executing
                     # the pending wait_session call
                     if parent._pending_wait_call:
-                        print("📣 Parent has _pending_wait_call, calling send_message('')")
                         # Use send_message with empty string to trigger _resume_pending_wait
                         parent.send_message("")
                     else:
-                        print("⚠️ Parent has no _pending_wait_call! Setting to IDLE as fallback")
                         # Fallback: just set to IDLE (shouldn't happen)
                         parent.state = SessionState.IDLE
                     break
-        else:
-            print(f"📣 Parent state is {parent.state}, not WAITING_CHILDREN - not resuming")
 
 
 # Global singleton instance

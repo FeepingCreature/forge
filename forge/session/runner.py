@@ -20,7 +20,7 @@ from collections import deque
 from threading import Lock
 from typing import TYPE_CHECKING, Any, Protocol
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Signal
 
 if TYPE_CHECKING:
     from forge.session.manager import SessionManager
@@ -439,13 +439,8 @@ class SessionRunner(QObject):
             _trigger_only: If True, just start processing without adding a message
                           (used when message is already in loaded session.json)
         """
-        print(
-            f"📨 send_message called: text={text!r}, state={self._state}, _trigger_only={_trigger_only}"
-        )
-
         if self._state == SessionState.RUNNING:
             # Queue the message
-            print(f"📨 State is RUNNING, queuing message")
             self._queued_message = text
             return True
 
@@ -454,12 +449,10 @@ class SessionRunner(QObject):
             SessionState.WAITING_INPUT,
             SessionState.WAITING_CHILDREN,
         ):
-            print(f"📨 State {self._state} not allowed, returning False")
             return False
 
         # Check if we're resuming from a pending wait_session call
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
-            print(f"📨 Resuming from pending wait call")
             return self._resume_pending_wait(text)
 
         # Add message to conversation (unless just triggering)
@@ -490,7 +483,6 @@ class SessionRunner(QObject):
         self._pending_wait_call = None
 
         if not pending:
-            print(f"📨 _resume_pending_wait: no pending call!")
             return False
 
         # Re-execute the wait_session tool
@@ -498,13 +490,10 @@ class SessionRunner(QObject):
         tool_args = pending["tool_args"]
         tool_call_id = pending["tool_call_id"]
 
-        print(f"📨 _resume_pending_wait: re-executing {tool_name} with args={tool_args}")
-
         self.state = SessionState.RUNNING
 
         # Execute synchronously (wait_session is fast - just checks state)
         result = self.session_manager.tool_manager.execute_tool(tool_name, tool_args)
-        print(f"📨 _resume_pending_wait: got result={result}")
 
         # If still yielding (no children ready yet), go back to waiting
         if result.get("_yield"):
@@ -804,12 +793,7 @@ class SessionRunner(QObject):
         if self._parent_session:
             from forge.session.registry import SESSION_REGISTRY
 
-            print(
-                f"🔔 Child {self.session_manager.branch_name} notifying parent {self._parent_session}"
-            )
             SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
-        else:
-            print(f"🔔 Session {self.session_manager.branch_name} has no parent to notify")
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread."""
@@ -920,7 +904,6 @@ class SessionRunner(QObject):
                 tool_call_id = tool_call.get("id")
                 # Note: ToolExecutionWorker stores args under "args" key, not "tool_args"
                 stored_args = r.get("args", {})
-                print(f"🔄 Storing pending wait call: tool_args={stored_args}")
                 self._pending_wait_call = {
                     "tool_call_id": tool_call_id,
                     "tool_name": tool_call.get("function", {}).get("name"),
@@ -1116,23 +1099,16 @@ class SessionRunner(QObject):
         if waiting_type == "children" and self._pending_wait_call:
             from forge.session.registry import SESSION_REGISTRY
 
-            print(f"🔍 Race check: _child_sessions={self._child_sessions}")
             child_states = SESSION_REGISTRY.get_children_states(self.session_manager.branch_name)
-            print(f"🔍 Race check: child_states={child_states}")
             ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
 
-            for branch, state in child_states.items():
+            for _branch, state in child_states.items():
                 if state in ready_states:
-                    print(f"🔍 Race check: Child {branch} is ready! Scheduling resume.")
                     # A child is already ready! Resume immediately.
-                    # Use QMetaObject.invokeMethod with QueuedConnection to ensure
-                    # the call happens after the current call stack unwinds
-                    from PySide6.QtCore import QMetaObject, Qt, Q_ARG
+                    # Use QTimer.singleShot to schedule after current call stack unwinds
+                    from PySide6.QtCore import QTimer
 
-                    print(f"🔍 About to invoke _do_resume_from_wait via queued connection")
-                    QMetaObject.invokeMethod(
-                        self, "_do_resume_from_wait", Qt.ConnectionType.QueuedConnection
-                    )
+                    QTimer.singleShot(0, self._do_resume_from_wait)
                     break
 
     def get_session_metadata(self) -> dict[str, Any]:
@@ -1145,14 +1121,7 @@ class SessionRunner(QObject):
             "pending_wait_call": self._pending_wait_call,
         }
 
-    from PySide6.QtCore import Slot
-
-    @Slot()
     def _do_resume_from_wait(self) -> None:
         """Slot called via QueuedConnection to resume after wait_session."""
-        print(f"🔍 _do_resume_from_wait called! state={self._state}")
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
-            print(f"🔍 Calling send_message to resume")
             self.send_message("")
-        else:
-            print(f"🔍 Not resuming: state={self._state}, pending={self._pending_wait_call}")

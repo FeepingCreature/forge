@@ -8,10 +8,8 @@ session yields and waits.
 Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
-import json
 from typing import TYPE_CHECKING, Any
 
-from forge.constants import SESSION_FILE
 from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
@@ -132,7 +130,6 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             yield_message = live_runner._yield_message
             task = ""
             parent_session = live_runner._parent_session
-            print(f"🔍 wait_session: {branch} LIVE state={state}")
         else:
             return {
                 "success": False,

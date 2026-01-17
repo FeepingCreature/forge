@@ -12,6 +12,10 @@ Errors and backtraces are holy.
 
 Try/except will be the *very last* paths added to the codebase.
 
+# Naming conventions
+
+- **Don't alias things with different names** - If you import/re-export something, keep the same name. Different names in different places make the codebase harder to navigate and break tooling (summaries, grep, etc.). If you find an existing alias with a different name, mark it with `# FIXME: confusing alias` for later cleanup.
+
 # When uncertain, add prints
 
 When you're uncertain about what's happening in the code, don't guess.

@@ -421,6 +421,10 @@ class AIChatWidget(QWidget):
         # Get session manager from workspace (branch-level ownership)
         self.session_manager = workspace.session_manager
 
+        # Setup UI BEFORE attaching to runner - the runner may emit events
+        # that need UI elements (send_button, chat_view, etc.)
+        self._setup_ui()
+
         # Get or create SessionRunner - check registry first to avoid duplicates
         # This is important for child sessions spawned by spawn_session tool,
         # which already have a runner registered
@@ -487,9 +491,6 @@ class AIChatWidget(QWidget):
             for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
                 if self.session_manager.vfs.file_exists(instructions_file):
                     self.session_manager.add_active_file(instructions_file)
-
-        # Setup UI BEFORE any operations that might call add_message()
-        self._setup_ui()
 
         # Generate repository summaries on session creation (if not already done)
         if not self.session_manager.repo_summaries:

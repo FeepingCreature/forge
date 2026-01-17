@@ -314,7 +314,9 @@ class ToolManager:
     def execute_tool(
         self, tool_name: str, args: dict[str, Any], session_manager: Any = None
     ) -> dict[str, Any]:
-        """Execute a tool with VFS (only if approved)"""
+        """Execute a tool with VFS or ToolContext based on API version."""
+        from forge.tools.context import ToolContext, get_tool_api_version
+        
         # Check if tool is approved
         if not self.is_tool_approved(tool_name):
             return {"error": f"Tool {tool_name} is not approved. Cannot execute."}
@@ -336,8 +338,24 @@ class ToolManager:
         if not hasattr(tool_module, "execute"):
             return {"error": f"Tool {tool_name} has no execute function"}
 
-        # Execute tool with VFS
-        result: dict[str, Any] = tool_module.execute(self.vfs, args)
+        # Detect API version and execute appropriately
+        api_version = get_tool_api_version(tool_module.execute)
+        
+        if api_version == 2:
+            # v2: Pass ToolContext with full access
+            from forge.session.registry import SESSION_REGISTRY
+            
+            ctx = ToolContext(
+                vfs=self.vfs,
+                repo=self._repo,
+                branch_name=self.branch_name,
+                session_manager=session_manager,
+                registry=SESSION_REGISTRY,
+            )
+            result: dict[str, Any] = tool_module.execute(ctx, args)
+        else:
+            # v1: Pass VFS only (backwards compatible)
+            result = tool_module.execute(self.vfs, args)
 
         # Handle context management actions
         if session_manager and "action" in result:

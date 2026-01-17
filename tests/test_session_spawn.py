@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch, PropertyMock
 
 from forge.session.registry import SessionRegistry
 from forge.session.runner import SessionRunner, SessionState
+from forge.tools.context import ToolContext, get_tool_api_version
 
 
 class TestSessionRegistry:
@@ -92,6 +93,35 @@ class TestSessionRegistry:
         assert children_states["child-branch"] == SessionState.IDLE
 
 
+class TestToolApiVersionDetection:
+    """Tests for tool API version detection via type annotations."""
+    
+    def test_detects_v1_no_annotation(self):
+        """Test that no annotation defaults to v1."""
+        def execute(vfs, args):
+            pass
+        assert get_tool_api_version(execute) == 1
+    
+    def test_detects_v1_vfs_annotation(self):
+        """Test that VFS annotation is detected as v1."""
+        from forge.vfs.base import VFS
+        def execute(vfs: VFS, args: dict) -> dict:
+            pass
+        assert get_tool_api_version(execute) == 1
+    
+    def test_detects_v2_toolcontext_annotation(self):
+        """Test that ToolContext annotation is detected as v2."""
+        def execute(ctx: ToolContext, args: dict) -> dict:
+            pass
+        assert get_tool_api_version(execute) == 2
+    
+    def test_detects_v2_string_annotation(self):
+        """Test that string 'ToolContext' annotation is detected as v2."""
+        def execute(ctx: "ToolContext", args: dict) -> dict:
+            pass
+        assert get_tool_api_version(execute) == 2
+
+
 class TestWaitSessionTool:
     """Tests for wait_session tool - reads state from session files on disk."""
     
@@ -99,14 +129,16 @@ class TestWaitSessionTool:
         """Test that wait_session returns when a child is ready (completed state in file)."""
         from forge.tools.builtin.wait_session import execute
         
-        # Mock VFS with public attributes
+        # Create mock ToolContext
         mock_vfs = MagicMock()
-        mock_vfs.branch_name = "parent-branch"
-        
-        # Mock repo with branches
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x in ["parent-branch", "child-1", "child-2"]
-        mock_vfs.repo = mock_repo
+        
+        ctx = ToolContext(
+            vfs=mock_vfs,
+            repo=mock_repo,
+            branch_name="parent-branch",
+        )
         
         # Child session data - child-2 is completed
         child_sessions = {
@@ -124,15 +156,14 @@ class TestWaitSessionTool:
             },
         }
         
-        # Patch at the source module where WorkInProgressVFS is defined
-        with patch("forge.vfs.work_in_progress.WorkInProgressVFS") as MockVFS:
-            def make_child_vfs(repo, branch):
-                child_vfs = MagicMock()
-                child_vfs.read_file.return_value = json.dumps(child_sessions.get(branch, {}))
-                return child_vfs
-            MockVFS.side_effect = make_child_vfs
-            
-            result = execute(mock_vfs, {"branches": ["child-1", "child-2"]})
+        # Mock get_branch_vfs to return child session data
+        def mock_get_branch_vfs(branch):
+            child_vfs = MagicMock()
+            child_vfs.read_file.return_value = json.dumps(child_sessions.get(branch, {}))
+            return child_vfs
+        ctx.get_branch_vfs = mock_get_branch_vfs
+        
+        result = execute(ctx, {"branches": ["child-1", "child-2"]})
         
         assert result["success"] is True
         assert result["branch"] == "child-2"
@@ -145,11 +176,14 @@ class TestWaitSessionTool:
         from forge.tools.builtin.wait_session import execute
         
         mock_vfs = MagicMock()
-        mock_vfs.branch_name = "parent-branch"
-        
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x in ["parent-branch", "child-1"]
-        mock_vfs.repo = mock_repo
+        
+        ctx = ToolContext(
+            vfs=mock_vfs,
+            repo=mock_repo,
+            branch_name="parent-branch",
+        )
         
         child_session = {
             "parent_session": "parent-branch",
@@ -158,12 +192,13 @@ class TestWaitSessionTool:
             "task": "Still working",
         }
         
-        with patch("forge.vfs.work_in_progress.WorkInProgressVFS") as MockVFS:
+        def mock_get_branch_vfs(branch):
             child_vfs = MagicMock()
             child_vfs.read_file.return_value = json.dumps(child_session)
-            MockVFS.return_value = child_vfs
-            
-            result = execute(mock_vfs, {"branches": ["child-1"]})
+            return child_vfs
+        ctx.get_branch_vfs = mock_get_branch_vfs
+        
+        result = execute(ctx, {"branches": ["child-1"]})
         
         assert result["success"] is True
         assert result["ready"] is False
@@ -179,11 +214,14 @@ class TestResumeSessionTool:
         from forge.tools.builtin.resume_session import execute
         
         mock_vfs = MagicMock()
-        mock_vfs.branch_name = "parent-branch"
-        
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x == "child-branch"
-        mock_vfs.repo = mock_repo
+        
+        ctx = ToolContext(
+            vfs=mock_vfs,
+            repo=mock_repo,
+            branch_name="parent-branch",
+        )
         
         # Existing child session
         child_session = {
@@ -192,15 +230,14 @@ class TestResumeSessionTool:
             "state": "idle",
         }
         
-        with patch("forge.vfs.work_in_progress.WorkInProgressVFS") as MockVFS:
-            child_vfs = MagicMock()
-            child_vfs.read_file.return_value = json.dumps(child_session)
-            MockVFS.return_value = child_vfs
-            
-            result = execute(mock_vfs, {
-                "branch": "child-branch",
-                "message": "Continue with this feedback",
-            })
+        child_vfs = MagicMock()
+        child_vfs.read_file.return_value = json.dumps(child_session)
+        ctx.get_branch_vfs = MagicMock(return_value=child_vfs)
+        
+        result = execute(ctx, {
+            "branch": "child-branch",
+            "message": "Continue with this feedback",
+        })
         
         assert result["success"] is True
         assert result["_start_session"] == "child-branch"

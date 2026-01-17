@@ -4,14 +4,19 @@ spawn_session tool - Create a child AI session on a new branch.
 This tool forks the current branch, creates a new session, and registers
 it as a child of the current session. The child session doesn't start
 running until resume_session is called.
+
+Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pygit2
 
 from forge.constants import SESSION_FILE
+
+if TYPE_CHECKING:
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -46,7 +51,7 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Create a child session branch."""
     import re
     
@@ -62,9 +67,9 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         sanitized = sanitized.strip("-")[:30]
         branch_name = f"ai/{sanitized}"
     
-    # Get the repository and current branch from VFS
-    repo = vfs.repo
-    parent_branch = vfs.branch_name
+    # Get the repository and current branch from context
+    repo = ctx.repo
+    parent_branch = ctx.branch_name
     
     try:
         # Get current branch HEAD
@@ -83,7 +88,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         
         # Read current session to get parent info
         try:
-            current_session_content = vfs.read_file(SESSION_FILE)
+            current_session_content = ctx.read_file(SESSION_FILE)
             current_session = json.loads(current_session_content)
         except (FileNotFoundError, json.JSONDecodeError):
             current_session = {}
@@ -95,13 +100,10 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         current_session["child_sessions"] = child_sessions
         
         # Write back to current session (will be committed with parent's next commit)
-        vfs.write_file(SESSION_FILE, json.dumps(current_session, indent=2))
+        ctx.write_file(SESSION_FILE, json.dumps(current_session, indent=2))
         
-        # Create initial session for child branch
-        # We need to write directly to the child branch, not through current VFS
-        from forge.vfs.work_in_progress import WorkInProgressVFS
-        
-        child_vfs = WorkInProgressVFS(repo, branch_name)
+        # Create initial session for child branch using context helper
+        child_vfs = ctx.get_branch_vfs(branch_name)
         child_session = {
             "messages": [],
             "active_files": [],

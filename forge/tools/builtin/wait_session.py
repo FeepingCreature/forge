@@ -4,13 +4,18 @@ wait_session tool - Wait for one of the specified child sessions to complete or 
 This tool checks the state of child sessions. If any has completed or is waiting
 for input, it returns that information. If all are still running, the current
 session yields and waits.
+
+Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from forge.constants import SESSION_FILE
 from forge.tools.side_effects import SideEffect
+
+if TYPE_CHECKING:
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -40,15 +45,15 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Check child sessions and wait if needed."""
     branches = args.get("branches", [])
     
     if not branches:
         return {"success": False, "error": "At least one branch is required"}
     
-    repo = vfs.repo
-    parent_branch = vfs.branch_name
+    repo = ctx.repo
+    parent_branch = ctx.branch_name
     
     # Check each child's state
     ready_children = []
@@ -59,9 +64,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
         
         try:
-            from forge.vfs.work_in_progress import WorkInProgressVFS
-            
-            child_vfs = WorkInProgressVFS(repo, branch)
+            child_vfs = ctx.get_branch_vfs(branch)
             session_content = child_vfs.read_file(SESSION_FILE)
             session_data = json.loads(session_content)
             

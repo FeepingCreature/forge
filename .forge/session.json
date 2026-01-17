@@ -1,6 +1,6 @@
 {
   "active_files": [
-    "forge/git_backend/repository.py",
+    "forge/tools/manager.py",
     "forge/tools/builtin/merge_session.py",
     "forge/tools/builtin/wait_session.py",
     "forge/vfs/work_in_progress.py",
@@ -667,6 +667,51 @@
       "streaming": true,
       "actual_cost": 0.57012,
       "generation_id": "gen-1768669668-UCL5HdYLrol3HpkbvX8i"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768669693433.json",
+      "response_file": "/tmp/forge_debug/response_1768669693433.json",
+      "timestamp": 1768669693.4332006,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000271,
+      "generation_id": "gen-1768669693-uCMTu5fhZanhaGvTF4DV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669785661.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669785661.json",
+      "timestamp": 1768669785.662936,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.09417825,
+      "generation_id": "gen-1768669786-WcYTXrINzYUstKi1T1Tr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669827982.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669827982.json",
+      "timestamp": 1768669827.9840095,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.077977,
+      "generation_id": "gen-1768669828-5p2uCHaGG8jQH7Ubu6Cj"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669836840.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669836840.json",
+      "timestamp": 1768669836.8421488,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.7591125,
+      "generation_id": "gen-1768669837-pELg9VQzvPOEkejnZhd9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768669939056.json",
+      "response_file": "/tmp/forge_debug/response_1768669939056.json",
+      "timestamp": 1768669939.0560784,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002254,
+      "generation_id": "gen-1768669939-niOtUyood1vO1ddykQAY"
     }
   ],
   "messages": [
@@ -2455,6 +2500,269 @@
         {
           "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_dspazrv4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 56 items\n\ntests/test_inline_edit.py ................                               [ 28%]\ntests/test_prompt_manager.py ...............................             [ 83%]\ntests/test_session_spawn.py .........                                    [100%]\n\n============================== 56 passed in 0.12s ==============================\n",
           "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_dspazrv4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 56 items\n\ntests/test_inline_edit.py ................                               [ 28%]\ntests/test_prompt_manager.py ...............................             [ 83%]\ntests/test_session_spawn.py .........                                    [100%]\n\n============================== 56 passed in 0.12s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: e78cc4d2",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hang on just one moment. why do the ... oh yeah I see, the tools need vfs.repo because they are doing cross-branch things? egh. it's ugly that this is the best way to access that. can you add a TODO somewhere to add a \"tool api v2\" where tools can take maybe a more flexible ToolContext type? Actually, sidetrack, let's do it now. can you give me a proposal for how to detect the tool api version that a tool wants? constant on the type?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good question! Here's my proposal for tool API versioning:\n\n## Option 1: `API_VERSION` constant (simplest)\n\n```python\n# In tool file\nAPI_VERSION = 2  # or \"v2\"\n\ndef execute(ctx: ToolContext, args: dict) -> dict:\n    ...\n```\n\nThe tool manager checks for this constant, defaults to 1 if missing.\n\n## Option 2: Type annotation detection\n\n```python\n# v1 (current)\ndef execute(vfs: VFS, args: dict) -> dict: ...\n\n# v2 (new)\ndef execute(ctx: ToolContext, args: dict) -> dict: ...\n```\n\nInspect the first parameter's type annotation. If it's `ToolContext`, use v2 API.\n\n## Option 3: Schema declares it\n\n```python\ndef get_schema() -> dict:\n    return {\n        \"name\": \"spawn_session\",\n        \"api_version\": 2,  # Add this field\n        ...\n    }\n```\n\n## My recommendation: Option 2 (type annotation)\n\nReasons:\n- Self-documenting - the signature tells you what API it uses\n- No magic constants to forget\n- Type checkers can validate it\n- Backwards compatible - old tools just have `vfs` parameter\n\nThe `ToolContext` would provide:\n```python\n@dataclass\nclass ToolContext:\n    vfs: VFS                    # The current branch's VFS\n    repo: ForgeRepository       # For cross-branch operations\n    branch_name: str            # Current branch\n    session_manager: SessionManager | None  # For session tools\n    registry: SessionRegistry   # For spawn/wait tools\n```\n\nThis way tools that just need file access use `vfs`, and tools that need more get it through `ctx`.\n\nWant me to implement this? It's a clean solution and would let us properly fix the spawn/resume/wait tools without the ugly `vfs.repo` access pattern."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 21d1d2f1",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "oh can you inspect the type annotations? yes! definitely go for that now then"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me implement the ToolContext API v2 with type annotation detection. First, let me look at the tool manager to understand how tools are executed:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/manager.py\"], \"remove\": [\"forge/git_backend/repository.py\", \"forge/vfs/work_in_progress.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01XXtbCedg7mPHYCBGqL9vVE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01XXtbCedg7mPHYCBGqL9vVE",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/manager.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/git_backend/repository.py\", \"forge/vfs/work_in_progress.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the ToolManager. Let me create the ToolContext and implement the API v2 detection:\n\n<edit file=\"forge/tools/context.py\">\n\"\"\"\nToolContext - Rich context object for tool API v2.\n\nTools can receive either:\n- v1: execute(vfs: VFS, args: dict) - basic file access only\n- v2: execute(ctx: ToolContext, args: dict) - full context access\n\nThe API version is detected by inspecting the first parameter's type annotation.\n\"\"\"\n\nfrom dataclasses import dataclass\nfrom typing import TYPE_CHECKING, Any\n\nif TYPE_CHECKING:\n    from forge.git_backend.repository import ForgeRepository\n    from forge.session.manager import SessionManager\n    from forge.session.registry import SessionRegistry\n    from forge.vfs.work_in_progress import WorkInProgressVFS\n\n\n@dataclass\nclass ToolContext:\n    \"\"\"\n    Rich context for tool execution (API v2).\n    \n    Provides access to everything a tool might need:\n    - vfs: File system access for current branch\n    - repo: Git repository for cross-branch operations\n    - branch_name: Current branch name\n    - session_manager: Session state (optional, for session tools)\n    - registry: Session registry (for spawn/wait tools)\n    \"\"\"\n    \n    vfs: \"WorkInProgressVFS\"\n    repo: \"ForgeRepository\"\n    branch_name: str\n    session_manager: \"SessionManager | None\" = None\n    registry: \"SessionRegistry | None\" = None\n    \n    # Convenience methods that tools commonly need\n    \n    def read_file(self, path: str) -> str:\n        \"\"\"Read a file from the VFS.\"\"\"\n        return self.vfs.read_file(path)\n    \n    def write_file(self, path: str, content: str) -> None:\n        \"\"\"Write a file to the VFS.\"\"\"\n        self.vfs.write_file(path, content)\n    \n    def file_exists(self, path: str) -> bool:\n        \"\"\"Check if a file exists.\"\"\"\n        return self.vfs.file_exists(path)\n    \n    def list_files(self) -> list[str]:\n        \"\"\"List all text files in the VFS.\"\"\"\n        return self.vfs.list_files()\n    \n    def get_branch_vfs(self, branch_name: str) -> \"WorkInProgressVFS\":\n        \"\"\"Get a VFS for another branch (for cross-branch operations).\"\"\"\n        from forge.vfs.work_in_progress import WorkInProgressVFS\n        return WorkInProgressVFS(self.repo, branch_name)\n\n\ndef get_tool_api_version(execute_func: Any) -> int:\n    \"\"\"\n    Detect tool API version from execute function's type annotations.\n    \n    Returns:\n        1 if first param is VFS (or no annotation)\n        2 if first param is ToolContext\n    \"\"\"\n    import inspect\n    \n    sig = inspect.signature(execute_func)\n    params = list(sig.parameters.values())\n    \n    if not params:\n        return 1  # No params, assume v1\n    \n    first_param = params[0]\n    annotation = first_param.annotation\n    \n    if annotation is inspect.Parameter.empty:\n        return 1  # No annotation, assume v1\n    \n    # Check if annotation is ToolContext (handle string annotations too)\n    if annotation is ToolContext:\n        return 2\n    \n    # Handle string annotation (from __future__ import annotations)\n    if isinstance(annotation, str) and \"ToolContext\" in annotation:\n        return 2\n    \n    # Check __name__ for forward references\n    if hasattr(annotation, \"__name__\") and annotation.__name__ == \"ToolContext\":\n        return 2\n    \n    return 1\n</edit>\n\nNow update ToolManager to detect API version and call tools appropriately:\n\n<edit file=\"forge/tools/manager.py\">\n<search>\n    def execute_tool(\n        self, tool_name: str, args: dict[str, Any], session_manager: Any = None\n    ) -> dict[str, Any]:\n        \"\"\"Execute a tool with VFS (only if approved)\"\"\"\n        # Check if tool is approved\n        if not self.is_tool_approved(tool_name):\n            return {\"error\": f\"Tool {tool_name} is not approved. Cannot execute.\"}\n\n        if tool_name not in self._tool_modules:\n            # Determine if it's a built-in tool\n            is_builtin = tool_name in self.BUILTIN_TOOLS\n\n            # Load the tool module (handles VFS and disk)\n            tool_module = self._load_tool_module(tool_name, is_builtin=is_builtin)\n\n            if not tool_module:\n                return {\"error\": f\"Tool {tool_name} not found\"}\n\n            self._tool_modules[tool_name] = tool_module\n\n        tool_module = self._tool_modules[tool_name]\n\n        if not hasattr(tool_module, \"execute\"):\n            return {\"error\": f\"Tool {tool_name} has no execute function\"}\n\n        # Execute tool with VFS\n        result: dict[str, Any] = tool_module.execute(self.vfs, args)\n\n        # Handle context management actions\n        if session_manager and \"action\" in result:\n            action = result[\"action\"]\n            if action == \"update_context\":\n                # Handle add/remove in one operation\n                add_files = result.get(\"add\", [])\n                remove_files = result.get(\"remove\", [])\n                for filepath in add_files:\n                    session_manager.add_active_file(filepath)\n                for filepath in remove_files:\n                    session_manager.remove_active_file(filepath)\n\n        return result\n</search>\n<replace>\n    def execute_tool(\n        self, tool_name: str, args: dict[str, Any], session_manager: Any = None\n    ) -> dict[str, Any]:\n        \"\"\"Execute a tool with VFS or ToolContext based on API version.\"\"\"\n        from forge.tools.context import ToolContext, get_tool_api_version\n        \n        # Check if tool is approved\n        if not self.is_tool_approved(tool_name):\n            return {\"error\": f\"Tool {tool_name} is not approved. Cannot execute.\"}\n\n        if tool_name not in self._tool_modules:\n            # Determine if it's a built-in tool\n            is_builtin = tool_name in self.BUILTIN_TOOLS\n\n            # Load the tool module (handles VFS and disk)\n            tool_module = self._load_tool_module(tool_name, is_builtin=is_builtin)\n\n            if not tool_module:\n                return {\"error\": f\"Tool {tool_name} not found\"}\n\n            self._tool_modules[tool_name] = tool_module\n\n        tool_module = self._tool_modules[tool_name]\n\n        if not hasattr(tool_module, \"execute\"):\n            return {\"error\": f\"Tool {tool_name} has no execute function\"}\n\n        # Detect API version and execute appropriately\n        api_version = get_tool_api_version(tool_module.execute)\n        \n        if api_version == 2:\n            # v2: Pass ToolContext with full access\n            from forge.session.registry import SESSION_REGISTRY\n            \n            ctx = ToolContext(\n                vfs=self.vfs,\n                repo=self._repo,\n                branch_name=self.branch_name,\n                session_manager=session_manager,\n                registry=SESSION_REGISTRY,\n            )\n            result: dict[str, Any] = tool_module.execute(ctx, args)\n        else:\n            # v1: Pass VFS only (backwards compatible)\n            result = tool_module.execute(self.vfs, args)\n\n        # Handle context management actions\n        if session_manager and \"action\" in result:\n            action = result[\"action\"]\n            if action == \"update_context\":\n                # Handle add/remove in one operation\n                add_files = result.get(\"add\", [])\n                remove_files = result.get(\"remove\", [])\n                for filepath in add_files:\n                    session_manager.add_active_file(filepath)\n                for filepath in remove_files:\n                    session_manager.remove_active_file(filepath)\n\n        return result\n</replace>\n</edit>\n\nNow update the session tools to use ToolContext (v2 API). Starting with spawn_session:\n\n<edit file=\"forge/tools/builtin/spawn_session.py\">\n<search>\n\"\"\"\nspawn_session tool - Create a child AI session on a new branch.\n\nThis tool forks the current branch, creates a new session, and registers\nit as a child of the current session. The child session doesn't start\nrunning until resume_session is called.\n\"\"\"\n\nimport json\nfrom typing import Any\n\nimport pygit2\n\nfrom forge.constants import SESSION_FILE\n\n\ndef get_schema() -> dict[str, Any]:\n</search>\n<replace>\n\"\"\"\nspawn_session tool - Create a child AI session on a new branch.\n\nThis tool forks the current branch, creates a new session, and registers\nit as a child of the current session. The child session doesn't start\nrunning until resume_session is called.\n\nUses Tool API v2 (ToolContext) for clean access to repo and branch_name.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING, Any\n\nimport pygit2\n\nfrom forge.constants import SESSION_FILE\n\nif TYPE_CHECKING:\n    from forge.tools.context import ToolContext\n\n\ndef get_schema() -> dict[str, Any]:\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/spawn_session.py\">\n<search>\ndef execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Create a child session branch.\"\"\"\n    import re\n    \n    task = args.get(\"task\", \"\")\n    if not task:\n        return {\"success\": False, \"error\": \"Task description is required\"}\n    \n    # Generate branch name if not provided\n    branch_name = args.get(\"branch_name\")\n    if not branch_name:\n        # Sanitize task for branch name\n        sanitized = re.sub(r\"[^a-zA-Z0-9]+\", \"-\", task.lower())\n        sanitized = sanitized.strip(\"-\")[:30]\n        branch_name = f\"ai/{sanitized}\"\n    \n    # Get the repository and current branch from VFS\n    repo = vfs.repo\n    parent_branch = vfs.branch_name\n</search>\n<replace>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Create a child session branch.\"\"\"\n    import re\n    \n    task = args.get(\"task\", \"\")\n    if not task:\n        return {\"success\": False, \"error\": \"Task description is required\"}\n    \n    # Generate branch name if not provided\n    branch_name = args.get(\"branch_name\")\n    if not branch_name:\n        # Sanitize task for branch name\n        sanitized = re.sub(r\"[^a-zA-Z0-9]+\", \"-\", task.lower())\n        sanitized = sanitized.strip(\"-\")[:30]\n        branch_name = f\"ai/{sanitized}\"\n    \n    # Get the repository and current branch from context\n    repo = ctx.repo\n    parent_branch = ctx.branch_name\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/spawn_session.py\">\n<search>\n        # Read current session to get parent info\n        try:\n            current_session_content = vfs.read_file(SESSION_FILE)\n            current_session = json.loads(current_session_content)\n        except (FileNotFoundError, json.JSONDecodeError):\n            current_session = {}\n        \n        # Update current session's child list\n        child_sessions = current_session.get(\"child_sessions\", [])\n        if branch_name not in child_sessions:\n            child_sessions.append(branch_name)\n        current_session[\"child_sessions\"] = child_sessions\n        \n        # Write back to current session (will be committed with parent's next commit)\n        vfs.write_file(SESSION_FILE, json.dumps(current_session, indent=2))\n        \n        # Create initial session for child branch\n        # We need to write directly to the child branch, not through current VFS\n        from forge.vfs.work_in_progress import WorkInProgressVFS\n        \n        child_vfs = WorkInProgressVFS(repo, branch_name)\n</search>\n<replace>\n        # Read current session to get parent info\n        try:\n            current_session_content = ctx.read_file(SESSION_FILE)\n            current_session = json.loads(current_session_content)\n        except (FileNotFoundError, json.JSONDecodeError):\n            current_session = {}\n        \n        # Update current session's child list\n        child_sessions = current_session.get(\"child_sessions\", [])\n        if branch_name not in child_sessions:\n            child_sessions.append(branch_name)\n        current_session[\"child_sessions\"] = child_sessions\n        \n        # Write back to current session (will be committed with parent's next commit)\n        ctx.write_file(SESSION_FILE, json.dumps(current_session, indent=2))\n        \n        # Create initial session for child branch using context helper\n        child_vfs = ctx.get_branch_vfs(branch_name)\n</replace>\n</edit>\n\nNow update wait_session:\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\n\"\"\"\nwait_session tool - Wait for one of the specified child sessions to complete or ask a question.\n\nThis tool checks the state of child sessions. If any has completed or is waiting\nfor input, it returns that information. If all are still running, the current\nsession yields and waits.\n\"\"\"\n\nimport json\nfrom typing import Any\n\nfrom forge.constants import SESSION_FILE\nfrom forge.tools.side_effects import SideEffect\n\n\ndef get_schema() -> dict[str, Any]:\n</search>\n<replace>\n\"\"\"\nwait_session tool - Wait for one of the specified child sessions to complete or ask a question.\n\nThis tool checks the state of child sessions. If any has completed or is waiting\nfor input, it returns that information. If all are still running, the current\nsession yields and waits.\n\nUses Tool API v2 (ToolContext) for clean access to repo and branch_name.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING, Any\n\nfrom forge.constants import SESSION_FILE\nfrom forge.tools.side_effects import SideEffect\n\nif TYPE_CHECKING:\n    from forge.tools.context import ToolContext\n\n\ndef get_schema() -> dict[str, Any]:\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\ndef execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Check child sessions and wait if needed.\"\"\"\n    branches = args.get(\"branches\", [])\n    \n    if not branches:\n        return {\"success\": False, \"error\": \"At least one branch is required\"}\n    \n    repo = vfs.repo\n    parent_branch = vfs.branch_name\n</search>\n<replace>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Check child sessions and wait if needed.\"\"\"\n    branches = args.get(\"branches\", [])\n    \n    if not branches:\n        return {\"success\": False, \"error\": \"At least one branch is required\"}\n    \n    repo = ctx.repo\n    parent_branch = ctx.branch_name\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\n        try:\n            from forge.vfs.work_in_progress import WorkInProgressVFS\n            \n            child_vfs = WorkInProgressVFS(repo, branch)\n</search>\n<replace>\n        try:\n            child_vfs = ctx.get_branch_vfs(branch)\n</replace>\n</edit>\n\nNow update resume_session:\n\n<edit file=\"forge/tools/builtin/resume_session.py\">\n<search>\n\"\"\"\nresume_session tool - Send a message to a child session and start/resume it.\n\nThis tool appends a message to a child session's conversation and kicks off\nits execution. The child runs asynchronously - use wait_session to check\nfor completion or questions.\n\"\"\"\n\nimport json\nfrom typing import Any\n\nfrom forge.constants import SESSION_FILE\n\n\ndef get_schema() -> dict[str, Any]:\n</search>\n<replace>\n\"\"\"\nresume_session tool - Send a message to a child session and start/resume it.\n\nThis tool appends a message to a child session's conversation and kicks off\nits execution. The child runs asynchronously - use wait_session to check\nfor completion or questions.\n\nUses Tool API v2 (ToolContext) for clean access to repo and branch_name.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING, Any\n\nfrom forge.constants import SESSION_FILE\n\nif TYPE_CHECKING:\n    from forge.tools.context import ToolContext\n\n\ndef get_schema() -> dict[str, Any]:\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/resume_session.py\">\n<search>\ndef execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Send message to child session and start/resume it.\"\"\"\n    branch = args.get(\"branch\", \"\")\n    message = args.get(\"message\", \"\")\n    \n    if not branch:\n        return {\"success\": False, \"error\": \"Branch name is required\"}\n    if not message:\n        return {\"success\": False, \"error\": \"Message is required\"}\n    \n    repo = vfs.repo\n</search>\n<replace>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Send message to child session and start/resume it.\"\"\"\n    branch = args.get(\"branch\", \"\")\n    message = args.get(\"message\", \"\")\n    \n    if not branch:\n        return {\"success\": False, \"error\": \"Branch name is required\"}\n    if not message:\n        return {\"success\": False, \"error\": \"Message is required\"}\n    \n    repo = ctx.repo\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/resume_session.py\">\n<search>\n    try:\n        # Read child's session\n        from forge.vfs.work_in_progress import WorkInProgressVFS\n        \n        child_vfs = WorkInProgressVFS(repo, branch)\n</search>\n<replace>\n    try:\n        # Read child's session\n        child_vfs = ctx.get_branch_vfs(branch)\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/resume_session.py\">\n<search>\n        # Check if this is actually a child of current session\n        parent_branch = vfs.branch_name\n</search>\n<replace>\n        # Check if this is actually a child of current session\n        parent_branch = ctx.branch_name\n</replace>\n</edit>\n\nNow update merge_session:\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n\"\"\"\nmerge_session tool - Merge a completed child session back into the current branch.\n\nThis tool performs a git merge of the child branch into the current branch,\nincorporating all the child's changes. After a successful merge, the child\nbranch can optionally be deleted.\n\"\"\"\n\nimport json\nfrom typing import Any\n\nimport pygit2\n\nfrom forge.constants import SESSION_FILE\n\n\ndef get_schema() -> dict[str, Any]:\n</search>\n<replace>\n\"\"\"\nmerge_session tool - Merge a completed child session back into the current branch.\n\nThis tool performs a git merge of the child branch into the current branch,\nincorporating all the child's changes. After a successful merge, the child\nbranch can optionally be deleted.\n\nUses Tool API v2 (ToolContext) for clean access to repo and branch_name.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING, Any\n\nimport pygit2\n\nfrom forge.constants import SESSION_FILE\n\nif TYPE_CHECKING:\n    from forge.tools.context import ToolContext\n\n\ndef get_schema() -> dict[str, Any]:\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\ndef execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Merge child session into current branch.\"\"\"\n    branch = args.get(\"branch\", \"\")\n    delete_branch = args.get(\"delete_branch\", True)\n    \n    if not branch:\n        return {\"success\": False, \"error\": \"Branch name is required\"}\n    \n    repo = vfs.repo\n    parent_branch = vfs.branch_name\n</search>\n<replace>\ndef execute(ctx: \"ToolContext\", args: dict[str, Any]) -> dict[str, Any]:\n    \"\"\"Merge child session into current branch.\"\"\"\n    branch = args.get(\"branch\", \"\")\n    delete_branch = args.get(\"delete_branch\", True)\n    \n    if not branch:\n        return {\"success\": False, \"error\": \"Branch name is required\"}\n    \n    repo = ctx.repo\n    parent_branch = ctx.branch_name\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n    try:\n        # Verify this is our child\n        from forge.vfs.work_in_progress import WorkInProgressVFS\n        \n        child_vfs = WorkInProgressVFS(repo, branch)\n</search>\n<replace>\n    try:\n        # Verify this is our child\n        child_vfs = ctx.get_branch_vfs(branch)\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n                            # Write conflict markers (simple version)\n                            conflict_content = (\n                                f\"<<<<<<< {parent_branch}\\n\"\n                                f\"{ours_content}\"\n                                f\"=======\\n\"\n                                f\"{theirs_content}\"\n                                f\">>>>>>> {branch}\\n\"\n                            )\n                            vfs.write_file(path, conflict_content)\n</search>\n<replace>\n                            # Write conflict markers (simple version)\n                            conflict_content = (\n                                f\"<<<<<<< {parent_branch}\\n\"\n                                f\"{ours_content}\"\n                                f\"=======\\n\"\n                                f\"{theirs_content}\"\n                                f\">>>>>>> {branch}\\n\"\n                            )\n                            ctx.write_file(path, conflict_content)\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n        # Update our session to remove child from list\n        try:\n            our_session_content = vfs.read_file(SESSION_FILE)\n            our_session = json.loads(our_session_content)\n        except (FileNotFoundError, json.JSONDecodeError):\n            our_session = {}\n        \n        child_sessions = our_session.get(\"child_sessions\", [])\n        if branch in child_sessions:\n            child_sessions.remove(branch)\n        our_session[\"child_sessions\"] = child_sessions\n        vfs.write_file(SESSION_FILE, json.dumps(our_session, indent=2))\n</search>\n<replace>\n        # Update our session to remove child from list\n        try:\n            our_session_content = ctx.read_file(SESSION_FILE)\n            our_session = json.loads(our_session_content)\n        except (FileNotFoundError, json.JSONDecodeError):\n            our_session = {}\n        \n        child_sessions = our_session.get(\"child_sessions\", [])\n        if branch in child_sessions:\n            child_sessions.remove(branch)\n        our_session[\"child_sessions\"] = child_sessions\n        ctx.write_file(SESSION_FILE, json.dumps(our_session, indent=2))\n</replace>\n</edit>\n\nNow update the tests to use ToolContext:\n\n<edit file=\"tests/test_session_spawn.py\">\n<search>\n\"\"\"Tests for session spawn/resume/wait/merge flow.\"\"\"\n\nimport json\nimport pytest\nfrom unittest.mock import MagicMock, patch, PropertyMock\n\nfrom forge.session.registry import SessionRegistry\nfrom forge.session.runner import SessionRunner, SessionState\n</search>\n<replace>\n\"\"\"Tests for session spawn/resume/wait/merge flow.\"\"\"\n\nimport json\nimport pytest\nfrom unittest.mock import MagicMock, patch, PropertyMock\n\nfrom forge.session.registry import SessionRegistry\nfrom forge.session.runner import SessionRunner, SessionState\nfrom forge.tools.context import ToolContext, get_tool_api_version\n</replace>\n</edit>\n\n<edit file=\"tests/test_session_spawn.py\">\n<search>\nclass TestWaitSessionTool:\n    \"\"\"Tests for wait_session tool - reads state from session files on disk.\"\"\"\n    \n    def test_wait_returns_ready_child(self):\n        \"\"\"Test that wait_session returns when a child is ready (completed state in file).\"\"\"\n        from forge.tools.builtin.wait_session import execute\n        \n        # Mock VFS with public attributes\n        mock_vfs = MagicMock()\n        mock_vfs.branch_name = \"parent-branch\"\n        \n        # Mock repo with branches\n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x in [\"parent-branch\", \"child-1\", \"child-2\"]\n        mock_vfs.repo = mock_repo\n        \n        # Child session data - child-2 is completed\n        child_sessions = {\n            \"child-1\": {\n                \"parent_session\": \"parent-branch\",\n                \"state\": \"running\",\n                \"yield_message\": None,\n                \"task\": \"Task 1\",\n            },\n            \"child-2\": {\n                \"parent_session\": \"parent-branch\",\n                \"state\": \"completed\",\n                \"yield_message\": \"I finished the task successfully!\",\n                \"task\": \"Task 2\",\n            },\n        }\n        \n        # Patch at the source module where WorkInProgressVFS is defined\n        with patch(\"forge.vfs.work_in_progress.WorkInProgressVFS\") as MockVFS:\n            def make_child_vfs(repo, branch):\n                child_vfs = MagicMock()\n                child_vfs.read_file.return_value = json.dumps(child_sessions.get(branch, {}))\n                return child_vfs\n            MockVFS.side_effect = make_child_vfs\n            \n            result = execute(mock_vfs, {\"branches\": [\"child-1\", \"child-2\"]})\n        \n        assert result[\"success\"] is True\n        assert result[\"branch\"] == \"child-2\"\n        assert result[\"state\"] == \"completed\"\n        assert result[\"message\"] == \"I finished the task successfully!\"\n        assert result[\"ready\"] is True\n    \n    def test_wait_yields_when_no_children_ready(self):\n        \"\"\"Test that wait_session yields when all children still running.\"\"\"\n        from forge.tools.builtin.wait_session import execute\n        \n        mock_vfs = MagicMock()\n        mock_vfs.branch_name = \"parent-branch\"\n        \n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x in [\"parent-branch\", \"child-1\"]\n        mock_vfs.repo = mock_repo\n        \n        child_session = {\n            \"parent_session\": \"parent-branch\",\n            \"state\": \"running\",\n            \"yield_message\": None,\n            \"task\": \"Still working\",\n        }\n        \n        with patch(\"forge.vfs.work_in_progress.WorkInProgressVFS\") as MockVFS:\n            child_vfs = MagicMock()\n            child_vfs.read_file.return_value = json.dumps(child_session)\n            MockVFS.return_value = child_vfs\n            \n            result = execute(mock_vfs, {\"branches\": [\"child-1\"]})\n        \n        assert result[\"success\"] is True\n        assert result[\"ready\"] is False\n        assert result.get(\"_yield\") is True\n        assert \"child-1\" in result.get(\"_yield_message\", \"\")\n</search>\n<replace>\nclass TestToolApiVersionDetection:\n    \"\"\"Tests for tool API version detection via type annotations.\"\"\"\n    \n    def test_detects_v1_no_annotation(self):\n        \"\"\"Test that no annotation defaults to v1.\"\"\"\n        def execute(vfs, args):\n            pass\n        assert get_tool_api_version(execute) == 1\n    \n    def test_detects_v1_vfs_annotation(self):\n        \"\"\"Test that VFS annotation is detected as v1.\"\"\"\n        from forge.vfs.base import VFS\n        def execute(vfs: VFS, args: dict) -> dict:\n            pass\n        assert get_tool_api_version(execute) == 1\n    \n    def test_detects_v2_toolcontext_annotation(self):\n        \"\"\"Test that ToolContext annotation is detected as v2.\"\"\"\n        def execute(ctx: ToolContext, args: dict) -> dict:\n            pass\n        assert get_tool_api_version(execute) == 2\n    \n    def test_detects_v2_string_annotation(self):\n        \"\"\"Test that string 'ToolContext' annotation is detected as v2.\"\"\"\n        def execute(ctx: \"ToolContext\", args: dict) -> dict:\n            pass\n        assert get_tool_api_version(execute) == 2\n\n\nclass TestWaitSessionTool:\n    \"\"\"Tests for wait_session tool - reads state from session files on disk.\"\"\"\n    \n    def test_wait_returns_ready_child(self):\n        \"\"\"Test that wait_session returns when a child is ready (completed state in file).\"\"\"\n        from forge.tools.builtin.wait_session import execute\n        \n        # Create mock ToolContext\n        mock_vfs = MagicMock()\n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x in [\"parent-branch\", \"child-1\", \"child-2\"]\n        \n        ctx = ToolContext(\n            vfs=mock_vfs,\n            repo=mock_repo,\n            branch_name=\"parent-branch\",\n        )\n        \n        # Child session data - child-2 is completed\n        child_sessions = {\n            \"child-1\": {\n                \"parent_session\": \"parent-branch\",\n                \"state\": \"running\",\n                \"yield_message\": None,\n                \"task\": \"Task 1\",\n            },\n            \"child-2\": {\n                \"parent_session\": \"parent-branch\",\n                \"state\": \"completed\",\n                \"yield_message\": \"I finished the task successfully!\",\n                \"task\": \"Task 2\",\n            },\n        }\n        \n        # Mock get_branch_vfs to return child session data\n        def mock_get_branch_vfs(branch):\n            child_vfs = MagicMock()\n            child_vfs.read_file.return_value = json.dumps(child_sessions.get(branch, {}))\n            return child_vfs\n        ctx.get_branch_vfs = mock_get_branch_vfs\n        \n        result = execute(ctx, {\"branches\": [\"child-1\", \"child-2\"]})\n        \n        assert result[\"success\"] is True\n        assert result[\"branch\"] == \"child-2\"\n        assert result[\"state\"] == \"completed\"\n        assert result[\"message\"] == \"I finished the task successfully!\"\n        assert result[\"ready\"] is True\n    \n    def test_wait_yields_when_no_children_ready(self):\n        \"\"\"Test that wait_session yields when all children still running.\"\"\"\n        from forge.tools.builtin.wait_session import execute\n        \n        mock_vfs = MagicMock()\n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x in [\"parent-branch\", \"child-1\"]\n        \n        ctx = ToolContext(\n            vfs=mock_vfs,\n            repo=mock_repo,\n            branch_name=\"parent-branch\",\n        )\n        \n        child_session = {\n            \"parent_session\": \"parent-branch\",\n            \"state\": \"running\",\n            \"yield_message\": None,\n            \"task\": \"Still working\",\n        }\n        \n        def mock_get_branch_vfs(branch):\n            child_vfs = MagicMock()\n            child_vfs.read_file.return_value = json.dumps(child_session)\n            return child_vfs\n        ctx.get_branch_vfs = mock_get_branch_vfs\n        \n        result = execute(ctx, {\"branches\": [\"child-1\"]})\n        \n        assert result[\"success\"] is True\n        assert result[\"ready\"] is False\n        assert result.get(\"_yield\") is True\n        assert \"child-1\" in result.get(\"_yield_message\", \"\")\n</replace>\n</edit>\n\n<edit file=\"tests/test_session_spawn.py\">\n<search>\nclass TestResumeSessionTool:\n    \"\"\"Tests for resume_session tool.\"\"\"\n    \n    def test_resume_adds_message_and_starts(self):\n        \"\"\"Test that resume_session adds message and signals start.\"\"\"\n        from forge.tools.builtin.resume_session import execute\n        \n        mock_vfs = MagicMock()\n        mock_vfs.branch_name = \"parent-branch\"\n        \n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x == \"child-branch\"\n        mock_vfs.repo = mock_repo\n        \n        # Existing child session\n        child_session = {\n            \"messages\": [{\"role\": \"user\", \"content\": \"Initial task\"}],\n            \"parent_session\": \"parent-branch\",\n            \"state\": \"idle\",\n        }\n        \n        with patch(\"forge.vfs.work_in_progress.WorkInProgressVFS\") as MockVFS:\n            child_vfs = MagicMock()\n            child_vfs.read_file.return_value = json.dumps(child_session)\n            MockVFS.return_value = child_vfs\n            \n            result = execute(mock_vfs, {\n                \"branch\": \"child-branch\",\n                \"message\": \"Continue with this feedback\",\n            })\n        \n        assert result[\"success\"] is True\n        assert result[\"_start_session\"] == \"child-branch\"\n        assert result[\"_start_message\"] == \"Continue with this feedback\"\n        \n        # Verify session was updated\n        child_vfs.write_file.assert_called()\n        write_args = child_vfs.write_file.call_args[0]\n        written_session = json.loads(write_args[1])\n        assert written_session[\"state\"] == \"running\"\n        assert len(written_session[\"messages\"]) == 2\n        assert written_session[\"messages\"][1][\"content\"] == \"Continue with this feedback\"\n</search>\n<replace>\nclass TestResumeSessionTool:\n    \"\"\"Tests for resume_session tool.\"\"\"\n    \n    def test_resume_adds_message_and_starts(self):\n        \"\"\"Test that resume_session adds message and signals start.\"\"\"\n        from forge.tools.builtin.resume_session import execute\n        \n        mock_vfs = MagicMock()\n        mock_repo = MagicMock()\n        mock_repo.repo.branches.__contains__ = lambda self, x: x == \"child-branch\"\n        \n        ctx = ToolContext(\n            vfs=mock_vfs,\n            repo=mock_repo,\n            branch_name=\"parent-branch\",\n        )\n        \n        # Existing child session\n        child_session = {\n            \"messages\": [{\"role\": \"user\", \"content\": \"Initial task\"}],\n            \"parent_session\": \"parent-branch\",\n            \"state\": \"idle\",\n        }\n        \n        child_vfs = MagicMock()\n        child_vfs.read_file.return_value = json.dumps(child_session)\n        ctx.get_branch_vfs = MagicMock(return_value=child_vfs)\n        \n        result = execute(ctx, {\n            \"branch\": \"child-branch\",\n            \"message\": \"Continue with this feedback\",\n        })\n        \n        assert result[\"success\"] is True\n        assert result[\"_start_session\"] == \"child-branch\"\n        assert result[\"_start_message\"] == \"Continue with this feedback\"\n        \n        # Verify session was updated\n        child_vfs.write_file.assert_called()\n        write_args = child_vfs.write_file.call_args[0]\n        written_session = json.loads(write_args[1])\n        assert written_session[\"state\"] == \"running\"\n        assert len(written_session[\"messages\"]) == 2\n        assert written_session[\"messages\"][1][\"content\"] == \"Continue with this feedback\"\n</replace>\n</edit>\n\n<run_tests/>",
+      "_inline_results": [
+        {
+          "message": "Wrote 3119 bytes to forge/tools/context.py",
+          "modified_files": [
+            "forge/tools/context.py"
+          ],
+          "new_files": [
+            "forge/tools/context.py"
+          ],
+          "side_effects": [
+            "files_modified",
+            "new_files_created"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/manager.py",
+          "modified_files": [
+            "forge/tools/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/spawn_session.py",
+          "modified_files": [
+            "forge/tools/builtin/spawn_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/spawn_session.py",
+          "modified_files": [
+            "forge/tools/builtin/spawn_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/spawn_session.py",
+          "modified_files": [
+            "forge/tools/builtin/spawn_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/resume_session.py",
+          "modified_files": [
+            "forge/tools/builtin/resume_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/resume_session.py",
+          "modified_files": [
+            "forge/tools/builtin/resume_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/resume_session.py",
+          "modified_files": [
+            "forge/tools/builtin/resume_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/resume_session.py",
+          "modified_files": [
+            "forge/tools/builtin/resume_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_session_spawn.py",
+          "modified_files": [
+            "tests/test_session_spawn.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_session_spawn.py",
+          "modified_files": [
+            "tests/test_session_spawn.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_session_spawn.py",
+          "modified_files": [
+            "tests/test_session_spawn.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs__6qbgo5a\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 60 items\n\ntests/test_inline_edit.py ................                               [ 26%]\ntests/test_prompt_manager.py ...............................             [ 78%]\ntests/test_session_spawn.py .............                                [100%]\n\n============================== 60 passed in 0.12s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs__6qbgo5a\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 60 items\n\ntests/test_inline_edit.py ................                               [ 26%]\ntests/test_prompt_manager.py ...............................             [ 78%]\ntests/test_session_spawn.py .............                                [100%]\n\n============================== 60 passed in 0.12s ==============================\n",
           "passed": false,
           "side_effects": [
             "has_display_output"

@@ -4,14 +4,19 @@ merge_session tool - Merge a completed child session back into the current branc
 This tool performs a git merge of the child branch into the current branch,
 incorporating all the child's changes. After a successful merge, the child
 branch can optionally be deleted.
+
+Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pygit2
 
 from forge.constants import SESSION_FILE
+
+if TYPE_CHECKING:
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -42,7 +47,7 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Merge child session into current branch."""
     branch = args.get("branch", "")
     delete_branch = args.get("delete_branch", True)
@@ -50,8 +55,8 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     if not branch:
         return {"success": False, "error": "Branch name is required"}
     
-    repo = vfs.repo
-    parent_branch = vfs.branch_name
+    repo = ctx.repo
+    parent_branch = ctx.branch_name
     
     # Check if branch exists
     if branch not in repo.repo.branches:
@@ -59,9 +64,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     
     try:
         # Verify this is our child
-        from forge.vfs.work_in_progress import WorkInProgressVFS
-        
-        child_vfs = WorkInProgressVFS(repo, branch)
+        child_vfs = ctx.get_branch_vfs(branch)
         try:
             session_content = child_vfs.read_file(SESSION_FILE)
             session_data = json.loads(session_content)
@@ -137,7 +140,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
                                 f"{theirs_content}"
                                 f">>>>>>> {branch}\n"
                             )
-                            vfs.write_file(path, conflict_content)
+                            ctx.write_file(path, conflict_content)
             else:
                 # No conflicts - create merge commit
                 tree = repo.repo.index.write_tree()
@@ -155,7 +158,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         
         # Update our session to remove child from list
         try:
-            our_session_content = vfs.read_file(SESSION_FILE)
+            our_session_content = ctx.read_file(SESSION_FILE)
             our_session = json.loads(our_session_content)
         except (FileNotFoundError, json.JSONDecodeError):
             our_session = {}
@@ -164,7 +167,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         if branch in child_sessions:
             child_sessions.remove(branch)
         our_session["child_sessions"] = child_sessions
-        vfs.write_file(SESSION_FILE, json.dumps(our_session, indent=2))
+        ctx.write_file(SESSION_FILE, json.dumps(our_session, indent=2))
         
         # Delete child branch if requested and no conflicts
         if delete_branch and not conflicts:

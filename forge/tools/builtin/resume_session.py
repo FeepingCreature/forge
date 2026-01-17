@@ -4,12 +4,17 @@ resume_session tool - Send a message to a child session and start/resume it.
 This tool appends a message to a child session's conversation and kicks off
 its execution. The child runs asynchronously - use wait_session to check
 for completion or questions.
+
+Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from forge.constants import SESSION_FILE
+
+if TYPE_CHECKING:
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -42,7 +47,7 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Send message to child session and start/resume it."""
     branch = args.get("branch", "")
     message = args.get("message", "")
@@ -52,7 +57,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     if not message:
         return {"success": False, "error": "Message is required"}
     
-    repo = vfs.repo
+    repo = ctx.repo
     
     # Check if branch exists
     if branch not in repo.repo.branches:
@@ -60,9 +65,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     
     try:
         # Read child's session
-        from forge.vfs.work_in_progress import WorkInProgressVFS
-        
-        child_vfs = WorkInProgressVFS(repo, branch)
+        child_vfs = ctx.get_branch_vfs(branch)
         
         try:
             session_content = child_vfs.read_file(SESSION_FILE)
@@ -71,7 +74,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
             return {"success": False, "error": f"No valid session found on branch '{branch}'"}
         
         # Check if this is actually a child of current session
-        parent_branch = vfs.branch_name
+        parent_branch = ctx.branch_name
         if session_data.get("parent_session") != parent_branch:
             return {
                 "success": False,

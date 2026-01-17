@@ -74,6 +74,10 @@ def load_or_create_runner(
     if session_data.get("yield_message"):
         runner._yield_message = session_data["yield_message"]
     
+    # Restore pending wait call if session was waiting on children
+    if session_data.get("pending_wait_call"):
+        runner._pending_wait_call = session_data["pending_wait_call"]
+    
     # Restore state (but don't change from IDLE if it was running - 
     # that means we crashed mid-run and should let user decide)
     stored_state = session_data.get("state", "idle")

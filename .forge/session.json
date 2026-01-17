@@ -1,9 +1,11 @@
 {
   "active_files": [
-    "forge/session/startup.py",
     "forge/session/runner.py",
     "forge/session/manager.py",
-    "forge/session/registry.py"
+    "CLAUDE.md",
+    "forge/git_backend/commit_types.py",
+    "forge/session/registry.py",
+    "forge/session/startup.py"
   ],
   "request_log_entries": [
     {
@@ -1094,6 +1096,15 @@
       "streaming": true,
       "actual_cost": 0.204403,
       "generation_id": "gen-1768671188-KkBmxKaj1VoDMizXpbBo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768671623684.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768671623684.json",
+      "timestamp": 1768671623.686067,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.40405875,
+      "generation_id": "gen-1768671623-By2YTYwrCOx9856MTfW6"
     }
   ],
   "messages": [
@@ -3798,6 +3809,86 @@
           "success": true
         }
       ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 82 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, now if a child wakes up the parent the parent will get the wrong wait tool call result.\n\nWe have to handle this differently. Basically when the wait tool goes out we have to treat this specially, maybe by returning a magic YIELD side effect. We *don't* record the tool result- we just record the parameters for the wait call. When we wake up the parent again, we just rerun the wait_result like it's any other pending tool call, and *then* append the result."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah, brilliant insight! The problem is:\n\n1. Parent calls `wait_session([child1, child2])`\n2. No children ready \u2192 we return `_yield` and record the tool result as \"waiting\"\n3. Child1 completes, wakes parent\n4. Parent resumes... but the LLM sees the OLD tool result saying \"no children ready\"\n\nThe fix: **Don't record the wait_session result when yielding.** Instead:\n1. Store the pending `wait_session` call parameters\n2. When parent wakes up, re-execute `wait_session` with those same parameters\n3. NOW record the result (which will show the ready child)\n\nLet me implement this:\n\n<edit file=\"forge/session/runner.py\">\n<search>\n        # Queued message (injected mid-turn)\n        self._queued_message: str | None = None\n</search>\n<replace>\n        # Queued message (injected mid-turn)\n        self._queued_message: str | None = None\n        \n        # Pending wait_session call (re-executed on resume instead of recording stale result)\n        self._pending_wait_call: dict[str, Any] | None = None\n</replace>\n</edit>\n\n<edit file=\"forge/session/runner.py\">\n<search>\n        # Check for special tool flags that affect control flow\n        for r in results:\n            result = r.get(\"result\", {})\n            \n            # Check for _yield flag (from wait_session when no children ready)\n            if result.get(\"_yield\"):\n                self.yield_waiting(result.get(\"_yield_message\", \"Waiting on child sessions\"))\n                return\n            \n            # Check for _start_session flag (from resume_session)\n            if result.get(\"_start_session\"):\n                branch_name = result[\"_start_session\"]\n                self._start_child_session(branch_name, result.get(\"_start_message\", \"\"))\n</search>\n<replace>\n        # Check for special tool flags that affect control flow\n        for r in results:\n            result = r.get(\"result\", {})\n            tool_call = r.get(\"tool_call\", {})\n            \n            # Check for _yield flag (from wait_session when no children ready)\n            if result.get(\"_yield\"):\n                # DON'T record this tool result - we'll re-execute when we wake up\n                # Store the call so we can replay it\n                self._pending_wait_call = {\n                    \"tool_call_id\": tool_call.get(\"id\"),\n                    \"tool_name\": tool_call.get(\"function\", {}).get(\"name\"),\n                    \"tool_args\": r.get(\"tool_args\", {}),\n                }\n                # Remove the tool result message we just added (it's stale)\n                if self.messages and self.messages[-1].get(\"role\") == \"tool\":\n                    self.pop_last_message()\n                \n                self.yield_waiting(result.get(\"_yield_message\", \"Waiting on child sessions\"))\n                return\n            \n            # Check for _start_session flag (from resume_session)\n            if result.get(\"_start_session\"):\n                branch_name = result[\"_start_session\"]\n                self._start_child_session(branch_name, result.get(\"_start_message\", \"\"))\n</replace>\n</edit>\n\nNow add logic to re-execute the pending wait call when resuming:\n\n<edit file=\"forge/session/runner.py\">\n<search>\n    def send_message(self, text: str) -> bool:\n        \"\"\"\n        Send a user message to the AI.\n        \n        Returns True if message was accepted, False if session is busy.\n        If busy but running, the message is queued for after current operation.\n        \"\"\"\n        if self._state == SessionState.RUNNING:\n            # Queue the message\n            self._queued_message = text\n            return True\n        \n        if self._state not in (SessionState.IDLE, SessionState.WAITING_INPUT):\n            return False\n        \n        # Add message to conversation\n        self.add_message({\"role\": \"user\", \"content\": text})\n        self.session_manager.append_user_message(text)\n        \n        # Reset turn tracking\n        self._turn_executed_tool_ids = set()\n        self._cancel_requested = False\n        \n        # Start processing\n        self.state = SessionState.RUNNING\n        self._process_llm_request()\n        \n        return True\n</search>\n<replace>\n    def send_message(self, text: str) -> bool:\n        \"\"\"\n        Send a user message to the AI.\n        \n        Returns True if message was accepted, False if session is busy.\n        If busy but running, the message is queued for after current operation.\n        \"\"\"\n        if self._state == SessionState.RUNNING:\n            # Queue the message\n            self._queued_message = text\n            return True\n        \n        if self._state not in (SessionState.IDLE, SessionState.WAITING_INPUT, SessionState.WAITING_CHILDREN):\n            return False\n        \n        # Check if we're resuming from a pending wait_session call\n        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:\n            return self._resume_pending_wait(text)\n        \n        # Add message to conversation\n        self.add_message({\"role\": \"user\", \"content\": text})\n        self.session_manager.append_user_message(text)\n        \n        # Reset turn tracking\n        self._turn_executed_tool_ids = set()\n        self._cancel_requested = False\n        \n        # Start processing\n        self.state = SessionState.RUNNING\n        self._process_llm_request()\n        \n        return True\n    \n    def _resume_pending_wait(self, text: str) -> bool:\n        \"\"\"\n        Resume from a pending wait_session call.\n        \n        Re-executes the wait_session with original parameters, then continues.\n        The 'text' is typically empty or a nudge - the real input is the child's completion.\n        \"\"\"\n        import json\n        \n        pending = self._pending_wait_call\n        self._pending_wait_call = None\n        \n        if not pending:\n            return False\n        \n        # Re-execute the wait_session tool\n        tool_name = pending[\"tool_name\"]\n        tool_args = pending[\"tool_args\"]\n        tool_call_id = pending[\"tool_call_id\"]\n        \n        self.state = SessionState.RUNNING\n        \n        # Execute synchronously (wait_session is fast - just checks state)\n        result = self.session_manager.tool_manager.execute_tool(tool_name, **tool_args)\n        \n        # If still yielding (no children ready yet), go back to waiting\n        if result.get(\"_yield\"):\n            self._pending_wait_call = pending  # Restore for next attempt\n            self.state = SessionState.WAITING_CHILDREN\n            return True\n        \n        # Child is ready! Record the tool result now\n        result_json = json.dumps(result)\n        self.add_message({\n            \"role\": \"tool\",\n            \"tool_call_id\": tool_call_id,\n            \"content\": result_json,\n        })\n        self.session_manager.append_tool_result(tool_call_id, result_json)\n        \n        # Continue the conversation\n        self._continue_after_tools()\n        return True\n</replace>\n</edit>\n\nAlso persist/restore the pending wait call in session metadata:\n\n<edit file=\"forge/session/runner.py\">\n<search>\n    def get_session_metadata(self) -> dict[str, Any]:\n        \"\"\"Get metadata for session.json persistence.\"\"\"\n        return {\n            \"parent_session\": self._parent_session,\n            \"child_sessions\": self._child_sessions,\n            \"state\": self._state,\n            \"yield_message\": self._yield_message,\n        }\n</search>\n<replace>\n    def get_session_metadata(self) -> dict[str, Any]:\n        \"\"\"Get metadata for session.json persistence.\"\"\"\n        return {\n            \"parent_session\": self._parent_session,\n            \"child_sessions\": self._child_sessions,\n            \"state\": self._state,\n            \"yield_message\": self._yield_message,\n            \"pending_wait_call\": self._pending_wait_call,\n        }\n</replace>\n</edit>\n\nNow update the startup code to restore the pending wait call:\n\n<edit file=\"forge/session/startup.py\">\n<search>\n    # Restore yield state if session was waiting\n    if session_data.get(\"yield_message\"):\n        runner._yield_message = session_data[\"yield_message\"]\n    \n    # Restore state (but don't change from IDLE if it was running - \n    # that means we crashed mid-run and should let user decide)\n    stored_state = session_data.get(\"state\", \"idle\")\n    if stored_state in (\"waiting_input\", \"waiting_children\", \"completed\"):\n        runner._state = stored_state\n</search>\n<replace>\n    # Restore yield state if session was waiting\n    if session_data.get(\"yield_message\"):\n        runner._yield_message = session_data[\"yield_message\"]\n    \n    # Restore pending wait call if session was waiting on children\n    if session_data.get(\"pending_wait_call\"):\n        runner._pending_wait_call = session_data[\"pending_wait_call\"]\n    \n    # Restore state (but don't change from IDLE if it was running - \n    # that means we crashed mid-run and should let user decide)\n    stored_state = session_data.get(\"state\", \"idle\")\n    if stored_state in (\"waiting_input\", \"waiting_children\", \"completed\"):\n        runner._state = stored_state\n</replace>\n</edit>\n\n<run_tests/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/runner.py",
+          "modified_files": [
+            "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/runner.py",
+          "modified_files": [
+            "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/runner.py",
+          "modified_files": [
+            "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/runner.py",
+          "modified_files": [
+            "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/startup.py",
+          "modified_files": [
+            "forge/session/startup.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_nkswlvff\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 63 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 74%]\ntests/test_session_spawn.py ................                             [100%]\n\n============================== 63 passed in 0.18s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_nkswlvff\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 63 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 74%]\ntests/test_session_spawn.py ................                             [100%]\n\n============================== 63 passed in 0.18s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
     }
-  ]
+  ],
+  "parent_session": null,
+  "child_sessions": [],
+  "state": "running",
+  "yield_message": null
 }

@@ -216,6 +216,9 @@ class SessionRunner(QObject):
         # Queued message (injected mid-turn)
         self._queued_message: str | None = None
         
+        # Pending wait_session call (re-executed on resume instead of recording stale result)
+        self._pending_wait_call: dict[str, Any] | None = None
+        
         # Pending file updates (applied after tool results recorded)
         self._pending_file_updates: list[tuple[str, str | None]] = []
         
@@ -419,8 +422,12 @@ class SessionRunner(QObject):
             self._queued_message = text
             return True
         
-        if self._state not in (SessionState.IDLE, SessionState.WAITING_INPUT):
+        if self._state not in (SessionState.IDLE, SessionState.WAITING_INPUT, SessionState.WAITING_CHILDREN):
             return False
+        
+        # Check if we're resuming from a pending wait_session call
+        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            return self._resume_pending_wait(text)
         
         # Add message to conversation
         self.add_message({"role": "user", "content": text})
@@ -434,6 +441,50 @@ class SessionRunner(QObject):
         self.state = SessionState.RUNNING
         self._process_llm_request()
         
+        return True
+    
+    def _resume_pending_wait(self, text: str) -> bool:
+        """
+        Resume from a pending wait_session call.
+        
+        Re-executes the wait_session with original parameters, then continues.
+        The 'text' is typically empty or a nudge - the real input is the child's completion.
+        """
+        import json
+        
+        pending = self._pending_wait_call
+        self._pending_wait_call = None
+        
+        if not pending:
+            return False
+        
+        # Re-execute the wait_session tool
+        tool_name = pending["tool_name"]
+        tool_args = pending["tool_args"]
+        tool_call_id = pending["tool_call_id"]
+        
+        self.state = SessionState.RUNNING
+        
+        # Execute synchronously (wait_session is fast - just checks state)
+        result = self.session_manager.tool_manager.execute_tool(tool_name, **tool_args)
+        
+        # If still yielding (no children ready yet), go back to waiting
+        if result.get("_yield"):
+            self._pending_wait_call = pending  # Restore for next attempt
+            self.state = SessionState.WAITING_CHILDREN
+            return True
+        
+        # Child is ready! Record the tool result now
+        result_json = json.dumps(result)
+        self.add_message({
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": result_json,
+        })
+        self.session_manager.append_tool_result(tool_call_id, result_json)
+        
+        # Continue the conversation
+        self._continue_after_tools()
         return True
     
     def cancel(self) -> None:
@@ -811,9 +862,21 @@ class SessionRunner(QObject):
         # Check for special tool flags that affect control flow
         for r in results:
             result = r.get("result", {})
+            tool_call = r.get("tool_call", {})
             
             # Check for _yield flag (from wait_session when no children ready)
             if result.get("_yield"):
+                # DON'T record this tool result - we'll re-execute when we wake up
+                # Store the call so we can replay it
+                self._pending_wait_call = {
+                    "tool_call_id": tool_call.get("id"),
+                    "tool_name": tool_call.get("function", {}).get("name"),
+                    "tool_args": r.get("tool_args", {}),
+                }
+                # Remove the tool result message we just added (it's stale)
+                if self.messages and self.messages[-1].get("role") == "tool":
+                    self.pop_last_message()
+                
                 self.yield_waiting(result.get("_yield_message", "Waiting on child sessions"))
                 return
             
@@ -987,4 +1050,5 @@ class SessionRunner(QObject):
             "child_sessions": self._child_sessions,
             "state": self._state,
             "yield_message": self._yield_message,
+            "pending_wait_call": self._pending_wait_call,
         }

@@ -172,7 +172,13 @@ class SessionDropdown(QWidget):
         self._update_button_text()
 
     def _on_branches_changed(self) -> None:
-        """Handle branch created/deleted in the repo."""
+        """Handle branch created/deleted in the repo.
+        
+        This ensures newly spawned session branches appear in the dropdown.
+        The dropdown menu is rebuilt each time it's shown, so we just need
+        to update the button text here - the new branches will appear when
+        the user next opens the dropdown.
+        """
         self._update_button_text()
 
     def _show_dropdown(self) -> None:

@@ -381,12 +381,14 @@ class TestFullSpawnWaitMergeFlow:
         # =====================================================================
         print("\n=== STEP 1: Spawn child session ===")
         
+        child_branch = "ai/add-hello"
         spawn_result = spawn_execute(parent_ctx, {
-            "task": "Add a hello.py file with a greeting function",
+            "branch_name": child_branch,
+            "instruction": "Add a hello.py file with a greeting function",
         })
         
         assert spawn_result["success"] is True, f"Spawn failed: {spawn_result}"
-        child_branch = spawn_result["branch"]
+        assert spawn_result["branch"] == child_branch
         print(f"Child branch created: {child_branch}")
         
         # Verify branch was created
@@ -403,38 +405,17 @@ class TestFullSpawnWaitMergeFlow:
         child_session = json.loads(child_vfs.read_file(SESSION_FILE))
         assert child_session["parent_session"] == parent_branch
         assert child_session["state"] == "idle"
-        assert "hello.py" in child_session["task"].lower() or "greeting" in child_session["task"].lower()
         print(f"Child session state: {child_session['state']}")
         
         # =====================================================================
-        # STEP 2: Parent resumes child with instructions
+        # STEP 2: Verify child was auto-started by spawn
         # =====================================================================
-        print("\n=== STEP 2: Resume child session ===")
+        print("\n=== STEP 2: Verify child auto-started ===")
         
-        # Refresh parent context
-        parent_ctx = ToolContext(
-            vfs=parent_vfs,
-            repo=forge_repo,
-            branch_name=parent_branch,
-        )
-        
-        resume_result = resume_execute(parent_ctx, {
-            "branch": child_branch,
-            "message": "Please create hello.py with a greet(name) function that returns 'Hello, {name}!'",
-        })
-        
-        assert resume_result["success"] is True, f"Resume failed: {resume_result}"
-        assert resume_result["_start_session"] == child_branch
-        assert resume_result["_start_message"] is not None
-        print(f"Resume result: {resume_result}")
-        
-        # Verify child session was updated
-        child_vfs = WorkInProgressVFS(forge_repo, child_branch)
-        child_session = json.loads(child_vfs.read_file(SESSION_FILE))
-        assert child_session["state"] == "running"
-        assert len(child_session["messages"]) == 1  # The instruction message
-        assert "greet" in child_session["messages"][0]["content"]
-        print(f"Child now has {len(child_session['messages'])} messages, state={child_session['state']}")
+        # spawn_session now automatically starts the child, so we just verify the flags
+        assert spawn_result.get("_start_session") == child_branch
+        assert spawn_result.get("_start_message") == "Add a hello.py file with a greeting function"
+        print(f"Spawn result includes auto-start: _start_session={spawn_result.get('_start_session')}")
         
         # =====================================================================
         # STEP 3: Simulate child doing work and completing
@@ -569,14 +550,16 @@ class TestFullSpawnWaitMergeFlow:
             branch_name=parent_branch,
         )
         
-        # Spawn and resume child
-        spawn_result = spawn_execute(parent_ctx, {"task": "some task"})
-        child_branch = spawn_result["branch"]
+        # Spawn child (now auto-starts)
+        child_branch = "ai/some-task"
+        spawn_result = spawn_execute(parent_ctx, {
+            "branch_name": child_branch,
+            "instruction": "some task",
+        })
+        assert spawn_result["success"], f"Spawn failed: {spawn_result}"
         parent_vfs.commit("Spawn")
         parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
         parent_ctx = ToolContext(vfs=parent_vfs, repo=forge_repo, branch_name=parent_branch)
-        
-        resume_execute(parent_ctx, {"branch": child_branch, "message": "Do it"})
         
         # Register mock child runner as running
         from forge.session.registry import SESSION_REGISTRY
@@ -646,9 +629,12 @@ class TestFullSpawnWaitMergeFlow:
         # STEP 1: Spawn child
         # =====================================================================
         print("\n=== STEP 1: Spawn child ===")
-        spawn_result = spawn_execute(parent_ctx, {"task": "modify shared.py"})
+        child_branch = "ai/modify-shared"
+        spawn_result = spawn_execute(parent_ctx, {
+            "branch_name": child_branch,
+            "instruction": "modify shared.py",
+        })
         assert spawn_result["success"], f"Spawn failed: {spawn_result}"
-        child_branch = spawn_result["branch"]
         parent_vfs.commit("Record spawn")
         print(f"Child branch: {child_branch}")
         
@@ -787,18 +773,17 @@ class TestFullSpawnWaitMergeFlow:
         )
         
         # =====================================================================
-        # STEP 1: Spawn child
+        # STEP 1: Spawn child (now auto-starts)
         # =====================================================================
         print("\n=== STEP 1: Spawn child ===")
-        spawn_result = spawn_execute(parent_ctx, {"task": "do something"})
-        child_branch = spawn_result["branch"]
+        child_branch = "ai/do-something"
+        spawn_result = spawn_execute(parent_ctx, {
+            "branch_name": child_branch,
+            "instruction": "do something",
+        })
+        assert spawn_result["success"], f"Spawn failed: {spawn_result}"
         parent_vfs.commit("Spawn child")
         print(f"Child branch: {child_branch}")
-        
-        # Resume child so it's running
-        parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
-        parent_ctx = ToolContext(vfs=parent_vfs, repo=forge_repo, branch_name=parent_branch)
-        resume_execute(parent_ctx, {"branch": child_branch, "message": "Start working"})
         
         # =====================================================================
         # STEP 2: Parent calls wait_session - child still running

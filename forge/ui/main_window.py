@@ -63,6 +63,9 @@ class MainWindow(QMainWindow):
         # Debug window (single instance)
         self._debug_window: RequestDebugWindow | None = None
 
+        # Mood bar visibility state
+        self._mood_bar_visible = True
+
         self._setup_ui()
         self._setup_menus()
         self._setup_shortcuts()
@@ -531,6 +534,13 @@ class MainWindow(QMainWindow):
         edit_menu.addAction("&Undo")
         edit_menu.addAction("&Redo")
 
+        # View menu
+        view_menu = menubar.addMenu("&View")
+        action = view_menu.addAction("Show &Mood Bar", self._toggle_mood_bar)
+        action.setCheckable(True)
+        action.setChecked(True)
+        self._mood_bar_action = action
+
         # Branch menu
         branch_menu = menubar.addMenu("&Branch")
         branch_menu.addAction("&New AI Session", self._new_ai_session)
@@ -687,6 +697,10 @@ class MainWindow(QMainWindow):
     def _on_debug_window_closed(self) -> None:
         """Handle debug window being closed"""
         self._debug_window = None
+
+    def _toggle_mood_bar(self, checked: bool) -> None:
+        """Toggle mood bar visibility"""
+        self._mood_bar_visible = checked
 
     def _on_git_changed(self) -> None:
         """Handle git branches changed - refresh git graph and dropdown."""

@@ -349,12 +349,19 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         # Estimate conversation tokens from prompt manager
         conversation_tokens = self._estimate_conversation_tokens()
 
+        # Estimate system tokens from prompt manager
+        system_tokens = self.prompt_manager.estimate_system_tokens()
+
         return {
             "active_files": files_info,
             "file_tokens": file_tokens,
             "summary_tokens": summary_tokens,
             "conversation_tokens": conversation_tokens,
-            "total_context_tokens": file_tokens + summary_tokens + conversation_tokens,
+            "system_tokens": system_tokens,
+            "total_context_tokens": file_tokens
+            + summary_tokens
+            + conversation_tokens
+            + system_tokens,
             "file_count": len(files_info),
         }
 

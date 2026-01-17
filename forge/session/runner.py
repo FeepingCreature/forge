@@ -832,17 +832,23 @@ class SessionRunner(QObject):
 
         from forge.tools.side_effects import SideEffect
 
-        # Add tool result to messages
-        result_json = json.dumps(result)
-        self.add_message(
-            {
-                "role": "tool",
-                "tool_call_id": tool_call_id,
-                "content": result_json,
-                "_skip_display": True,
-            }
-        )
-        self.session_manager.append_tool_result(tool_call_id, result_json)
+        # Check for _yield flag - DON'T record this tool result yet
+        # We'll re-execute when we wake up and record the real result then
+        if result.get("_yield"):
+            # Don't add to messages or prompt_manager - handled in _on_tools_all_finished
+            pass
+        else:
+            # Add tool result to messages
+            result_json = json.dumps(result)
+            self.add_message(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": result_json,
+                    "_skip_display": True,
+                }
+            )
+            self.session_manager.append_tool_result(tool_call_id, result_json)
 
         # Track side effects
         side_effects = result.get("side_effects", [])
@@ -902,8 +908,7 @@ class SessionRunner(QObject):
 
             # Check for _yield flag (from wait_session when no children ready)
             if result.get("_yield"):
-                # DON'T record this tool result - we'll re-execute when we wake up
-                # Store the call so we can replay it
+                # Store the call so we can replay it when children are ready
                 tool_call_id = tool_call.get("id")
                 # Note: ToolExecutionWorker stores args under "args" key, not "tool_args"
                 stored_args = r.get("args", {})
@@ -912,12 +917,8 @@ class SessionRunner(QObject):
                     "tool_name": tool_call.get("function", {}).get("name"),
                     "tool_args": stored_args,
                 }
-                # Remove the tool result message we just added (it's stale)
-                # Must remove from BOTH messages list AND prompt_manager
-                if self.messages and self.messages[-1].get("role") == "tool":
-                    self.pop_last_message()
-                # Also remove from prompt_manager so we don't get duplicate tool_result
-                self.session_manager.prompt_manager.remove_tool_result(tool_call_id)
+                # Note: _on_tool_finished already skipped adding this to messages/prompt_manager
+                # when it saw _yield, so no cleanup needed here
 
                 self.yield_waiting(result.get("_yield_message", "Waiting on child sessions"))
                 return

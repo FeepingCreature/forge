@@ -421,15 +421,22 @@ class AIChatWidget(QWidget):
         # Get session manager from workspace (branch-level ownership)
         self.session_manager = workspace.session_manager
 
-        # Create SessionRunner - the authoritative owner of session state
+        # Get or create SessionRunner - check registry first to avoid duplicates
+        # This is important for child sessions spawned by spawn_session tool,
+        # which already have a runner registered
         from forge.session.registry import SESSION_REGISTRY
         from forge.session.runner import SessionRunner
 
-        initial_messages = session_data.get("messages", []) if session_data else []
-        self.runner = SessionRunner(self.session_manager, initial_messages)
-
-        # Register with global registry
-        SESSION_REGISTRY.register(self.branch_name, self.runner)
+        existing_runner = SESSION_REGISTRY.get(self.branch_name)
+        if existing_runner:
+            # Reuse existing runner (e.g., from spawn_session)
+            self.runner = existing_runner
+        else:
+            # Create new runner
+            initial_messages = session_data.get("messages", []) if session_data else []
+            self.runner = SessionRunner(self.session_manager, initial_messages)
+            # Register with global registry
+            SESSION_REGISTRY.register(self.branch_name, self.runner)
 
         # Attach to the runner (we're the UI now)
         self._attach_to_runner()

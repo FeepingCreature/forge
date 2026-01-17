@@ -15,7 +15,48 @@ from forge.constants import SESSION_FILE
 from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
+    from forge.git_backend.repository import ForgeRepository
     from forge.tools.context import ToolContext
+
+
+def _check_merge_clean(repo: "ForgeRepository", parent_branch: str, child_branch: str) -> bool:
+    """Check if merging child into parent would be clean (no conflicts)."""
+    import pygit2
+    
+    parent_ref = repo.repo.branches.get(parent_branch)
+    child_ref = repo.repo.branches.get(child_branch)
+    
+    if parent_ref is None or child_ref is None:
+        return False
+    
+    parent_commit = parent_ref.peel(pygit2.Commit)
+    child_commit = child_ref.peel(pygit2.Commit)
+    
+    # Check merge analysis
+    merge_result = repo.repo.merge_analysis(child_commit.id)
+    
+    if merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
+        return True  # Already up to date
+    if merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
+        return True  # Fast-forward possible
+    
+    # Need to actually try the merge to check for conflicts
+    # We do this in memory without committing
+    try:
+        merge_index = repo.repo.merge_trees(
+            repo.repo.merge_base(parent_commit.id, child_commit.id),
+            parent_commit.tree,
+            child_commit.tree,
+        )
+        # Check for conflicts, excluding session.json (auto-resolved)
+        if merge_index.conflicts:
+            for ancestor, ours, theirs in merge_index.conflicts:
+                path = (ours or theirs or ancestor).path
+                if path != ".forge/session.json":
+                    return False  # Real conflict
+        return True  # No conflicts (or only session.json)
+    except Exception:
+        return False
 
 
 def get_schema() -> dict[str, Any]:
@@ -79,11 +120,15 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             yield_message = session_data.get("yield_message")
             
             if state in ("completed", "waiting_input", "waiting_children"):
+                # Check if merge would be clean
+                merge_clean = _check_merge_clean(repo, parent_branch, branch)
+                
                 ready_children.append({
                     "branch": branch,
                     "state": state,
                     "message": yield_message,
                     "task": session_data.get("task", ""),
+                    "merge_clean": merge_clean,
                 })
             elif state == "running":
                 running_children.append(branch)
@@ -114,6 +159,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "message": child["message"],
             "task": child["task"],
             "ready": True,
+            "merge_clean": child["merge_clean"],
         }
     
     # All children still running - we need to yield

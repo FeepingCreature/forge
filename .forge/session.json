@@ -1,11 +1,12 @@
 {
   "active_files": [
-    "forge/session/registry.py",
+    "forge/session/startup.py",
+    "forge/session/runner.py",
     "CLAUDE.md",
     "forge/git_backend/commit_types.py",
-    "forge/tools/builtin/resume_session.py",
-    "forge/session/startup.py",
-    "forge/session/runner.py"
+    "forge/session/registry.py",
+    "forge/prompts/manager.py",
+    "forge/tools/builtin/resume_session.py"
   ],
   "request_log_entries": [
     {
@@ -1888,6 +1889,78 @@
       "streaming": true,
       "actual_cost": 0.05859775,
       "generation_id": "gen-1768674738-1iQZ7RmxheFctkhFOgPB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674810810.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674810810.json",
+      "timestamp": 1768674810.811959,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.55677,
+      "generation_id": "gen-1768674811-wAzOFGJ64IpoZJLV6MhA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674833950.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674833950.json",
+      "timestamp": 1768674833.9521544,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.63586125,
+      "generation_id": "gen-1768674834-ao1vIDmKHVy3UQINkZ5g"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768674888459.json",
+      "response_file": "/tmp/forge_debug/response_1768674888459.json",
+      "timestamp": 1768674888.4608643,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004181,
+      "generation_id": "gen-1768674888-2SD9TXbwY3Kzr9pOZmsJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768674888460.json",
+      "response_file": "/tmp/forge_debug/response_1768674888460.json",
+      "timestamp": 1768674888.4611182,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004805,
+      "generation_id": "gen-1768674888-6JKFsgCpHNbo0FyCrOux"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674910705.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674910705.json",
+      "timestamp": 1768674910.707114,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.627355,
+      "generation_id": "gen-1768674911-0hfpM0MMENQnCdyZKZ2L"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674925447.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674925447.json",
+      "timestamp": 1768674925.448467,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06222425,
+      "generation_id": "gen-1768674925-cgTDpDnPBmTPLt9omZyS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674937570.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674937570.json",
+      "timestamp": 1768674937.5711856,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0075145,
+      "generation_id": "gen-1768674937-LZ76zVmrSdzzdmZTQ7G1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768674938486.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768674938486.json",
+      "timestamp": 1768674938.4882793,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.061345,
+      "generation_id": "gen-1768674938-ZLk3t7tEo1pEtlcw1A1f"
     }
   ],
   "messages": [
@@ -6458,12 +6531,172 @@
       "role": "system",
       "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/debug-v5\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"_yield\": true,\n  \"_yield_message\": \"Waiting on child sessions: ai/debug-v5\",\n  \"message\": \"All child sessions still running. Current session will yield.\",\n  \"ready\": false,\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true,\n  \"waiting_on\": [\n    \"ai/debug-v5\"\n  ]\n}\n```",
       "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 83 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "ah shit. we tried again, but then\n\n{\"error\":{\"message\":\"Provider returned error\",\"code\":400,\"metadata\":{\"raw\":\"{\\\"type\\\":\\\"error\\\",\\\"error\\\":{\\\"type\\\":\\\"invalid_request_error\\\",\\\"message\\\":\\\"messages.252.content.1: each tool_use\nmust have a single result. Found multiple `tool_result` blocks with id: toolu_016QMqPmJbt1eKFx9NUU8x7o\\\"},\\\"request_id\\\":\\\"req_vrtx_011CXDRqEgK8AwBwERnDBBGu\\\"}\",\"provider_name\":\"Google\",\"is_by\nok\":false}},\"user_id\":\"user_2ZECsWGEpQLlTAJ4p9Kf0rCMBZ3\"}\n\nwe don't correctly resume the wait_session call, or we don't correctly clear out the initial result from it."
+    },
+    {
+      "role": "assistant",
+      "content": "Ah! The error is clear:\n\n```\neach tool_use must have a single result. Found multiple `tool_result` blocks with id: toolu_016QMqPmJbt1eKFx9NUU8x7o\n```\n\nThe problem is: when `wait_session` returns `_yield`, we're supposed to **NOT** record the tool result (so we can re-execute it later). But looking at the code flow:\n\n1. `_on_tool_finished` is called \u2192 adds tool result message AND calls `append_tool_result`\n2. THEN `_on_tools_all_finished` sees `_yield` \u2192 tries to `pop_last_message()` to remove it\n\nBut `pop_last_message()` only removes from `self.messages` - it doesn't remove from `prompt_manager`! So the tool result is still in the prompt, and when we resume and re-execute `wait_session`, we add a SECOND tool result with the same ID.\n\nLet me fix this - we need to also remove from prompt_manager:\n\n<edit file=\"forge/session/runner.py\">\n<search>\n            # Check for _yield flag (from wait_session when no children ready)\n            if result.get(\"_yield\"):\n                # DON'T record this tool result - we'll re-execute when we wake up\n                # Store the call so we can replay it\n                self._pending_wait_call = {\n                    \"tool_call_id\": tool_call.get(\"id\"),\n                    \"tool_name\": tool_call.get(\"function\", {}).get(\"name\"),\n                    \"tool_args\": r.get(\"tool_args\", {}),\n                }\n                # Remove the tool result message we just added (it's stale)\n                if self.messages and self.messages[-1].get(\"role\") == \"tool\":\n                    self.pop_last_message()\n\n                self.yield_waiting(result.get(\"_yield_message\", \"Waiting on child sessions\"))\n                return\n</search>\n<replace>\n            # Check for _yield flag (from wait_session when no children ready)\n            if result.get(\"_yield\"):\n                # DON'T record this tool result - we'll re-execute when we wake up\n                # Store the call so we can replay it\n                tool_call_id = tool_call.get(\"id\")\n                self._pending_wait_call = {\n                    \"tool_call_id\": tool_call_id,\n                    \"tool_name\": tool_call.get(\"function\", {}).get(\"name\"),\n                    \"tool_args\": r.get(\"tool_args\", {}),\n                }\n                # Remove the tool result message we just added (it's stale)\n                # Must remove from BOTH messages list AND prompt_manager\n                if self.messages and self.messages[-1].get(\"role\") == \"tool\":\n                    self.pop_last_message()\n                # Also remove from prompt_manager so we don't get duplicate tool_result\n                self.session_manager.prompt_manager.remove_tool_result(tool_call_id)\n\n                self.yield_waiting(result.get(\"_yield_message\", \"Waiting on child sessions\"))\n                return\n</replace>\n</edit>\n\nNow I need to add the `remove_tool_result` method to PromptManager:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_015mNHDM3bkv3768NrVyR1Gk",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/runner.py",
+          "modified_files": [
+            "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_015mNHDM3bkv3768NrVyR1Gk",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I need to add the `remove_tool_result` method to PromptManager:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def append_tool_result(self, tool_call_id: str, result: str) -> None:\n        \"\"\"Add a tool result to the stream\"\"\"\n        # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$\n        if not tool_call_id:\n            print(f\"\u274c ERROR: Empty tool_call_id! Result: {result[:100]}...\")\n            raise ValueError(f\"tool_call_id cannot be empty (result: {result[:100]}...)\")\n\n        # Assign a user-friendly integer ID\n        user_id = str(self._next_tool_id)\n        self._next_tool_id += 1\n        self._tool_id_map[user_id] = tool_call_id\n\n        print(\n            f\"\ud83d\udccb PromptManager: Appending tool result #{user_id} for {tool_call_id} ({len(result)} chars)\"\n        )\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.TOOL_RESULT,\n                content=result,\n                metadata={\"tool_call_id\": tool_call_id, \"user_id\": user_id},\n            )\n        )\n</search>\n<replace>\n    def append_tool_result(self, tool_call_id: str, result: str) -> None:\n        \"\"\"Add a tool result to the stream\"\"\"\n        # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$\n        if not tool_call_id:\n            print(f\"\u274c ERROR: Empty tool_call_id! Result: {result[:100]}...\")\n            raise ValueError(f\"tool_call_id cannot be empty (result: {result[:100]}...)\")\n\n        # Assign a user-friendly integer ID\n        user_id = str(self._next_tool_id)\n        self._next_tool_id += 1\n        self._tool_id_map[user_id] = tool_call_id\n\n        print(\n            f\"\ud83d\udccb PromptManager: Appending tool result #{user_id} for {tool_call_id} ({len(result)} chars)\"\n        )\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.TOOL_RESULT,\n                content=result,\n                metadata={\"tool_call_id\": tool_call_id, \"user_id\": user_id},\n            )\n        )\n\n    def remove_tool_result(self, tool_call_id: str) -> bool:\n        \"\"\"\n        Remove a tool result from the stream by tool_call_id.\n        \n        Used when wait_session yields - we don't want to record the stale\n        \"still waiting\" result, so we can re-execute and record the fresh result.\n        \n        Returns True if found and removed, False otherwise.\n        \"\"\"\n        for block in reversed(self.blocks):\n            if (\n                block.block_type == BlockType.TOOL_RESULT\n                and not block.deleted\n                and block.metadata.get(\"tool_call_id\") == tool_call_id\n            ):\n                block.deleted = True\n                print(f\"\ud83d\uddd1\ufe0f  PromptManager: Removed tool result for {tool_call_id}\")\n                return True\n        return False\n</replace>\n</edit>\n\n<run_tests/>\n\n<commit message=\"fix: remove stale wait_session tool result from prompt when yielding\n\nWhen wait_session returns _yield (no children ready), we must NOT\nrecord the tool result - otherwise when we resume and re-execute\nwait_session, we'd add a SECOND tool result with the same ID,\ncausing 'each tool_use must have a single result' API error.\n\nAdded PromptManager.remove_tool_result() to delete the result block,\nand call it from SessionRunner when we see _yield flag.\"/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_fx_h_57c\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 64 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 73%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 64 passed in 0.25s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_fx_h_57c\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 64 items\n\ntests/test_inline_edit.py ................                               [ 25%]\ntests/test_prompt_manager.py ...............................             [ 73%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 64 passed in 0.25s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "2c278f44424b",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 92 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay- restarted; try again?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me try the full spawn \u2192 resume \u2192 wait flow again with all the fixes in place:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"task\": \"Create hello.py with print(\\\"Hello\\\")\", \"branch_name\": \"ai/test-final\"}",
+            "name": "spawn_session"
+          },
+          "id": "toolu_015X2X74e843JyjvfYY6EHyo",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_015X2X74e843JyjvfYY6EHyo",
+      "content": "{\"_spawned_child\": \"ai/test-final\", \"branch\": \"ai/test-final\", \"message\": \"Created child session on branch 'ai/test-final'. Use resume_session('ai/test-final', 'your instructions') to start it.\", \"success\": true, \"task\": \"Create hello.py with print(\\\"Hello\\\")\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `spawn_session`\n```json\n{\n  \"branch_name\": \"ai/test-final\",\n  \"task\": \"Create hello.py with print(\\\"Hello\\\")\"\n}\n```\n**Result:**\n```json\n{\n  \"_spawned_child\": \"ai/test-final\",\n  \"branch\": \"ai/test-final\",\n  \"message\": \"Created child session on branch 'ai/test-final'. Use resume_session('ai/test-final', 'your instructions') to start it.\",\n  \"success\": true,\n  \"task\": \"Create hello.py with print(\\\"Hello\\\")\"\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, spawn worked. Let me continue with resume and wait:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branch\": \"ai/test-final\", \"message\": \"Create hello.py with print(\\\"Hello\\\") - just that one file, then you're done.\"}",
+            "name": "resume_session"
+          },
+          "id": "toolu_01F9U52nwkgyQbGXkuWfTDga",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01F9U52nwkgyQbGXkuWfTDga",
+      "content": "{\"_start_message\": \"Create hello.py with print(\\\"Hello\\\") - just that one file, then you're done.\", \"_start_session\": \"ai/test-final\", \"branch\": \"ai/test-final\", \"message\": \"Resumed child session 'ai/test-final'. Use wait_session to check for completion.\", \"state\": \"running\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `resume_session`\n```json\n{\n  \"branch\": \"ai/test-final\",\n  \"message\": \"Create hello.py with print(\\\"Hello\\\") - just that one file, then you're done.\"\n}\n```\n**Result:**\n```json\n{\n  \"_start_message\": \"Create hello.py with print(\\\"Hello\\\") - just that one file, then you're done.\",\n  \"_start_session\": \"ai/test-final\",\n  \"branch\": \"ai/test-final\",\n  \"message\": \"Resumed child session 'ai/test-final'. Use wait_session to check for completion.\",\n  \"state\": \"running\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me wait on the child:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"branches\": \"[\\\"ai/test-final\\\"]\"}",
+            "name": "wait_session"
+          },
+          "id": "toolu_01QTR5Mc1gJWdKjtwmzyHqd1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01QTR5Mc1gJWdKjtwmzyHqd1",
+      "content": "{\"_yield\": true, \"_yield_message\": \"Waiting on child sessions: ai/test-final\", \"message\": \"All child sessions still running. Current session will yield.\", \"ready\": false, \"side_effects\": [\"mid_turn_commit\"], \"success\": true, \"waiting_on\": [\"ai/test-final\"]}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `wait_session`\n```json\n{\n  \"branches\": [\n    \"ai/test-final\"\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"_yield\": true,\n  \"_yield_message\": \"Waiting on child sessions: ai/test-final\",\n  \"message\": \"All child sessions still running. Current session will yield.\",\n  \"ready\": false,\n  \"side_effects\": [\n    \"mid_turn_commit\"\n  ],\n  \"success\": true,\n  \"waiting_on\": [\n    \"ai/test-final\"\n  ]\n}\n```",
+      "_ui_only": true
     }
   ],
   "parent_session": null,
   "child_sessions": [
-    "ai/debug-v5"
+    "ai/test-final"
   ],
   "state": "waiting_children",
-  "yield_message": "Waiting on child sessions: ai/debug-v5"
+  "yield_message": "Waiting on child sessions: ai/test-final"
 }

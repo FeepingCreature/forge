@@ -380,6 +380,26 @@ class PromptManager:
             )
         )
 
+    def remove_tool_result(self, tool_call_id: str) -> bool:
+        """
+        Remove a tool result from the stream by tool_call_id.
+
+        Used when wait_session yields - we don't want to record the stale
+        "still waiting" result, so we can re-execute and record the fresh result.
+
+        Returns True if found and removed, False otherwise.
+        """
+        for block in reversed(self.blocks):
+            if (
+                block.block_type == BlockType.TOOL_RESULT
+                and not block.deleted
+                and block.metadata.get("tool_call_id") == tool_call_id
+            ):
+                block.deleted = True
+                print(f"🗑️  PromptManager: Removed tool result for {tool_call_id}")
+                return True
+        return False
+
     def get_active_files(self) -> list[str]:
         """Get list of files currently in context (not deleted)"""
         files = []

@@ -904,14 +904,18 @@ class SessionRunner(QObject):
             if result.get("_yield"):
                 # DON'T record this tool result - we'll re-execute when we wake up
                 # Store the call so we can replay it
+                tool_call_id = tool_call.get("id")
                 self._pending_wait_call = {
-                    "tool_call_id": tool_call.get("id"),
+                    "tool_call_id": tool_call_id,
                     "tool_name": tool_call.get("function", {}).get("name"),
                     "tool_args": r.get("tool_args", {}),
                 }
                 # Remove the tool result message we just added (it's stale)
+                # Must remove from BOTH messages list AND prompt_manager
                 if self.messages and self.messages[-1].get("role") == "tool":
                     self.pop_last_message()
+                # Also remove from prompt_manager so we don't get duplicate tool_result
+                self.session_manager.prompt_manager.remove_tool_result(tool_call_id)
 
                 self.yield_waiting(result.get("_yield_message", "Waiting on child sessions"))
                 return

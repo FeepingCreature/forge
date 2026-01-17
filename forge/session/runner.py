@@ -793,7 +793,10 @@ class SessionRunner(QObject):
         if self._parent_session:
             from forge.session.registry import SESSION_REGISTRY
 
+            print(f"🔔 Child {self.session_manager.branch_name} notifying parent {self._parent_session}")
             SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
+        else:
+            print(f"🔔 Session {self.session_manager.branch_name} has no parent to notify")
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread."""

@@ -358,7 +358,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         return self.prompt_manager.estimate_conversation_tokens()
 
     def commit_ai_turn(
-        self, messages: list[dict[str, Any]], commit_message: str | None = None
+        self, 
+        messages: list[dict[str, Any]], 
+        commit_message: str | None = None,
+        session_metadata: dict[str, Any] | None = None,
     ) -> str:
         """
         Commit all changes from an AI turn.
@@ -372,12 +375,13 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         Args:
             messages: Session messages to save
             commit_message: Optional commit message (will generate if not provided)
+            session_metadata: Optional metadata from SessionRunner (parent/child/state info)
 
         Returns:
             Commit OID as string
         """
         # Build session state with messages
-        session_state = self.get_session_data(messages)
+        session_state = self.get_session_data(messages, session_metadata)
 
         # Add session state to VFS (single file per branch)
         self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_state, indent=2))

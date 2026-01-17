@@ -1,5 +1,10 @@
 {
-  "active_files": [],
+  "active_files": [
+    "forge/git_backend/repository.py",
+    "forge/ui/session_dropdown.py",
+    "forge/ui/main_window.py",
+    "forge/ui/git_graph/widget.py"
+  ],
   "request_log_entries": [
     {
       "request_file": "/tmp/forge_debug/request_stream_1768666201962.json",
@@ -486,6 +491,60 @@
       "streaming": true,
       "actual_cost": 0.2657725,
       "generation_id": "gen-1768669226-EimMvhDGlhcZIm4bH8PA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768669238744.json",
+      "response_file": "/tmp/forge_debug/response_1768669238744.json",
+      "timestamp": 1768669238.7446322,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000192,
+      "generation_id": "gen-1768669238-PNlYMJSKFJ1AHByQf4WN"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669316806.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669316806.json",
+      "timestamp": 1768669316.8069289,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0300495,
+      "generation_id": "gen-1768669317-hRZZgYWjKAfjxwi14REM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669323431.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669323431.json",
+      "timestamp": 1768669323.4324236,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.167004,
+      "generation_id": "gen-1768669323-aMmTYFdrzdy7iaoeiHld"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669349227.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669349227.json",
+      "timestamp": 1768669349.228099,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.15778575,
+      "generation_id": "gen-1768669349-rjpfq3WOWCJrf353NbgE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669357315.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669357315.json",
+      "timestamp": 1768669357.3166938,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0423635,
+      "generation_id": "gen-1768669357-ZQUtdt9YALHX5hotxqZJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768669363602.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768669363602.json",
+      "timestamp": 1768669363.6037145,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.138114,
+      "generation_id": "gen-1768669363-aYlFJoBrc72IWpeurePg"
     }
   ],
   "messages": [
@@ -1728,6 +1787,244 @@
     {
       "role": "assistant",
       "content": "Great progress! Let me summarize where we are:\n\n## \u2705 DONE\n1. **SessionRunner** - Headless AI execution engine with full run loop\n2. **Event buffering** - Attach/detach with thread-safe event queue\n3. **SessionRegistry** - Global singleton tracking all runners\n4. **AIChatWidget as view** - Delegates to runner, handles attach/detach\n5. **SessionDropdown** - UI showing all sessions with states\n6. **Spawn/resume/wait/merge tools** - Created and wired to registry\n\n## \ud83d\udd32 REMAINING\n1. **Test end-to-end** - Actually spawn a child session and see it work\n2. **Wire dropdown to main_window** - Replace \"+\" button, handle session switching\n3. **Handle orphan cleanup** - UI for cleaning up abandoned child sessions\n\nThe core architecture is in place. The next step is to wire the dropdown into `main_window.py` and test the full flow. Want me to:\n\n1. **Wire the dropdown** - Connect it to main_window, handle session selection/creation\n2. **Write a test** - Unit test for spawn \u2192 resume \u2192 wait \u2192 merge flow\n3. **Try it manually** - Just run the app and see what breaks\n\nWhich would you prefer? I'd suggest (1) since without the dropdown wired up, we can't actually test the feature end-to-end."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: a1a0e0cd",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Look stop worrying about context for now okay? There's no saving it, these are just large files.\nYeah the dropdown makes sense. We need to add a signal for git changes (new branches/new commits), let's use the opportunity to also hook it up to the Git panel which currently doesn't reread the repo on new commits/branches, that's a good bugfix anyway. Then let's think about how we can test this. Part of the problem is that we don't really have a good way to UI test."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, let me just load what I need and get it done:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/main_window.py\", \"forge/ui/session_dropdown.py\", \"forge/git_backend/repository.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_0193yPrmakVwrJQZK5GgwStB",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_0193yPrmakVwrJQZK5GgwStB",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/main_window.py\", \"forge/ui/session_dropdown.py\", \"forge/git_backend/repository.py\"], \"message\": \"Added 3 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see everything. Let me:\n\n1. Add a git change signal to `ForgeRepository`\n2. Wire it up to the dropdown and git panel\n3. Make commits emit the signal\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n\"\"\"\nGit repository management using pygit2\n\"\"\"\n\nimport contextlib\nfrom pathlib import Path\n\nimport pygit2\n\nfrom forge.constants import SESSION_BRANCH_PREFIX\nfrom forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type\n\n\nclass ForgeRepository:\n</search>\n<replace>\n\"\"\"\nGit repository management using pygit2\n\"\"\"\n\nimport contextlib\nfrom pathlib import Path\n\nimport pygit2\nfrom PySide6.QtCore import QObject, Signal\n\nfrom forge.constants import SESSION_BRANCH_PREFIX\nfrom forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type\n\n\nclass RepositorySignals(QObject):\n    \"\"\"Qt signals for repository changes.\"\"\"\n    \n    # Emitted when a branch is created or deleted\n    branches_changed = Signal()\n    \n    # Emitted when a commit is made (branch_name, commit_oid)\n    commit_made = Signal(str, str)\n\n\nclass ForgeRepository:\n</replace>\n</edit>\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n    def __init__(self, repo_path: str | None = None) -> None:\n        \"\"\"Initialize repository\"\"\"\n        if repo_path is None:\n            repo_path = self._find_repo()\n\n        self.repo = pygit2.Repository(repo_path)\n</search>\n<replace>\n    def __init__(self, repo_path: str | None = None) -> None:\n        \"\"\"Initialize repository\"\"\"\n        if repo_path is None:\n            repo_path = self._find_repo()\n\n        self.repo = pygit2.Repository(repo_path)\n        self.signals = RepositorySignals()\n</replace>\n</edit>\n\nNow emit signals when branches are created/deleted and commits are made:\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n    def create_session_branch(self, session_name: str) -> str:\n        \"\"\"Create a new branch for an AI session\"\"\"\n        # Get current HEAD\n        head = self.repo.head\n\n        # Create new branch\n        branch_name = f\"{SESSION_BRANCH_PREFIX}{session_name}\"\n\n        # Check if branch already exists\n        if branch_name in self.repo.branches:\n            return branch_name\n\n        commit = head.peel(pygit2.Commit)\n        self.repo.branches.create(branch_name, commit)\n\n        return branch_name\n</search>\n<replace>\n    def create_session_branch(self, session_name: str) -> str:\n        \"\"\"Create a new branch for an AI session\"\"\"\n        # Get current HEAD\n        head = self.repo.head\n\n        # Create new branch\n        branch_name = f\"{SESSION_BRANCH_PREFIX}{session_name}\"\n\n        # Check if branch already exists\n        if branch_name in self.repo.branches:\n            return branch_name\n\n        commit = head.peel(pygit2.Commit)\n        self.repo.branches.create(branch_name, commit)\n        \n        self.signals.branches_changed.emit()\n\n        return branch_name\n</replace>\n</edit>\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n        # Default: create new commit with formatted message\n        formatted_message = format_commit_message(commit_type, message)\n\n        # Create signature\n        signature = pygit2.Signature(author_name, author_email)\n\n        # Create commit\n        commit_oid = self.repo.create_commit(\n            f\"refs/heads/{branch_name}\",  # Update branch ref\n            signature,  # author\n            signature,  # committer\n            formatted_message,\n            tree_oid,\n            [parent_commit.id],  # parents\n        )\n\n        return commit_oid\n</search>\n<replace>\n        # Default: create new commit with formatted message\n        formatted_message = format_commit_message(commit_type, message)\n\n        # Create signature\n        signature = pygit2.Signature(author_name, author_email)\n\n        # Create commit\n        commit_oid = self.repo.create_commit(\n            f\"refs/heads/{branch_name}\",  # Update branch ref\n            signature,  # author\n            signature,  # committer\n            formatted_message,\n            tree_oid,\n            [parent_commit.id],  # parents\n        )\n\n        self.signals.commit_made.emit(branch_name, str(commit_oid))\n        return commit_oid\n</replace>\n</edit>\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n    def delete_branch(self, branch_name: str) -> None:\n        \"\"\"\n        Delete a local branch.\n\n        Args:\n            branch_name: Name of the branch to delete\n\n        Raises:\n            ValueError: If trying to delete the currently checked-out branch\n                        or the default branch\n        \"\"\"\n        # Don't allow deleting the current branch\n        current = self.get_checked_out_branch()\n        if current == branch_name:\n            raise ValueError(f\"Cannot delete currently checked-out branch: {branch_name}\")\n\n        # Don't allow deleting the default branch\n        default = self.get_default_branch()\n        if branch_name == default:\n            raise ValueError(f\"Cannot delete default branch: {branch_name}\")\n\n        # Get the branch reference and delete it\n        branch = self.repo.branches.local[branch_name]\n        branch.delete()\n</search>\n<replace>\n    def delete_branch(self, branch_name: str) -> None:\n        \"\"\"\n        Delete a local branch.\n\n        Args:\n            branch_name: Name of the branch to delete\n\n        Raises:\n            ValueError: If trying to delete the currently checked-out branch\n                        or the default branch\n        \"\"\"\n        # Don't allow deleting the current branch\n        current = self.get_checked_out_branch()\n        if current == branch_name:\n            raise ValueError(f\"Cannot delete currently checked-out branch: {branch_name}\")\n\n        # Don't allow deleting the default branch\n        default = self.get_default_branch()\n        if branch_name == default:\n            raise ValueError(f\"Cannot delete default branch: {branch_name}\")\n\n        # Get the branch reference and delete it\n        branch = self.repo.branches.local[branch_name]\n        branch.delete()\n        \n        self.signals.branches_changed.emit()\n</replace>\n</edit>\n\nAlso emit for amend_commit since that changes the branch:\n\n<edit file=\"forge/git_backend/repository.py\">\n<search>\n        # Now force-update the branch to point to the new commit\n        branch = self.repo.branches[branch_name]\n        branch.set_target(new_commit_oid)\n\n        return new_commit_oid\n</search>\n<replace>\n        # Now force-update the branch to point to the new commit\n        branch = self.repo.branches[branch_name]\n        branch.set_target(new_commit_oid)\n\n        self.signals.commit_made.emit(branch_name, str(new_commit_oid))\n        return new_commit_oid\n</replace>\n</edit>\n\nNow wire up the git graph to refresh on changes. Let me check what the git graph looks like:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/git_graph.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01VkmdRbzPgpP8rjtchYjvaN",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/git_backend/repository.py",
+          "modified_files": [
+            "forge/git_backend/repository.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01VkmdRbzPgpP8rjtchYjvaN",
+      "content": "{\"error\": \"File not found: forge/ui/git_graph.py\", \"success\": false}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\u274c **update_context** failed: File not found: forge/ui/git_graph.py",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "No git_graph.py - it must be named differently. Let me search:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"GitGraphScrollArea\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01V5r8wxsERbAzaTi8Ku6Kyf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01V5r8wxsERbAzaTi8Ku6Kyf",
+      "content": "{\"message\": \"Found 4 matches\", \"output\": \"\\u2500\\u2500 forge/ui/git_graph/__init__.py:6 \\u2500\\u2500\\n       3 | from forge.ui.git_graph.widget import GitGraphView\\n       4 | \\n       5 | # Backwards compatibility alias\\n>>>    6 | GitGraphScrollArea = GitGraphView\\n       7 | \\n       8 | __all__ = [\\\"GitGraphView\\\", \\\"GitGraphScrollArea\\\"]\\n       9 | \\n\\n\\u2500\\u2500 forge/ui/git_graph/__init__.py:8 \\u2500\\u2500\\n       5 | # Backwards compatibility alias\\n       6 | GitGraphScrollArea = GitGraphView\\n       7 | \\n>>>    8 | __all__ = [\\\"GitGraphView\\\", \\\"GitGraphScrollArea\\\"]\\n       9 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:32 \\u2500\\u2500\\n      29 | from forge.ui.ai_chat_widget import AIChatWidget\\n      30 | from forge.ui.branch_tab_widget import BranchTabWidget\\n      31 | from forge.ui.branch_workspace import BranchWorkspace\\n>>>   32 | from forge.ui.git_graph import GitGraphScrollArea\\n      33 | from forge.ui.request_debug_window import RequestDebugWindow\\n      34 | from forge.ui.settings_dialog import SettingsDialog\\n      35 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:91 \\u2500\\u2500\\n      88 |         self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)\\n      89 | \\n      90 |         # Add git graph as first tab (not closable)\\n>>>   91 |         self.git_graph = GitGraphScrollArea(self.repo)\\n      92 |         self.branch_tabs.addTab(self.git_graph, \\\"\\ud83d\\udcca Git\\\")\\n      93 |         # Make git graph tab not closable\\n      94 |         self.branch_tabs.tabBar().setTabButton(\", \"success\": true, \"total_matches\": 4}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"GitGraphScrollArea\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 4 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/git_graph/__init__.py:6 \\u2500\\u2500\\n       3 | from forge.ui.git_graph.widget import GitGraphView\\n       4 | \\n       5 | # Backwards compatibility alias\\n>>>    6 | GitGraphScrollArea = GitGraphView\\n       7 | \\n       8 | __all__ = [\\\"GitGraphView\\\", \\\"GitGraphScrollArea\\\"]\\n       9 | \\n\\n\\u2500\\u2500 forge/ui/git_graph/__init__.py:8 \\u2500\\u2500\\n       5 | # Backwards compatibility alias\\n       6 | GitGraphScrollArea = GitGraphView\\n       7 | \\n>>>    8 | __all__ = [\\\"GitGraphView\\\", \\\"GitGraphScrollArea\\\"]\\n       9 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:32 \\u2500\\u2500\\n      29 | from forge.ui.ai_chat_widget import AIChatWidget\\n      30 | from forge.ui.branch_tab_widget import BranchTabWidget\\n      31 | from forge.ui.branch_workspace import BranchWorkspace\\n>>>   32 | from forge.ui.git_graph import GitGraphScrollArea\\n      33 | from forge.ui.request_debug_window import RequestDebugWindow\\n      34 | from forge.ui.settings_dialog import SettingsDialog\\n      35 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:91 \\u2500\\u2500\\n      88 |         self.branch_tabs.currentChanged.connect(self._on_branch_tab_changed)\\n      89 | \\n      90 |         # Add git graph as first tab (not closable)\\n>>>   91 |         self.git_graph = GitGraphScrollArea(self.repo)\\n      92 |         self.branch_tabs.addTab(self.git_graph, \\\"\\ud83d\\udcca Git\\\")\\n      93 |         # Make git graph tab not closable\\n      94 |         self.branch_tabs.tabBar().setTabButton(\",\n  \"success\": true,\n  \"total_matches\": 4\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found it - it's in `forge/ui/git_graph/widget.py`. Let me load that and wire everything up:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/git_graph/widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01StGzUfTBoH44DwfQd7dCdm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01StGzUfTBoH44DwfQd7dCdm",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/git_graph/widget.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see `GitGraphView` has a `refresh()` method. Now let me wire everything up in `MainWindow`:\n\n<edit file=\"forge/ui/main_window.py\">\n<search>\n        # Add git graph as first tab (not closable)\n        self.git_graph = GitGraphScrollArea(self.repo)\n        self.branch_tabs.addTab(self.git_graph, \"\ud83d\udcca Git\")\n        # Make git graph tab not closable\n        self.branch_tabs.tabBar().setTabButton(\n            0, self.branch_tabs.tabBar().ButtonPosition.RightSide, None\n        )\n\n        # Add \"+\" button for new branch\n        self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)\n</search>\n<replace>\n        # Add git graph as first tab (not closable)\n        self.git_graph = GitGraphScrollArea(self.repo)\n        self.branch_tabs.addTab(self.git_graph, \"\ud83d\udcca Git\")\n        # Make git graph tab not closable\n        self.branch_tabs.tabBar().setTabButton(\n            0, self.branch_tabs.tabBar().ButtonPosition.RightSide, None\n        )\n\n        # Add \"+\" button for new branch\n        self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)\n\n        # Connect repo signals for live updates\n        self.repo.signals.branches_changed.connect(self._on_git_changed)\n        self.repo.signals.commit_made.connect(self._on_commit_made)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/main_window.py\">\n<search>\n    def _on_debug_window_closed(self) -> None:\n        \"\"\"Handle debug window being closed\"\"\"\n        self._debug_window = None\n</search>\n<replace>\n    def _on_debug_window_closed(self) -> None:\n        \"\"\"Handle debug window being closed\"\"\"\n        self._debug_window = None\n\n    def _on_git_changed(self) -> None:\n        \"\"\"Handle git branches changed - refresh git graph and dropdown.\"\"\"\n        self.git_graph.refresh()\n        self._populate_branches_menu()\n        # Dropdown updates automatically via SESSION_REGISTRY signals\n\n    def _on_commit_made(self, branch_name: str, commit_oid: str) -> None:\n        \"\"\"Handle commit made - refresh git graph.\"\"\"\n        self.git_graph.refresh()\n</replace>\n</edit>\n\nNow let's also update the session dropdown to show branches that have sessions but aren't currently in the registry (i.e., not open). This makes it useful for discovering existing sessions:\n\n<edit file=\"forge/ui/session_dropdown.py\">\n<search>\n\"\"\"\nSession dropdown widget - shows all sessions and their states.\n\nReplaces the simple \"+\" button with a dropdown that shows:\n- All registered sessions with their states (running, idle, waiting, etc.)\n- Parent/child relationships\n- Quick actions (new session, new branch)\n\"\"\"\n\nfrom typing import TYPE_CHECKING, Any\n\nfrom PySide6.QtCore import Qt, Signal\nfrom PySide6.QtWidgets import (\n    QFrame,\n    QHBoxLayout,\n    QLabel,\n    QMenu,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n    QWidgetAction,\n)\n\nif TYPE_CHECKING:\n    from forge.session.registry import SessionRegistry\n</search>\n<replace>\n\"\"\"\nSession dropdown widget - shows all sessions and their states.\n\nReplaces the simple \"+\" button with a dropdown that shows:\n- All registered sessions with their states (running, idle, waiting, etc.)\n- Parent/child relationships  \n- Branches with sessions that aren't currently open\n- Quick actions (new session, new branch)\n\"\"\"\n\nfrom typing import TYPE_CHECKING, Any\n\nfrom PySide6.QtCore import Qt, Signal\nfrom PySide6.QtWidgets import (\n    QFrame,\n    QHBoxLayout,\n    QLabel,\n    QMenu,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n    QWidgetAction,\n)\n\nif TYPE_CHECKING:\n    from forge.git_backend.repository import ForgeRepository\n    from forge.session.registry import SessionRegistry\n</replace>\n</edit>\n\n<edit file=\"forge/ui/session_dropdown.py\">\n<search>\nclass SessionDropdown(QWidget):\n    \"\"\"\n    Dropdown widget showing all sessions and their states.\n    \n    Replaces the \"+\" button in the corner of the branch tab widget.\n    \"\"\"\n    \n    # Signals\n    session_selected = Signal(str)  # branch_name - user wants to open/focus this session\n    new_session_requested = Signal()\n    new_branch_requested = Signal()\n    \n    def __init__(self, parent: QWidget | None = None):\n        super().__init__(parent)\n</search>\n<replace>\nclass SessionDropdown(QWidget):\n    \"\"\"\n    Dropdown widget showing all sessions and their states.\n    \n    Replaces the \"+\" button in the corner of the branch tab widget.\n    \"\"\"\n    \n    # Signals\n    session_selected = Signal(str)  # branch_name - user wants to open/focus this session\n    new_session_requested = Signal()\n    new_branch_requested = Signal()\n    \n    def __init__(self, repo: \"ForgeRepository | None\" = None, parent: QWidget | None = None):\n        super().__init__(parent)\n        self.repo = repo\n</replace>\n</edit>\n\n<edit file=\"forge/ui/session_dropdown.py\">\n<search>\n    def _show_dropdown(self) -> None:\n        \"\"\"Show the dropdown menu with all sessions.\"\"\"\n        from forge.session.registry import SESSION_REGISTRY\n        \n        menu = QMenu(self)\n        \n        # Get all session states\n        states = SESSION_REGISTRY.get_session_states()\n        \n        if states:\n            # Group by parent/child relationship\n            # First show top-level sessions (no parent)\n            top_level = {k: v for k, v in states.items() if not v.get(\"is_child\")}\n            \n            for branch_name, state_info in sorted(top_level.items()):\n                self._add_session_to_menu(menu, branch_name, state_info)\n                \n                # Add children indented\n                for child_name in state_info.get(\"children\", []):\n                    if child_name in states:\n                        self._add_session_to_menu(menu, child_name, states[child_name], indent=True)\n            \n            # Show orphan children (parent not in registry)\n            orphans = {k: v for k, v in states.items() \n                      if v.get(\"is_child\") and v.get(\"parent\") not in states}\n            if orphans:\n                menu.addSeparator()\n                orphan_label = QWidgetAction(menu)\n                label = QLabel(\"  Orphaned sessions:\")\n                label.setStyleSheet(\"color: #888; font-size: 11px;\")\n                orphan_label.setDefaultWidget(label)\n                menu.addAction(orphan_label)\n                for branch_name, state_info in sorted(orphans.items()):\n                    self._add_session_to_menu(menu, branch_name, state_info)\n        else:\n            no_sessions = menu.addAction(\"No active sessions\")\n            no_sessions.setEnabled(False)\n        \n        menu.addSeparator()\n        \n        # New session/branch actions\n        new_session = menu.addAction(\"\ud83e\udd16 New AI Session...\")\n        new_session.triggered.connect(self.new_session_requested.emit)\n        \n        new_branch = menu.addAction(\"\ud83c\udf3f New Branch...\")\n        new_branch.triggered.connect(self.new_branch_requested.emit)\n        \n        # Show menu below button\n        menu.exec(self.dropdown_btn.mapToGlobal(self.dropdown_btn.rect().bottomLeft()))\n</search>\n<replace>\n    def _show_dropdown(self) -> None:\n        \"\"\"Show the dropdown menu with all sessions.\"\"\"\n        import json\n        from forge.session.registry import SESSION_REGISTRY\n        \n        menu = QMenu(self)\n        \n        # Get all session states from registry (currently open sessions)\n        states = SESSION_REGISTRY.get_session_states()\n        open_branches = set(states.keys())\n        \n        # Also find branches with sessions that aren't open\n        closed_sessions: list[str] = []\n        if self.repo:\n            for branch_name in self.repo.repo.branches.local:\n                if branch_name not in open_branches:\n                    # Check if this branch has a session file\n                    try:\n                        content = self.repo.get_file_content(\".forge/session.json\", branch_name)\n                        json.loads(content)  # Validate it's valid JSON\n                        closed_sessions.append(branch_name)\n                    except (FileNotFoundError, KeyError, json.JSONDecodeError):\n                        pass\n        \n        has_any = bool(states) or bool(closed_sessions)\n        \n        if states:\n            # Group by parent/child relationship\n            # First show top-level sessions (no parent)\n            top_level = {k: v for k, v in states.items() if not v.get(\"is_child\")}\n            \n            for branch_name, state_info in sorted(top_level.items()):\n                self._add_session_to_menu(menu, branch_name, state_info)\n                \n                # Add children indented\n                for child_name in state_info.get(\"children\", []):\n                    if child_name in states:\n                        self._add_session_to_menu(menu, child_name, states[child_name], indent=True)\n            \n            # Show orphan children (parent not in registry)\n            orphans = {k: v for k, v in states.items() \n                      if v.get(\"is_child\") and v.get(\"parent\") not in states}\n            if orphans:\n                menu.addSeparator()\n                orphan_label = QWidgetAction(menu)\n                label = QLabel(\"  Orphaned sessions:\")\n                label.setStyleSheet(\"color: #888; font-size: 11px;\")\n                orphan_label.setDefaultWidget(label)\n                menu.addAction(orphan_label)\n                for branch_name, state_info in sorted(orphans.items()):\n                    self._add_session_to_menu(menu, branch_name, state_info)\n        \n        # Show closed sessions (have session file but not open)\n        if closed_sessions:\n            if states:\n                menu.addSeparator()\n            closed_label = QWidgetAction(menu)\n            label = QLabel(\"  Other sessions:\")\n            label.setStyleSheet(\"color: #888; font-size: 11px;\")\n            closed_label.setDefaultWidget(label)\n            menu.addAction(closed_label)\n            \n            for branch_name in sorted(closed_sessions):\n                action = menu.addAction(f\"    \ud83d\udca4 {branch_name}\")\n                action.setToolTip(\"Session not open - click to open\")\n                action.triggered.connect(\n                    lambda checked=False, bn=branch_name: self.session_selected.emit(bn)\n                )\n        \n        if not has_any:\n            no_sessions = menu.addAction(\"No sessions\")\n            no_sessions.setEnabled(False)\n        \n        menu.addSeparator()\n        \n        # New session/branch actions\n        new_session = menu.addAction(\"\ud83e\udd16 New AI Session...\")\n        new_session.triggered.connect(self.new_session_requested.emit)\n        \n        new_branch = menu.addAction(\"\ud83c\udf3f New Branch...\")\n        new_branch.triggered.connect(self.new_branch_requested.emit)\n        \n        # Show menu below button\n        menu.exec(self.dropdown_btn.mapToGlobal(self.dropdown_btn.rect().bottomLeft()))\n</replace>\n</edit>\n\nNow update main_window to pass the repo to SessionDropdown:\n\n<edit file=\"forge/ui/main_window.py\">\n<search>\n    def _create_new_branch_button(self) -> QWidget:\n        \"\"\"Create the session dropdown widget for the corner\"\"\"\n        from forge.ui.session_dropdown import SessionDropdown\n\n        self.session_dropdown = SessionDropdown()\n        self.session_dropdown.session_selected.connect(self._open_branch)\n        self.session_dropdown.new_session_requested.connect(self._new_ai_session)\n        self.session_dropdown.new_branch_requested.connect(self._new_feature_branch)\n        return self.session_dropdown\n</search>\n<replace>\n    def _create_new_branch_button(self) -> QWidget:\n        \"\"\"Create the session dropdown widget for the corner\"\"\"\n        from forge.ui.session_dropdown import SessionDropdown\n\n        self.session_dropdown = SessionDropdown(repo=self.repo)\n        self.session_dropdown.session_selected.connect(self._open_branch)\n        self.session_dropdown.new_session_requested.connect(self._new_ai_session)\n        self.session_dropdown.new_branch_requested.connect(self._new_feature_branch)\n        return self.session_dropdown\n</replace>\n</edit>\n\nNow let's run the tests to make sure everything still works:\n\n<run_tests/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/main_window.py",
+          "modified_files": [
+            "forge/ui/main_window.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/main_window.py",
+          "modified_files": [
+            "forge/ui/main_window.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/session_dropdown.py",
+          "modified_files": [
+            "forge/ui/session_dropdown.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/session_dropdown.py",
+          "modified_files": [
+            "forge/ui/session_dropdown.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/session_dropdown.py",
+          "modified_files": [
+            "forge/ui/session_dropdown.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/main_window.py",
+          "modified_files": [
+            "forge/ui/main_window.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_akd38jp4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.09s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_akd38jp4\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 47 items\n\ntests/test_inline_edit.py ................                               [ 34%]\ntests/test_prompt_manager.py ...............................             [100%]\n\n============================== 47 passed in 0.09s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
     }
   ]
 }

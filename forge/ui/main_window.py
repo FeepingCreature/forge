@@ -98,6 +98,10 @@ class MainWindow(QMainWindow):
         # Add "+" button for new branch
         self.branch_tabs.setCornerWidget(self._create_new_branch_button(), Qt.Corner.TopRightCorner)
 
+        # Connect repo signals for live updates
+        self.repo.signals.branches_changed.connect(self._on_git_changed)
+        self.repo.signals.commit_made.connect(self._on_commit_made)
+
         # Enable context menu on tab bar
         tab_bar = self.branch_tabs.tabBar()
         tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -127,7 +131,7 @@ class MainWindow(QMainWindow):
         """Create the session dropdown widget for the corner"""
         from forge.ui.session_dropdown import SessionDropdown
 
-        self.session_dropdown = SessionDropdown()
+        self.session_dropdown = SessionDropdown(repo=self.repo)
         self.session_dropdown.session_selected.connect(self._open_branch)
         self.session_dropdown.new_session_requested.connect(self._new_ai_session)
         self.session_dropdown.new_branch_requested.connect(self._new_feature_branch)
@@ -683,6 +687,16 @@ class MainWindow(QMainWindow):
     def _on_debug_window_closed(self) -> None:
         """Handle debug window being closed"""
         self._debug_window = None
+
+    def _on_git_changed(self) -> None:
+        """Handle git branches changed - refresh git graph and dropdown."""
+        self.git_graph.refresh()
+        self._populate_branches_menu()
+        # Dropdown updates automatically via SESSION_REGISTRY signals
+
+    def _on_commit_made(self, branch_name: str, commit_oid: str) -> None:
+        """Handle commit made - refresh git graph."""
+        self.git_graph.refresh()
 
     def _get_current_workspace(self) -> BranchWorkspace | None:
         """Get the current branch's workspace"""

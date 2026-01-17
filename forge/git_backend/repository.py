@@ -6,9 +6,20 @@ import contextlib
 from pathlib import Path
 
 import pygit2
+from PySide6.QtCore import QObject, Signal
 
 from forge.constants import SESSION_BRANCH_PREFIX
 from forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type
+
+
+class RepositorySignals(QObject):
+    """Qt signals for repository changes."""
+    
+    # Emitted when a branch is created or deleted
+    branches_changed = Signal()
+    
+    # Emitted when a commit is made (branch_name, commit_oid)
+    commit_made = Signal(str, str)
 
 
 class ForgeRepository:
@@ -20,6 +31,7 @@ class ForgeRepository:
             repo_path = self._find_repo()
 
         self.repo = pygit2.Repository(repo_path)
+        self.signals = RepositorySignals()
 
     def get_checked_out_branch(self) -> str | None:
         """Get the name of the currently checked-out branch, or None if detached HEAD."""
@@ -77,6 +89,8 @@ class ForgeRepository:
 
         commit = head.peel(pygit2.Commit)
         self.repo.branches.create(branch_name, commit)
+        
+        self.signals.branches_changed.emit()
 
         return branch_name
 
@@ -315,6 +329,7 @@ class ForgeRepository:
             [parent_commit.id],  # parents
         )
 
+        self.signals.commit_made.emit(branch_name, str(commit_oid))
         return commit_oid
 
     def amend_commit(
@@ -385,6 +400,7 @@ class ForgeRepository:
         branch = self.repo.branches[branch_name]
         branch.set_target(new_commit_oid)
 
+        self.signals.commit_made.emit(branch_name, str(new_commit_oid))
         return new_commit_oid
 
     def absorb_prepare_commits(self, branch_name: str, major_message: str) -> pygit2.Oid | None:
@@ -517,6 +533,8 @@ class ForgeRepository:
         # Get the branch reference and delete it
         branch = self.repo.branches.local[branch_name]
         branch.delete()
+        
+        self.signals.branches_changed.emit()
 
     def move_branch(self, branch_name: str, target_oid: str) -> None:
         """

@@ -3,7 +3,8 @@ Session dropdown widget - shows all sessions and their states.
 
 Replaces the simple "+" button with a dropdown that shows:
 - All registered sessions with their states (running, idle, waiting, etc.)
-- Parent/child relationships
+- Parent/child relationships  
+- Branches with sessions that aren't currently open
 - Quick actions (new session, new branch)
 """
 
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 if TYPE_CHECKING:
+    from forge.git_backend.repository import ForgeRepository
     from forge.session.registry import SessionRegistry
 
 
@@ -111,8 +113,9 @@ class SessionDropdown(QWidget):
     new_session_requested = Signal()
     new_branch_requested = Signal()
     
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, repo: "ForgeRepository | None" = None, parent: QWidget | None = None):
         super().__init__(parent)
+        self.repo = repo
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -167,12 +170,29 @@ class SessionDropdown(QWidget):
     
     def _show_dropdown(self) -> None:
         """Show the dropdown menu with all sessions."""
+        import json
         from forge.session.registry import SESSION_REGISTRY
         
         menu = QMenu(self)
         
-        # Get all session states
+        # Get all session states from registry (currently open sessions)
         states = SESSION_REGISTRY.get_session_states()
+        open_branches = set(states.keys())
+        
+        # Also find branches with sessions that aren't open
+        closed_sessions: list[str] = []
+        if self.repo:
+            for branch_name in self.repo.repo.branches.local:
+                if branch_name not in open_branches:
+                    # Check if this branch has a session file
+                    try:
+                        content = self.repo.get_file_content(".forge/session.json", branch_name)
+                        json.loads(content)  # Validate it's valid JSON
+                        closed_sessions.append(branch_name)
+                    except (FileNotFoundError, KeyError, json.JSONDecodeError):
+                        pass
+        
+        has_any = bool(states) or bool(closed_sessions)
         
         if states:
             # Group by parent/child relationship
@@ -199,8 +219,26 @@ class SessionDropdown(QWidget):
                 menu.addAction(orphan_label)
                 for branch_name, state_info in sorted(orphans.items()):
                     self._add_session_to_menu(menu, branch_name, state_info)
-        else:
-            no_sessions = menu.addAction("No active sessions")
+        
+        # Show closed sessions (have session file but not open)
+        if closed_sessions:
+            if states:
+                menu.addSeparator()
+            closed_label = QWidgetAction(menu)
+            label = QLabel("  Other sessions:")
+            label.setStyleSheet("color: #888; font-size: 11px;")
+            closed_label.setDefaultWidget(label)
+            menu.addAction(closed_label)
+            
+            for branch_name in sorted(closed_sessions):
+                action = menu.addAction(f"    💤 {branch_name}")
+                action.setToolTip("Session not open - click to open")
+                action.triggered.connect(
+                    lambda checked=False, bn=branch_name: self.session_selected.emit(bn)
+                )
+        
+        if not has_any:
+            no_sessions = menu.addAction("No sessions")
             no_sessions.setEnabled(False)
         
         menu.addSeparator()

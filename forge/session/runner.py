@@ -805,6 +805,20 @@ class SessionRunner(QObject):
             self.session_manager.file_was_modified(filepath, tool_call_id)
         self._pending_file_updates = []
         
+        # Check for special tool flags that affect control flow
+        for r in results:
+            result = r.get("result", {})
+            
+            # Check for _yield flag (from wait_session when no children ready)
+            if result.get("_yield"):
+                self.yield_waiting(result.get("_yield_message", "Waiting on child sessions"))
+                return
+            
+            # Check for _start_session flag (from resume_session)
+            if result.get("_start_session"):
+                branch_name = result["_start_session"]
+                self._start_child_session(branch_name, result.get("_start_message", ""))
+        
         # Check for queued message
         if self._queued_message:
             queued = self._queued_message
@@ -813,6 +827,54 @@ class SessionRunner(QObject):
             self.session_manager.append_user_message(queued)
         
         self._continue_after_tools()
+    
+    def _start_child_session(self, branch_name: str, message: str) -> None:
+        """Start or resume a child session."""
+        from forge.session.registry import SESSION_REGISTRY
+        
+        child_runner = SESSION_REGISTRY.get(branch_name)
+        if child_runner:
+            # Child already registered - send message to resume
+            child_runner.send_message(message)
+        else:
+            # Child not registered - need to create runner for it
+            # This happens when resuming a session that was persisted but not loaded
+            self._load_and_start_child(branch_name, message)
+    
+    def _load_and_start_child(self, branch_name: str, message: str) -> None:
+        """Load a child session from disk and start it."""
+        from forge.session.registry import SESSION_REGISTRY
+        from forge.session.manager import SessionManager
+        
+        # Load session from the child branch
+        child_session_manager = SessionManager.load_session(
+            self.session_manager.repo,
+            branch_name,
+            self.session_manager.settings,
+        )
+        
+        if not child_session_manager:
+            # No session exists - this shouldn't happen if spawn_session worked
+            self.add_message({
+                "role": "system",
+                "content": f"⚠️ Could not load session for branch {branch_name}",
+                "_ui_only": True,
+            })
+            return
+        
+        # Load session data to get messages
+        session_data = child_session_manager.load_session_data()
+        messages = session_data.get("messages", []) if session_data else []
+        
+        # Create runner for child
+        child_runner = SessionRunner(child_session_manager, messages)
+        child_runner.set_parent(self.session_manager.branch_name)
+        
+        # Register with global registry
+        SESSION_REGISTRY.register(branch_name, child_runner)
+        
+        # Send the message to start it
+        child_runner.send_message(message)
     
     def _on_tool_error(self, error_msg: str) -> None:
         """Handle tool execution error."""
@@ -916,18 +978,31 @@ class SessionRunner(QObject):
         """Set the parent session branch."""
         self._parent_session = parent_branch
     
-    def yield_waiting(self, message: str) -> None:
+    def yield_waiting(self, message: str, waiting_type: str = "children") -> None:
         """
         Yield execution, waiting for children or input.
         
         Called by wait_session tool when no children are ready,
         or by done() when asking a question.
+        
+        Args:
+            message: The yield message (question or status)
+            waiting_type: "children" or "input"
         """
         self._yield_message = message
-        self.state = SessionState.WAITING_CHILDREN
+        
+        if waiting_type == "children":
+            self.state = SessionState.WAITING_CHILDREN
+        else:
+            self.state = SessionState.WAITING_INPUT
         
         # Commit current state
         self.session_manager.commit_ai_turn(self.messages)
+        
+        # Notify parent if we have one
+        if self._parent_session:
+            from forge.session.registry import SESSION_REGISTRY
+            SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
     
     def get_session_metadata(self) -> dict[str, Any]:
         """Get metadata for session.json persistence."""

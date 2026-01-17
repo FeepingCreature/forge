@@ -122,7 +122,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
             "message": "All child sessions still running. Current session will yield.",
             # Signal to SessionRunner to yield
             "_yield": True,
-            "_yield_reason": "waiting_children",
+            "_yield_message": f"Waiting on child sessions: {', '.join(running_children)}",
             "side_effects": [SideEffect.MID_TURN_COMMIT],  # Force commit before yield
         }
     

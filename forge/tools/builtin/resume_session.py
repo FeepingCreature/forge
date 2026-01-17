@@ -107,8 +107,9 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
             "branch": branch,
             "state": "running",
             "message": f"Resumed child session '{branch}'. Use wait_session to check for completion.",
-            # Flag for session registry to pick up
+            # Flags for SessionRunner to pick up
             "_start_session": branch,
+            "_start_message": message,
         }
         
     except Exception as e:

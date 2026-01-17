@@ -121,7 +121,9 @@ class SessionRegistry(QObject):
             print(f"⚠️ notify_parent: parent {child._parent_session} not in registry")
             return
 
-        print(f"📣 notify_parent: child={child_branch}, parent={child._parent_session}, parent.state={parent.state}")
+        print(
+            f"📣 notify_parent: child={child_branch}, parent={child._parent_session}, parent.state={parent.state}"
+        )
 
         from forge.session.runner import SessionState
 

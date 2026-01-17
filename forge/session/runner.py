@@ -439,8 +439,10 @@ class SessionRunner(QObject):
             _trigger_only: If True, just start processing without adding a message
                           (used when message is already in loaded session.json)
         """
-        print(f"📨 send_message called: text={text!r}, state={self._state}, _trigger_only={_trigger_only}")
-        
+        print(
+            f"📨 send_message called: text={text!r}, state={self._state}, _trigger_only={_trigger_only}"
+        )
+
         if self._state == SessionState.RUNNING:
             # Queue the message
             print(f"📨 State is RUNNING, queuing message")
@@ -802,7 +804,9 @@ class SessionRunner(QObject):
         if self._parent_session:
             from forge.session.registry import SESSION_REGISTRY
 
-            print(f"🔔 Child {self.session_manager.branch_name} notifying parent {self._parent_session}")
+            print(
+                f"🔔 Child {self.session_manager.branch_name} notifying parent {self._parent_session}"
+            )
             SESSION_REGISTRY.notify_parent(self.session_manager.branch_name)
         else:
             print(f"🔔 Session {self.session_manager.branch_name} has no parent to notify")
@@ -1113,9 +1117,7 @@ class SessionRunner(QObject):
             from forge.session.registry import SESSION_REGISTRY
 
             print(f"🔍 Race check: _child_sessions={self._child_sessions}")
-            child_states = SESSION_REGISTRY.get_children_states(
-                self.session_manager.branch_name
-            )
+            child_states = SESSION_REGISTRY.get_children_states(self.session_manager.branch_name)
             print(f"🔍 Race check: child_states={child_states}")
             ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
 
@@ -1126,6 +1128,7 @@ class SessionRunner(QObject):
                     # Use QMetaObject.invokeMethod with QueuedConnection to ensure
                     # the call happens after the current call stack unwinds
                     from PySide6.QtCore import QMetaObject, Qt, Q_ARG
+
                     print(f"🔍 About to invoke _do_resume_from_wait via queued connection")
                     QMetaObject.invokeMethod(
                         self, "_do_resume_from_wait", Qt.ConnectionType.QueuedConnection
@@ -1143,7 +1146,7 @@ class SessionRunner(QObject):
         }
 
     from PySide6.QtCore import Slot
-    
+
     @Slot()
     def _do_resume_from_wait(self) -> None:
         """Slot called via QueuedConnection to resume after wait_session."""

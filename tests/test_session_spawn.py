@@ -123,11 +123,12 @@ class TestToolApiVersionDetection:
 
 
 class TestWaitSessionTool:
-    """Tests for wait_session tool - reads state from session files on disk."""
+    """Tests for wait_session tool - uses registry for live session state."""
     
     def test_wait_returns_ready_child(self):
-        """Test that wait_session returns when a child is ready (completed state in file)."""
+        """Test that wait_session returns when a child is ready."""
         from forge.tools.builtin.wait_session import execute
+        from forge.session.registry import SESSION_REGISTRY
         
         # Create mock ToolContext
         mock_vfs = MagicMock()
@@ -140,40 +141,40 @@ class TestWaitSessionTool:
             branch_name="parent-branch",
         )
         
-        # Child session data - child-2 is completed
-        child_sessions = {
-            "child-1": {
-                "parent_session": "parent-branch",
-                "state": "running",
-                "yield_message": None,
-                "task": "Task 1",
-            },
-            "child-2": {
-                "parent_session": "parent-branch",
-                "state": "completed",
-                "yield_message": "I finished the task successfully!",
-                "task": "Task 2",
-            },
-        }
+        # Register mock child runners in registry
+        child1_runner = MagicMock(spec=SessionRunner)
+        child1_runner.state = "running"
+        child1_runner._parent_session = "parent-branch"
+        child1_runner._yield_message = None
+        child1_runner.state_changed = MagicMock()
+        child1_runner.state_changed.connect = MagicMock()
         
-        # Mock get_branch_vfs to return child session data
-        def mock_get_branch_vfs(branch):
-            child_vfs = MagicMock()
-            child_vfs.read_file.return_value = json.dumps(child_sessions.get(branch, {}))
-            return child_vfs
-        ctx.get_branch_vfs = mock_get_branch_vfs
+        child2_runner = MagicMock(spec=SessionRunner)
+        child2_runner.state = "completed"
+        child2_runner._parent_session = "parent-branch"
+        child2_runner._yield_message = "I finished the task successfully!"
+        child2_runner.state_changed = MagicMock()
+        child2_runner.state_changed.connect = MagicMock()
         
-        result = execute(ctx, {"branches": ["child-1", "child-2"]})
+        SESSION_REGISTRY.register("child-1", child1_runner)
+        SESSION_REGISTRY.register("child-2", child2_runner)
         
-        assert result["success"] is True
-        assert result["branch"] == "child-2"
-        assert result["state"] == "completed"
-        assert result["message"] == "I finished the task successfully!"
-        assert result["ready"] is True
+        try:
+            result = execute(ctx, {"branches": ["child-1", "child-2"]})
+            
+            assert result["success"] is True
+            assert result["branch"] == "child-2"
+            assert result["state"] == "completed"
+            assert result["message"] == "I finished the task successfully!"
+            assert result["ready"] is True
+        finally:
+            SESSION_REGISTRY.unregister("child-1")
+            SESSION_REGISTRY.unregister("child-2")
     
     def test_wait_yields_when_no_children_ready(self):
         """Test that wait_session yields when all children still running."""
         from forge.tools.builtin.wait_session import execute
+        from forge.session.registry import SESSION_REGISTRY
         
         mock_vfs = MagicMock()
         mock_repo = MagicMock()
@@ -185,25 +186,25 @@ class TestWaitSessionTool:
             branch_name="parent-branch",
         )
         
-        child_session = {
-            "parent_session": "parent-branch",
-            "state": "running",
-            "yield_message": None,
-            "task": "Still working",
-        }
+        # Register mock child runner as running
+        child_runner = MagicMock(spec=SessionRunner)
+        child_runner.state = "running"
+        child_runner._parent_session = "parent-branch"
+        child_runner._yield_message = None
+        child_runner.state_changed = MagicMock()
+        child_runner.state_changed.connect = MagicMock()
         
-        def mock_get_branch_vfs(branch):
-            child_vfs = MagicMock()
-            child_vfs.read_file.return_value = json.dumps(child_session)
-            return child_vfs
-        ctx.get_branch_vfs = mock_get_branch_vfs
+        SESSION_REGISTRY.register("child-1", child_runner)
         
-        result = execute(ctx, {"branches": ["child-1"]})
-        
-        assert result["success"] is True
-        assert result["ready"] is False
-        assert result.get("_yield") is True
-        assert "child-1" in result.get("_yield_message", "")
+        try:
+            result = execute(ctx, {"branches": ["child-1"]})
+            
+            assert result["success"] is True
+            assert result["ready"] is False
+            assert result.get("_yield") is True
+            assert "child-1" in result.get("_yield_message", "")
+        finally:
+            SESSION_REGISTRY.unregister("child-1")
 
 
 class TestResumeSessionTool:
@@ -474,16 +475,29 @@ class TestFullSpawnWaitMergeFlow:
             branch_name=parent_branch,
         )
         
-        wait_result = wait_execute(parent_ctx, {
-            "branches": [child_branch],
-        })
+        # Register a mock child runner with completed state
+        from forge.session.registry import SESSION_REGISTRY
+        child_runner = MagicMock(spec=SessionRunner)
+        child_runner.state = "completed"
+        child_runner._parent_session = parent_branch
+        child_runner._yield_message = "I created hello.py with the greet() function as requested."
+        child_runner.state_changed = MagicMock()
+        child_runner.state_changed.connect = MagicMock()
+        SESSION_REGISTRY.register(child_branch, child_runner)
         
-        assert wait_result["success"] is True, f"Wait failed: {wait_result}"
-        assert wait_result["ready"] is True, "Child should be ready"
-        assert wait_result["branch"] == child_branch
-        assert wait_result["state"] == "completed"
-        assert "greet" in wait_result["message"].lower() or "hello.py" in wait_result["message"].lower()
-        print(f"Wait result: ready={wait_result['ready']}, message={wait_result['message']}")
+        try:
+            wait_result = wait_execute(parent_ctx, {
+                "branches": [child_branch],
+            })
+            
+            assert wait_result["success"] is True, f"Wait failed: {wait_result}"
+            assert wait_result["ready"] is True, "Child should be ready"
+            assert wait_result["branch"] == child_branch
+            assert wait_result["state"] == "completed"
+            assert "greet" in wait_result["message"].lower() or "hello.py" in wait_result["message"].lower()
+            print(f"Wait result: ready={wait_result['ready']}, message={wait_result['message']}")
+        finally:
+            SESSION_REGISTRY.unregister(child_branch)
         
         # =====================================================================
         # STEP 5: Parent merges child
@@ -564,14 +578,27 @@ class TestFullSpawnWaitMergeFlow:
         
         resume_execute(parent_ctx, {"branch": child_branch, "message": "Do it"})
         
-        # Child is now "running" - wait should yield
-        wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+        # Register mock child runner as running
+        from forge.session.registry import SESSION_REGISTRY
+        child_runner = MagicMock(spec=SessionRunner)
+        child_runner.state = "running"
+        child_runner._parent_session = parent_branch
+        child_runner._yield_message = None
+        child_runner.state_changed = MagicMock()
+        child_runner.state_changed.connect = MagicMock()
+        SESSION_REGISTRY.register(child_branch, child_runner)
         
-        assert wait_result["success"] is True
-        assert wait_result["ready"] is False, "Child still running, not ready"
-        assert wait_result.get("_yield") is True, "Should yield when child running"
-        assert child_branch in wait_result.get("_yield_message", "")
-        print(f"✓ Wait correctly yields when child still running")
+        try:
+            # Child is now "running" - wait should yield
+            wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+            
+            assert wait_result["success"] is True
+            assert wait_result["ready"] is False, "Child still running, not ready"
+            assert wait_result.get("_yield") is True, "Should yield when child running"
+            assert child_branch in wait_result.get("_yield_message", "")
+            print(f"✓ Wait correctly yields when child still running")
+        finally:
+            SESSION_REGISTRY.unregister(child_branch)
     
     def test_merge_with_conflicts_and_markers(self, qtbot, forge_repo, temp_git_repo):
         """
@@ -659,11 +686,24 @@ class TestFullSpawnWaitMergeFlow:
             branch_name=parent_branch,
         )
         
-        wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
-        assert wait_result["success"], f"Wait failed: {wait_result}"
-        assert wait_result["ready"] is True
-        assert wait_result["merge_clean"] is False, "Should report merge conflict"
-        print(f"Wait result: ready={wait_result['ready']}, merge_clean={wait_result['merge_clean']}")
+        # Register mock child runner as completed
+        from forge.session.registry import SESSION_REGISTRY
+        child_runner = MagicMock(spec=SessionRunner)
+        child_runner.state = "completed"
+        child_runner._parent_session = parent_branch
+        child_runner._yield_message = "Modified shared.py"
+        child_runner.state_changed = MagicMock()
+        child_runner.state_changed.connect = MagicMock()
+        SESSION_REGISTRY.register(child_branch, child_runner)
+        
+        try:
+            wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+            assert wait_result["success"], f"Wait failed: {wait_result}"
+            assert wait_result["ready"] is True
+            assert wait_result["merge_clean"] is False, "Should report merge conflict"
+            print(f"Wait result: ready={wait_result['ready']}, merge_clean={wait_result['merge_clean']}")
+        finally:
+            SESSION_REGISTRY.unregister(child_branch)
         
         # =====================================================================
         # STEP 5: Merge with allow_conflicts=True
@@ -765,6 +805,16 @@ class TestFullSpawnWaitMergeFlow:
         # =====================================================================
         print("\n=== STEP 2: Parent waits (child still running) ===")
         
+        # Register mock child runner as running
+        from forge.session.registry import SESSION_REGISTRY
+        child_runner = MagicMock(spec=SessionRunner)
+        child_runner.state = "running"
+        child_runner._parent_session = parent_branch
+        child_runner._yield_message = None
+        child_runner.state_changed = MagicMock()
+        child_runner.state_changed.connect = MagicMock()
+        SESSION_REGISTRY.register(child_branch, child_runner)
+        
         wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
         
         assert wait_result["ready"] is False, "Child should still be running"
@@ -820,6 +870,10 @@ class TestFullSpawnWaitMergeFlow:
         # We can't easily call _resume_pending_wait because it needs tool_manager
         # wired up. Instead, let's verify the logic by manually re-executing wait
         
+        # Update mock child runner to completed state
+        child_runner.state = "completed"
+        child_runner._yield_message = "Task finished successfully!"
+        
         # Refresh context and re-execute wait
         parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
         parent_ctx = ToolContext(vfs=parent_vfs, repo=forge_repo, branch_name=parent_branch)
@@ -841,3 +895,6 @@ class TestFullSpawnWaitMergeFlow:
         print("  - Initial wait returned ready=False, _yield=True")
         print("  - After child completed, re-executed wait returns ready=True")
         print("\n=== TEST PASSED: Pending wait call re-execution ===")
+        
+        # Cleanup
+        SESSION_REGISTRY.unregister(child_branch)

@@ -248,7 +248,7 @@ class ToolExecutionWorker(QObject):
                                     print(f"🔧 Parsed {key} to: {parsed}")
                             except json.JSONDecodeError as e:
                                 print(f"🔧 Failed to parse {key}: {e}")
-                    
+
                     print(f"🔧 Tool {tool_name} final args: {tool_args}")
 
                 except json.JSONDecodeError as e:

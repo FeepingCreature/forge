@@ -103,6 +103,39 @@ class MoodBar(QWidget):
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
 
+    def mouseMoveEvent(self, event: QEvent) -> None:  # noqa: N802
+        """Show tooltip immediately on mouse move (no delay)."""
+        from PySide6.QtGui import QMouseEvent
+
+        if not isinstance(event, QMouseEvent):
+            return
+
+        pos = event.pos()
+        for segment_rect, segment in self._segment_rects:
+            if segment_rect.contains(pos):
+                name = segment.get("name", "Unknown")
+                tokens = segment.get("tokens", 0)
+                details = segment.get("details", "")
+
+                # Calculate percentage
+                percent = (tokens / self._total_tokens * 100) if self._total_tokens > 0 else 0
+
+                # Format token count
+                token_str = f"{tokens / 1000:.1f}k" if tokens >= 1000 else str(tokens)
+
+                tooltip = f"{name}: {token_str} tokens ({percent:.1f}%)"
+                if details:
+                    # Truncate long details
+                    if len(details) > 200:
+                        details = details[:200] + "..."
+                    tooltip += f"\n\n{details}"
+
+                QToolTip.showText(event.globalPosition().toPoint(), tooltip, self)
+                return
+
+        # No segment under mouse, hide tooltip
+        QToolTip.hideText()
+
     def event(self, event: QEvent) -> bool:
         """Handle tooltip events for segment-specific tooltips."""
         if event.type() == QEvent.Type.ToolTip:

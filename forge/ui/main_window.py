@@ -111,11 +111,11 @@ class MainWindow(QMainWindow):
         tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         tab_bar.customContextMenuRequested.connect(self._show_branch_context_menu)
 
-        # Mood bar for token usage visualization (full width, above tabs)
+        layout.addWidget(self.branch_tabs)
+
+        # Mood bar for token usage visualization (full width, above status bar)
         self._mood_bar = MoodBar()
         layout.addWidget(self._mood_bar)
-
-        layout.addWidget(self.branch_tabs)
 
         # Status bar
         self.status_bar = QStatusBar()

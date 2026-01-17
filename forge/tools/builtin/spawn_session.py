@@ -63,8 +63,8 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
         branch_name = f"ai/{sanitized}"
     
     # Get the repository and current branch from VFS
-    repo = vfs._repo  # Access the underlying repo
-    parent_branch = vfs._branch_name
+    repo = vfs.repo
+    parent_branch = vfs.branch_name
     
     try:
         # Get current branch HEAD

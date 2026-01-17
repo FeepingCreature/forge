@@ -52,7 +52,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     if not message:
         return {"success": False, "error": "Message is required"}
     
-    repo = vfs._repo
+    repo = vfs.repo
     
     # Check if branch exists
     if branch not in repo.repo.branches:
@@ -71,7 +71,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
             return {"success": False, "error": f"No valid session found on branch '{branch}'"}
         
         # Check if this is actually a child of current session
-        parent_branch = vfs._branch_name
+        parent_branch = vfs.branch_name
         if session_data.get("parent_session") != parent_branch:
             return {
                 "success": False,

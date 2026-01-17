@@ -99,14 +99,14 @@ class TestWaitSessionTool:
         """Test that wait_session returns when a child is ready (completed state in file)."""
         from forge.tools.builtin.wait_session import execute
         
-        # Mock VFS with private attributes that the tool uses
+        # Mock VFS with public attributes
         mock_vfs = MagicMock()
-        mock_vfs._branch_name = "parent-branch"
+        mock_vfs.branch_name = "parent-branch"
         
         # Mock repo with branches
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x in ["parent-branch", "child-1", "child-2"]
-        mock_vfs._repo = mock_repo
+        mock_vfs.repo = mock_repo
         
         # Child session data - child-2 is completed
         child_sessions = {
@@ -145,11 +145,11 @@ class TestWaitSessionTool:
         from forge.tools.builtin.wait_session import execute
         
         mock_vfs = MagicMock()
-        mock_vfs._branch_name = "parent-branch"
+        mock_vfs.branch_name = "parent-branch"
         
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x in ["parent-branch", "child-1"]
-        mock_vfs._repo = mock_repo
+        mock_vfs.repo = mock_repo
         
         child_session = {
             "parent_session": "parent-branch",
@@ -179,11 +179,11 @@ class TestResumeSessionTool:
         from forge.tools.builtin.resume_session import execute
         
         mock_vfs = MagicMock()
-        mock_vfs._branch_name = "parent-branch"
+        mock_vfs.branch_name = "parent-branch"
         
         mock_repo = MagicMock()
         mock_repo.repo.branches.__contains__ = lambda self, x: x == "child-branch"
-        mock_vfs._repo = mock_repo
+        mock_vfs.repo = mock_repo
         
         # Existing child session
         child_session = {

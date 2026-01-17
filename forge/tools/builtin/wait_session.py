@@ -47,8 +47,8 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     if not branches:
         return {"success": False, "error": "At least one branch is required"}
     
-    repo = vfs._repo
-    parent_branch = vfs._branch_name
+    repo = vfs.repo
+    parent_branch = vfs.branch_name
     
     # Check each child's state
     ready_children = []

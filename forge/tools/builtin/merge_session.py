@@ -50,8 +50,8 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     if not branch:
         return {"success": False, "error": "Branch name is required"}
     
-    repo = vfs._repo
-    parent_branch = vfs._branch_name
+    repo = vfs.repo
+    parent_branch = vfs.branch_name
     
     # Check if branch exists
     if branch not in repo.repo.branches:

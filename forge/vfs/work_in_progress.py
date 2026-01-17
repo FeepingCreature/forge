@@ -27,8 +27,8 @@ class WorkInProgressVFS(VFS):
 
     def __init__(self, repo: "ForgeRepository", branch_name: str) -> None:
         super().__init__()  # Initialize thread ownership
-        self.repo = repo
-        self.branch_name = branch_name
+        self.repo = repo  # Public: the ForgeRepository instance
+        self.branch_name = branch_name  # Public: the branch name
 
         # Get base commit
         commit = repo.get_branch_head(branch_name)

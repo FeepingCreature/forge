@@ -203,6 +203,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                                         conflict_path, blob_id, pygit2.enums.FileMode.BLOB
                                     )
                                 )
+                            # Remove the conflict entry so write_tree() works
+                            del merge_index.conflicts[conflict_path]
 
                         # Also add session.json from parent (auto-resolve)
                         for path in resolved_paths:
@@ -211,6 +213,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                                 merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
                             except KeyError:
                                 pass
+                            # Remove the conflict entry
+                            del merge_index.conflicts[path]
 
                         # Create merge commit with conflicts from in-memory index
                         tree = merge_index.write_tree(repo.repo)
@@ -237,6 +241,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                         try:
                             entry = parent_commit.tree[path]
                             merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
+                            # Remove the conflict entry so write_tree() works
+                            del merge_index.conflicts[path]
                         except KeyError:
                             pass
 

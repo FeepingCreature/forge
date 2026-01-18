@@ -451,6 +451,42 @@
       "streaming": true,
       "actual_cost": 0.61615375,
       "generation_id": "gen-1768744641-zw5jqfBJ8kXhyzDxuvC0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768744653404.json",
+      "response_file": "/tmp/forge_debug/response_1768744653404.json",
+      "timestamp": 1768744653.404701,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000232,
+      "generation_id": "gen-1768744653-ruDoMH97i7q2Td18G7ny"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744763337.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744763337.json",
+      "timestamp": 1768744763.339698,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0591025,
+      "generation_id": "gen-1768744763-8ujLU1RwJc7BHQkPuCsf"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744771052.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744771052.json",
+      "timestamp": 1768744771.0535724,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06470175,
+      "generation_id": "gen-1768744771-iWRtjM91OKHgkrKI1Be1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744777254.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744777254.json",
+      "timestamp": 1768744777.255611,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.09199425,
+      "generation_id": "gen-1768744777-UY2K44WJGfwMPabfWPpc"
     }
   ],
   "messages": [
@@ -1571,6 +1607,81 @@
     {
       "role": "assistant",
       "content": "All the work is complete. Let me summarize what was done:\n\n## Summary of Changes\n\n### 1. **Fixed state persistence bug** (`forge/session/runner.py:788`)\n- Moved `self.state = SessionState.IDLE` to **before** `commit_ai_turn()` so the correct state is persisted\n\n### 2. **Refactored SessionRegistry** (`forge/session/registry.py`)\n- Now scans **all branches** on startup for session.json (not just ai/ prefix)\n- Added `SessionInfo` dataclass for lightweight metadata\n- `_load_session_info()` normalizes \"running\" \u2192 \"idle\" on load (crash recovery)\n- `get()` returns `SessionInfo` (or None), `get_runner()` returns the live runner\n- `register_runner()`/`unregister_runner()` attach/detach live runners\n- `refresh_branch()` reloads a single branch after commits\n\n### 3. **Updated all callers to use new registry API:**\n- `forge/ui/main_window.py:57` - Added `SESSION_REGISTRY.initialize(self.repo)` on startup\n- `forge/tools/builtin/merge_session.py:81` - Uses `session_info = SESSION_REGISTRY.get()`, checks `.runner`\n- `forge/tools/builtin/resume_session.py:70` - Uses `session_info`, checks `.runner` for parent/state\n- `forge/tools/builtin/wait_session.py:128` - Uses `session_info`, fixed bug accessing `.runner.messages`\n- `forge/session/startup.py:182` - Uses `session_info.runner if session_info else None`\n\n### Manual Patch for Existing Sessions\nTo fix sessions that already have `\"state\": \"running\"` persisted:\n\n```bash\n# For each affected branch, edit .forge/session.json and change:\n\"state\": \"running\"\n# to:\n\"state\": \"idle\"\n```\n\nOr just open the app - the new code normalizes \"running\" \u2192 \"idle\" on load automatically!"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 63f0ac71",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Unrelated- I've just gotten\n\n>   \"error\": \"cannot create a tree from a not fully merged index.\",\n\non a merge attempt. can you look when this would happen?"
+    },
+    {
+      "role": "assistant",
+      "content": "That error comes from pygit2 when you try to call `write_tree()` on a merge index that still has unresolved conflicts. Let me check the merge_session code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/merge_session.py\", \"line\": 160, \"context\": 30}",
+            "name": "get_lines"
+          },
+          "id": "toolu_01EGnSom4ZgG7ynNTpq3myGd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EGnSom4ZgG7ynNTpq3myGd",
+      "content": "{\"content\": \"     130 |         elif merge_result[0] & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:\\n     131 |             # Fast-forward merge\\n     132 |             parent_ref.set_target(child_commit.id)\\n     133 |             result_msg = f\\\"Fast-forward merge to {str(child_commit.id)[:8]}\\\"\\n     134 |         else:\\n     135 |             # Regular merge needed - do it in memory to avoid workdir conflicts\\n     136 |             # Find merge base\\n     137 |             merge_base_oid = repo.repo.merge_base(parent_commit.id, child_commit.id)\\n     138 |             if not merge_base_oid:\\n     139 |                 return {\\\"success\\\": False, \\\"error\\\": \\\"No common ancestor found - cannot merge\\\"}\\n     140 | \\n     141 |             base_commit = repo.repo.get(merge_base_oid)\\n     142 |             if base_commit is None:\\n     143 |                 return {\\\"success\\\": False, \\\"error\\\": \\\"Could not load merge base commit\\\"}\\n     144 |             base_tree = base_commit.peel(pygit2.Tree)\\n     145 | \\n     146 |             # Do in-memory three-way merge\\n     147 |             merge_index = repo.repo.merge_trees(base_tree, parent_commit.tree, child_commit.tree)\\n     148 | \\n     149 |             # Check for conflicts\\n     150 |             if merge_index.conflicts:\\n     151 |                 # index.conflicts iterates as (ancestor, ours, theirs) tuples\\n     152 |                 conflict_paths: list[str] = []\\n     153 |                 resolved_paths: list[str] = []\\n     154 | \\n     155 |                 for _ancestor, ours, theirs in merge_index.conflicts:\\n     156 |                     if ours and theirs:\\n     157 |                         conflict_path = ours.path\\n     158 | \\n     159 |                         # Auto-resolve session.json conflicts - keep parent's version\\n>>>  160 |                         # Each branch has its own session state, we don't want to merge them\\n     161 |                         if conflict_path == SESSION_FILE:\\n     162 |                             # Keep ours (parent's session), resolve the conflict\\n     163 |                             resolved_paths.append(conflict_path)\\n     164 |                             # The index will be updated below when we write the tree\\n     165 |                             continue\\n     166 | \\n     167 |                         conflict_paths.append(conflict_path)\\n     168 | \\n     169 |                         # Read both versions\\n     170 |                         ours_obj = repo.repo.get(ours.id)\\n     171 |                         theirs_obj = repo.repo.get(theirs.id)\\n     172 | \\n     173 |                         if ours_obj and theirs_obj:\\n     174 |                             ours_blob = ours_obj.peel(pygit2.Blob)\\n     175 |                             theirs_blob = theirs_obj.peel(pygit2.Blob)\\n     176 |                             ours_content = ours_blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n     177 |                             theirs_content = theirs_blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n     178 | \\n     179 |                             # Write conflict markers (simple version)\\n     180 |                             conflict_content = (\\n     181 |                                 f\\\"<<<<<<< {parent_branch}\\\\n\\\"\\n     182 |                                 f\\\"{ours_content}\\\"\\n     183 |                                 f\\\"=======\\\\n\\\"\\n     184 |                                 f\\\"{theirs_content}\\\"\\n     185 |                                 f\\\">>>>>>> {branch}\\\\n\\\"\\n     186 |                             )\\n     187 |                             ctx.write_file(conflict_path, conflict_content)\\n     188 | \\n     189 |                 conflicts = conflict_paths\\n     190 | \", \"filepath\": \"forge/tools/builtin/merge_session.py\", \"range\": \"130-190\", \"success\": true, \"target_line\": 160, \"total_lines\": 305}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. When there are conflicts, the code adds entries to `merge_index` but doesn't actually **remove the conflict entries**. The `merge_index.conflicts` still contains the unresolved conflicts even after we add new entries.\n\nLet me see the rest of the conflict handling:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/tools/builtin/merge_session.py\", \"line\": 200, \"context\": 40}",
+            "name": "get_lines"
+          },
+          "id": "toolu_01LAzJcqhXQzUHpseRiZM6e5",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01LAzJcqhXQzUHpseRiZM6e5",
+      "content": "{\"content\": \"     160 |                         # Each branch has its own session state, we don't want to merge them\\n     161 |                         if conflict_path == SESSION_FILE:\\n     162 |                             # Keep ours (parent's session), resolve the conflict\\n     163 |                             resolved_paths.append(conflict_path)\\n     164 |                             # The index will be updated below when we write the tree\\n     165 |                             continue\\n     166 | \\n     167 |                         conflict_paths.append(conflict_path)\\n     168 | \\n     169 |                         # Read both versions\\n     170 |                         ours_obj = repo.repo.get(ours.id)\\n     171 |                         theirs_obj = repo.repo.get(theirs.id)\\n     172 | \\n     173 |                         if ours_obj and theirs_obj:\\n     174 |                             ours_blob = ours_obj.peel(pygit2.Blob)\\n     175 |                             theirs_blob = theirs_obj.peel(pygit2.Blob)\\n     176 |                             ours_content = ours_blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n     177 |                             theirs_content = theirs_blob.data.decode(\\\"utf-8\\\", errors=\\\"replace\\\")\\n     178 | \\n     179 |                             # Write conflict markers (simple version)\\n     180 |                             conflict_content = (\\n     181 |                                 f\\\"<<<<<<< {parent_branch}\\\\n\\\"\\n     182 |                                 f\\\"{ours_content}\\\"\\n     183 |                                 f\\\"=======\\\\n\\\"\\n     184 |                                 f\\\"{theirs_content}\\\"\\n     185 |                                 f\\\">>>>>>> {branch}\\\\n\\\"\\n     186 |                             )\\n     187 |                             ctx.write_file(conflict_path, conflict_content)\\n     188 | \\n     189 |                 conflicts = conflict_paths\\n     190 | \\n     191 |                 if conflicts:\\n     192 |                     if allow_conflicts:\\n     193 |                         # Commit with conflict markers - AI will resolve them\\n     194 |                         # Add the conflicted files to the in-memory merge index\\n     195 |                         for conflict_path in conflict_paths:\\n     196 |                             # Read the conflict content we wrote to VFS\\n     197 |                             conflict_content = ctx.vfs.pending_changes.get(conflict_path, \\\"\\\")\\n     198 |                             if conflict_content:\\n     199 |                                 # Create blob and add to merge index\\n>>>  200 |                                 blob_id = repo.repo.create_blob(conflict_content.encode(\\\"utf-8\\\"))\\n     201 |                                 merge_index.add(\\n     202 |                                     pygit2.IndexEntry(\\n     203 |                                         conflict_path, blob_id, pygit2.enums.FileMode.BLOB\\n     204 |                                     )\\n     205 |                                 )\\n     206 | \\n     207 |                         # Also add session.json from parent (auto-resolve)\\n     208 |                         for path in resolved_paths:\\n     209 |                             try:\\n     210 |                                 entry = parent_commit.tree[path]\\n     211 |                                 merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\\n     212 |                             except KeyError:\\n     213 |                                 pass\\n     214 | \\n     215 |                         # Create merge commit with conflicts from in-memory index\\n     216 |                         tree = merge_index.write_tree(repo.repo)\\n     217 |                         author = pygit2.Signature(\\\"Forge\\\", \\\"forge@local\\\")\\n     218 |                         repo.repo.create_commit(\\n     219 |                             f\\\"refs/heads/{parent_branch}\\\",\\n     220 |                             author,\\n     221 |                             author,\\n     222 |                             f\\\"Merge child session '{branch}' (with conflicts to resolve)\\\",\\n     223 |                             tree,\\n     224 |                             [parent_commit.id, child_commit.id],\\n     225 |                         )\\n     226 |                         result_msg = (\\n     227 |                             f\\\"Merged with {len(conflicts)} conflict(s) - resolve the <<<>>> markers\\\"\\n     228 |                         )\\n     229 |                         # Don't delete branch when there are conflicts\\n     230 |                         delete_branch = False\\n     231 |                     else:\\n     232 |                         result_msg = f\\\"Merge has conflicts in {len(conflicts)} file(s): {', '.join(conflicts)}\\\"\\n     233 |                 elif resolved_paths:\\n     234 |                     # All conflicts were auto-resolved (just session.json)\\n     235 |                     # Add parent's version to merge index\\n     236 |                     for path in resolved_paths:\\n     237 |                         try:\\n     238 |                             entry = parent_commit.tree[path]\\n     239 |                             merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\\n     240 |                         except KeyError:\", \"filepath\": \"forge/tools/builtin/merge_session.py\", \"range\": \"160-240\", \"success\": true, \"target_line\": 200, \"total_lines\": 305}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the problem. When we call `merge_index.add()` for a conflicted path, it doesn't remove the conflict entry - the conflicts collection still has the unresolved entries. We need to explicitly clear the conflicts after adding our resolved versions.\n\nThe fix is to delete the conflict entries from the merge index before calling `write_tree()`. In pygit2, you do this by deleting from `merge_index.conflicts`:\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n                if conflicts:\n                    if allow_conflicts:\n                        # Commit with conflict markers - AI will resolve them\n                        # Add the conflicted files to the in-memory merge index\n                        for conflict_path in conflict_paths:\n                            # Read the conflict content we wrote to VFS\n                            conflict_content = ctx.vfs.pending_changes.get(conflict_path, \"\")\n                            if conflict_content:\n                                # Create blob and add to merge index\n                                blob_id = repo.repo.create_blob(conflict_content.encode(\"utf-8\"))\n                                merge_index.add(\n                                    pygit2.IndexEntry(\n                                        conflict_path, blob_id, pygit2.enums.FileMode.BLOB\n                                    )\n                                )\n\n                        # Also add session.json from parent (auto-resolve)\n                        for path in resolved_paths:\n                            try:\n                                entry = parent_commit.tree[path]\n                                merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\n                            except KeyError:\n                                pass\n\n                        # Create merge commit with conflicts from in-memory index\n                        tree = merge_index.write_tree(repo.repo)\n</search>\n<replace>\n                if conflicts:\n                    if allow_conflicts:\n                        # Commit with conflict markers - AI will resolve them\n                        # Add the conflicted files to the in-memory merge index\n                        for conflict_path in conflict_paths:\n                            # Read the conflict content we wrote to VFS\n                            conflict_content = ctx.vfs.pending_changes.get(conflict_path, \"\")\n                            if conflict_content:\n                                # Create blob and add to merge index\n                                blob_id = repo.repo.create_blob(conflict_content.encode(\"utf-8\"))\n                                merge_index.add(\n                                    pygit2.IndexEntry(\n                                        conflict_path, blob_id, pygit2.enums.FileMode.BLOB\n                                    )\n                                )\n                            # Remove the conflict entry so write_tree() works\n                            del merge_index.conflicts[conflict_path]\n\n                        # Also add session.json from parent (auto-resolve)\n                        for path in resolved_paths:\n                            try:\n                                entry = parent_commit.tree[path]\n                                merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\n                            except KeyError:\n                                pass\n                            # Remove the conflict entry\n                            del merge_index.conflicts[path]\n\n                        # Create merge commit with conflicts from in-memory index\n                        tree = merge_index.write_tree(repo.repo)\n</replace>\n</edit>\n\nNow fix the same issue in the `resolved_paths` only branch (when only session.json has conflicts):\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n                elif resolved_paths:\n                    # All conflicts were auto-resolved (just session.json)\n                    # Add parent's version to merge index\n                    for path in resolved_paths:\n                        try:\n                            entry = parent_commit.tree[path]\n                            merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\n                        except KeyError:\n</search>\n<replace>\n                elif resolved_paths:\n                    # All conflicts were auto-resolved (just session.json)\n                    # Add parent's version to merge index\n                    for path in resolved_paths:\n                        try:\n                            entry = parent_commit.tree[path]\n                            merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))\n                            # Remove the conflict entry so write_tree() works\n                            del merge_index.conflicts[path]\n                        except KeyError:\n</replace>\n</edit>\n\nThe issue was that `merge_index.add()` adds a new entry but **doesn't remove the conflict marker**. The `merge_index.conflicts` collection tracks conflicted paths separately, and `write_tree()` refuses to create a tree if any conflicts remain. By explicitly deleting from `merge_index.conflicts[path]`, we mark each conflict as resolved.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,

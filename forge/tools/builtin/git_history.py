@@ -65,7 +65,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
     # Walk history
     commits = []
-    walker = repo.walk(start_commit.id, pygit2.GIT_SORT_TOPOLOGICAL | pygit2.GIT_SORT_TIME)
+    walker = repo.walk(start_commit.id, pygit2.GIT_SORT_TOPOLOGICAL | pygit2.GIT_SORT_TIME)  # type: ignore[arg-type]
 
     for i, commit in enumerate(walker):
         if i >= limit:
@@ -147,10 +147,7 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
     # Resolve commit
     try:
         obj = repo.revparse_single(commit_sha)
-        if isinstance(obj, pygit2.Commit):
-            commit = obj
-        else:
-            commit = obj.peel(pygit2.Commit)
+        commit: pygit2.Commit = obj if isinstance(obj, pygit2.Commit) else obj.peel(pygit2.Commit)
     except (KeyError, ValueError, pygit2.GitError):
         return {"success": False, "error": f"Could not find commit: {commit_sha}"}
 
@@ -176,11 +173,11 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
 
         # File header
         if patch.delta.status == pygit2.GIT_DELTA_ADDED:
-            diff_lines.append(f"--- /dev/null")
+            diff_lines.append("--- /dev/null")
             diff_lines.append(f"+++ b/{file_path}")
         elif patch.delta.status == pygit2.GIT_DELTA_DELETED:
             diff_lines.append(f"--- a/{file_path}")
-            diff_lines.append(f"+++ /dev/null")
+            diff_lines.append("+++ /dev/null")
         else:
             diff_lines.append(f"--- a/{file_path}")
             diff_lines.append(f"+++ b/{file_path}")

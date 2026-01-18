@@ -12,6 +12,8 @@ For display of unloaded sessions (e.g., session dropdown), read session.json dir
 That's a pure display operation, not used for operational logic.
 """
 
+from __future__ import annotations
+
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -28,9 +30,9 @@ class SessionRegistry(QObject):
     Global registry of loaded sessions.
 
     Singleton - use SESSION_REGISTRY global instance.
-    
+
     This is just an index: branch_name → LiveSession
-    
+
     The LiveSession owns all state (parent/child relationships, execution state).
     The registry just tracks which sessions are currently loaded in memory.
     """
@@ -47,14 +49,14 @@ class SessionRegistry(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._sessions: dict[str, "LiveSession"] = {}
-        self._repo: "ForgeRepository | None" = None
+        self._sessions: dict[str, LiveSession] = {}
+        self._repo: ForgeRepository | None = None
 
         # Connect backwards compat signals to new signals
         self.session_loaded.connect(self.session_registered.emit)
         self.session_unloaded.connect(self.session_unregistered.emit)
 
-    def initialize(self, repo: "ForgeRepository") -> None:
+    def initialize(self, repo: ForgeRepository) -> None:
         """
         Initialize registry with the repository.
 
@@ -66,9 +68,9 @@ class SessionRegistry(QObject):
     def load(
         self,
         branch_name: str,
-        repo: "ForgeRepository | None" = None,
-        settings: "Settings | None" = None,
-    ) -> "LiveSession | None":
+        repo: ForgeRepository | None = None,
+        settings: Settings | None = None,
+    ) -> LiveSession | None:
         """
         Load a session from disk, creating a LiveSession.
 
@@ -106,9 +108,9 @@ class SessionRegistry(QObject):
     def _load_from_disk(
         self,
         branch_name: str,
-        repo: "ForgeRepository",
-        settings: "Settings",
-    ) -> "LiveSession | None":
+        repo: ForgeRepository,
+        settings: Settings,
+    ) -> LiveSession | None:
         """Load a session from disk and create a LiveSession."""
         import contextlib
 
@@ -197,20 +199,20 @@ class SessionRegistry(QObject):
         self.session_unloaded.emit(branch_name)
         return True
 
-    def get(self, branch_name: str) -> "LiveSession | None":
+    def get(self, branch_name: str) -> LiveSession | None:
         """Get a loaded session, or None if not loaded."""
         return self._sessions.get(branch_name)
 
     def ensure_loaded(
         self,
         branch_name: str,
-        repo: "ForgeRepository | None" = None,
-        settings: "Settings | None" = None,
-    ) -> "LiveSession | None":
+        repo: ForgeRepository | None = None,
+        settings: Settings | None = None,
+    ) -> LiveSession | None:
         """Load session if not loaded, return it."""
         return self.load(branch_name, repo, settings)
 
-    def get_all_loaded(self) -> dict[str, "LiveSession"]:
+    def get_all_loaded(self) -> dict[str, LiveSession]:
         """Get all currently loaded sessions."""
         return dict(self._sessions)
 
@@ -245,8 +247,8 @@ class SessionRegistry(QObject):
 
     def load_active_sessions_on_startup(
         self,
-        repo: "ForgeRepository",
-        settings: "Settings",
+        repo: ForgeRepository,
+        settings: Settings,
     ) -> list[str]:
         """
         Load sessions that need to be active on startup.
@@ -297,7 +299,7 @@ class SessionRegistry(QObject):
 
     # === Display helpers (for UI, not operational logic) ===
 
-    def get_all_session_branches(self, repo: "ForgeRepository | None" = None) -> list[str]:
+    def get_all_session_branches(self, repo: ForgeRepository | None = None) -> list[str]:
         """
         Get all branches that have sessions (loaded or not).
 
@@ -322,7 +324,7 @@ class SessionRegistry(QObject):
         return branches
 
     def get_session_display_info(
-        self, branch_name: str, repo: "ForgeRepository | None" = None
+        self, branch_name: str, repo: ForgeRepository | None = None
     ) -> dict[str, Any] | None:
         """
         Get display info for a session (for UI).
@@ -373,7 +375,7 @@ class SessionRegistry(QObject):
 
     # === Backwards compatibility ===
 
-    def register_runner(self, branch_name: str, session: "LiveSession") -> None:
+    def register_runner(self, branch_name: str, session: LiveSession) -> None:
         """Backwards compatible - registers a session directly."""
         if branch_name not in self._sessions:
             self._sessions[branch_name] = session
@@ -388,12 +390,12 @@ class SessionRegistry(QObject):
             del self._sessions[branch_name]
             self.session_unloaded.emit(branch_name)
 
-    def get_runner(self, branch_name: str) -> "LiveSession | None":
+    def get_runner(self, branch_name: str) -> LiveSession | None:
         """Backwards compatible - same as get()."""
         return self.get(branch_name)
 
     # Old API that needs SessionInfo - provide minimal compatibility
-    def register(self, branch_name: str, session: "LiveSession") -> None:
+    def register(self, branch_name: str, session: LiveSession) -> None:
         """Backwards compatible."""
         self.register_runner(branch_name, session)
 
@@ -404,7 +406,7 @@ class SessionRegistry(QObject):
     def get_session_states(self) -> dict[str, dict[str, Any]]:
         """
         Get state info for all loaded sessions (for UI display).
-        
+
         Returns dict of branch_name -> state info dict.
         """
         result = {}
@@ -423,7 +425,7 @@ class SessionRegistry(QObject):
     def get_children_states(self, parent_branch: str) -> dict[str, str]:
         """
         Get states of all child sessions for a parent.
-        
+
         Used by wait_session to check if any children are ready.
         Returns dict of child_branch -> state
         """

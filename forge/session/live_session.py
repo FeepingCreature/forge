@@ -1044,7 +1044,7 @@ class LiveSession(QObject):
 
     def child_ready(self, child_branch: str) -> None:
         """Called when a child session becomes ready (completed, waiting, etc.).
-        
+
         This triggers resume if we're waiting on children.
         """
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
@@ -1091,7 +1091,11 @@ class LiveSession(QObject):
             for child_branch in self.child_sessions:
                 child = SESSION_REGISTRY.get(child_branch)
                 if child:
-                    ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
+                    ready_states = {
+                        SessionState.COMPLETED,
+                        SessionState.WAITING_INPUT,
+                        SessionState.IDLE,
+                    }
                     if child.state in ready_states:
                         # A child is already ready! Resume immediately.
                         from PySide6.QtCore import QTimer

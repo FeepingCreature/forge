@@ -649,7 +649,6 @@ class PromptManager:
         ordered_blocks = system_blocks + other_blocks + summary_blocks
 
         for block in ordered_blocks:
-
             # Estimate ~3 chars per token
             tokens = len(block.content) // 3
 

@@ -202,16 +202,16 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
     # If any child is ready, return immediately
     if ready_children:
-        child = ready_children[0]  # Return first ready child
+        ready_child = ready_children[0]  # Return first ready child
         return {
             "success": True,
-            "branch": child["branch"],
-            "state": child["state"],
-            "message": child["message"],
-            "last_response": child.get("last_response"),
-            "task": child["task"],
+            "branch": ready_child["branch"],
+            "state": ready_child["state"],
+            "message": ready_child["message"],
+            "last_response": ready_child.get("last_response"),
+            "task": ready_child["task"],
             "ready": True,
-            "merge_clean": child["merge_clean"],
+            "merge_clean": ready_child["merge_clean"],
         }
 
     # All children still running - we need to yield

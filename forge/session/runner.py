@@ -784,12 +784,14 @@ class SessionRunner(QObject):
                 self.session_manager.generate_summary_for_file(filepath)
             self._newly_created_files.clear()
 
+        # Set state to IDLE before committing so it's persisted correctly
+        self.state = SessionState.IDLE
+
         # Commit the turn with session metadata
         commit_oid = self.session_manager.commit_ai_turn(
             self.messages, session_metadata=self.get_session_metadata()
         )
 
-        self.state = SessionState.IDLE
         self._emit_event(TurnFinishedEvent(commit_oid))
 
         # Notify parent if we have one (so it can resume if waiting)

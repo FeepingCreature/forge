@@ -120,7 +120,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         parent_commit = parent_ref.peel(pygit2.Commit)
         child_commit = child_ref.peel(pygit2.Commit)
 
-        # Perform the merge
+        # Perform the merge analysis
         merge_result = repo.repo.merge_analysis(child_commit.id)
 
         conflicts: list[str] = []
@@ -133,16 +133,27 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             parent_ref.set_target(child_commit.id)
             result_msg = f"Fast-forward merge to {str(child_commit.id)[:8]}"
         else:
-            # Regular merge needed
-            repo.repo.merge(child_commit.id)
+            # Regular merge needed - do it in memory to avoid workdir conflicts
+            # Find merge base
+            merge_base_oid = repo.repo.merge_base(parent_commit.id, child_commit.id)
+            if not merge_base_oid:
+                return {"success": False, "error": "No common ancestor found - cannot merge"}
+
+            base_commit = repo.repo.get(merge_base_oid)
+            if base_commit is None:
+                return {"success": False, "error": "Could not load merge base commit"}
+            base_tree = base_commit.peel(pygit2.Tree)
+
+            # Do in-memory three-way merge
+            merge_index = repo.repo.merge_trees(base_tree, parent_commit.tree, child_commit.tree)
 
             # Check for conflicts
-            if repo.repo.index.conflicts:
+            if merge_index.conflicts:
                 # index.conflicts iterates as (ancestor, ours, theirs) tuples
                 conflict_paths: list[str] = []
                 resolved_paths: list[str] = []
 
-                for _ancestor, ours, theirs in repo.repo.index.conflicts:
+                for _ancestor, ours, theirs in merge_index.conflicts:
                     if ours and theirs:
                         conflict_path = ours.path
 
@@ -181,39 +192,29 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                 if conflicts:
                     if allow_conflicts:
                         # Commit with conflict markers - AI will resolve them
-                        # We need to add the conflicted files to index to allow commit
+                        # Add the conflicted files to the in-memory merge index
                         for conflict_path in conflict_paths:
                             # Read the conflict content we wrote to VFS
                             conflict_content = ctx.vfs.pending_changes.get(conflict_path, "")
                             if conflict_content:
-                                # Create blob and add to index
+                                # Create blob and add to merge index
                                 blob_id = repo.repo.create_blob(conflict_content.encode("utf-8"))
-                                repo.repo.index.add(
+                                merge_index.add(
                                     pygit2.IndexEntry(
                                         conflict_path, blob_id, pygit2.enums.FileMode.BLOB
                                     )
                                 )
 
-                        # Clear conflict entries
-                        import contextlib
-
-                        for conflict_path in conflict_paths:
-                            with contextlib.suppress(KeyError):
-                                del repo.repo.index.conflicts[conflict_path]
-
-                        # Also resolve session.json if it was in resolved_paths
+                        # Also add session.json from parent (auto-resolve)
                         for path in resolved_paths:
                             try:
                                 entry = parent_commit.tree[path]
-                                repo.repo.index.add(
-                                    pygit2.IndexEntry(path, entry.id, entry.filemode)
-                                )
-                                del repo.repo.index.conflicts[path]
-                            except (KeyError, Exception):
+                                merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
+                            except KeyError:
                                 pass
 
-                        # Create merge commit with conflicts
-                        tree = repo.repo.index.write_tree()
+                        # Create merge commit with conflicts from in-memory index
+                        tree = merge_index.write_tree(repo.repo)
                         author = pygit2.Signature("Forge", "forge@local")
                         repo.repo.create_commit(
                             f"refs/heads/{parent_branch}",
@@ -229,27 +230,19 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                         # Don't delete branch when there are conflicts
                         delete_branch = False
                     else:
-                        result_msg = f"Merge has conflicts in {len(conflicts)} file(s)"
+                        result_msg = f"Merge has conflicts in {len(conflicts)} file(s): {', '.join(conflicts)}"
                 elif resolved_paths:
                     # All conflicts were auto-resolved (just session.json)
-                    # We need to resolve conflicts in the index properly
-
+                    # Add parent's version to merge index
                     for path in resolved_paths:
-                        # Get "ours" version from parent commit
                         try:
                             entry = parent_commit.tree[path]
-                            # Add resolved file to index (removes conflict)
-                            repo.repo.index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
+                            merge_index.add(pygit2.IndexEntry(path, entry.id, entry.filemode))
                         except KeyError:
-                            # File doesn't exist in parent, remove from index
                             pass
 
-                    # Remove conflict entries
-                    for path in resolved_paths:
-                        del repo.repo.index.conflicts[path]
-
-                    # Write tree and create merge commit
-                    tree = repo.repo.index.write_tree()
+                    # Write tree and create merge commit from in-memory index
+                    tree = merge_index.write_tree(repo.repo)
                     author = pygit2.Signature("Forge", "forge@local")
                     repo.repo.create_commit(
                         f"refs/heads/{parent_branch}",
@@ -261,8 +254,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                     )
                     result_msg = f"Merged child session '{branch}' (auto-resolved session.json)"
             else:
-                # No conflicts - create merge commit
-                tree = repo.repo.index.write_tree()
+                # No conflicts - create merge commit from in-memory index
+                tree = merge_index.write_tree(repo.repo)
                 author = pygit2.Signature("Forge", "forge@local")
                 repo.repo.create_commit(
                     f"refs/heads/{parent_branch}",

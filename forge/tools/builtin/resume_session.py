@@ -66,43 +66,39 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     if branch not in repo.repo.branches:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-    # Check registry first - it's the source of truth for live sessions
-    live_runner = SESSION_REGISTRY.get(branch)
+    # Check registry - it's the single source of truth for all sessions
+    session_info = SESSION_REGISTRY.get(branch)
 
-    if live_runner is not None:
-        # Live runner exists - check its state
-        if live_runner._parent_session != parent_branch:
-            return {
-                "success": False,
-                "error": f"Branch '{branch}' is not a child of current session",
-            }
+    if session_info is None:
+        return {
+            "success": False,
+            "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
+        }
 
+    # Verify this is our child
+    stored_parent = session_info.runner._parent_session if session_info.runner else session_info.parent_session
+    if stored_parent != parent_branch:
+        return {
+            "success": False,
+            "error": f"Branch '{branch}' is not a child of current session",
+        }
+
+    # Check if already running
+    if session_info.runner is not None:
         from forge.session.runner import SessionState
 
-        if live_runner.state == SessionState.RUNNING:
+        if session_info.runner.state == SessionState.RUNNING:
             return {
                 "success": False,
                 "error": "Child session is already running",
             }
 
-        # Live runner exists and is not running - we can resume it directly
-        # The _start_session flag will trigger SessionRunner to call send_message on it
-        return {
-            "success": True,
-            "branch": branch,
-            "state": "running",
-            "message": f"Resumed child session '{branch}'. Use wait_session to check for completion.",
-            "_start_session": branch,
-            "_start_message": message,
-        }
-
-    # No live runner - session needs to be loaded first
-    # The _start_session flag tells SessionRunner to load and start it
+    # The _start_session flag tells SessionRunner to load (if needed) and start it
     return {
         "success": True,
         "branch": branch,
         "state": "running",
-        "message": f"Starting child session '{branch}'. Use wait_session to check for completion.",
+        "message": f"Resuming child session '{branch}'. Use wait_session to check for completion.",
         "_start_session": branch,
         "_start_message": message,
     }

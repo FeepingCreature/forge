@@ -53,6 +53,11 @@ class MainWindow(QMainWindow):
         self.sessions_dir = Path(self.repo.repo.workdir) / ".forge" / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
+        # Initialize session registry - scans all branches for session metadata
+        from forge.session.registry import SESSION_REGISTRY
+
+        SESSION_REGISTRY.initialize(self.repo)
+
         # Set window title with folder name
         folder_name = Path(self.repo.repo.workdir).name
         self.setWindowTitle(f"Forge — {folder_name}")

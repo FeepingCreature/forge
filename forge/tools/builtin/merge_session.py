@@ -77,25 +77,24 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
     try:
-        # Check registry for live state (source of truth for running sessions)
-        live_runner = SESSION_REGISTRY.get(branch)
+        # Check registry - it's the single source of truth for all sessions
+        session_info = SESSION_REGISTRY.get(branch)
 
-        if live_runner is not None:
-            # Live runner - use its state directly
-            child_state = str(live_runner.state)
-            parent_session = live_runner._parent_session
+        if session_info is None:
+            return {
+                "success": False,
+                "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
+            }
+
+        # Get state from live runner if available, otherwise from stored info
+        if session_info.runner is not None:
+            child_state = str(session_info.runner.state)
+            parent_session = session_info.runner._parent_session
             print(f"🔍 merge_session: {branch} LIVE state={child_state}")
         else:
-            # No live runner - read from session.json
-            child_vfs = ctx.get_branch_vfs(branch)
-            try:
-                session_content = child_vfs.read_file(SESSION_FILE)
-                session_data = json.loads(session_content)
-            except (FileNotFoundError, json.JSONDecodeError):
-                session_data = {}
-            child_state = session_data.get("state", "idle")
-            parent_session = session_data.get("parent_session")
-            print(f"🔍 merge_session: {branch} PERSISTED state={child_state}")
+            child_state = session_info.state
+            parent_session = session_info.parent_session
+            print(f"🔍 merge_session: {branch} STORED state={child_state}")
 
         if parent_session != parent_branch:
             return {

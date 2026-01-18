@@ -124,20 +124,25 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         if branch not in repo.repo.branches:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-        # Check registry for live state - this is the source of truth
-        live_runner = SESSION_REGISTRY.get(branch)
+        # Check registry - it's the single source of truth for all sessions
+        session_info = SESSION_REGISTRY.get(branch)
 
-        if live_runner is not None:
-            # Live runner - use its state directly
-            state = str(live_runner.state)
-            yield_message = live_runner._yield_message
-            task = ""
-            parent_session = live_runner._parent_session
-        else:
+        if session_info is None:
             return {
                 "success": False,
-                "error": f"Child session '{branch}' is not running. Use resume_session first.",
+                "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
             }
+
+        # Get state from live runner if available, otherwise from stored info
+        if session_info.runner is not None:
+            state = str(session_info.runner.state)
+            yield_message = session_info.runner._yield_message
+            parent_session = session_info.runner._parent_session
+        else:
+            state = session_info.state
+            yield_message = session_info.yield_message
+            parent_session = session_info.parent_session
+        task = ""
 
         # Verify this is our child
         if parent_session != parent_branch:
@@ -152,10 +157,11 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
             # Get the child's last assistant message - this is what the child said/did
             last_response = None
-            for msg in reversed(live_runner.messages):
-                if msg.get("role") == "assistant" and not msg.get("_ui_only"):
-                    last_response = msg.get("content", "")
-                    break
+            if session_info.runner is not None:
+                for msg in reversed(session_info.runner.messages):
+                    if msg.get("role") == "assistant" and not msg.get("_ui_only"):
+                        last_response = msg.get("content", "")
+                        break
 
             ready_children.append(
                 {

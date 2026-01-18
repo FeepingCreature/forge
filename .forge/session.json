@@ -2,10 +2,13 @@
   "active_files": [
     "forge/session/startup.py",
     "forge/tools/builtin/resume_session.py",
+    "forge/ui/main_window.py",
     "CLAUDE.md",
     "forge/tools/builtin/wait_session.py",
     "forge/tools/builtin/merge_session.py",
-    "forge/session/runner.py"
+    "forge/session/runner.py",
+    "forge/session/registry.py",
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -358,6 +361,96 @@
       "streaming": true,
       "actual_cost": 0.1011925,
       "generation_id": "gen-1768744408-Y05GiiOu5aezld4d8LKb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768744425346.json",
+      "response_file": "/tmp/forge_debug/response_1768744425346.json",
+      "timestamp": 1768744425.3466568,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000162,
+      "generation_id": "gen-1768744425-vQeA8BeTsxC8haEBVPG6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744450961.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744450961.json",
+      "timestamp": 1768744450.9626677,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.049753,
+      "generation_id": "gen-1768744451-PfRy1m3ohL1NxGEQ40Ce"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744459359.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744459359.json",
+      "timestamp": 1768744459.3603601,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.40691875,
+      "generation_id": "gen-1768744459-jKUbKjMJOti7aTo4E7op"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744522399.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744522399.json",
+      "timestamp": 1768744522.4004214,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1063675,
+      "generation_id": "gen-1768744522-GTPOzMMpMnJ2qtvIC7uy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744560035.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744560035.json",
+      "timestamp": 1768744560.0363946,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.43252375,
+      "generation_id": "gen-1768744560-oMjn2W90ixBW9cIc5SOG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744566667.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744566667.json",
+      "timestamp": 1768744566.6691897,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.594345,
+      "generation_id": "gen-1768744566-3jMBAliWgHEhzBNbjYy7"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744597316.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744597316.json",
+      "timestamp": 1768744597.3180926,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.334634,
+      "generation_id": "gen-1768744597-wrgyyriVguG6giHK57u2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744604769.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744604769.json",
+      "timestamp": 1768744604.770942,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0899315,
+      "generation_id": "gen-1768744605-TPS1FG5gw5VZuL0DbS5i"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744626827.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744626827.json",
+      "timestamp": 1768744626.8290431,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.610565,
+      "generation_id": "gen-1768744627-dom9HbYqBc4QfvwWDw2s"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744640830.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744640830.json",
+      "timestamp": 1768744640.8315809,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.61615375,
+      "generation_id": "gen-1768744641-zw5jqfBJ8kXhyzDxuvC0"
     }
   ],
   "messages": [
@@ -1216,6 +1309,268 @@
           "success": true
         }
       ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 9c5d7b8e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Well hang on though. The registry should know all the sessions, even the non-running ones, right?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right! The registry should be the **complete** source of truth for all sessions, not just running ones. Currently:\n\n1. Sessions only get registered when they're opened/started\n2. Tools have to fall back to reading session.json for sessions that aren't \"live\"\n\nThe better design: **Registry should load all session branches on startup** and be the single place anything asks about session state.\n\nLet me look at how the registry currently works:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/registry.py\"], \"remove\": [\"forge/tools/builtin/resume_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/session/startup.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_0197jxHtDVWyfzF8Ezpyne2f",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_0197jxHtDVWyfzF8Ezpyne2f",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/registry.py\"], \"message\": \"Added 1 files, removed 3 files from context\", \"remove\": [\"forge/tools/builtin/resume_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/session/startup.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the current registry, it only tracks \"live\" runners that have been explicitly registered. You're right - it should know about **all** session branches, even ones that aren't currently loaded.\n\nThe design should be:\n\n1. **On startup**: Registry scans all `ai/*` branches and loads their metadata (state, parent, children) from session.json\n2. **Tools only query the registry** - never read session.json directly\n3. **When a session is actually started**: A SessionRunner is created and attached to that registry entry\n\nThis is a bigger refactor. Let me sketch the approach:\n\n```python\n# Registry would have two concepts:\n# 1. SessionInfo - lightweight metadata for ALL sessions (from session.json)\n# 2. SessionRunner - the actual running engine (only for active sessions)\n\nclass SessionInfo:\n    branch_name: str\n    state: str  # normalized - \"running\" -> \"idle\" on load\n    parent_session: str | None\n    child_sessions: list[str]\n    yield_message: str | None\n    runner: SessionRunner | None  # None if not actively loaded\n```\n\nThis way:\n- `registry.get_state(branch)` always works for any session branch\n- `registry.get_runner(branch)` returns the runner if loaded, None otherwise\n- Tools just ask the registry, never touch session.json\n\n**However**, this is a significant architectural change. Should I:\n\n1. **Do the full refactor now** - Registry becomes the complete session authority, scans branches on init\n2. **Do a minimal fix** - Just ensure the current code normalizes \"running\" \u2192 \"idle\" everywhere and tools check registry first (what we've been doing)\n\nWhich direction do you want to go?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: af87922b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah do it. actually also the registry should scan *every* branch, not just ai/. alternatively, it can just look through the branches on demand, but I like it having the complete model."
+    },
+    {
+      "role": "assistant",
+      "content": "Alright, let me do the full refactor. The registry will:\n\n1. Scan all branches on init to find sessions (those with `.forge/session.json`)\n2. Store `SessionInfo` for each (lightweight metadata)\n3. Attach `SessionRunner` when a session is actually started\n4. Be the single source of truth - tools never read session.json directly\n\n<edit file=\"forge/session/registry.py\">\n\"\"\"\nSessionRegistry - Global singleton managing all session state.\n\nThis is the single source of truth for session information:\n- Scans all branches on init to find sessions (those with .forge/session.json)\n- Stores lightweight SessionInfo for each session\n- Attaches SessionRunner when a session is actually running\n- Provides session state for tools and UI\n\nTools should ONLY query the registry, never read session.json directly.\n\"\"\"\n\nimport json\nfrom dataclasses import dataclass, field\nfrom typing import TYPE_CHECKING, Any\n\nfrom PySide6.QtCore import QObject, Signal\n\nif TYPE_CHECKING:\n    from forge.git_backend.repository import ForgeRepository\n    from forge.session.runner import SessionRunner\n\n\n@dataclass\nclass SessionInfo:\n    \"\"\"Lightweight metadata for a session branch.\"\"\"\n\n    branch_name: str\n    state: str = \"idle\"  # Normalized - \"running\" -> \"idle\" on load\n    parent_session: str | None = None\n    child_sessions: list[str] = field(default_factory=list)\n    yield_message: str | None = None\n    runner: \"SessionRunner | None\" = None  # None if not actively loaded\n\n    def to_dict(self) -> dict[str, Any]:\n        \"\"\"Convert to dict for UI/tools.\"\"\"\n        return {\n            \"state\": self.runner.state if self.runner else self.state,\n            \"is_child\": self.parent_session is not None,\n            \"parent\": self.parent_session,\n            \"has_children\": bool(self.child_sessions),\n            \"children\": list(self.child_sessions),\n            \"yield_message\": self.runner._yield_message if self.runner else self.yield_message,\n            \"is_live\": self.runner is not None,\n        }\n\n\nclass SessionRegistry(QObject):\n    \"\"\"\n    Global registry of all sessions.\n\n    Singleton - use SESSION_REGISTRY global instance.\n    Call initialize(repo) on startup to scan branches.\n    \"\"\"\n\n    # Signals for UI updates\n    session_registered = Signal(str)  # branch_name\n    session_unregistered = Signal(str)  # branch_name\n    session_state_changed = Signal(str, str)  # branch_name, new_state\n    registry_initialized = Signal()  # Emitted after scan completes\n\n    def __init__(self) -> None:\n        super().__init__()\n        self._sessions: dict[str, SessionInfo] = {}\n        self._repo: \"ForgeRepository | None\" = None\n\n    def initialize(self, repo: \"ForgeRepository\") -> None:\n        \"\"\"\n        Initialize registry by scanning all branches for sessions.\n\n        Call this once on app startup after repo is available.\n        \"\"\"\n        self._repo = repo\n        self._scan_branches()\n        self.registry_initialized.emit()\n\n    def _scan_branches(self) -> None:\n        \"\"\"Scan all branches and load session metadata.\"\"\"\n        if not self._repo:\n            return\n\n        self._sessions.clear()\n\n        for branch_name in self._repo.repo.branches.local:\n            info = self._load_session_info(branch_name)\n            if info:\n                self._sessions[branch_name] = info\n\n    def _load_session_info(self, branch_name: str) -> SessionInfo | None:\n        \"\"\"Load session info from a branch's session.json, if it exists.\"\"\"\n        if not self._repo:\n            return None\n\n        try:\n            content = self._repo.get_file_content(\".forge/session.json\", branch_name)\n            data = json.loads(content)\n\n            # Normalize state - \"running\" means crashed mid-run, treat as idle\n            state = data.get(\"state\", \"idle\")\n            if state == \"running\":\n                state = \"idle\"\n\n            return SessionInfo(\n                branch_name=branch_name,\n                state=state,\n                parent_session=data.get(\"parent_session\"),\n                child_sessions=data.get(\"child_sessions\", []),\n                yield_message=data.get(\"yield_message\"),\n            )\n        except (FileNotFoundError, KeyError, json.JSONDecodeError):\n            return None\n\n    def refresh_branch(self, branch_name: str) -> None:\n        \"\"\"\n        Refresh session info for a specific branch.\n\n        Call after commits that might change session.json.\n        \"\"\"\n        info = self._load_session_info(branch_name)\n        if info:\n            # Preserve runner if one exists\n            existing = self._sessions.get(branch_name)\n            if existing and existing.runner:\n                info.runner = existing.runner\n            self._sessions[branch_name] = info\n            self.session_registered.emit(branch_name)\n        elif branch_name in self._sessions:\n            # Session was deleted\n            del self._sessions[branch_name]\n            self.session_unregistered.emit(branch_name)\n\n    def register_runner(self, branch_name: str, runner: \"SessionRunner\") -> None:\n        \"\"\"\n        Attach a SessionRunner to a session.\n\n        Called when a session is started/loaded.\n        \"\"\"\n        if branch_name not in self._sessions:\n            # Session not yet known - create info for it\n            self._sessions[branch_name] = SessionInfo(branch_name=branch_name)\n\n        self._sessions[branch_name].runner = runner\n\n        # Connect to state changes to re-emit for UI\n        runner.state_changed.connect(\n            lambda state, bn=branch_name: self.session_state_changed.emit(bn, state)\n        )\n\n        self.session_registered.emit(branch_name)\n\n    def unregister_runner(self, branch_name: str) -> None:\n        \"\"\"\n        Detach a SessionRunner from a session.\n\n        Called when a session tab is closed. Session info remains.\n        \"\"\"\n        if branch_name in self._sessions:\n            self._sessions[branch_name].runner = None\n            # Don't emit unregistered - session still exists, just not live\n\n    def remove_session(self, branch_name: str) -> None:\n        \"\"\"\n        Completely remove a session (branch deleted).\n        \"\"\"\n        if branch_name in self._sessions:\n            del self._sessions[branch_name]\n            self.session_unregistered.emit(branch_name)\n\n    def get(self, branch_name: str) -> SessionInfo | None:\n        \"\"\"Get session info for a branch, or None if not a session.\"\"\"\n        return self._sessions.get(branch_name)\n\n    def get_runner(self, branch_name: str) -> \"SessionRunner | None\":\n        \"\"\"Get the SessionRunner for a branch, or None if not live.\"\"\"\n        info = self._sessions.get(branch_name)\n        return info.runner if info else None\n\n    def get_all(self) -> dict[str, SessionInfo]:\n        \"\"\"Get all known sessions.\"\"\"\n        return dict(self._sessions)\n\n    def get_session_states(self) -> dict[str, dict[str, Any]]:\n        \"\"\"\n        Get state info for all sessions (for dropdown UI).\n\n        Returns dict of branch_name -> {state, is_child, parent, has_children, ...}\n        \"\"\"\n        return {name: info.to_dict() for name, info in self._sessions.items()}\n\n    def get_children_states(self, parent_branch: str) -> dict[str, str]:\n        \"\"\"\n        Get states of all child sessions for a parent.\n\n        Used by wait_session to check if any children are ready.\n        Returns dict of child_branch -> state\n        \"\"\"\n        parent_info = self._sessions.get(parent_branch)\n        if not parent_info:\n            return {}\n\n        result = {}\n        for child_branch in parent_info.child_sessions:\n            child_info = self._sessions.get(child_branch)\n            if child_info:\n                # Use live state if runner exists, otherwise stored state\n                if child_info.runner:\n                    result[child_branch] = child_info.runner.state\n                else:\n                    result[child_branch] = child_info.state\n        return result\n\n    def notify_parent(self, child_branch: str) -> None:\n        \"\"\"\n        Notify parent session that a child has updated.\n\n        Called when a child session changes state (completes, asks question, etc.)\n        If parent is waiting on children, this may resume it.\n        \"\"\"\n        child_info = self._sessions.get(child_branch)\n        if not child_info or not child_info.parent_session:\n            return\n\n        parent_info = self._sessions.get(child_info.parent_session)\n        if not parent_info or not parent_info.runner:\n            return\n\n        parent = parent_info.runner\n\n        from forge.session.runner import SessionState\n\n        # If parent is waiting on children, check if any child is ready\n        if parent.state == SessionState.WAITING_CHILDREN:\n            # A child is \"ready\" if it's completed or waiting for input\n            child_states = self.get_children_states(child_info.parent_session)\n            ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}\n\n            for _branch, state in child_states.items():\n                if state in ready_states:\n                    # A child is ready - trigger resume via QTimer to avoid reentrancy\n                    if parent._pending_wait_call:\n                        from PySide6.QtCore import QTimer\n\n                        QTimer.singleShot(0, parent._do_resume_from_wait)\n                    else:\n                        parent.state = SessionState.IDLE\n                    break\n\n    # === Backwards compatibility ===\n    # These methods maintain the old API while we migrate callers\n\n    def register(self, branch_name: str, runner: \"SessionRunner\") -> None:\n        \"\"\"Backwards compatible - use register_runner instead.\"\"\"\n        self.register_runner(branch_name, runner)\n\n    def unregister(self, branch_name: str) -> None:\n        \"\"\"Backwards compatible - use unregister_runner instead.\"\"\"\n        self.unregister_runner(branch_name)\n\n\n# Global singleton instance\nSESSION_REGISTRY = SessionRegistry()\n</edit>\n\nNow I need to update the places that call the registry. First, let me find where `SESSION_REGISTRY.get()` is used and update them since it now returns `SessionInfo` instead of `SessionRunner`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"SESSION_REGISTRY\\\\.get\\\\(\", \"include_extensions\": [\".py\"], \"max_matches\": 20}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01QbXTfaofoXfJYzdvPLN28w",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Wrote 9607 bytes to forge/session/registry.py",
+          "modified_files": [
+            "forge/session/registry.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01QbXTfaofoXfJYzdvPLN28w",
+      "content": "{\"message\": \"Found 5 matches\", \"output\": \"\\u2500\\u2500 forge/session/startup.py:182 \\u2500\\u2500\\n     179 |     from forge.session.registry import SESSION_REGISTRY\\n     180 | \\n     181 |     # Check if already in registry\\n>>>  182 |     runner = SESSION_REGISTRY.get(branch_name)\\n     183 |     was_newly_loaded = False\\n     184 | \\n     185 |     if not runner:\\n\\n\\u2500\\u2500 forge/tools/builtin/merge_session.py:81 \\u2500\\u2500\\n      78 | \\n      79 |     try:\\n      80 |         # Check registry for live state (source of truth for running sessions)\\n>>>   81 |         live_runner = SESSION_REGISTRY.get(branch)\\n      82 | \\n      83 |         if live_runner is not None:\\n      84 |             # Live runner - use its state directly\\n\\n\\u2500\\u2500 forge/tools/builtin/resume_session.py:70 \\u2500\\u2500\\n      67 |         return {\\\"success\\\": False, \\\"error\\\": f\\\"Branch '{branch}' does not exist\\\"}\\n      68 | \\n      69 |     # Check registry first - it's the source of truth for live sessions\\n>>>   70 |     live_runner = SESSION_REGISTRY.get(branch)\\n      71 | \\n      72 |     if live_runner is not None:\\n      73 |         # Live runner exists - check its state\\n\\n\\u2500\\u2500 forge/tools/builtin/wait_session.py:128 \\u2500\\u2500\\n     125 |             return {\\\"success\\\": False, \\\"error\\\": f\\\"Branch '{branch}' does not exist\\\"}\\n     126 | \\n     127 |         # Check registry for live state - this is the source of truth\\n>>>  128 |         live_runner = SESSION_REGISTRY.get(branch)\\n     129 | \\n     130 |         if live_runner is not None:\\n     131 |             # Live runner - use its state directly\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:434 \\u2500\\u2500\\n     431 |         from forge.session.registry import SESSION_REGISTRY\\n     432 |         from forge.session.runner import SessionRunner\\n     433 | \\n>>>  434 |         existing_runner = SESSION_REGISTRY.get(self.branch_name)\\n     435 |         if existing_runner:\\n     436 |             # Reuse existing runner (e.g., from spawn_session)\\n     437 |             self.runner = existing_runner\", \"success\": true, \"total_matches\": 5}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 20,\n  \"pattern\": \"SESSION_REGISTRY\\\\.get\\\\(\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 5 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/startup.py:182 \\u2500\\u2500\\n     179 |     from forge.session.registry import SESSION_REGISTRY\\n     180 | \\n     181 |     # Check if already in registry\\n>>>  182 |     runner = SESSION_REGISTRY.get(branch_name)\\n     183 |     was_newly_loaded = False\\n     184 | \\n     185 |     if not runner:\\n\\n\\u2500\\u2500 forge/tools/builtin/merge_session.py:81 \\u2500\\u2500\\n      78 | \\n      79 |     try:\\n      80 |         # Check registry for live state (source of truth for running sessions)\\n>>>   81 |         live_runner = SESSION_REGISTRY.get(branch)\\n      82 | \\n      83 |         if live_runner is not None:\\n      84 |             # Live runner - use its state directly\\n\\n\\u2500\\u2500 forge/tools/builtin/resume_session.py:70 \\u2500\\u2500\\n      67 |         return {\\\"success\\\": False, \\\"error\\\": f\\\"Branch '{branch}' does not exist\\\"}\\n      68 | \\n      69 |     # Check registry first - it's the source of truth for live sessions\\n>>>   70 |     live_runner = SESSION_REGISTRY.get(branch)\\n      71 | \\n      72 |     if live_runner is not None:\\n      73 |         # Live runner exists - check its state\\n\\n\\u2500\\u2500 forge/tools/builtin/wait_session.py:128 \\u2500\\u2500\\n     125 |             return {\\\"success\\\": False, \\\"error\\\": f\\\"Branch '{branch}' does not exist\\\"}\\n     126 | \\n     127 |         # Check registry for live state - this is the source of truth\\n>>>  128 |         live_runner = SESSION_REGISTRY.get(branch)\\n     129 | \\n     130 |         if live_runner is not None:\\n     131 |             # Live runner - use its state directly\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:434 \\u2500\\u2500\\n     431 |         from forge.session.registry import SESSION_REGISTRY\\n     432 |         from forge.session.runner import SessionRunner\\n     433 | \\n>>>  434 |         existing_runner = SESSION_REGISTRY.get(self.branch_name)\\n     435 |         if existing_runner:\\n     436 |             # Reuse existing runner (e.g., from spawn_session)\\n     437 |             self.runner = existing_runner\",\n  \"success\": true,\n  \"total_matches\": 5\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update the callers. The main issue is that `SESSION_REGISTRY.get()` now returns `SessionInfo` instead of `SessionRunner`. Let me update each caller:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/resume_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/tools/builtin/merge_session.py\", \"forge/session/startup.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01FSei2NxaXPAJXLRZL1ZZ4K",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01FSei2NxaXPAJXLRZL1ZZ4K",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/resume_session.py\", \"forge/tools/builtin/wait_session.py\", \"forge/tools/builtin/merge_session.py\", \"forge/session/startup.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 5 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to update all the callers since `SESSION_REGISTRY.get()` now returns `SessionInfo` instead of `SessionRunner`. Let me fix each one:\n\n<edit file=\"forge/session/startup.py\">\n<search>\n    from forge.session.registry import SESSION_REGISTRY\n\n    # Check if already in registry\n    runner = SESSION_REGISTRY.get(branch_name)\n    was_newly_loaded = False\n\n    if not runner:\n</search>\n<replace>\n    from forge.session.registry import SESSION_REGISTRY\n\n    # Check if already in registry\n    session_info = SESSION_REGISTRY.get(branch_name)\n    runner = session_info.runner if session_info else None\n    was_newly_loaded = False\n\n    if not runner:\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/merge_session.py\">\n<search>\n        # Check registry for live state (source of truth for running sessions)\n        live_runner = SESSION_REGISTRY.get(branch)\n\n        if live_runner is not None:\n            # Live runner - use its state directly\n            child_state = str(live_runner.state)\n            parent_session = live_runner._parent_session\n            print(f\"\ud83d\udd0d merge_session: {branch} LIVE state={child_state}\")\n        else:\n            # No live runner - read from session.json\n            child_vfs = ctx.get_branch_vfs(branch)\n            try:\n                session_content = child_vfs.read_file(SESSION_FILE)\n                session_data = json.loads(session_content)\n            except (FileNotFoundError, json.JSONDecodeError):\n                session_data = {}\n            child_state = session_data.get(\"state\", \"idle\")\n            parent_session = session_data.get(\"parent_session\")\n            print(f\"\ud83d\udd0d merge_session: {branch} PERSISTED state={child_state}\")\n</search>\n<replace>\n        # Check registry - it's the single source of truth for all sessions\n        session_info = SESSION_REGISTRY.get(branch)\n\n        if session_info is None:\n            return {\n                \"success\": False,\n                \"error\": f\"Branch '{branch}' is not a session (no .forge/session.json)\",\n            }\n\n        # Get state from live runner if available, otherwise from stored info\n        if session_info.runner is not None:\n            child_state = str(session_info.runner.state)\n            parent_session = session_info.runner._parent_session\n            print(f\"\ud83d\udd0d merge_session: {branch} LIVE state={child_state}\")\n        else:\n            child_state = session_info.state\n            parent_session = session_info.parent_session\n            print(f\"\ud83d\udd0d merge_session: {branch} STORED state={child_state}\")\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/resume_session.py\">\n<search>\n    # Check registry first - it's the source of truth for live sessions\n    live_runner = SESSION_REGISTRY.get(branch)\n\n    if live_runner is not None:\n        # Live runner exists - check its state\n        if live_runner._parent_session != parent_branch:\n            return {\n                \"success\": False,\n                \"error\": f\"Branch '{branch}' is not a child of current session\",\n            }\n\n        from forge.session.runner import SessionState\n\n        if live_runner.state == SessionState.RUNNING:\n            return {\n                \"success\": False,\n                \"error\": \"Child session is already running\",\n            }\n\n        # Live runner exists and is not running - we can resume it directly\n        # The _start_session flag will trigger SessionRunner to call send_message on it\n        return {\n            \"success\": True,\n            \"branch\": branch,\n            \"state\": \"running\",\n            \"message\": f\"Resumed child session '{branch}'. Use wait_session to check for completion.\",\n            \"_start_session\": branch,\n            \"_start_message\": message,\n        }\n\n    # No live runner - session needs to be loaded first\n    # The _start_session flag tells SessionRunner to load and start it\n    return {\n        \"success\": True,\n        \"branch\": branch,\n        \"state\": \"running\",\n        \"message\": f\"Starting child session '{branch}'. Use wait_session to check for completion.\",\n        \"_start_session\": branch,\n        \"_start_message\": message,\n    }\n</search>\n<replace>\n    # Check registry - it's the single source of truth for all sessions\n    session_info = SESSION_REGISTRY.get(branch)\n\n    if session_info is None:\n        return {\n            \"success\": False,\n            \"error\": f\"Branch '{branch}' is not a session (no .forge/session.json)\",\n        }\n\n    # Verify this is our child\n    stored_parent = session_info.runner._parent_session if session_info.runner else session_info.parent_session\n    if stored_parent != parent_branch:\n        return {\n            \"success\": False,\n            \"error\": f\"Branch '{branch}' is not a child of current session\",\n        }\n\n    # Check if already running\n    if session_info.runner is not None:\n        from forge.session.runner import SessionState\n\n        if session_info.runner.state == SessionState.RUNNING:\n            return {\n                \"success\": False,\n                \"error\": \"Child session is already running\",\n            }\n\n    # The _start_session flag tells SessionRunner to load (if needed) and start it\n    return {\n        \"success\": True,\n        \"branch\": branch,\n        \"state\": \"running\",\n        \"message\": f\"Resuming child session '{branch}'. Use wait_session to check for completion.\",\n        \"_start_session\": branch,\n        \"_start_message\": message,\n    }\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\n        # Check registry for live state - this is the source of truth\n        live_runner = SESSION_REGISTRY.get(branch)\n\n        if live_runner is not None:\n            # Live runner - use its state directly\n            state = str(live_runner.state)\n            yield_message = live_runner._yield_message\n            task = \"\"\n            parent_session = live_runner._parent_session\n        else:\n            return {\n                \"success\": False,\n                \"error\": f\"Child session '{branch}' is not running. Use resume_session first.\",\n            }\n</search>\n<replace>\n        # Check registry - it's the single source of truth for all sessions\n        session_info = SESSION_REGISTRY.get(branch)\n\n        if session_info is None:\n            return {\n                \"success\": False,\n                \"error\": f\"Branch '{branch}' is not a session (no .forge/session.json)\",\n            }\n\n        # Get state from live runner if available, otherwise from stored info\n        if session_info.runner is not None:\n            state = str(session_info.runner.state)\n            yield_message = session_info.runner._yield_message\n            parent_session = session_info.runner._parent_session\n        else:\n            state = session_info.state\n            yield_message = session_info.yield_message\n            parent_session = session_info.parent_session\n        task = \"\"\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        from forge.session.registry import SESSION_REGISTRY\n        from forge.session.runner import SessionRunner\n\n        existing_runner = SESSION_REGISTRY.get(self.branch_name)\n        if existing_runner:\n            # Reuse existing runner (e.g., from spawn_session)\n            self.runner = existing_runner\n</search>\n<replace>\n        from forge.session.registry import SESSION_REGISTRY\n        from forge.session.runner import SessionRunner\n\n        session_info = SESSION_REGISTRY.get(self.branch_name)\n        if session_info and session_info.runner:\n            # Reuse existing runner (e.g., from spawn_session)\n            self.runner = session_info.runner\n</replace>\n</edit>\n\nNow I need to call `SESSION_REGISTRY.initialize(repo)` somewhere at startup. Let me find where the app starts:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def main\\\\(\\\\)|MainWindow\\\\(\", \"include_extensions\": [\".py\"], \"max_matches\": 10}",
+            "name": "grep_context"
+          },
+          "id": "toolu_0137FwHGrKFektBRAW5PMWzt",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/startup.py",
+          "modified_files": [
+            "forge/session/startup.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/merge_session.py",
+          "modified_files": [
+            "forge/tools/builtin/merge_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/resume_session.py",
+          "modified_files": [
+            "forge/tools/builtin/resume_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_0137FwHGrKFektBRAW5PMWzt",
+      "content": "{\"message\": \"Found 5 matches\", \"output\": \"\\u2500\\u2500 forge/main.py:28 \\u2500\\u2500\\n      25 |     return parser.parse_args()\\n      26 | \\n      27 | \\n>>>   28 | def main() -> None:\\n      29 |     args = parse_args()\\n      30 | \\n      31 |     app = QApplication(sys.argv)\\n\\n\\u2500\\u2500 forge/main.py:36 \\u2500\\u2500\\n      33 |     app.setOrganizationName(\\\"Forge\\\")\\n      34 | \\n      35 |     try:\\n>>>   36 |         window = MainWindow(initial_files=args.files)\\n      37 |         window.show()\\n      38 |         sys.exit(app.exec())\\n      39 |     except ValueError:\\n\\n\\u2500\\u2500 forge/main.py:88 \\u2500\\u2500\\n      85 |                         capture_output=True,\\n      86 |                     )\\n      87 |                 # Retry opening the window\\n>>>   88 |                 window = MainWindow(initial_files=args.files)\\n      89 |                 window.show()\\n      90 |                 sys.exit(app.exec())\\n      91 |             except subprocess.CalledProcessError as git_error:\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:157 \\u2500\\u2500\\n     154 | \\n     155 | CORRECT: The main loop is in `forge/ui/main_window.py:42-58`\\n     156 | WRONG: See [forge/ui/main_window.py:42-58](forge/ui/main_window.py:42-58)\\n>>>  157 | WRONG: ```python def main(): ...```\\n     158 | \\n     159 | Describe what the code does in prose, then cite the location with backticks.\\n     160 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:38 \\u2500\\u2500\\n      35 | from forge.ui.settings_dialog import SettingsDialog\\n      36 | \\n      37 | \\n>>>   38 | class MainWindow(QMainWindow):\\n      39 |     \\\"\\\"\\\"Main application window with branch-first architecture\\\"\\\"\\\"\\n      40 | \\n      41 |     def __init__(self, initial_files: list[str] | None = None) -> None:\", \"success\": true, \"total_matches\": 5}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 10,\n  \"pattern\": \"def main\\\\(\\\\)|MainWindow\\\\(\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 5 matches\",\n  \"output\": \"\\u2500\\u2500 forge/main.py:28 \\u2500\\u2500\\n      25 |     return parser.parse_args()\\n      26 | \\n      27 | \\n>>>   28 | def main() -> None:\\n      29 |     args = parse_args()\\n      30 | \\n      31 |     app = QApplication(sys.argv)\\n\\n\\u2500\\u2500 forge/main.py:36 \\u2500\\u2500\\n      33 |     app.setOrganizationName(\\\"Forge\\\")\\n      34 | \\n      35 |     try:\\n>>>   36 |         window = MainWindow(initial_files=args.files)\\n      37 |         window.show()\\n      38 |         sys.exit(app.exec())\\n      39 |     except ValueError:\\n\\n\\u2500\\u2500 forge/main.py:88 \\u2500\\u2500\\n      85 |                         capture_output=True,\\n      86 |                     )\\n      87 |                 # Retry opening the window\\n>>>   88 |                 window = MainWindow(initial_files=args.files)\\n      89 |                 window.show()\\n      90 |                 sys.exit(app.exec())\\n      91 |             except subprocess.CalledProcessError as git_error:\\n\\n\\u2500\\u2500 forge/ui/ask_widget.py:157 \\u2500\\u2500\\n     154 | \\n     155 | CORRECT: The main loop is in `forge/ui/main_window.py:42-58`\\n     156 | WRONG: See [forge/ui/main_window.py:42-58](forge/ui/main_window.py:42-58)\\n>>>  157 | WRONG: ```python def main(): ...```\\n     158 | \\n     159 | Describe what the code does in prose, then cite the location with backticks.\\n     160 | \\n\\n\\u2500\\u2500 forge/ui/main_window.py:38 \\u2500\\u2500\\n      35 | from forge.ui.settings_dialog import SettingsDialog\\n      36 | \\n      37 | \\n>>>   38 | class MainWindow(QMainWindow):\\n      39 |     \\\"\\\"\\\"Main application window with branch-first architecture\\\"\\\"\\\"\\n      40 | \\n      41 |     def __init__(self, initial_files: list[str] | None = None) -> None:\",\n  \"success\": true,\n  \"total_matches\": 5\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I need to add the initialization call to `SESSION_REGISTRY.initialize(repo)` somewhere at startup. Looking at the grep results, `MainWindow` is created in `forge/main.py`. Let me find where the repo is available and add the initialization:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/main_window.py\", \"line\": 41, \"context\": 30}",
+            "name": "get_lines"
+          },
+          "id": "toolu_01Ei6rNJDJKkPp4PJNEndWXb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Ei6rNJDJKkPp4PJNEndWXb",
+      "content": "{\"content\": \"      11 | from PySide6.QtWidgets import (\\n      12 |     QInputDialog,\\n      13 |     QLabel,\\n      14 |     QMainWindow,\\n      15 |     QMenu,\\n      16 |     QMessageBox,\\n      17 |     QStatusBar,\\n      18 |     QTabWidget,\\n      19 |     QVBoxLayout,\\n      20 |     QWidget,\\n      21 | )\\n      22 | \\n      23 | from forge.config.settings import Settings\\n      24 | from forge.constants import DEFAULT_MODEL, SESSION_FILE\\n      25 | from forge.git_backend.commit_types import CommitType\\n      26 | from forge.git_backend.repository import ForgeRepository\\n      27 | from forge.llm.cost_tracker import COST_TRACKER\\n      28 | from forge.ui.actions import ActionRegistry\\n      29 | from forge.ui.ai_chat_widget import AIChatWidget\\n      30 | from forge.ui.branch_tab_widget import BranchTabWidget\\n      31 | from forge.ui.branch_workspace import BranchWorkspace\\n      32 | from forge.ui.git_graph import GitGraphScrollArea\\n      33 | from forge.ui.mood_bar import MoodBar\\n      34 | from forge.ui.request_debug_window import RequestDebugWindow\\n      35 | from forge.ui.settings_dialog import SettingsDialog\\n      36 | \\n      37 | \\n      38 | class MainWindow(QMainWindow):\\n      39 |     \\\"\\\"\\\"Main application window with branch-first architecture\\\"\\\"\\\"\\n      40 | \\n>>>   41 |     def __init__(self, initial_files: list[str] | None = None) -> None:\\n      42 |         super().__init__()\\n      43 |         self.setGeometry(100, 100, 1400, 900)\\n      44 | \\n      45 |         # Store initial files to open after UI setup\\n      46 |         self._initial_files = initial_files or []\\n      47 | \\n      48 |         # Initialize settings\\n      49 |         self.settings = Settings()\\n      50 | \\n      51 |         # Initialize git repository (required - Forge only works in git repos)\\n      52 |         self.repo = ForgeRepository()\\n      53 |         self.sessions_dir = Path(self.repo.repo.workdir) / \\\".forge\\\" / \\\"sessions\\\"\\n      54 |         self.sessions_dir.mkdir(parents=True, exist_ok=True)\\n      55 | \\n      56 |         # Set window title with folder name\\n      57 |         folder_name = Path(self.repo.repo.workdir).name\\n      58 |         self.setWindowTitle(f\\\"Forge \\u2014 {folder_name}\\\")\\n      59 | \\n      60 |         # Track branch workspaces\\n      61 |         self._workspaces: dict[str, BranchWorkspace] = {}\\n      62 |         self._branch_widgets: dict[str, BranchTabWidget] = {}\\n      63 | \\n      64 |         # Debug window (single instance)\\n      65 |         self._debug_window: RequestDebugWindow | None = None\\n      66 | \\n      67 |         # Mood bar visibility state\\n      68 |         self._mood_bar_visible = True\\n      69 | \\n      70 |         self._setup_ui()\\n      71 |         self._setup_menus()\", \"filepath\": \"forge/ui/main_window.py\", \"range\": \"11-71\", \"success\": true, \"target_line\": 41, \"total_lines\": 1061}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, I can see the repo is created on line 52. I'll add the registry initialization right after that. Let me also fix a bug in `wait_session.py` - it references `live_runner` which no longer exists after my refactor.\n\n<edit file=\"forge/ui/main_window.py\">\n<search>\n        # Initialize git repository (required - Forge only works in git repos)\n        self.repo = ForgeRepository()\n        self.sessions_dir = Path(self.repo.repo.workdir) / \".forge\" / \"sessions\"\n        self.sessions_dir.mkdir(parents=True, exist_ok=True)\n</search>\n<replace>\n        # Initialize git repository (required - Forge only works in git repos)\n        self.repo = ForgeRepository()\n        self.sessions_dir = Path(self.repo.repo.workdir) / \".forge\" / \"sessions\"\n        self.sessions_dir.mkdir(parents=True, exist_ok=True)\n\n        # Initialize session registry - scans all branches for session metadata\n        from forge.session.registry import SESSION_REGISTRY\n\n        SESSION_REGISTRY.initialize(self.repo)\n</replace>\n</edit>\n\nNow fix the bug in `wait_session.py` where `live_runner` is referenced but no longer exists:\n\n<edit file=\"forge/tools/builtin/wait_session.py\">\n<search>\n        if state in (\"completed\", \"waiting_input\", \"waiting_children\", \"idle\"):\n            # idle means the turn finished - child is ready\n            merge_clean = _check_merge_clean(repo, parent_branch, branch)\n\n            # Get the child's last assistant message - this is what the child said/did\n            last_response = None\n            for msg in reversed(live_runner.messages):\n                if msg.get(\"role\") == \"assistant\" and not msg.get(\"_ui_only\"):\n                    last_response = msg.get(\"content\", \"\")\n                    break\n\n            ready_children.append(\n</search>\n<replace>\n        if state in (\"completed\", \"waiting_input\", \"waiting_children\", \"idle\"):\n            # idle means the turn finished - child is ready\n            merge_clean = _check_merge_clean(repo, parent_branch, branch)\n\n            # Get the child's last assistant message - this is what the child said/did\n            last_response = None\n            if session_info.runner is not None:\n                for msg in reversed(session_info.runner.messages):\n                    if msg.get(\"role\") == \"assistant\" and not msg.get(\"_ui_only\"):\n                        last_response = msg.get(\"content\", \"\")\n                        break\n\n            ready_children.append(\n</replace>\n</edit>\n\nNow let me compact the context since it's very large:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"23\", \"to_id\": \"31\", \"summary\": \"**Completed major SessionRegistry refactor:**\\n\\n1. **forge/session/registry.py** - Complete rewrite:\\n   - Added `SessionInfo` dataclass for lightweight session metadata\\n   - `initialize(repo)` scans ALL branches for session.json on startup\\n   - `_load_session_info()` loads metadata, normalizes \\\"running\\\" \u2192 \\\"idle\\\"\\n   - `refresh_branch()` reloads single branch after commits\\n   - `register_runner()` / `unregister_runner()` attach/detach live runners\\n   - `get()` returns SessionInfo (not runner), `get_runner()` returns runner\\n   - `get_session_states()`, `get_children_states()` for UI/tools\\n   - Backwards-compat `register()`/`unregister()` methods\\n\\n2. **Updated all callers to use new API:**\\n   - `forge/session/startup.py:182` - `session_info.runner if session_info else None`\\n   - `forge/tools/builtin/merge_session.py:81` - Check `session_info`, use `.runner` or stored state\\n   - `forge/tools/builtin/resume_session.py:70` - Check `session_info`, verify parent, check runner state\\n   - `forge/tools/builtin/wait_session.py:128` - Check `session_info`, get state from runner or stored\\n   - `forge/ui/ai_chat_widget.py:434` - `session_info.runner` instead of direct get\\n\\n3. **forge/ui/main_window.py:52** - Added `SESSION_REGISTRY.initialize(self.repo)` after repo creation\\n\\n4. **forge/tools/builtin/wait_session.py** - Fixed bug: `live_runner.messages` \u2192 `session_info.runner.messages`\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01DW3APDkUVQUx6yysjDW8sX",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/main_window.py",
+          "modified_files": [
+            "forge/ui/main_window.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/wait_session.py",
+          "modified_files": [
+            "forge/tools/builtin/wait_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01DW3APDkUVQUx6yysjDW8sX",
+      "content": "{\"compact\": true, \"from_id\": \"23\", \"success\": true, \"summary\": \"**Completed major SessionRegistry refactor:**\\n\\n1. **forge/session/registry.py** - Complete rewrite:\\n   - Added `SessionInfo` dataclass for lightweight session metadata\\n   - `initialize(repo)` scans ALL branches for session.json on startup\\n   - `_load_session_info()` loads metadata, normalizes \\\"running\\\" \\u2192 \\\"idle\\\"\\n   - `refresh_branch()` reloads single branch after commits\\n   - `register_runner()` / `unregister_runner()` attach/detach live runners\\n   - `get()` returns SessionInfo (not runner), `get_runner()` returns runner\\n   - `get_session_states()`, `get_children_states()` for UI/tools\\n   - Backwards-compat `register()`/`unregister()` methods\\n\\n2. **Updated all callers to use new API:**\\n   - `forge/session/startup.py:182` - `session_info.runner if session_info else None`\\n   - `forge/tools/builtin/merge_session.py:81` - Check `session_info`, use `.runner` or stored state\\n   - `forge/tools/builtin/resume_session.py:70` - Check `session_info`, verify parent, check runner state\\n   - `forge/tools/builtin/wait_session.py:128` - Check `session_info`, get state from runner or stored\\n   - `forge/ui/ai_chat_widget.py:434` - `session_info.runner` instead of direct get\\n\\n3. **forge/ui/main_window.py:52** - Added `SESSION_REGISTRY.initialize(self.repo)` after repo creation\\n\\n4. **forge/tools/builtin/wait_session.py** - Fixed bug: `live_runner.messages` \\u2192 `session_info.runner.messages`\", \"to_id\": \"31\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The context is very large. Let me compact it, then summarize what's done and what remains.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"32\", \"to_id\": \"32\", \"summary\": \"**Already completed all edits:**\\n\\n1. **forge/session/registry.py** - Refactored to be complete source of truth:\\n   - `SessionInfo` dataclass with branch_name, state, parent_session, child_sessions, yield_message, runner\\n   - `initialize(repo)` scans ALL branches for session.json\\n   - `_load_session_info()` normalizes \\\"running\\\" \u2192 \\\"idle\\\" on load\\n   - `get()` returns SessionInfo, `get_runner()` returns runner\\n   - `register_runner()`/`unregister_runner()` for live sessions\\n\\n2. **forge/ui/main_window.py:57** - Added `SESSION_REGISTRY.initialize(self.repo)`\\n\\n3. **forge/tools/builtin/merge_session.py:81** - Uses `session_info = SESSION_REGISTRY.get()`, checks `.runner`\\n\\n4. **forge/tools/builtin/resume_session.py:70** - Uses `session_info`, checks `.runner` for parent/state\\n\\n5. **forge/tools/builtin/wait_session.py:128** - Uses `session_info`, fixed `session_info.runner.messages`\\n\\n6. **forge/session/startup.py:182** - Uses `session_info.runner if session_info else None`\\n\\n7. **forge/session/runner.py:788** - Moved `self.state = SessionState.IDLE` BEFORE `commit_ai_turn()` to persist correct state\"}",
+            "name": "compact"
+          },
+          "id": "toolu_017JPsKfiMAtszAoaiZTw9rM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_017JPsKfiMAtszAoaiZTw9rM",
+      "content": "{\"compact\": true, \"from_id\": \"32\", \"success\": true, \"summary\": \"**Already completed all edits:**\\n\\n1. **forge/session/registry.py** - Refactored to be complete source of truth:\\n   - `SessionInfo` dataclass with branch_name, state, parent_session, child_sessions, yield_message, runner\\n   - `initialize(repo)` scans ALL branches for session.json\\n   - `_load_session_info()` normalizes \\\"running\\\" \\u2192 \\\"idle\\\" on load\\n   - `get()` returns SessionInfo, `get_runner()` returns runner\\n   - `register_runner()`/`unregister_runner()` for live sessions\\n\\n2. **forge/ui/main_window.py:57** - Added `SESSION_REGISTRY.initialize(self.repo)`\\n\\n3. **forge/tools/builtin/merge_session.py:81** - Uses `session_info = SESSION_REGISTRY.get()`, checks `.runner`\\n\\n4. **forge/tools/builtin/resume_session.py:70** - Uses `session_info`, checks `.runner` for parent/state\\n\\n5. **forge/tools/builtin/wait_session.py:128** - Uses `session_info`, fixed `session_info.runner.messages`\\n\\n6. **forge/session/startup.py:182** - Uses `session_info.runner if session_info else None`\\n\\n7. **forge/session/runner.py:788** - Moved `self.state = SessionState.IDLE` BEFORE `commit_ai_turn()` to persist correct state\", \"to_id\": \"32\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "All the work is complete. Let me summarize what was done:\n\n## Summary of Changes\n\n### 1. **Fixed state persistence bug** (`forge/session/runner.py:788`)\n- Moved `self.state = SessionState.IDLE` to **before** `commit_ai_turn()` so the correct state is persisted\n\n### 2. **Refactored SessionRegistry** (`forge/session/registry.py`)\n- Now scans **all branches** on startup for session.json (not just ai/ prefix)\n- Added `SessionInfo` dataclass for lightweight metadata\n- `_load_session_info()` normalizes \"running\" \u2192 \"idle\" on load (crash recovery)\n- `get()` returns `SessionInfo` (or None), `get_runner()` returns the live runner\n- `register_runner()`/`unregister_runner()` attach/detach live runners\n- `refresh_branch()` reloads a single branch after commits\n\n### 3. **Updated all callers to use new registry API:**\n- `forge/ui/main_window.py:57` - Added `SESSION_REGISTRY.initialize(self.repo)` on startup\n- `forge/tools/builtin/merge_session.py:81` - Uses `session_info = SESSION_REGISTRY.get()`, checks `.runner`\n- `forge/tools/builtin/resume_session.py:70` - Uses `session_info`, checks `.runner` for parent/state\n- `forge/tools/builtin/wait_session.py:128` - Uses `session_info`, fixed bug accessing `.runner.messages`\n- `forge/session/startup.py:182` - Uses `session_info.runner if session_info else None`\n\n### Manual Patch for Existing Sessions\nTo fix sessions that already have `\"state\": \"running\"` persisted:\n\n```bash\n# For each affected branch, edit .forge/session.json and change:\n\"state\": \"running\"\n# to:\n\"state\": \"idle\"\n```\n\nOr just open the app - the new code normalizes \"running\" \u2192 \"idle\" on load automatically!"
     }
   ],
   "parent_session": null,

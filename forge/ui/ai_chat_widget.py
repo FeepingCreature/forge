@@ -431,10 +431,10 @@ class AIChatWidget(QWidget):
         from forge.session.registry import SESSION_REGISTRY
         from forge.session.runner import SessionRunner
 
-        existing_runner = SESSION_REGISTRY.get(self.branch_name)
-        if existing_runner:
+        session_info = SESSION_REGISTRY.get(self.branch_name)
+        if session_info and session_info.runner:
             # Reuse existing runner (e.g., from spawn_session)
-            self.runner = existing_runner
+            self.runner = session_info.runner
         else:
             # Create new runner
             initial_messages = session_data.get("messages", []) if session_data else []

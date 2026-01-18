@@ -179,7 +179,8 @@ def start_or_resume_session(
     from forge.session.registry import SESSION_REGISTRY
 
     # Check if already in registry
-    runner = SESSION_REGISTRY.get(branch_name)
+    session_info = SESSION_REGISTRY.get(branch_name)
+    runner = session_info.runner if session_info else None
     was_newly_loaded = False
 
     if not runner:

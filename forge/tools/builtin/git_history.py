@@ -170,6 +170,10 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
     for patch in diff:
         file_path = patch.delta.new_file.path or patch.delta.old_file.path
 
+        # Skip session.json - it's noise in diffs
+        if file_path == ".forge/session.json":
+            continue
+
         # File header
         if patch.delta.status == pygit2.GIT_DELTA_ADDED:
             diff_lines.append(f"--- /dev/null")

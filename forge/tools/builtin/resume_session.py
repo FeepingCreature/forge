@@ -8,10 +8,7 @@ for completion or questions.
 Uses Tool API v2 (ToolContext) for clean access to repo and branch_name.
 """
 
-import json
 from typing import TYPE_CHECKING, Any
-
-from forge.constants import SESSION_FILE
 
 if TYPE_CHECKING:
     from forge.tools.context import ToolContext
@@ -52,6 +49,8 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Send message to child session and start/resume it."""
+    from forge.session.registry import SESSION_REGISTRY
+
     branch = args.get("branch", "")
     message = args.get("message", "")
 
@@ -61,60 +60,49 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": "Message is required"}
 
     repo = ctx.repo
+    parent_branch = ctx.branch_name
 
     # Check if branch exists
     if branch not in repo.repo.branches:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-    try:
-        # Read child's session
-        child_vfs = ctx.get_branch_vfs(branch)
+    # Check registry first - it's the source of truth for live sessions
+    live_runner = SESSION_REGISTRY.get(branch)
 
-        try:
-            session_content = child_vfs.read_file(SESSION_FILE)
-            session_data = json.loads(session_content)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {"success": False, "error": f"No valid session found on branch '{branch}'"}
-
-        # Check if this is actually a child of current session
-        parent_branch = ctx.branch_name
-        if session_data.get("parent_session") != parent_branch:
+    if live_runner is not None:
+        # Live runner exists - check its state
+        if live_runner._parent_session != parent_branch:
             return {
                 "success": False,
                 "error": f"Branch '{branch}' is not a child of current session",
             }
 
-        # Check current state
-        current_state = session_data.get("state", "idle")
-        if current_state == "running":
+        from forge.session.runner import SessionState
+
+        if live_runner.state == SessionState.RUNNING:
             return {
                 "success": False,
                 "error": "Child session is already running",
             }
 
-        # Append message to child's conversation and update state
-        messages = session_data.get("messages", [])
-        messages.append({"role": "user", "content": message})
-        session_data["messages"] = messages
-        session_data["state"] = "running"
-        session_data["yield_message"] = None
-
-        # Write updated session
-        child_vfs.write_file(SESSION_FILE, json.dumps(session_data, indent=2))
-        child_vfs.commit("Resume session with message from parent")
-
-        # Signal that SessionRunner should start the child session.
-        # The _start_session flag is picked up by _on_tools_all_finished()
-        # which calls _start_child_session() to actually load and run it.
+        # Live runner exists and is not running - we can resume it directly
+        # The _start_session flag will trigger SessionRunner to call send_message on it
         return {
             "success": True,
             "branch": branch,
             "state": "running",
             "message": f"Resumed child session '{branch}'. Use wait_session to check for completion.",
-            # Flags for SessionRunner to pick up
             "_start_session": branch,
             "_start_message": message,
         }
 
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    # No live runner - session needs to be loaded first
+    # The _start_session flag tells SessionRunner to load and start it
+    return {
+        "success": True,
+        "branch": branch,
+        "state": "running",
+        "message": f"Starting child session '{branch}'. Use wait_session to check for completion.",
+        "_start_session": branch,
+        "_start_message": message,
+    }

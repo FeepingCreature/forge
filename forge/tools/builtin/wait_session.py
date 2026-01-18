@@ -66,27 +66,30 @@ def _check_merge_clean(repo: "ForgeRepository", parent_branch: str, child_branch
 def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM."""
     return {
-        "name": "wait_session",
-        "description": (
-            "Wait for one of the specified child sessions to complete or ask a question. "
-            "Returns immediately if any child is ready, otherwise the current session "
-            "yields until a child reaches a stopping point. The returned message is the "
-            "child's done() output - use this to evaluate completion or answer questions."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "branches": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Array of child session branch names to wait on. "
-                        'Example: ["ai/my-task", "ai/other-task"]. '
-                        "Returns when ANY of them is ready."
-                    ),
+        "type": "function",
+        "function": {
+            "name": "wait_session",
+            "description": (
+                "Wait for one of the specified child sessions to complete or ask a question. "
+                "Returns immediately if any child is ready, otherwise the current session "
+                "yields until a child reaches a stopping point. The returned message is the "
+                "child's done() output - use this to evaluate completion or answer questions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branches": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Array of child session branch names to wait on. "
+                            'Example: ["ai/my-task", "ai/other-task"]. '
+                            "Returns when ANY of them is ready."
+                        ),
+                    },
                 },
+                "required": ["branches"],
             },
-            "required": ["branches"],
         },
     }
 

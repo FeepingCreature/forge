@@ -22,35 +22,38 @@ if TYPE_CHECKING:
 def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM."""
     return {
-        "name": "merge_session",
-        "description": (
-            "Merge a completed child session's changes into the current branch. "
-            "This performs a git merge. If there are conflicts, they are left as "
-            "conflict markers that you can resolve with the edit tool. After merge, "
-            "the child is removed from your child_sessions list."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "branch": {
-                    "type": "string",
-                    "description": "Branch name of the child session to merge.",
+        "type": "function",
+        "function": {
+            "name": "merge_session",
+            "description": (
+                "Merge a completed child session's changes into the current branch. "
+                "This performs a git merge. If there are conflicts, they are left as "
+                "conflict markers that you can resolve with the edit tool. After merge, "
+                "the child is removed from your child_sessions list."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch": {
+                        "type": "string",
+                        "description": "Branch name of the child session to merge.",
+                    },
+                    "delete_branch": {
+                        "type": "boolean",
+                        "description": "Whether to delete the child branch after merging. Default: true",
+                        "default": True,
+                    },
+                    "allow_conflicts": {
+                        "type": "boolean",
+                        "description": (
+                            "If true, commit even with conflicts (using <<<>>> markers). "
+                            "If false (default), report conflicts without committing."
+                        ),
+                        "default": False,
+                    },
                 },
-                "delete_branch": {
-                    "type": "boolean",
-                    "description": "Whether to delete the child branch after merging. Default: true",
-                    "default": True,
-                },
-                "allow_conflicts": {
-                    "type": "boolean",
-                    "description": (
-                        "If true, commit even with conflicts (using <<<>>> markers). "
-                        "If false (default), report conflicts without committing."
-                    ),
-                    "default": False,
-                },
+                "required": ["branch"],
             },
-            "required": ["branch"],
         },
     }
 

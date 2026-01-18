@@ -22,38 +22,41 @@ if TYPE_CHECKING:
 def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM."""
     return {
-        "name": "spawn_session",
-        "description": (
-            "Create a child AI session on a new branch and start it immediately. "
-            "The child works independently on the given instruction. Use wait_session "
-            "later to check on progress or get results. The child inherits the current "
-            "codebase state and can make its own commits.\n\n"
-            "IMPORTANT: The child session has NO context from the parent - it starts fresh "
-            "with only the instruction you provide. Be very detailed and explicit in your "
-            "instructions, including: what files to look at, what problem to solve, what "
-            "approach to take, and what the expected outcome is."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "branch_name": {
-                    "type": "string",
-                    "description": (
-                        "Branch name for the child session (e.g., 'ai/fix-login-bug'). "
-                        "Use 'ai/' prefix by convention."
-                    ),
+        "type": "function",
+        "function": {
+            "name": "spawn_session",
+            "description": (
+                "Create a child AI session on a new branch and start it immediately. "
+                "The child works independently on the given instruction. Use wait_session "
+                "later to check on progress or get results. The child inherits the current "
+                "codebase state and can make its own commits.\n\n"
+                "IMPORTANT: The child session has NO context from the parent - it starts fresh "
+                "with only the instruction you provide. Be very detailed and explicit in your "
+                "instructions, including: what files to look at, what problem to solve, what "
+                "approach to take, and what the expected outcome is."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch_name": {
+                        "type": "string",
+                        "description": (
+                            "Branch name for the child session (e.g., 'ai/fix-login-bug'). "
+                            "Use 'ai/' prefix by convention."
+                        ),
+                    },
+                    "instruction": {
+                        "type": "string",
+                        "description": (
+                            "Detailed instruction for the child session. Be explicit - include "
+                            "relevant file paths, the specific problem/task, context the child "
+                            "needs to understand, and what 'done' looks like. The child cannot "
+                            "see your conversation history."
+                        ),
+                    },
                 },
-                "instruction": {
-                    "type": "string",
-                    "description": (
-                        "Detailed instruction for the child session. Be explicit - include "
-                        "relevant file paths, the specific problem/task, context the child "
-                        "needs to understand, and what 'done' looks like. The child cannot "
-                        "see your conversation history."
-                    ),
-                },
+                "required": ["branch_name", "instruction"],
             },
-            "required": ["branch_name", "instruction"],
         },
     }
 

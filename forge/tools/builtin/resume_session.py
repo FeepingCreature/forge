@@ -20,29 +20,32 @@ if TYPE_CHECKING:
 def get_schema() -> dict[str, Any]:
     """Return tool schema for LLM."""
     return {
-        "name": "resume_session",
-        "description": (
-            "Send a message to a child session and start/resume its execution. "
-            "The child runs asynchronously. Use wait_session to check for "
-            "completion or questions from the child."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "branch": {
-                    "type": "string",
-                    "description": "Branch name of the child session to resume.",
+        "type": "function",
+        "function": {
+            "name": "resume_session",
+            "description": (
+                "Send a message to a child session and start/resume its execution. "
+                "The child runs asynchronously. Use wait_session to check for "
+                "completion or questions from the child."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "branch": {
+                        "type": "string",
+                        "description": "Branch name of the child session to resume.",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": (
+                            "Message to send to the child session. For initial start, "
+                            "this should be the task instructions. For resuming after "
+                            "a question, this should answer the child's question."
+                        ),
+                    },
                 },
-                "message": {
-                    "type": "string",
-                    "description": (
-                        "Message to send to the child session. For initial start, "
-                        "this should be the task instructions. For resuming after "
-                        "a question, this should answer the child's question."
-                    ),
-                },
+                "required": ["branch", "message"],
             },
-            "required": ["branch", "message"],
         },
     }
 

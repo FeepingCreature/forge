@@ -49,6 +49,7 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Send message to child session and start/resume it."""
+    from forge.session.live_session import SessionState
     from forge.session.registry import SESSION_REGISTRY
 
     branch = args.get("branch", "")
@@ -66,34 +67,40 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     if branch not in repo.repo.branches:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-    # Check registry - it's the single source of truth for all sessions
-    session_info = SESSION_REGISTRY.get(branch)
+    # Get child session - try loaded first, then check disk
+    child = SESSION_REGISTRY.get(branch)
 
-    if session_info is None:
-        return {
-            "success": False,
-            "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
-        }
+    if child is None:
+        # Not loaded - check if it exists on disk
+        info = SESSION_REGISTRY.get_session_display_info(branch, repo)
+        if info is None:
+            return {
+                "success": False,
+                "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
+            }
 
-    # Verify this is our child
-    stored_parent = session_info.runner._parent_session if session_info.runner else session_info.parent_session
-    if stored_parent != parent_branch:
-        return {
-            "success": False,
-            "error": f"Branch '{branch}' is not a child of current session",
-        }
+        # Verify this is our child
+        if info.get("parent_session") != parent_branch:
+            return {
+                "success": False,
+                "error": f"Branch '{branch}' is not a child of current session",
+            }
+    else:
+        # Loaded - verify parent
+        if child.parent_session != parent_branch:
+            return {
+                "success": False,
+                "error": f"Branch '{branch}' is not a child of current session",
+            }
 
-    # Check if already running
-    if session_info.runner is not None:
-        from forge.session.runner import SessionState
-
-        if session_info.runner.state == SessionState.RUNNING:
+        # Check if already running
+        if child.state == SessionState.RUNNING:
             return {
                 "success": False,
                 "error": "Child session is already running",
             }
 
-    # The _start_session flag tells SessionRunner to load (if needed) and start it
+    # The _start_session flag tells LiveSession to load (if needed) and start it
     return {
         "success": True,
         "branch": branch,

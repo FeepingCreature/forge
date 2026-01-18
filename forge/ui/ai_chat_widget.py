@@ -33,7 +33,7 @@ from forge.ui.tool_rendering import (
 )
 
 if TYPE_CHECKING:
-    from forge.session.runner import SessionEvent
+    from forge.session.live_session import SessionEvent
     from forge.ui.branch_workspace import BranchWorkspace
 
 
@@ -425,20 +425,20 @@ class AIChatWidget(QWidget):
         # that need UI elements (send_button, chat_view, etc.)
         self._setup_ui()
 
-        # Get or create SessionRunner - check registry first to avoid duplicates
+        # Get or create LiveSession - check registry first to avoid duplicates
         # This is important for child sessions spawned by spawn_session tool,
-        # which already have a runner registered
+        # which already have a session loaded
+        from forge.session.live_session import LiveSession
         from forge.session.registry import SESSION_REGISTRY
-        from forge.session.runner import SessionRunner
 
-        session_info = SESSION_REGISTRY.get(self.branch_name)
-        if session_info and session_info.runner:
-            # Reuse existing runner (e.g., from spawn_session)
-            self.runner = session_info.runner
+        existing_session = SESSION_REGISTRY.get(self.branch_name)
+        if existing_session:
+            # Reuse existing session (e.g., from spawn_session)
+            self.runner = existing_session
         else:
-            # Create new runner
+            # Create new session
             initial_messages = session_data.get("messages", []) if session_data else []
-            self.runner = SessionRunner(self.session_manager, initial_messages)
+            self.runner = LiveSession(self.session_manager, initial_messages)
             # Register with global registry
             SESSION_REGISTRY.register(self.branch_name, self.runner)
 
@@ -517,7 +517,7 @@ class AIChatWidget(QWidget):
 
     def _handle_runner_event(self, event: "SessionEvent") -> None:
         """Handle a buffered event from the runner."""
-        from forge.session.runner import (
+        from forge.session.live_session import (
             ChunkEvent,
             ErrorEvent,
             MessageAddedEvent,
@@ -612,7 +612,7 @@ class AIChatWidget(QWidget):
 
     def _on_runner_state_changed(self, state: str) -> None:
         """Handle runner state change."""
-        from forge.session.runner import SessionState
+        from forge.session.live_session import SessionState
 
         if state == SessionState.RUNNING:
             self.ai_turn_started.emit()
@@ -744,7 +744,7 @@ class AIChatWidget(QWidget):
     @property
     def is_processing(self) -> bool:
         """Check if runner is processing."""
-        from forge.session.runner import SessionState
+        from forge.session.live_session import SessionState
 
         return self.runner.state == SessionState.RUNNING
 

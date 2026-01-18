@@ -96,6 +96,7 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Check child sessions and wait if needed."""
+    from forge.session.live_session import SessionState
     from forge.session.registry import SESSION_REGISTRY
 
     branches = args.get("branches", [])
@@ -124,65 +125,78 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         if branch not in repo.repo.branches:
             return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
-        # Check registry - it's the single source of truth for all sessions
-        session_info = SESSION_REGISTRY.get(branch)
+        # Get the child session - it should be loaded if it's our child
+        child = SESSION_REGISTRY.get(branch)
 
-        if session_info is None:
-            return {
-                "success": False,
-                "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
-            }
+        if child is None:
+            # Not loaded - try to get info from disk for display
+            info = SESSION_REGISTRY.get_session_display_info(branch, repo)
+            if info is None:
+                return {
+                    "success": False,
+                    "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
+                }
 
-        # Get state from live runner if available, otherwise from stored info
-        if session_info.runner is not None:
-            state = str(session_info.runner.state)
-            yield_message = session_info.runner._yield_message
-            parent_session = session_info.runner._parent_session
+            # Verify this is our child
+            if info.get("parent_session") != parent_branch:
+                return {
+                    "success": False,
+                    "error": f"Branch '{branch}' is not a child of current session",
+                }
+
+            state = info.get("state", "idle")
+            yield_message = info.get("yield_message")
+            last_response = None  # Can't get this without loading
         else:
-            state = session_info.state
-            yield_message = session_info.yield_message
-            parent_session = session_info.parent_session
-        task = ""
+            # Loaded - use live state
+            state = child.state
+            yield_message = child._yield_message
 
-        # Verify this is our child
-        if parent_session != parent_branch:
-            return {
-                "success": False,
-                "error": f"Branch '{branch}' is not a child of current session",
-            }
+            # Verify this is our child
+            if child.parent_session != parent_branch:
+                return {
+                    "success": False,
+                    "error": f"Branch '{branch}' is not a child of current session",
+                }
 
-        if state in ("completed", "waiting_input", "waiting_children", "idle"):
+            # Get the child's last assistant message
+            last_response = None
+            for msg in reversed(child.messages):
+                if msg.get("role") == "assistant" and not msg.get("_ui_only"):
+                    last_response = msg.get("content", "")
+                    break
+
+        task = ""  # Task tracking removed for simplicity
+
+        if state in (
+            SessionState.COMPLETED,
+            SessionState.WAITING_INPUT,
+            SessionState.WAITING_CHILDREN,
+            SessionState.IDLE,
+        ):
             # idle means the turn finished - child is ready
             merge_clean = _check_merge_clean(repo, parent_branch, branch)
-
-            # Get the child's last assistant message - this is what the child said/did
-            last_response = None
-            if session_info.runner is not None:
-                for msg in reversed(session_info.runner.messages):
-                    if msg.get("role") == "assistant" and not msg.get("_ui_only"):
-                        last_response = msg.get("content", "")
-                        break
 
             ready_children.append(
                 {
                     "branch": branch,
                     "state": state,
                     "message": yield_message or "Task completed",
-                    "last_response": last_response,  # What the child AI said
+                    "last_response": last_response,
                     "task": task,
                     "merge_clean": merge_clean,
                 }
             )
-        elif state == "running":
+        elif state == SessionState.RUNNING:
             running_children.append(branch)
-        elif state == "error":
+        elif state == SessionState.ERROR:
             ready_children.append(
                 {
                     "branch": branch,
                     "state": "error",
                     "message": yield_message or "Unknown error",
                     "task": task,
-                    "merge_clean": False,  # Can't merge if child errored
+                    "merge_clean": False,
                 }
             )
 
@@ -194,7 +208,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "branch": child["branch"],
             "state": child["state"],
             "message": child["message"],
-            "last_response": child.get("last_response"),  # What the child AI said
+            "last_response": child.get("last_response"),
             "task": child["task"],
             "ready": True,
             "merge_clean": child["merge_clean"],
@@ -207,7 +221,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "ready": False,
             "waiting_on": running_children,
             "message": "All child sessions still running. Current session will yield.",
-            # Signal to SessionRunner to yield
+            # Signal to LiveSession to yield
             "_yield": True,
             "_yield_message": f"Waiting on child sessions: {', '.join(running_children)}",
             "side_effects": [SideEffect.MID_TURN_COMMIT],  # Force commit before yield

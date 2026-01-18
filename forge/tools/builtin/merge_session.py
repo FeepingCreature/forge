@@ -60,6 +60,7 @@ def get_schema() -> dict[str, Any]:
 
 def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Merge child session into current branch."""
+    from forge.session.live_session import SessionState
     from forge.session.registry import SESSION_REGISTRY
 
     branch = args.get("branch", "")
@@ -77,23 +78,24 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
         return {"success": False, "error": f"Branch '{branch}' does not exist"}
 
     try:
-        # Check registry - it's the single source of truth for all sessions
-        session_info = SESSION_REGISTRY.get(branch)
+        # Get child session - try loaded first, then check disk
+        child = SESSION_REGISTRY.get(branch)
 
-        if session_info is None:
-            return {
-                "success": False,
-                "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
-            }
-
-        # Get state from live runner if available, otherwise from stored info
-        if session_info.runner is not None:
-            child_state = str(session_info.runner.state)
-            parent_session = session_info.runner._parent_session
+        if child is not None:
+            # Loaded - use live state
+            child_state = child.state
+            parent_session = child.parent_session
             print(f"🔍 merge_session: {branch} LIVE state={child_state}")
         else:
-            child_state = session_info.state
-            parent_session = session_info.parent_session
+            # Not loaded - check disk
+            info = SESSION_REGISTRY.get_session_display_info(branch, repo)
+            if info is None:
+                return {
+                    "success": False,
+                    "error": f"Branch '{branch}' is not a session (no .forge/session.json)",
+                }
+            child_state = info.get("state", "idle")
+            parent_session = info.get("parent_session")
             print(f"🔍 merge_session: {branch} STORED state={child_state}")
 
         if parent_session != parent_branch:
@@ -103,7 +105,11 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             }
 
         # Check child state - idle means turn finished, so it's ready
-        if child_state not in ("completed", "waiting_input", "idle"):
+        if child_state not in (
+            SessionState.COMPLETED,
+            SessionState.WAITING_INPUT,
+            SessionState.IDLE,
+        ):
             return {
                 "success": False,
                 "error": f"Child session is not ready for merge (state: {child_state})",
@@ -291,6 +297,8 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             try:
                 repo.repo.branches.delete(branch)
                 result_msg += f". Deleted branch '{branch}'"
+                # Remove from registry
+                SESSION_REGISTRY.remove_session(branch)
             except Exception as e:
                 result_msg += f". Could not delete branch: {e}"
 

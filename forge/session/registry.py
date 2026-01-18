@@ -1,162 +1,239 @@
 """
-SessionRegistry - Global singleton managing all session state.
+SessionRegistry - Global singleton managing loaded sessions.
 
-This is the single source of truth for session information:
-- Scans all branches on init to find sessions (those with .forge/session.json)
-- Stores lightweight SessionInfo for each session
-- Attaches SessionRunner when a session is actually running
-- Provides session state for tools and UI
+This is a simple index: branch_name → LiveSession | None
 
-Tools should ONLY query the registry, never read session.json directly.
+Key invariants:
+- A session with state WAITING_CHILDREN or RUNNING must have a LiveSession loaded
+- Parent/child relationships are owned by the LiveSession, not the registry
+- The registry doesn't duplicate state - it just indexes loaded sessions
+
+For display of unloaded sessions (e.g., session dropdown), read session.json directly.
+That's a pure display operation, not used for operational logic.
 """
 
 import json
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, Signal
 
 if TYPE_CHECKING:
+    from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
-    from forge.session.runner import SessionRunner
-
-
-@dataclass
-class SessionInfo:
-    """Lightweight metadata for a session branch."""
-
-    branch_name: str
-    state: str = "idle"  # Normalized - "running" -> "idle" on load
-    parent_session: str | None = None
-    child_sessions: list[str] = field(default_factory=list)
-    yield_message: str | None = None
-    runner: "SessionRunner | None" = None  # None if not actively loaded
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dict for UI/tools."""
-        return {
-            "state": self.runner.state if self.runner else self.state,
-            "is_child": self.parent_session is not None,
-            "parent": self.parent_session,
-            "has_children": bool(self.child_sessions),
-            "children": list(self.child_sessions),
-            "yield_message": self.runner._yield_message if self.runner else self.yield_message,
-            "is_live": self.runner is not None,
-        }
+    from forge.session.live_session import LiveSession
 
 
 class SessionRegistry(QObject):
     """
-    Global registry of all sessions.
+    Global registry of loaded sessions.
 
     Singleton - use SESSION_REGISTRY global instance.
-    Call initialize(repo) on startup to scan branches.
+    
+    This is just an index: branch_name → LiveSession
+    
+    The LiveSession owns all state (parent/child relationships, execution state).
+    The registry just tracks which sessions are currently loaded in memory.
     """
 
     # Signals for UI updates
-    session_registered = Signal(str)  # branch_name
-    session_unregistered = Signal(str)  # branch_name
+    session_loaded = Signal(str)  # branch_name
+    session_unloaded = Signal(str)  # branch_name
     session_state_changed = Signal(str, str)  # branch_name, new_state
-    registry_initialized = Signal()  # Emitted after scan completes
+
+    # Backwards compatible signal names
+    session_registered = Signal(str)  # Alias for session_loaded
+    session_unregistered = Signal(str)  # Alias for session_unloaded
+    registry_initialized = Signal()  # For startup
 
     def __init__(self) -> None:
         super().__init__()
-        self._sessions: dict[str, SessionInfo] = {}
-        self._repo: ForgeRepository | None = None
+        self._sessions: dict[str, "LiveSession"] = {}
+        self._repo: "ForgeRepository | None" = None
+
+        # Connect backwards compat signals to new signals
+        self.session_loaded.connect(self.session_registered.emit)
+        self.session_unloaded.connect(self.session_unregistered.emit)
 
     def initialize(self, repo: "ForgeRepository") -> None:
         """
-        Initialize registry by scanning all branches for sessions.
+        Initialize registry with the repository.
 
         Call this once on app startup after repo is available.
+        This doesn't load any sessions - they're loaded on demand.
         """
         self._repo = repo
-        self._scan_branches()
-        self.registry_initialized.emit()
 
-    def _scan_branches(self) -> None:
-        """Scan all branches and load session metadata."""
-        if not self._repo:
-            return
+    def load(
+        self,
+        branch_name: str,
+        repo: "ForgeRepository | None" = None,
+        settings: "Settings | None" = None,
+    ) -> "LiveSession | None":
+        """
+        Load a session from disk, creating a LiveSession.
 
-        self._sessions.clear()
+        If already loaded, returns the existing LiveSession.
+        If session doesn't exist (no .forge/session.json), returns None.
 
-        for branch_name in self._repo.repo.branches.local:
-            info = self._load_session_info(branch_name)
-            if info:
-                self._sessions[branch_name] = info
+        Args:
+            branch_name: Branch to load session from
+            repo: Repository (uses cached if not provided)
+            settings: Application settings (required if not already loaded)
 
-    def _load_session_info(self, branch_name: str) -> SessionInfo | None:
-        """Load session info from a branch's session.json, if it exists."""
-        if not self._repo:
+        Returns:
+            LiveSession if session exists, None otherwise
+        """
+        # Return existing if already loaded
+        if branch_name in self._sessions:
+            return self._sessions[branch_name]
+
+        repo = repo or self._repo
+        if not repo or not settings:
             return None
 
-        try:
-            content = self._repo.get_file_content(".forge/session.json", branch_name)
-            data = json.loads(content)
-
-            # Normalize state - "running" means crashed mid-run, treat as idle
-            state = data.get("state", "idle")
-            if state == "running":
-                state = "idle"
-
-            return SessionInfo(
-                branch_name=branch_name,
-                state=state,
-                parent_session=data.get("parent_session"),
-                child_sessions=data.get("child_sessions", []),
-                yield_message=data.get("yield_message"),
+        # Load from disk
+        session = self._load_from_disk(branch_name, repo, settings)
+        if session:
+            self._sessions[branch_name] = session
+            # Connect to state changes
+            session.state_changed.connect(
+                lambda state, bn=branch_name: self.session_state_changed.emit(bn, state)
             )
+            self.session_loaded.emit(branch_name)
+
+        return session
+
+    def _load_from_disk(
+        self,
+        branch_name: str,
+        repo: "ForgeRepository",
+        settings: "Settings",
+    ) -> "LiveSession | None":
+        """Load a session from disk and create a LiveSession."""
+        import contextlib
+
+        from forge.constants import SESSION_FILE
+        from forge.session.live_session import LiveSession, SessionState
+        from forge.session.manager import SessionManager
+        from forge.session.startup import replay_messages_to_prompt_manager
+
+        # Try to load session data from branch
+        try:
+            session_content = repo.get_file_content(SESSION_FILE, branch_name)
+            session_data = json.loads(session_content)
         except (FileNotFoundError, KeyError, json.JSONDecodeError):
             return None
 
-    def refresh_branch(self, branch_name: str) -> None:
+        messages = session_data.get("messages", [])
+
+        # Create SessionManager for this branch
+        session_manager = SessionManager(repo, branch_name, settings)
+
+        # Restore active files
+        for filepath in session_data.get("active_files", []):
+            with contextlib.suppress(Exception):
+                session_manager.add_active_file(filepath)
+
+        # Create LiveSession
+        session = LiveSession(session_manager, messages)
+
+        # Replay messages into prompt manager so LLM sees them
+        replay_messages_to_prompt_manager(messages, session_manager)
+
+        # Restore parent/child relationships
+        if session_data.get("parent_session"):
+            session.parent_session = session_data["parent_session"]
+
+        for child in session_data.get("child_sessions", []):
+            session.child_sessions.append(child)
+
+        # Restore yield state if session was waiting
+        if session_data.get("yield_message"):
+            session._yield_message = session_data["yield_message"]
+
+        # Restore pending wait call if session was waiting on children
+        if session_data.get("pending_wait_call"):
+            session._pending_wait_call = session_data["pending_wait_call"]
+
+        # Restore state from session data.
+        # "running" means we crashed mid-run - normalize to "idle" since we're not
+        # actually running anymore. The user can restart the conversation.
+        stored_state = session_data.get("state", "idle")
+        if stored_state == "running":
+            stored_state = "idle"  # Crashed mid-run, treat as idle
+        if stored_state in (
+            SessionState.IDLE,
+            SessionState.WAITING_INPUT,
+            SessionState.WAITING_CHILDREN,
+            SessionState.COMPLETED,
+            SessionState.ERROR,
+        ):
+            session._state = stored_state
+
+        return session
+
+    def unload(self, branch_name: str) -> bool:
         """
-        Refresh session info for a specific branch.
+        Unload a session if safe to do so.
 
-        Call after commits that might change session.json.
+        Returns True if unloaded (or was not loaded).
+        Returns False if session is active and can't be unloaded.
         """
-        info = self._load_session_info(branch_name)
-        if info:
-            # Preserve runner if one exists
-            existing = self._sessions.get(branch_name)
-            if existing and existing.runner:
-                info.runner = existing.runner
-            self._sessions[branch_name] = info
-            self.session_registered.emit(branch_name)
-        elif branch_name in self._sessions:
-            # Session was deleted
-            del self._sessions[branch_name]
-            self.session_unregistered.emit(branch_name)
+        from forge.session.live_session import SessionState
 
-    def register_runner(self, branch_name: str, runner: "SessionRunner") -> None:
+        session = self._sessions.get(branch_name)
+        if not session:
+            return True  # Already unloaded
+
+        # Can't unload active sessions
+        if session.state not in (SessionState.IDLE, SessionState.COMPLETED, SessionState.ERROR):
+            return False
+
+        # Can't unload if UI is attached
+        if session.has_attached_ui():
+            return False
+
+        del self._sessions[branch_name]
+        self.session_unloaded.emit(branch_name)
+        return True
+
+    def get(self, branch_name: str) -> "LiveSession | None":
+        """Get a loaded session, or None if not loaded."""
+        return self._sessions.get(branch_name)
+
+    def ensure_loaded(
+        self,
+        branch_name: str,
+        repo: "ForgeRepository | None" = None,
+        settings: "Settings | None" = None,
+    ) -> "LiveSession | None":
+        """Load session if not loaded, return it."""
+        return self.load(branch_name, repo, settings)
+
+    def get_all_loaded(self) -> dict[str, "LiveSession"]:
+        """Get all currently loaded sessions."""
+        return dict(self._sessions)
+
+    def is_loaded(self, branch_name: str) -> bool:
+        """Check if a session is currently loaded."""
+        return branch_name in self._sessions
+
+    def notify_child_updated(self, child_branch: str) -> None:
         """
-        Attach a SessionRunner to a session.
+        Notify that a child session has updated (completed, asked question, etc.)
 
-        Called when a session is started/loaded.
+        Looks up the child's parent and triggers resume if parent is waiting.
         """
-        if branch_name not in self._sessions:
-            # Session not yet known - create info for it
-            self._sessions[branch_name] = SessionInfo(branch_name=branch_name)
+        child = self._sessions.get(child_branch)
+        if not child or not child.parent_session:
+            return
 
-        self._sessions[branch_name].runner = runner
+        parent = self._sessions.get(child.parent_session)
+        if not parent:
+            return
 
-        # Connect to state changes to re-emit for UI
-        runner.state_changed.connect(
-            lambda state, bn=branch_name: self.session_state_changed.emit(bn, state)
-        )
-
-        self.session_registered.emit(branch_name)
-
-    def unregister_runner(self, branch_name: str) -> None:
-        """
-        Detach a SessionRunner from a session.
-
-        Called when a session tab is closed. Session info remains.
-        """
-        if branch_name in self._sessions:
-            self._sessions[branch_name].runner = None
-            # Don't emit unregistered - session still exists, just not live
+        # Let the parent know a child is ready
+        parent.child_ready(child_branch)
 
     def remove_session(self, branch_name: str) -> None:
         """
@@ -164,97 +241,202 @@ class SessionRegistry(QObject):
         """
         if branch_name in self._sessions:
             del self._sessions[branch_name]
-            self.session_unregistered.emit(branch_name)
+            self.session_unloaded.emit(branch_name)
 
-    def get(self, branch_name: str) -> SessionInfo | None:
-        """Get session info for a branch, or None if not a session."""
-        return self._sessions.get(branch_name)
+    def load_active_sessions_on_startup(
+        self,
+        repo: "ForgeRepository",
+        settings: "Settings",
+    ) -> list[str]:
+        """
+        Load sessions that need to be active on startup.
 
-    def get_runner(self, branch_name: str) -> "SessionRunner | None":
-        """Get the SessionRunner for a branch, or None if not live."""
-        info = self._sessions.get(branch_name)
-        return info.runner if info else None
+        This includes:
+        - Sessions in WAITING_CHILDREN state (need to coordinate with children)
+        - Children of WAITING_CHILDREN sessions (need to notify parent when done)
 
-    def get_all(self) -> dict[str, SessionInfo]:
-        """Get all known sessions."""
-        return dict(self._sessions)
+        Does NOT auto-run anything - just loads them into memory.
+
+        Returns list of branch names that were loaded.
+        """
+        from forge.constants import SESSION_BRANCH_PREFIX, SESSION_FILE
+
+        loaded = []
+        waiting_parents: list[tuple[str, list[str]]] = []  # (parent_branch, child_branches)
+
+        # First pass: find sessions that need to be loaded
+        for branch_name in repo.repo.branches.local:
+            if not branch_name.startswith(SESSION_BRANCH_PREFIX):
+                continue
+
+            try:
+                content = repo.get_file_content(SESSION_FILE, branch_name)
+                session_data = json.loads(content)
+                state = session_data.get("state", "idle")
+
+                # Load sessions that were waiting on children
+                if state == "waiting_children":
+                    child_branches = session_data.get("child_sessions", [])
+                    waiting_parents.append((branch_name, child_branches))
+
+            except (FileNotFoundError, KeyError, json.JSONDecodeError):
+                continue
+
+        # Load waiting parents and their children
+        for parent_branch, child_branches in waiting_parents:
+            # Load parent
+            if self.load(parent_branch, repo, settings):
+                loaded.append(parent_branch)
+
+            # Load children so they can notify parent
+            for child_branch in child_branches:
+                if self.load(child_branch, repo, settings):
+                    loaded.append(child_branch)
+
+        return loaded
+
+    # === Display helpers (for UI, not operational logic) ===
+
+    def get_all_session_branches(self, repo: "ForgeRepository | None" = None) -> list[str]:
+        """
+        Get all branches that have sessions (loaded or not).
+
+        For UI display purposes - scans git branches for .forge/session.json.
+        """
+        from forge.constants import SESSION_BRANCH_PREFIX, SESSION_FILE
+
+        repo = repo or self._repo
+        if not repo:
+            return []
+
+        branches = []
+        for branch_name in repo.repo.branches.local:
+            if not branch_name.startswith(SESSION_BRANCH_PREFIX):
+                continue
+            try:
+                repo.get_file_content(SESSION_FILE, branch_name)
+                branches.append(branch_name)
+            except (FileNotFoundError, KeyError):
+                continue
+
+        return branches
+
+    def get_session_display_info(
+        self, branch_name: str, repo: "ForgeRepository | None" = None
+    ) -> dict[str, Any] | None:
+        """
+        Get display info for a session (for UI).
+
+        Returns info for display purposes. Uses live state if loaded,
+        otherwise reads from session.json.
+        """
+        from forge.constants import SESSION_FILE
+
+        # If loaded, use live state
+        session = self._sessions.get(branch_name)
+        if session:
+            return {
+                "branch_name": branch_name,
+                "state": session.state,
+                "is_loaded": True,
+                "parent_session": session.parent_session,
+                "child_sessions": list(session.child_sessions),
+                "yield_message": session._yield_message,
+                "has_attached_ui": session.has_attached_ui(),
+            }
+
+        # Not loaded - read from disk for display
+        repo = repo or self._repo
+        if not repo:
+            return None
+
+        try:
+            content = repo.get_file_content(SESSION_FILE, branch_name)
+            data = json.loads(content)
+
+            # Normalize state for display
+            state = data.get("state", "idle")
+            if state == "running":
+                state = "idle"  # Crashed mid-run
+
+            return {
+                "branch_name": branch_name,
+                "state": state,
+                "is_loaded": False,
+                "parent_session": data.get("parent_session"),
+                "child_sessions": data.get("child_sessions", []),
+                "yield_message": data.get("yield_message"),
+                "has_attached_ui": False,
+            }
+        except (FileNotFoundError, KeyError, json.JSONDecodeError):
+            return None
+
+    # === Backwards compatibility ===
+
+    def register_runner(self, branch_name: str, session: "LiveSession") -> None:
+        """Backwards compatible - registers a session directly."""
+        if branch_name not in self._sessions:
+            self._sessions[branch_name] = session
+            session.state_changed.connect(
+                lambda state, bn=branch_name: self.session_state_changed.emit(bn, state)
+            )
+            self.session_loaded.emit(branch_name)
+
+    def unregister_runner(self, branch_name: str) -> None:
+        """Backwards compatible - same as unload but doesn't check safety."""
+        if branch_name in self._sessions:
+            del self._sessions[branch_name]
+            self.session_unloaded.emit(branch_name)
+
+    def get_runner(self, branch_name: str) -> "LiveSession | None":
+        """Backwards compatible - same as get()."""
+        return self.get(branch_name)
+
+    # Old API that needs SessionInfo - provide minimal compatibility
+    def register(self, branch_name: str, session: "LiveSession") -> None:
+        """Backwards compatible."""
+        self.register_runner(branch_name, session)
+
+    def unregister(self, branch_name: str) -> None:
+        """Backwards compatible."""
+        self.unregister_runner(branch_name)
 
     def get_session_states(self) -> dict[str, dict[str, Any]]:
         """
-        Get state info for all sessions (for dropdown UI).
-
-        Returns dict of branch_name -> {state, is_child, parent, has_children, ...}
+        Get state info for all loaded sessions (for UI display).
+        
+        Returns dict of branch_name -> state info dict.
         """
-        return {name: info.to_dict() for name, info in self._sessions.items()}
+        result = {}
+        for branch_name, session in self._sessions.items():
+            result[branch_name] = {
+                "state": session.state,
+                "is_child": session.parent_session is not None,
+                "parent": session.parent_session,
+                "has_children": bool(session.child_sessions),
+                "children": list(session.child_sessions),
+                "yield_message": session._yield_message,
+                "is_live": True,
+            }
+        return result
 
     def get_children_states(self, parent_branch: str) -> dict[str, str]:
         """
         Get states of all child sessions for a parent.
-
+        
         Used by wait_session to check if any children are ready.
         Returns dict of child_branch -> state
         """
-        parent_info = self._sessions.get(parent_branch)
-        if not parent_info:
+        parent = self._sessions.get(parent_branch)
+        if not parent:
             return {}
 
         result = {}
-        for child_branch in parent_info.child_sessions:
-            child_info = self._sessions.get(child_branch)
-            if child_info:
-                # Use live state if runner exists, otherwise stored state
-                if child_info.runner:
-                    result[child_branch] = child_info.runner.state
-                else:
-                    result[child_branch] = child_info.state
+        for child_branch in parent.child_sessions:
+            child = self._sessions.get(child_branch)
+            if child:
+                result[child_branch] = child.state
         return result
-
-    def notify_parent(self, child_branch: str) -> None:
-        """
-        Notify parent session that a child has updated.
-
-        Called when a child session changes state (completes, asks question, etc.)
-        If parent is waiting on children, this may resume it.
-        """
-        child_info = self._sessions.get(child_branch)
-        if not child_info or not child_info.parent_session:
-            return
-
-        parent_info = self._sessions.get(child_info.parent_session)
-        if not parent_info or not parent_info.runner:
-            return
-
-        parent = parent_info.runner
-
-        from forge.session.runner import SessionState
-
-        # If parent is waiting on children, check if any child is ready
-        if parent.state == SessionState.WAITING_CHILDREN:
-            # A child is "ready" if it's completed or waiting for input
-            child_states = self.get_children_states(child_info.parent_session)
-            ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
-
-            for _branch, state in child_states.items():
-                if state in ready_states:
-                    # A child is ready - trigger resume via QTimer to avoid reentrancy
-                    if parent._pending_wait_call:
-                        from PySide6.QtCore import QTimer
-
-                        QTimer.singleShot(0, parent._do_resume_from_wait)
-                    else:
-                        parent.state = SessionState.IDLE
-                    break
-
-    # === Backwards compatibility ===
-    # These methods maintain the old API while we migrate callers
-
-    def register(self, branch_name: str, runner: "SessionRunner") -> None:
-        """Backwards compatible - use register_runner instead."""
-        self.register_runner(branch_name, runner)
-
-    def unregister(self, branch_name: str) -> None:
-        """Backwards compatible - use unregister_runner instead."""
-        self.unregister_runner(branch_name)
 
 
 # Global singleton instance

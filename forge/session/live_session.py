@@ -1,0 +1,1130 @@
+"""
+LiveSession - In-memory representation of an AI session.
+
+This class owns the session lifecycle and can operate with or without a UI
+attached. AIChatWidget becomes a view that attaches to a LiveSession to
+render and interact.
+
+Key concepts:
+- LiveSession owns: messages, streaming state, worker threads, parent/child relationships
+- AIChatWidget attaches/detaches without disrupting execution
+- Spawned child sessions run headlessly until user attaches a view
+
+Attach/Detach model:
+- When detached, events buffer up in a thread-safe queue
+- On attach: lock buffer, get snapshot, unlock, replay buffered events
+- Once buffer is drained, switch to direct signal emission
+
+Lifecycle:
+- A LiveSession is the in-memory representation of a session branch
+- It's loaded when needed (active state or user interaction)
+- It persists to .forge/session.json
+- Tabs attach/detach but don't own the LiveSession
+"""
+
+from collections import deque
+from threading import Lock
+from typing import TYPE_CHECKING, Any
+
+from PySide6.QtCore import QObject, QThread, Signal
+
+if TYPE_CHECKING:
+    from forge.session.manager import SessionManager
+
+
+# Event types for buffering
+class SessionEvent:
+    """Base class for buffered session events."""
+
+    pass
+
+
+class ChunkEvent(SessionEvent):
+    """Streaming text chunk."""
+
+    def __init__(self, chunk: str):
+        self.chunk = chunk
+
+
+class ToolCallDeltaEvent(SessionEvent):
+    """Streaming tool call update."""
+
+    def __init__(self, index: int, tool_call: dict[str, Any]):
+        self.index = index
+        self.tool_call = tool_call
+
+
+class ToolStartedEvent(SessionEvent):
+    """Tool execution started."""
+
+    def __init__(self, tool_name: str, tool_args: dict[str, Any]):
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+
+
+class ToolFinishedEvent(SessionEvent):
+    """Tool execution finished."""
+
+    def __init__(
+        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+    ):
+        self.tool_call_id = tool_call_id
+        self.tool_name = tool_name
+        self.tool_args = tool_args
+        self.result = result
+
+
+class StateChangedEvent(SessionEvent):
+    """Session state changed."""
+
+    def __init__(self, state: str):
+        self.state = state
+
+
+class TurnFinishedEvent(SessionEvent):
+    """AI turn completed."""
+
+    def __init__(self, commit_oid: str):
+        self.commit_oid = commit_oid
+
+
+class ErrorEvent(SessionEvent):
+    """Error occurred."""
+
+    def __init__(self, error: str):
+        self.error = error
+
+
+class MessageAddedEvent(SessionEvent):
+    """Message added."""
+
+    def __init__(self, message: dict[str, Any]):
+        self.message = message
+
+
+class MessageUpdatedEvent(SessionEvent):
+    """Message updated."""
+
+    def __init__(self, index: int, message: dict[str, Any]):
+        self.index = index
+        self.message = message
+
+
+class MessagesTruncatedEvent(SessionEvent):
+    """Messages truncated."""
+
+    def __init__(self, new_length: int):
+        self.new_length = new_length
+
+
+class SessionState:
+    """Session execution state."""
+
+    IDLE = "idle"  # Not running, ready for input
+    RUNNING = "running"  # Actively processing (streaming or executing tools)
+    WAITING_APPROVAL = "waiting_approval"  # Blocked on tool approval
+    WAITING_INPUT = "waiting_input"  # AI asked a question (done() called)
+    WAITING_CHILDREN = "waiting_children"  # Blocked on wait_session()
+    COMPLETED = "completed"  # Session finished (done() with no question)
+    ERROR = "error"  # Unrecoverable error
+
+
+class LiveSession(QObject):
+    """
+    In-memory representation of an AI session.
+
+    Owns the run loop and can operate with or without an attached UI.
+    Multiple LiveSessions can exist simultaneously (one per active session).
+
+    Signals are used for thread-safe communication with optional UI.
+    If no UI is attached, signals simply aren't connected.
+
+    This is the authoritative owner of:
+    - messages: The conversation history
+    - streaming_content: Current streaming text accumulator
+    - streaming_tool_calls: Current streaming tool calls
+    - is_streaming: Whether we're currently streaming
+    - child_sessions: List of child session branch names
+    - parent_session: Parent session branch name (if any)
+    """
+
+    # Signals for UI attachment (optional - headless runs ignore these)
+    chunk_received = Signal(str)
+    tool_call_delta = Signal(int, dict)
+    tool_started = Signal(str, dict)
+    tool_finished = Signal(str, str, dict, dict)  # id, name, args, result
+    turn_finished = Signal(str)  # commit_oid
+    error_occurred = Signal(str)
+    state_changed = Signal(str)  # SessionState value
+
+    # Signal for messages list changes (for UI sync)
+    message_added = Signal(dict)  # The message that was added
+    message_updated = Signal(int, dict)  # index, updated message
+    messages_truncated = Signal(int)  # new length after truncation
+
+    # Signal for tool approval (requires UI interaction)
+    approval_needed = Signal(str, dict)  # tool_name, tool_info
+
+    def __init__(
+        self,
+        session_manager: "SessionManager",
+        messages: list[dict[str, Any]] | None = None,
+    ) -> None:
+        super().__init__()
+        self.session_manager = session_manager
+
+        # === AUTHORITATIVE SESSION STATE ===
+        # These are the source of truth - UI reads from here
+        self.messages: list[dict[str, Any]] = messages or []
+        self.streaming_content: str = ""
+        self.streaming_tool_calls: list[dict[str, Any]] = []
+        self.is_streaming: bool = False
+
+        # === ATTACH/DETACH STATE ===
+        self._attached = False
+        self._event_buffer: deque[SessionEvent] = deque()
+        self._buffer_lock = Lock()
+
+        # Execution state
+        self._state = SessionState.IDLE
+        self._cancel_requested = False
+
+        # Tool execution tracking (across all batches in a turn)
+        self._turn_executed_tool_ids: set[str] = set()
+
+        # Queued message (injected mid-turn)
+        self._queued_message: str | None = None
+
+        # Pending wait_session call - stores call info to re-execute on resume.
+        # Structure: {"tool_call_id": str, "tool_name": "wait_session", "tool_args": dict}
+        # Set when wait_session yields (_yield=True), cleared when re-executed or completed.
+        # This allows us to re-check child states when waking up instead of using stale results.
+        self._pending_wait_call: dict[str, Any] | None = None
+
+        # Pending file updates (applied after tool results recorded)
+        self._pending_file_updates: list[tuple[str, str | None]] = []
+
+        # Newly created files (for summary generation)
+        self._newly_created_files: set[str] = set()
+
+        # Worker threads
+        self._stream_thread: QThread | None = None
+        self._stream_worker: Any = None  # StreamWorker
+        self._tool_thread: QThread | None = None
+        self._tool_worker: Any = None  # ToolExecutionWorker
+        self._inline_thread: QThread | None = None
+        self._inline_worker: Any = None  # InlineCommandWorker
+
+        # === PARENT/CHILD RELATIONSHIPS ===
+        # These are authoritative - registry queries these, not the other way around
+        self.child_sessions: list[str] = []  # Branch names of children we spawned
+        self.parent_session: str | None = None  # Branch name of parent (if we're a child)
+
+        # Yield message from done() call or wait_session
+        self._yield_message: str | None = None
+
+    @property
+    def branch_name(self) -> str:
+        """Get the branch name for this session."""
+        return self.session_manager.branch_name
+
+    @property
+    def state(self) -> str:
+        """Current session state."""
+        return self._state
+
+    @state.setter
+    def state(self, value: str) -> None:
+        """Set state and emit event."""
+        if self._state != value:
+            self._state = value
+            self._emit_event(StateChangedEvent(value))
+
+    @property
+    def is_running(self) -> bool:
+        """Check if session is actively processing."""
+        return self._state == SessionState.RUNNING
+
+    def has_attached_ui(self) -> bool:
+        """Check if a UI is currently attached."""
+        with self._buffer_lock:
+            return self._attached
+
+    # === MESSAGE MANAGEMENT ===
+    # All message mutations go through these methods to ensure signals are emitted
+
+    def add_message(self, message: dict[str, Any]) -> int:
+        """Add a message and emit event. Returns the index."""
+        self.messages.append(message)
+        self._emit_event(MessageAddedEvent(message))
+        return len(self.messages) - 1
+
+    def update_message(self, index: int, updates: dict[str, Any]) -> None:
+        """Update a message at index and emit event."""
+        if 0 <= index < len(self.messages):
+            self.messages[index].update(updates)
+            self._emit_event(MessageUpdatedEvent(index, self.messages[index]))
+
+    def update_last_assistant_message(self, updates: dict[str, Any]) -> None:
+        """Update the last assistant message (common pattern during streaming)."""
+        for i in range(len(self.messages) - 1, -1, -1):
+            if self.messages[i].get("role") == "assistant":
+                self.update_message(i, updates)
+                return
+
+    def pop_last_message(self) -> dict[str, Any] | None:
+        """Remove and return the last message."""
+        if self.messages:
+            msg = self.messages.pop()
+            self._emit_event(MessagesTruncatedEvent(len(self.messages)))
+            return msg
+        return None
+
+    def truncate_messages(self, new_length: int) -> None:
+        """Truncate messages to new_length."""
+        if new_length < len(self.messages):
+            self.messages = self.messages[:new_length]
+            self._emit_event(MessagesTruncatedEvent(new_length))
+
+    # === STREAMING STATE ===
+
+    def start_streaming(self) -> None:
+        """Start a new streaming response."""
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
+        self.is_streaming = True
+        # Add placeholder message
+        self.add_message({"role": "assistant", "content": ""})
+
+    def append_streaming_chunk(self, chunk: str) -> None:
+        """Append a chunk to streaming content."""
+        self.streaming_content += chunk
+        # Update the last message
+        self.update_last_assistant_message({"content": self.streaming_content})
+        # Emit for real-time UI update
+        self._emit_event(ChunkEvent(chunk))
+
+    def update_streaming_tool_call(self, index: int, tool_call: dict[str, Any]) -> None:
+        """Update a streaming tool call."""
+        while len(self.streaming_tool_calls) <= index:
+            self.streaming_tool_calls.append({})
+        self.streaming_tool_calls[index] = tool_call
+        self._emit_event(ToolCallDeltaEvent(index, tool_call))
+
+    def finish_streaming(
+        self, content: str | None, tool_calls: list[dict[str, Any]] | None
+    ) -> None:
+        """Finalize streaming with final content and tool_calls."""
+        self.is_streaming = False
+        updates: dict[str, Any] = {}
+        if content:
+            updates["content"] = content
+        if tool_calls:
+            updates["tool_calls"] = tool_calls
+        if updates:
+            self.update_last_assistant_message(updates)
+        self.streaming_tool_calls = []
+
+    # === ATTACH/DETACH API ===
+
+    def attach(self) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]], bool, str]:
+        """
+        Attach a UI to this session.
+
+        Returns a snapshot of current state for immediate rendering:
+        (messages, streaming_content, streaming_tool_calls, is_streaming, state)
+
+        After calling attach(), connect to signals and call drain_buffer()
+        to replay any events that occurred during the attach process.
+        """
+        with self._buffer_lock:
+            self._attached = True
+            # Return snapshot of current state
+            return (
+                list(self.messages),  # Copy to avoid mutation during iteration
+                self.streaming_content,
+                list(self.streaming_tool_calls),
+                self.is_streaming,
+                self._state,
+            )
+
+    def detach(self) -> None:
+        """
+        Detach UI from this session.
+
+        Events will buffer until another UI attaches.
+        """
+        with self._buffer_lock:
+            self._attached = False
+            self._event_buffer.clear()  # Clear any stale events
+
+    def drain_buffer(self) -> list[SessionEvent]:
+        """
+        Drain and return all buffered events.
+
+        Call this after attach() and connecting signals to replay
+        any events that occurred during the attach process.
+
+        Returns list of events in order they occurred.
+        """
+        with self._buffer_lock:
+            events = list(self._event_buffer)
+            self._event_buffer.clear()
+            return events
+
+    def _emit_event(self, event: SessionEvent) -> None:
+        """
+        Emit an event - either directly via signal or buffer if detached.
+
+        This is the central dispatch point for all events.
+        """
+        with self._buffer_lock:
+            if not self._attached:
+                self._event_buffer.append(event)
+                return
+
+        # Attached - emit directly via appropriate signal
+        if isinstance(event, ChunkEvent):
+            self.chunk_received.emit(event.chunk)
+        elif isinstance(event, ToolCallDeltaEvent):
+            self.tool_call_delta.emit(event.index, event.tool_call)
+        elif isinstance(event, ToolStartedEvent):
+            self.tool_started.emit(event.tool_name, event.tool_args)
+        elif isinstance(event, ToolFinishedEvent):
+            self.tool_finished.emit(
+                event.tool_call_id, event.tool_name, event.tool_args, event.result
+            )
+        elif isinstance(event, StateChangedEvent):
+            self.state_changed.emit(event.state)
+        elif isinstance(event, TurnFinishedEvent):
+            self.turn_finished.emit(event.commit_oid)
+        elif isinstance(event, ErrorEvent):
+            self.error_occurred.emit(event.error)
+        elif isinstance(event, MessageAddedEvent):
+            self.message_added.emit(event.message)
+        elif isinstance(event, MessageUpdatedEvent):
+            self.message_updated.emit(event.index, event.message)
+        elif isinstance(event, MessagesTruncatedEvent):
+            self.messages_truncated.emit(event.new_length)
+
+    # === PUBLIC API ===
+
+    def send_message(self, text: str, _trigger_only: bool = False) -> bool:
+        """
+        Send a user message to the AI.
+
+        Returns True if message was accepted, False if session is busy.
+        If busy but running, the message is queued for after current operation.
+
+        Args:
+            text: The message text
+            _trigger_only: If True, just start processing without adding a message
+                          (used when message is already in loaded session.json)
+        """
+        if self._state == SessionState.RUNNING:
+            # Queue the message
+            self._queued_message = text
+            return True
+
+        if self._state not in (
+            SessionState.IDLE,
+            SessionState.WAITING_INPUT,
+            SessionState.WAITING_CHILDREN,
+        ):
+            return False
+
+        # Check if we're resuming from a pending wait_session call
+        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            return self._resume_pending_wait(text)
+
+        # Add message to conversation (unless just triggering)
+        if not _trigger_only and text:
+            self.add_message({"role": "user", "content": text})
+            self.session_manager.append_user_message(text)
+
+        # Reset turn tracking
+        self._turn_executed_tool_ids = set()
+        self._cancel_requested = False
+
+        # Start processing
+        self.state = SessionState.RUNNING
+        self._process_llm_request()
+
+        return True
+
+    def _resume_pending_wait(self, text: str) -> bool:
+        """
+        Resume from a pending wait_session call.
+
+        Re-executes the wait_session with original parameters, then continues.
+        The 'text' is typically empty or a nudge - the real input is the child's completion.
+        """
+        import json
+
+        pending = self._pending_wait_call
+        self._pending_wait_call = None
+
+        if not pending:
+            return False
+
+        # Re-execute the wait_session tool
+        tool_name = pending["tool_name"]
+        tool_args = pending["tool_args"]
+        tool_call_id = pending["tool_call_id"]
+
+        self.state = SessionState.RUNNING
+
+        # Execute synchronously (wait_session is fast - just checks state)
+        result = self.session_manager.tool_manager.execute_tool(tool_name, tool_args)
+
+        # If still yielding (no children ready yet), go back to waiting
+        if result.get("_yield"):
+            self._pending_wait_call = pending  # Restore for next attempt
+            self.state = SessionState.WAITING_CHILDREN
+            return True
+
+        # Child is ready! Record the tool result now
+        result_json = json.dumps(result)
+        self.add_message(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": result_json,
+            }
+        )
+        self.session_manager.append_tool_result(tool_call_id, result_json)
+
+        # Continue the conversation
+        self._continue_after_tools()
+        return True
+
+    def cancel(self) -> None:
+        """Cancel the current operation."""
+        if self._state != SessionState.RUNNING:
+            return
+
+        self._cancel_requested = True
+
+        # Clean up threads
+        self._cleanup_threads()
+
+        # Discard pending VFS changes
+        self.session_manager.tool_manager.vfs = self.session_manager._create_fresh_vfs()
+
+        # Remove incomplete assistant message
+        if self.messages and self.messages[-1].get("role") == "assistant":
+            self.pop_last_message()
+
+        self.is_streaming = False
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
+
+        self.state = SessionState.IDLE
+        self._emit_event(ErrorEvent("Cancelled by user"))
+
+    def _cleanup_threads(self) -> None:
+        """Clean up all worker threads."""
+        for thread_attr, worker_attr in [
+            ("_stream_thread", "_stream_worker"),
+            ("_tool_thread", "_tool_worker"),
+            ("_inline_thread", "_inline_worker"),
+        ]:
+            thread = getattr(self, thread_attr)
+            if thread and thread.isRunning():
+                thread.quit()
+                thread.wait(3000)
+                if thread.isRunning():
+                    thread.terminate()
+            setattr(self, thread_attr, None)
+            setattr(self, worker_attr, None)
+
+    def _process_llm_request(self) -> None:
+        """Start an LLM request with streaming."""
+        from forge.llm.client import LLMClient
+        from forge.ui.ai_chat_widget import StreamWorker
+
+        api_key = self.session_manager.settings.get_api_key()
+        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        client = LLMClient(api_key, model)
+
+        # Build prompt
+        self.session_manager.sync_prompt_manager()
+        messages = self.session_manager.get_prompt_messages()
+        tools = self.session_manager.tool_manager.discover_tools()
+
+        # Start streaming
+        self.start_streaming()
+
+        # Start streaming in thread
+        self._stream_thread = QThread()
+        self._stream_worker = StreamWorker(client, messages, tools or None)
+        self._stream_worker.moveToThread(self._stream_thread)
+
+        # Connect signals
+        self._stream_worker.chunk_received.connect(self._on_stream_chunk)
+        self._stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
+        self._stream_worker.finished.connect(self._on_stream_finished)
+        self._stream_worker.error.connect(self._on_stream_error)
+        self._stream_thread.started.connect(self._stream_worker.run)
+
+        self._stream_thread.start()
+
+    def _on_stream_chunk(self, chunk: str) -> None:
+        """Handle streaming text chunk."""
+        self.append_streaming_chunk(chunk)
+
+    def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
+        """Handle streaming tool call update."""
+        self.update_streaming_tool_call(index, tool_call)
+
+    def _on_stream_finished(self, result: dict[str, Any]) -> None:
+        """Handle stream completion."""
+        # Clean up thread
+        if self._stream_thread:
+            self._stream_thread.quit()
+            self._stream_thread.wait()
+            self._stream_thread = None
+            self._stream_worker = None
+
+        # Finalize streaming
+        self.finish_streaming(result.get("content"), result.get("tool_calls"))
+
+        # Process inline commands first
+        if result.get("content"):
+            from forge.tools.invocation import parse_inline_commands
+
+            commands = parse_inline_commands(result["content"])
+            if commands:
+                self._pending_stream_result = result
+                self._start_inline_command_execution(commands)
+                return
+
+        # Continue with tool calls or finish
+        self._finish_stream_processing(result)
+
+    def _on_stream_error(self, error_msg: str) -> None:
+        """Handle streaming error."""
+        if self._stream_thread:
+            self._stream_thread.quit()
+            self._stream_thread.wait()
+            self._stream_thread = None
+            self._stream_worker = None
+
+        self.is_streaming = False
+        self.streaming_content = ""
+        self.streaming_tool_calls = []
+
+        # Remove empty assistant message
+        if (
+            self.messages
+            and self.messages[-1].get("role") == "assistant"
+            and not self.messages[-1].get("content")
+        ):
+            self.pop_last_message()
+
+        # Feed error back to conversation
+        error_content = f"**Error from LLM provider:**\n\n```\n{error_msg}\n```"
+        self.add_message({"role": "user", "content": error_content})
+        self.session_manager.append_user_message(error_content)
+
+        # Retry
+        self._process_llm_request()
+
+    def _start_inline_command_execution(self, commands: list) -> None:
+        """Start executing inline commands in background thread."""
+        from forge.ui.ai_chat_widget import InlineCommandWorker
+
+        self._inline_thread = QThread()
+        self._inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)
+        self._inline_worker.moveToThread(self._inline_thread)
+
+        self._inline_worker.finished.connect(self._on_inline_commands_finished)
+        self._inline_worker.error.connect(self._on_inline_commands_error)
+        self._inline_thread.started.connect(self._inline_worker.run)
+
+        self._pending_inline_commands = commands
+        self._inline_thread.start()
+
+    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:
+        """Handle inline command completion."""
+        if self._inline_thread:
+            self._inline_thread.quit()
+            self._inline_thread.wait()
+        self._inline_thread = None
+        self._inline_worker = None
+
+        commands = getattr(self, "_pending_inline_commands", [])
+        result = getattr(self, "_pending_stream_result", {})
+        content = result.get("content", "")
+
+        if failed_index is not None:
+            # Handle failure - truncate and continue with error
+            failed_cmd = commands[failed_index]
+            truncated_content = content[: failed_cmd.end_pos]
+
+            self.update_last_assistant_message({"content": truncated_content})
+            # Remove tool_calls if present
+            for i in range(len(self.messages) - 1, -1, -1):
+                if self.messages[i].get("role") == "assistant":
+                    self.messages[i].pop("tool_calls", None)
+                    break
+
+            error_result = results[failed_index]
+            error_msg = error_result.get("error", "Unknown error")
+
+            # Process successful commands before failure
+            for i, res in enumerate(results[:-1]):
+                if res.get("success"):
+                    self._process_tool_side_effects(res, commands[i])
+
+            # Add error to conversation
+            error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
+            self.session_manager.append_assistant_message(truncated_content)
+            self.add_message({"role": "user", "content": error_content, "_ui_only": True})
+            self.session_manager.append_user_message(error_content)
+
+            # Continue so AI can fix
+            self._continue_after_tools()
+            return
+
+        # All succeeded
+        for i, res in enumerate(results):
+            self._process_tool_side_effects(res, commands[i])
+
+        self.update_last_assistant_message({"_inline_results": results})
+
+        # Build success feedback
+        success_parts = []
+        for i, cmd in enumerate(commands):
+            res = results[i]
+            if cmd.tool_name == "run_tests":
+                summary = res.get("summary", "✓ Tests passed")
+                success_parts.append(f"✓ run_tests: {summary}")
+            elif cmd.tool_name == "check":
+                summary = res.get("summary", "All checks passed")
+                success_parts.append(f"✓ check: {summary}")
+            elif cmd.tool_name == "commit":
+                commit_oid = res.get("commit", "")[:8]
+                success_parts.append(f"✓ commit: {commit_oid}")
+            else:
+                success_parts.append(f"✓ {cmd.tool_name}")
+
+        self.session_manager.append_user_message("Commands executed:\n" + "\n".join(success_parts))
+
+        self._finish_stream_processing(result)
+
+    def _on_inline_commands_error(self, error_msg: str) -> None:
+        """Handle inline command execution error."""
+        if self._inline_thread:
+            self._inline_thread.quit()
+            self._inline_thread.wait()
+        self._inline_thread = None
+        self._inline_worker = None
+
+        self.state = SessionState.ERROR
+        self._emit_event(ErrorEvent(f"Inline command error: {error_msg}"))
+
+    def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:
+        """Process side effects from tool execution."""
+        from forge.tools.side_effects import SideEffect
+
+        side_effects = result.get("side_effects", [])
+
+        if SideEffect.FILES_MODIFIED in side_effects:
+            for filepath in result.get("modified_files", []):
+                self._pending_file_updates.append((filepath, None))
+
+        if SideEffect.NEW_FILES_CREATED in side_effects:
+            for filepath in result.get("new_files", []):
+                if filepath not in self.session_manager.repo_summaries:
+                    self._newly_created_files.add(filepath)
+
+        is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (
+            cmd and cmd.tool_name == "commit" and result.get("success")
+        )
+        if is_mid_turn_commit:
+            self.session_manager.mark_mid_turn_commit()
+
+    def _finish_stream_processing(self, result: dict[str, Any]) -> None:
+        """Finish processing stream result after inline commands."""
+        # Record tool calls if present
+        if result.get("tool_calls"):
+            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
+            self._execute_tool_calls(result["tool_calls"])
+            return
+
+        # Final text response
+        if result.get("content"):
+            self.session_manager.append_assistant_message(result["content"])
+
+        # Generate summaries for new files
+        if self._newly_created_files:
+            for filepath in self._newly_created_files:
+                self.session_manager.generate_summary_for_file(filepath)
+            self._newly_created_files.clear()
+
+        # Set state to IDLE before committing so it's persisted correctly
+        self.state = SessionState.IDLE
+
+        # Commit the turn with session metadata
+        commit_oid = self.session_manager.commit_ai_turn(
+            self.messages, session_metadata=self.get_session_metadata()
+        )
+
+        self._emit_event(TurnFinishedEvent(commit_oid))
+
+        # Notify parent if we have one (so it can resume if waiting)
+        if self.parent_session:
+            from forge.session.registry import SESSION_REGISTRY
+
+            SESSION_REGISTRY.notify_child_updated(self.branch_name)
+
+    def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
+        """Execute tool calls in background thread."""
+        from forge.ui.ai_chat_widget import ToolExecutionWorker
+
+        self._pending_tools = self.session_manager.tool_manager.discover_tools()
+
+        self._tool_thread = QThread()
+        self._tool_worker = ToolExecutionWorker(
+            tool_calls,
+            self.session_manager.tool_manager,
+            self.session_manager,
+        )
+        self._tool_worker.moveToThread(self._tool_thread)
+
+        self._tool_worker.tool_started.connect(self._on_tool_started)
+        self._tool_worker.tool_finished.connect(self._on_tool_finished)
+        self._tool_worker.all_finished.connect(self._on_tools_all_finished)
+        self._tool_worker.error.connect(self._on_tool_error)
+        self._tool_thread.started.connect(self._tool_worker.run)
+
+        self._tool_thread.start()
+
+    def _on_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
+        """Handle tool execution starting."""
+        self._emit_event(ToolStartedEvent(tool_name, tool_args))
+
+    def _on_tool_finished(
+        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
+    ) -> None:
+        """Handle individual tool completion."""
+        import json
+
+        from forge.tools.side_effects import SideEffect
+
+        # Check for _yield flag - DON'T record this tool result yet
+        # We'll re-execute when we wake up and record the real result then
+        if result.get("_yield"):
+            # Don't add to messages or prompt_manager - handled in _on_tools_all_finished
+            pass
+        else:
+            # Add tool result to messages
+            result_json = json.dumps(result)
+            self.add_message(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": result_json,
+                    "_skip_display": True,
+                }
+            )
+            self.session_manager.append_tool_result(tool_call_id, result_json)
+
+        # Track side effects
+        side_effects = result.get("side_effects", [])
+
+        if SideEffect.FILES_MODIFIED in side_effects:
+            for filepath in result.get("modified_files", []):
+                self._pending_file_updates.append((filepath, tool_call_id))
+
+        if SideEffect.NEW_FILES_CREATED in side_effects:
+            for filepath in result.get("new_files", []):
+                if filepath not in self.session_manager.repo_summaries:
+                    self._newly_created_files.add(filepath)
+
+        if SideEffect.MID_TURN_COMMIT in side_effects:
+            self.session_manager.mark_mid_turn_commit()
+
+        # Handle compact tool
+        if result.get("compact") and result.get("success"):
+            from_id = result.get("from_id", "")
+            to_id = result.get("to_id", "")
+            summary = result.get("summary", "")
+            self.session_manager.compact_tool_results(from_id, to_id, summary)
+
+        self._emit_event(ToolFinishedEvent(tool_call_id, tool_name, tool_args, result))
+
+    def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
+        """Handle all tools completed."""
+        if self._tool_thread:
+            self._tool_thread.quit()
+            self._tool_thread.wait()
+            self._tool_thread = None
+            self._tool_worker = None
+
+        # Track executed IDs
+        batch_executed_ids = {r["tool_call"]["id"] for r in results}
+        self._turn_executed_tool_ids.update(batch_executed_ids)
+
+        # Filter unattempted tool calls
+        for msg in reversed(self.messages):
+            if msg.get("role") == "assistant" and "tool_calls" in msg:
+                msg["tool_calls"] = [
+                    tc for tc in msg["tool_calls"] if tc.get("id") in self._turn_executed_tool_ids
+                ]
+                break
+
+        self.session_manager.prompt_manager.filter_tool_calls(self._turn_executed_tool_ids)
+
+        # Apply pending file updates
+        for filepath, tool_call_id in self._pending_file_updates:
+            self.session_manager.file_was_modified(filepath, tool_call_id)
+        self._pending_file_updates = []
+
+        # Check for special tool flags that affect control flow
+        for r in results:
+            result = r.get("result", {})
+            tool_call = r.get("tool_call", {})
+
+            # Check for _yield flag (from wait_session when no children ready)
+            if result.get("_yield"):
+                # Store the call so we can replay it when children are ready
+                tool_call_id = tool_call.get("id")
+                # Note: ToolExecutionWorker stores args under "args" key, not "tool_args"
+                stored_args = r.get("args", {})
+                self._pending_wait_call = {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_call.get("function", {}).get("name"),
+                    "tool_args": stored_args,
+                }
+                # Note: _on_tool_finished already skipped adding this to messages/prompt_manager
+                # when it saw _yield, so no cleanup needed here
+
+                self.yield_waiting(result.get("_yield_message", "Waiting on child sessions"))
+                return
+
+            # Check for _start_session flag (from resume_session)
+            if result.get("_start_session"):
+                branch_name = result["_start_session"]
+                # Track this child in our list
+                if branch_name not in self.child_sessions:
+                    self.child_sessions.append(branch_name)
+                self._start_child_session(branch_name, result.get("_start_message", ""))
+
+            # Check for _spawned_child flag (from spawn_session)
+            if result.get("_spawned_child"):
+                branch_name = result["_spawned_child"]
+                if branch_name not in self.child_sessions:
+                    self.child_sessions.append(branch_name)
+
+        # Check for queued message
+        if self._queued_message:
+            queued = self._queued_message
+            self._queued_message = None
+            self.add_message({"role": "user", "content": queued, "_mid_turn": True})
+            self.session_manager.append_user_message(queued)
+
+        self._continue_after_tools()
+
+    def _start_child_session(self, branch_name: str, message: str) -> None:
+        """Start or resume a child session."""
+        from forge.session.registry import SESSION_REGISTRY
+
+        # Load and start the child session
+        child = SESSION_REGISTRY.load(
+            branch_name,
+            self.session_manager._repo,
+            self.session_manager.settings,
+        )
+
+        if child:
+            # Ensure child knows its parent
+            child.parent_session = self.branch_name
+            # Send the message to start it
+            if message:
+                child.send_message(message)
+        else:
+            self.add_message(
+                {
+                    "role": "system",
+                    "content": f"⚠️ Could not load session for branch {branch_name}",
+                    "_ui_only": True,
+                }
+            )
+
+    def _on_tool_error(self, error_msg: str) -> None:
+        """Handle tool execution error."""
+        if self._tool_thread:
+            self._tool_thread.quit()
+            self._tool_thread.wait()
+            self._tool_thread = None
+            self._tool_worker = None
+
+        self.state = SessionState.ERROR
+        self._emit_event(ErrorEvent(f"Tool execution error: {error_msg}"))
+
+    def _continue_after_tools(self) -> None:
+        """Continue LLM conversation after tool execution."""
+        self._process_llm_request()
+
+    # === REWIND/TRUNCATE OPERATIONS ===
+
+    def rewind_to_message(self, message_index: int) -> bool:
+        """Rewind conversation to a specific message index.
+
+        Returns True if successful, False if invalid state or index.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+
+        if message_index < 0 or message_index >= len(self.messages):
+            return False
+
+        # Truncate messages
+        self.truncate_messages(message_index + 1)
+
+        # Rebuild prompt manager state
+        self._rebuild_prompt_manager()
+
+        return True
+
+    def revert_turn(self, first_message_index: int) -> bool:
+        """Revert a turn and all following turns.
+
+        Returns True if successful.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+
+        if first_message_index < 1 or first_message_index >= len(self.messages):
+            return False
+
+        # Truncate to before this turn
+        self.truncate_messages(first_message_index)
+        self._rebuild_prompt_manager()
+        return True
+
+    def revert_to_turn(self, first_message_index: int) -> bool:
+        """Revert TO a turn (keep this turn, undo later).
+
+        Returns True if successful.
+        """
+        if self._state == SessionState.RUNNING:
+            return False
+
+        # Find end of this turn
+        end_idx = len(self.messages)
+        for i in range(first_message_index + 1, len(self.messages)):
+            if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+                end_idx = i
+                break
+
+        self.truncate_messages(end_idx)
+        self._rebuild_prompt_manager()
+        return True
+
+    def _rebuild_prompt_manager(self) -> None:
+        """Rebuild prompt manager state from current messages."""
+        from forge.session.startup import replay_messages_to_prompt_manager
+
+        self.session_manager.prompt_manager.clear_conversation()
+        replay_messages_to_prompt_manager(self.messages, self.session_manager)
+
+    # --- Child Session Management ---
+
+    def add_child(self, branch_name: str) -> None:
+        """Register a child session branch."""
+        if branch_name not in self.child_sessions:
+            self.child_sessions.append(branch_name)
+
+    def set_parent(self, parent_branch: str) -> None:
+        """Set the parent session branch."""
+        self.parent_session = parent_branch
+
+    def child_ready(self, child_branch: str) -> None:
+        """Called when a child session becomes ready (completed, waiting, etc.).
+        
+        This triggers resume if we're waiting on children.
+        """
+        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            # Use QTimer to schedule resume after current call stack unwinds
+            from PySide6.QtCore import QTimer
+
+            QTimer.singleShot(0, self._do_resume_from_wait)
+
+    def yield_waiting(self, message: str, waiting_type: str = "children") -> None:
+        """
+        Yield execution, waiting for children or input.
+
+        Called by wait_session tool when no children are ready,
+        or by done() when asking a question.
+
+        Args:
+            message: The yield message (question or status)
+            waiting_type: "children" or "input"
+        """
+        self._yield_message = message
+
+        if waiting_type == "children":
+            self.state = SessionState.WAITING_CHILDREN
+        else:
+            self.state = SessionState.WAITING_INPUT
+
+        # Commit current state with session metadata
+        self.session_manager.commit_ai_turn(
+            self.messages, session_metadata=self.get_session_metadata()
+        )
+
+        # Notify parent if we have one
+        if self.parent_session:
+            from forge.session.registry import SESSION_REGISTRY
+
+            SESSION_REGISTRY.notify_child_updated(self.branch_name)
+
+        # RACE CONDITION FIX: If we're waiting on children, immediately check
+        # if any are already done. The child might have completed between when
+        # we called wait_session and when we got here.
+        if waiting_type == "children" and self._pending_wait_call:
+            from forge.session.registry import SESSION_REGISTRY
+
+            for child_branch in self.child_sessions:
+                child = SESSION_REGISTRY.get(child_branch)
+                if child:
+                    ready_states = {SessionState.COMPLETED, SessionState.WAITING_INPUT, SessionState.IDLE}
+                    if child.state in ready_states:
+                        # A child is already ready! Resume immediately.
+                        from PySide6.QtCore import QTimer
+
+                        QTimer.singleShot(0, self._do_resume_from_wait)
+                        break
+
+    def get_session_metadata(self) -> dict[str, Any]:
+        """Get metadata for session.json persistence."""
+        return {
+            "parent_session": self.parent_session,
+            "child_sessions": self.child_sessions,
+            "state": self._state,
+            "yield_message": self._yield_message,
+            "pending_wait_call": self._pending_wait_call,
+        }
+
+    def _do_resume_from_wait(self) -> None:
+        """Slot called via QTimer to resume after wait_session.
+
+        Called when:
+        - A child completes and notify_child_updated() detects we're waiting
+        - yield_waiting() detects a child is already ready (race fix)
+
+        Must be idempotent - multiple children completing simultaneously
+        could trigger multiple calls. The state check ensures only the first
+        call actually triggers the resume (send_message changes state to RUNNING).
+        """
+        # State check provides idempotency - once we call send_message(""),
+        # state changes to RUNNING so subsequent calls are no-ops
+        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
+            self.send_message("")
+
+
+# Backwards compatibility alias
+SessionRunner = LiveSession

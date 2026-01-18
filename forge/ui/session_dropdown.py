@@ -130,8 +130,8 @@ class SessionDropdown(QWidget):
         # Connect to registry for live updates
         from forge.session.registry import SESSION_REGISTRY
 
-        SESSION_REGISTRY.session_registered.connect(self._on_session_changed)
-        SESSION_REGISTRY.session_unregistered.connect(self._on_session_changed)
+        SESSION_REGISTRY.session_loaded.connect(self._on_session_changed)
+        SESSION_REGISTRY.session_unloaded.connect(self._on_session_changed)
         SESSION_REGISTRY.session_state_changed.connect(self._on_state_changed)
 
         # Also listen for branch changes from the repo (for newly spawned sessions)

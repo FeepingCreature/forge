@@ -2,7 +2,7 @@
 Session startup helpers - reusable functions for starting/resuming sessions.
 
 This module provides functions that can be used by:
-- SessionRunner._start_child_session() when spawning children
+- LiveSession._start_child_session() when spawning children
 - Application startup when recovering in-progress sessions
 - UI when user clicks on a session in the dropdown
 """
@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
+    from forge.session.live_session import LiveSession
     from forge.session.manager import SessionManager
-    from forge.session.runner import SessionRunner
 
 
 def replay_messages_to_prompt_manager(
@@ -24,12 +24,12 @@ def replay_messages_to_prompt_manager(
     """
     Replay messages into the prompt manager so the LLM sees them.
 
-    SessionRunner.messages is for UI display, but PromptManager builds the actual
-    LLM request. When loading a session from disk or attaching to an existing runner,
+    LiveSession.messages is for UI display, but PromptManager builds the actual
+    LLM request. When loading a session from disk or attaching to an existing session,
     we need to replay messages so they're in the prompt.
 
     Args:
-        messages: List of message dicts from session.json or runner.messages
+        messages: List of message dicts from session.json or session.messages
         session_manager: The SessionManager whose prompt_manager to populate
         replay_compaction: If True, replay compact tool calls to re-apply compaction
     """
@@ -73,18 +73,18 @@ def replay_messages_to_prompt_manager(
             session_manager.append_tool_result(tool_call_id, content)
 
 
-def load_or_create_runner(
+def load_or_create_session(
     repo: "ForgeRepository",
     branch_name: str,
     settings: "Settings",
-) -> "SessionRunner | None":
+) -> "LiveSession | None":
     """
-    Load a session from disk and create a SessionRunner for it.
+    Load a session from disk and create a LiveSession for it.
 
     If the session doesn't exist, returns None.
-    If the session exists, creates a SessionRunner (but doesn't start it).
+    If the session exists, creates a LiveSession (but doesn't start it).
 
-    The runner is NOT registered with SESSION_REGISTRY - caller should do that.
+    The session IS registered with SESSION_REGISTRY.
 
     Args:
         repo: The git repository
@@ -92,63 +92,11 @@ def load_or_create_runner(
         settings: Application settings
 
     Returns:
-        SessionRunner if session exists, None otherwise
+        LiveSession if session exists, None otherwise
     """
-    import contextlib
-    import json
+    from forge.session.registry import SESSION_REGISTRY
 
-    from forge.constants import SESSION_FILE
-    from forge.session.manager import SessionManager
-    from forge.session.runner import SessionRunner
-
-    # Try to load session data from branch
-    try:
-        session_content = repo.get_file_content(SESSION_FILE, branch_name)
-        session_data = json.loads(session_content)
-    except (FileNotFoundError, KeyError, json.JSONDecodeError):
-        return None
-
-    messages = session_data.get("messages", [])
-
-    # Create SessionManager for this branch
-    session_manager = SessionManager(repo, branch_name, settings)
-
-    # Restore active files
-    for filepath in session_data.get("active_files", []):
-        with contextlib.suppress(Exception):
-            session_manager.add_active_file(filepath)
-
-    # Create runner
-    runner = SessionRunner(session_manager, messages)
-
-    # Replay messages into prompt manager so LLM sees them
-    replay_messages_to_prompt_manager(messages, session_manager)
-
-    # Restore parent/child relationships from session data
-    if session_data.get("parent_session"):
-        runner.set_parent(session_data["parent_session"])
-
-    for child in session_data.get("child_sessions", []):
-        runner.spawn_child(child)
-
-    # Restore yield state if session was waiting
-    if session_data.get("yield_message"):
-        runner._yield_message = session_data["yield_message"]
-
-    # Restore pending wait call if session was waiting on children
-    if session_data.get("pending_wait_call"):
-        runner._pending_wait_call = session_data["pending_wait_call"]
-
-    # Restore state from session data.
-    # "running" means we crashed mid-run - normalize to "idle" since we're not
-    # actually running anymore. The user can restart the conversation.
-    stored_state = session_data.get("state", "idle")
-    if stored_state == "running":
-        stored_state = "idle"  # Crashed mid-run, treat as idle
-    if stored_state in ("idle", "waiting_input", "waiting_children", "completed", "error"):
-        runner._state = stored_state
-
-    return runner
+    return SESSION_REGISTRY.load(branch_name, repo, settings)
 
 
 def start_or_resume_session(
@@ -156,15 +104,14 @@ def start_or_resume_session(
     branch_name: str,
     settings: "Settings",
     message: str | None = None,
-) -> "SessionRunner | None":
+) -> "LiveSession | None":
     """
     Load a session and optionally start it with a message.
 
     This is the main entry point for starting child sessions.
     It handles:
     - Loading from disk if not in registry
-    - Using existing runner if in registry
-    - Registering new runners
+    - Using existing session if in registry
     - Sending the start message
 
     Args:
@@ -174,37 +121,28 @@ def start_or_resume_session(
         message: Optional message to send (starts the session)
 
     Returns:
-        The SessionRunner (new or existing), or None if session doesn't exist
+        The LiveSession (new or existing), or None if session doesn't exist
     """
     from forge.session.registry import SESSION_REGISTRY
 
-    # Check if already in registry
-    session_info = SESSION_REGISTRY.get(branch_name)
-    runner = session_info.runner if session_info else None
-    was_newly_loaded = False
+    # Load (or get existing)
+    session = SESSION_REGISTRY.load(branch_name, repo, settings)
+    if not session:
+        return None
 
-    if not runner:
-        # Load from disk
-        runner = load_or_create_runner(repo, branch_name, settings)
-        if not runner:
-            return None
+    was_newly_loaded = session.state == "idle" and not session.messages
 
-        # Register it
-        SESSION_REGISTRY.register(branch_name, runner)
-        was_newly_loaded = True
-
-    # Start the runner if message provided
-    # If newly loaded, the message is already in session.json (from resume_session)
+    # Start the session if message provided
+    # If newly loaded with messages already, the message is in session.json
     # so we just need to trigger the run without adding another message
-    # If already in registry, send the actual message
     if message:
-        if was_newly_loaded:
+        if was_newly_loaded and session.messages:
             # Message already in session.json, just trigger the run
-            runner.send_message("", _trigger_only=True)
+            session.send_message("", _trigger_only=True)
         else:
-            runner.send_message(message)
+            session.send_message(message)
 
-    return runner
+    return session
 
 
 def get_recoverable_sessions(repo: "ForgeRepository") -> list[dict[str, Any]]:
@@ -252,3 +190,7 @@ def get_recoverable_sessions(repo: "ForgeRepository") -> list[dict[str, Any]]:
             continue
 
     return recoverable
+
+
+# Backwards compatibility
+load_or_create_runner = load_or_create_session

@@ -1,7 +1,9 @@
 {
   "active_files": [
     "forge/tools/builtin/merge_session.py",
-    "CLAUDE.md"
+    "forge/session/runner.py",
+    "CLAUDE.md",
+    "forge/session/startup.py"
   ],
   "request_log_entries": [
     {
@@ -282,6 +284,33 @@
       "streaming": true,
       "actual_cost": 0.0428035,
       "generation_id": "gen-1768744234-eM0JNl1dYPT0J99xjQQ0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768744243940.json",
+      "response_file": "/tmp/forge_debug/response_1768744243940.json",
+      "timestamp": 1768744243.9404066,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000142,
+      "generation_id": "gen-1768744244-zDb9sl7S6DzcAWVrBbgd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744294828.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744294828.json",
+      "timestamp": 1768744294.8294675,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.031756,
+      "generation_id": "gen-1768744295-dWg69zcvT4ktItXMRK1m"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768744301923.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768744301923.json",
+      "timestamp": 1768744301.9241593,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.13728375,
+      "generation_id": "gen-1768744302-FBzjVP9M0VlWO65uvzcV"
     }
   ],
   "messages": [
@@ -951,6 +980,61 @@
           "message": "Replaced in forge/session/runner.py",
           "modified_files": [
             "forge/session/runner.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: eea60100",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! How do I patch this manually? Rather/also, it's a bit weird now... the session manager loads the sessions on startup and sets them to RUNNING from their json, but obviously they're not actually running because we just started the app. What do we do about that?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good point! There are two issues:\n\n1. **Manual patch for existing sessions**: You need to edit the `.forge/session.json` on each affected branch and change `\"state\": \"running\"` to `\"state\": \"idle\"`\n\n2. **Startup recovery**: When loading a session that says `\"running\"`, the app should recognize \"this was running when we crashed/closed, it's not actually running now\". \n\nLet me look at how sessions are loaded on startup:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/startup.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01AdZsgssDaxeKjWyUd7NoCe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01AdZsgssDaxeKjWyUd7NoCe",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/startup.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at `startup.py`, I see the issue. On lines 147-150:\n\n```python\n# Restore state (but don't change from IDLE if it was running -\n# that means we crashed mid-run and should let user decide)\nstored_state = session_data.get(\"state\", \"idle\")\nif stored_state in (\"waiting_input\", \"waiting_children\", \"completed\", \"error\"):\n    runner._state = stored_state\n```\n\nThe code *intentionally* doesn't restore `\"running\"` state - it leaves it as `IDLE` (the default). But the problem is: **the session.json still says `\"running\"`**, so when the UI reads from session.json to display states (like in the dropdown), it shows \"running\".\n\nThe fix has two parts:\n\n1. **Your manual patch**: Edit `.forge/session.json` on affected branches, change `\"state\": \"running\"` to `\"state\": \"idle\"`\n\n2. **Proper fix**: When loading a session that was \"running\", we should normalize it to \"idle\" since it's clearly not running anymore. The `load_or_create_runner` function already does this for the runner's internal state, but other code paths read directly from session.json.\n\nLet me fix this properly - when we load a session and find it was \"running\", we should treat that as \"idle\":\n\n<edit file=\"forge/session/startup.py\">\n<search>\n    # Restore state (but don't change from IDLE if it was running -\n    # that means we crashed mid-run and should let user decide)\n    # Also restore \"error\" state so UI can show appropriate status.\n    stored_state = session_data.get(\"state\", \"idle\")\n    if stored_state in (\"waiting_input\", \"waiting_children\", \"completed\", \"error\"):\n        runner._state = stored_state\n\n    return runner\n</search>\n<replace>\n    # Restore state from session data.\n    # \"running\" means we crashed mid-run - normalize to \"idle\" since we're not\n    # actually running anymore. The user can restart the conversation.\n    stored_state = session_data.get(\"state\", \"idle\")\n    if stored_state == \"running\":\n        stored_state = \"idle\"  # Crashed mid-run, treat as idle\n    if stored_state in (\"idle\", \"waiting_input\", \"waiting_children\", \"completed\", \"error\"):\n        runner._state = stored_state\n\n    return runner\n</replace>\n</edit>\n\nNow also update `get_recoverable_sessions` - sessions with state \"running\" should be reported as needing recovery but shown as \"idle\" (or we can keep them in the recoverable list but note they need attention):\n\n<edit file=\"forge/session/startup.py\">\n<search>\n            # Sessions that were actively running or waiting are recoverable\n            if state in (\"running\", \"waiting_children\", \"waiting_input\"):\n                recoverable.append(\n                    {\n                        \"branch_name\": branch_name,\n                        \"state\": state,\n                        \"yield_message\": session_data.get(\"yield_message\"),\n                        \"parent_session\": session_data.get(\"parent_session\"),\n                    }\n                )\n</search>\n<replace>\n            # Sessions that were actively running or waiting are recoverable\n            if state in (\"running\", \"waiting_children\", \"waiting_input\"):\n                # Normalize \"running\" to \"idle\" - we're not actually running after restart\n                display_state = \"idle\" if state == \"running\" else state\n                recoverable.append(\n                    {\n                        \"branch_name\": branch_name,\n                        \"state\": display_state,\n                        \"yield_message\": session_data.get(\"yield_message\"),\n                        \"parent_session\": session_data.get(\"parent_session\"),\n                    }\n                )\n</replace>\n</edit>\n\nNow for the **manual patch** - you can run this in your repo to fix existing sessions:\n\n```bash\n# Find all session branches and fix their state\nfor branch in $(git branch | grep 'ai/'); do\n    branch=$(echo $branch | tr -d ' *')\n    content=$(git show \"$branch:.forge/session.json\" 2>/dev/null) || continue\n    if echo \"$content\" | grep -q '\"state\": \"running\"'; then\n        echo \"Fixing $branch...\"\n        # You'll need to check out each branch and edit, or use git-filter\n    fi\ndone\n```\n\nOr simpler - just open each affected session in Forge, and it will now load with `idle` state. When you send the next message, it will commit with the correct state.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/startup.py",
+          "modified_files": [
+            "forge/session/startup.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/startup.py",
+          "modified_files": [
+            "forge/session/startup.py"
           ],
           "side_effects": [
             "files_modified"

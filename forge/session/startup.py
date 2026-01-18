@@ -139,11 +139,13 @@ def load_or_create_runner(
     if session_data.get("pending_wait_call"):
         runner._pending_wait_call = session_data["pending_wait_call"]
 
-    # Restore state (but don't change from IDLE if it was running -
-    # that means we crashed mid-run and should let user decide)
-    # Also restore "error" state so UI can show appropriate status.
+    # Restore state from session data.
+    # "running" means we crashed mid-run - normalize to "idle" since we're not
+    # actually running anymore. The user can restart the conversation.
     stored_state = session_data.get("state", "idle")
-    if stored_state in ("waiting_input", "waiting_children", "completed", "error"):
+    if stored_state == "running":
+        stored_state = "idle"  # Crashed mid-run, treat as idle
+    if stored_state in ("idle", "waiting_input", "waiting_children", "completed", "error"):
         runner._state = stored_state
 
     return runner
@@ -235,10 +237,12 @@ def get_recoverable_sessions(repo: "ForgeRepository") -> list[dict[str, Any]]:
 
             # Sessions that were actively running or waiting are recoverable
             if state in ("running", "waiting_children", "waiting_input"):
+                # Normalize "running" to "idle" - we're not actually running after restart
+                display_state = "idle" if state == "running" else state
                 recoverable.append(
                     {
                         "branch_name": branch_name,
-                        "state": state,
+                        "state": display_state,
                         "yield_message": session_data.get("yield_message"),
                         "parent_session": session_data.get("parent_session"),
                     }

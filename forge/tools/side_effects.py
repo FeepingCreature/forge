@@ -29,3 +29,9 @@ class SideEffect(str, Enum):
     # Marks that the tool has displayable output for the UI
     # Result must include "display_output": str (the content to show)
     HAS_DISPLAY_OUTPUT = "has_display_output"
+
+    # Marks that this tool result is ephemeral - only available for one AI response.
+    # After the AI sees this result, it's replaced with a placeholder message.
+    # Use for tools that return large results used for immediate decision-making
+    # (e.g., grep_context snippets that help decide what files to load).
+    EPHEMERAL_RESULT = "ephemeral_result"

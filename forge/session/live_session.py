@@ -547,6 +547,11 @@ class LiveSession(QObject):
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         client = LLMClient(api_key, model)
 
+        # Expire any ephemeral tool results from previous responses
+        expired = self.session_manager.prompt_manager.expire_ephemeral_results()
+        if expired:
+            print(f"⏳ Expired {expired} ephemeral tool result(s)")
+
         # Build prompt
         self.session_manager.sync_prompt_manager()
         messages = self.session_manager.get_prompt_messages()
@@ -813,6 +818,9 @@ class LiveSession(QObject):
 
         from forge.tools.side_effects import SideEffect
 
+        # Extract side effects early (needed for ephemeral check and later processing)
+        side_effects = result.get("side_effects", [])
+
         # Check for _yield flag - DON'T record this tool result yet
         # We'll re-execute when we wake up and record the real result then
         if result.get("_yield"):
@@ -829,10 +837,9 @@ class LiveSession(QObject):
                     "_skip_display": True,
                 }
             )
-            self.session_manager.append_tool_result(tool_call_id, result_json)
-
-        # Track side effects
-        side_effects = result.get("side_effects", [])
+            # Check if this is an ephemeral result
+            is_ephemeral = SideEffect.EPHEMERAL_RESULT in side_effects
+            self.session_manager.append_tool_result(tool_call_id, result_json, is_ephemeral)
 
         if SideEffect.FILES_MODIFIED in side_effects:
             for filepath in result.get("modified_files", []):

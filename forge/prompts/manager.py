@@ -61,6 +61,10 @@ class PromptManager:
         # Mapping from user-friendly ID -> actual tool_call_id
         self._tool_id_map: dict[str, str] = {}
 
+        # Track ephemeral tool results (tool_call_id -> True)
+        # These get replaced with placeholders after one AI response
+        self._ephemeral_tool_results: set[str] = set()
+
         # Add system prompt as first block
         self.blocks.append(
             ContentBlock(
@@ -357,8 +361,17 @@ class PromptManager:
                 else:
                     block.metadata["tool_calls"] = filtered
 
-    def append_tool_result(self, tool_call_id: str, result: str) -> None:
-        """Add a tool result to the stream"""
+    def append_tool_result(
+        self, tool_call_id: str, result: str, is_ephemeral: bool = False
+    ) -> None:
+        """Add a tool result to the stream.
+
+        Args:
+            tool_call_id: The ID of the tool call this result is for
+            result: The result content (usually JSON)
+            is_ephemeral: If True, this result will be replaced with a placeholder
+                         after the AI sees it once (for large, transient results)
+        """
         # Validate tool_call_id - Anthropic requires pattern ^[a-zA-Z0-9_-]+$
         if not tool_call_id:
             print(f"❌ ERROR: Empty tool_call_id! Result: {result[:100]}...")
@@ -369,9 +382,17 @@ class PromptManager:
         self._next_tool_id += 1
         self._tool_id_map[user_id] = tool_call_id
 
-        print(
-            f"📋 PromptManager: Appending tool result #{user_id} for {tool_call_id} ({len(result)} chars)"
-        )
+        # Track ephemeral results
+        if is_ephemeral:
+            self._ephemeral_tool_results.add(tool_call_id)
+            print(
+                f"📋 PromptManager: Appending EPHEMERAL tool result #{user_id} for {tool_call_id} ({len(result)} chars)"
+            )
+        else:
+            print(
+                f"📋 PromptManager: Appending tool result #{user_id} for {tool_call_id} ({len(result)} chars)"
+            )
+
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_RESULT,
@@ -399,6 +420,34 @@ class PromptManager:
                 print(f"🗑️  PromptManager: Removed tool result for {tool_call_id}")
                 return True
         return False
+
+    def expire_ephemeral_results(self) -> int:
+        """
+        Replace ephemeral tool results with a placeholder message.
+
+        Called before each new AI request. Ephemeral results are only visible
+        for one AI response - after that, they're replaced to save context space.
+
+        Returns the number of results expired.
+        """
+        if not self._ephemeral_tool_results:
+            return 0
+
+        expired = 0
+        for block in self.blocks:
+            if block.deleted or block.block_type != BlockType.TOOL_RESULT:
+                continue
+
+            tool_call_id = block.metadata.get("tool_call_id")
+            if tool_call_id in self._ephemeral_tool_results:
+                user_id = block.metadata.get("user_id", "?")
+                block.content = '{"message": "Ephemeral tool result removed to save context space"}'
+                expired += 1
+                print(f"⏳ PromptManager: Expired ephemeral result #{user_id}")
+
+        # Clear the tracking set - these are now expired
+        self._ephemeral_tool_results.clear()
+        return expired
 
     def get_active_files(self) -> list[str]:
         """Get list of files currently in context (not deleted)"""

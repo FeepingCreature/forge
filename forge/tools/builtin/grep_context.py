@@ -7,6 +7,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from forge.tools.builtin.grep_utils import DEFAULT_EXCLUDE_DIRS, get_files_to_search
+from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
@@ -22,6 +23,10 @@ def get_schema() -> dict[str, Any]:
 
 Use this to peek at code before deciding if you need the full file. Unlike grep_open, this
 returns snippets inline and does NOT add files to your active context.
+
+**EPHEMERAL**: This tool's results are only available for ONE response. After you respond,
+the full output is replaced with a placeholder to save context space. Use this for quick
+lookups where you'll act immediately on the results (load files, make decisions, etc.).
 
 Good for:
 - Quickly checking how a function is called without loading the whole file
@@ -154,6 +159,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
             "message": f"No matches found for pattern: {pattern}",
             "snippets": [],
             "total_matches": 0,
+            "side_effects": [SideEffect.EPHEMERAL_RESULT],
         }
 
     # Format output
@@ -170,4 +176,5 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         "message": f"Found {len(snippets)} matches{truncated_msg}",
         "output": "\n\n".join(output_parts),
         "total_matches": total_matches,
+        "side_effects": [SideEffect.EPHEMERAL_RESULT],
     }

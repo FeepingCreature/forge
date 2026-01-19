@@ -268,9 +268,11 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Add tool calls to the prompt stream, with any accompanying text content"""
         self.prompt_manager.append_tool_call(tool_calls, content)
 
-    def append_tool_result(self, tool_call_id: str, result: str) -> None:
+    def append_tool_result(
+        self, tool_call_id: str, result: str, is_ephemeral: bool = False
+    ) -> None:
         """Add a tool result to the prompt stream"""
-        self.prompt_manager.append_tool_result(tool_call_id, result)
+        self.prompt_manager.append_tool_result(tool_call_id, result, is_ephemeral)
 
     def mark_mid_turn_commit(self) -> None:
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""

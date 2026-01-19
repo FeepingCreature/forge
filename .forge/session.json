@@ -1,10 +1,10 @@
 {
   "active_files": [
-    "forge/tools/builtin/git_history.py",
     "forge/prompts/manager.py",
+    "CLAUDE.md",
+    "forge/tools/builtin/git_history.py",
     "forge/ui/commit_diff_window.py",
-    "tests/test_session_spawn.py",
-    "CLAUDE.md"
+    "tests/test_session_spawn.py"
   ],
   "request_log_entries": [
     {
@@ -447,6 +447,24 @@
       "streaming": true,
       "actual_cost": 0.11936275,
       "generation_id": "gen-1768850642-lvWfMSe8dighzkQ9ZmO8"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768850672089.json",
+      "response_file": "/tmp/forge_debug/response_1768850672089.json",
+      "timestamp": 1768850672.0897589,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003999,
+      "generation_id": "gen-1768850672-rJFkfEQb4NwgA5tMBAT9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850685807.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768850685807.json",
+      "timestamp": 1768850685.808533,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.47172,
+      "generation_id": "gen-1768850686-a2DyUjWI9xaCG9l2Mc8j"
     }
   ],
   "messages": [
@@ -1560,6 +1578,31 @@
     {
       "role": "assistant",
       "content": "Now I can see the bug clearly. Looking at `get_mood_bar_segments()` around line 757:\n\n```python\nelif block.block_type == BlockType.TOOL_CALL:\n    tool_calls = block.metadata.get(\"tool_calls\", [])\n    # Add tokens for tool call JSON\n    for tc in tool_calls:\n        tokens += len(json.dumps(tc)) // 3  # BUG: tokens already has block.content counted!\n```\n\nThe issue is:\n1. Line 701: `tokens = len(block.content) // 3` - counts the assistant's prose/edit XML\n2. Line 761: `tokens += len(json.dumps(tc)) // 3` - adds tool call JSON on top\n\nBut for TOOL_CALL blocks, `block.content` is the assistant's accompanying text (which can be huge if it contains edit XML). For an `update_context` call, the actual tool call JSON is tiny (~100 chars), but the `block.content` might be 9k+ chars from edits in that response.\n\nThe fix: For TOOL_CALL blocks, we should only count the tool call metadata JSON, not double-count by starting with `block.content`:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n            elif block.block_type == BlockType.TOOL_CALL:\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                # Add tokens for tool call JSON\n                for tc in tool_calls:\n                    tokens += len(json.dumps(tc)) // 3\n                tool_names = [tc.get(\"function\", {}).get(\"name\", \"?\") for tc in tool_calls]\n                segments.append(\n                    {\n                        \"name\": f\"Tool call: {', '.join(tool_names)}\",\n                        \"type\": \"tool_call\",\n                        \"tokens\": tokens,\n                        \"details\": \", \".join(tool_names),\n                    }\n                )\n</search>\n<replace>\n            elif block.block_type == BlockType.TOOL_CALL:\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                # For tool calls, count only the tool call JSON, not block.content\n                # (block.content is the assistant's accompanying text, shown separately\n                # or already counted if there were inline edits)\n                tool_tokens = 0\n                for tc in tool_calls:\n                    tool_tokens += len(json.dumps(tc)) // 3\n                tool_names = [tc.get(\"function\", {}).get(\"name\", \"?\") for tc in tool_calls]\n                segments.append(\n                    {\n                        \"name\": f\"Tool call: {', '.join(tool_names)}\",\n                        \"type\": \"tool_call\",\n                        \"tokens\": tool_tokens,\n                        \"details\": \", \".join(tool_names),\n                    }\n                )\n</replace>\n</edit>\n\nNow the mood bar should show accurate token counts for tool calls (just the JSON metadata, not the assistant's prose which would be counted elsewhere).",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 89 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Ah, then we want to insert a separate mood block for the content there?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right! The `block.content` for a `TOOL_CALL` block contains the assistant's prose/text that accompanied the tool calls. If there's text there, it should be shown as a separate segment (like \"Assistant\") rather than being silently ignored.\n\nLet me fix this properly - when a TOOL_CALL block has non-empty content, we should show it as a separate assistant segment before the tool call segment:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n            elif block.block_type == BlockType.TOOL_CALL:\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                # For tool calls, count only the tool call JSON, not block.content\n                # (block.content is the assistant's accompanying text, shown separately\n                # or already counted if there were inline edits)\n                tool_tokens = 0\n                for tc in tool_calls:\n                    tool_tokens += len(json.dumps(tc)) // 3\n                tool_names = [tc.get(\"function\", {}).get(\"name\", \"?\") for tc in tool_calls]\n                segments.append(\n                    {\n                        \"name\": f\"Tool call: {', '.join(tool_names)}\",\n                        \"type\": \"tool_call\",\n                        \"tokens\": tool_tokens,\n                        \"details\": \", \".join(tool_names),\n                    }\n                )\n</search>\n<replace>\n            elif block.block_type == BlockType.TOOL_CALL:\n                # If there's accompanying assistant text, show it as a separate segment\n                if block.content:\n                    content_tokens = len(block.content) // 3\n                    preview = block.content[:100] + \"...\" if len(block.content) > 100 else block.content\n                    segments.append(\n                        {\n                            \"name\": \"Assistant\",\n                            \"type\": \"assistant\",\n                            \"tokens\": content_tokens,\n                            \"details\": preview,\n                        }\n                    )\n\n                # Tool call JSON as separate segment\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                tool_tokens = 0\n                for tc in tool_calls:\n                    tool_tokens += len(json.dumps(tc)) // 3\n                tool_names = [tc.get(\"function\", {}).get(\"name\", \"?\") for tc in tool_calls]\n                segments.append(\n                    {\n                        \"name\": f\"Tool call: {', '.join(tool_names)}\",\n                        \"type\": \"tool_call\",\n                        \"tokens\": tool_tokens,\n                        \"details\": \", \".join(tool_names),\n                    }\n                )\n</replace>\n</edit>\n\nNow the mood bar will correctly show:\n1. An \"Assistant\" segment for any prose/edit text that accompanied the tool calls (which can be large with inline edits)\n2. A separate \"Tool call: X\" segment for just the tool call JSON (which is small)\n\nThis gives accurate token accounting and makes it clear where the context usage is coming from.",
       "_inline_results": [
         {
           "message": "Replaced in forge/prompts/manager.py",

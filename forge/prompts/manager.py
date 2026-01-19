@@ -755,10 +755,21 @@ class PromptManager:
                 )
 
             elif block.block_type == BlockType.TOOL_CALL:
+                # If there's accompanying assistant text, show it as a separate segment
+                if block.content:
+                    content_tokens = len(block.content) // 3
+                    preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
+                    segments.append(
+                        {
+                            "name": "Assistant",
+                            "type": "assistant",
+                            "tokens": content_tokens,
+                            "details": preview,
+                        }
+                    )
+
+                # Tool call JSON as separate segment
                 tool_calls = block.metadata.get("tool_calls", [])
-                # For tool calls, count only the tool call JSON, not block.content
-                # (block.content is the assistant's accompanying text, shown separately
-                # or already counted if there were inline edits)
                 tool_tokens = 0
                 for tc in tool_calls:
                     tool_tokens += len(json.dumps(tc)) // 3

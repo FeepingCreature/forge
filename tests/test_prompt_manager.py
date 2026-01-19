@@ -582,6 +582,141 @@ class TestContextStats:
         assert "Result #1" in recap
 
 
+class TestEphemeralToolResults:
+    """Test ephemeral tool results that expire after one AI response"""
+
+    def test_append_ephemeral_tool_result(self):
+        """Ephemeral results are tracked separately"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search for something")
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"output": "lots of data"}', is_ephemeral=True)
+
+        # Result should be tracked as ephemeral
+        assert "call_1" in pm._ephemeral_tool_results
+
+        # Content should be present before expiration
+        result_block = next(b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT)
+        assert "lots of data" in result_block.content
+
+    def test_expire_ephemeral_results(self):
+        """Expiring replaces content with placeholder"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search")
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"output": "x" * 1000}', is_ephemeral=True)
+
+        # Expire ephemeral results
+        expired_count = pm.expire_ephemeral_results()
+
+        assert expired_count == 1
+        assert len(pm._ephemeral_tool_results) == 0
+
+        # Content should be replaced
+        result_block = next(b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT)
+        assert "Ephemeral tool result removed" in result_block.content
+
+    def test_expire_only_affects_ephemeral(self):
+        """Non-ephemeral results are not affected by expiration"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Do things")
+
+        # Regular tool result
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "update_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"success": true}', is_ephemeral=False)
+
+        # Ephemeral tool result
+        pm.append_tool_call([
+            {"id": "call_2", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_2", '{"output": "search results"}', is_ephemeral=True)
+
+        pm.expire_ephemeral_results()
+
+        results = [b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT]
+
+        # First result unchanged
+        assert "success" in results[0].content
+        # Second result expired
+        assert "Ephemeral tool result removed" in results[1].content
+
+    def test_expire_is_idempotent(self):
+        """Calling expire multiple times has no additional effect"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search")
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"output": "data"}', is_ephemeral=True)
+
+        # First expiration
+        count1 = pm.expire_ephemeral_results()
+        assert count1 == 1
+
+        # Second expiration - nothing to expire
+        count2 = pm.expire_ephemeral_results()
+        assert count2 == 0
+
+    def test_multiple_ephemeral_results(self):
+        """Multiple ephemeral results all get expired"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search multiple")
+
+        for i in range(3):
+            pm.append_tool_call([
+                {"id": f"call_{i}", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+            ])
+            pm.append_tool_result(f"call_{i}", f'{{"output": "result {i}"}}', is_ephemeral=True)
+
+        assert len(pm._ephemeral_tool_results) == 3
+
+        expired = pm.expire_ephemeral_results()
+
+        assert expired == 3
+        assert len(pm._ephemeral_tool_results) == 0
+
+        results = [b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT]
+        for r in results:
+            assert "Ephemeral tool result removed" in r.content
+
+    def test_ephemeral_in_to_messages_before_expire(self):
+        """Ephemeral results appear normally in to_messages before expiration"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search")
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"output": "important data"}', is_ephemeral=True)
+
+        messages = pm.to_messages()
+        tool_msg = next(m for m in messages if m.get("role") == "tool")
+
+        assert "important data" in tool_msg["content"][0]["text"]
+
+    def test_ephemeral_in_to_messages_after_expire(self):
+        """Ephemeral results show placeholder in to_messages after expiration"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("Search")
+        pm.append_tool_call([
+            {"id": "call_1", "type": "function", "function": {"name": "grep_context", "arguments": "{}"}}
+        ])
+        pm.append_tool_result("call_1", '{"output": "important data"}', is_ephemeral=True)
+
+        pm.expire_ephemeral_results()
+
+        messages = pm.to_messages()
+        tool_msg = next(m for m in messages if m.get("role") == "tool")
+
+        assert "Ephemeral tool result removed" in tool_msg["content"][0]["text"]
+        assert "important data" not in tool_msg["content"][0]["text"]
+
+
 class TestClearConversation:
     """Test clearing conversation while preserving context"""
 

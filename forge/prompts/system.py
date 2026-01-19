@@ -75,6 +75,17 @@ Examples of batching:
 Done! Refactored X to use Y.
 ```
 
+### Inline Commands vs API Tool Calls
+
+There are two ways to take actions:
+
+1. **Inline commands** (`<edit>`, `<run_tests/>`, `<commit/>`, `<check/>`) - written directly in your response text
+2. **API tool calls** (`update_context`, `grep_open`, `scout`, etc.) - invoked via `<antml:function_calls>` blocks
+
+These execute in a specific order: **inline commands run first**, then API tool calls. When you want to do both in one response, put inline commands in your prose, then make API calls.
+
+Common mistake: saying "let me run tests" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text - it's not a function you invoke in a tool-call block.
+
 ### IMPORTANT: Assume Tools Succeed
 
 **Do NOT wait for results.** Commands execute as a pipeline - if any step fails, the pipeline aborts and you get control back. But you should **assume success** and keep going. Don't stop after an edit to see if it worked. Don't stop after `<check/>` to see if it passed. Just do everything in one response.

@@ -1,7 +1,8 @@
 {
   "active_files": [
     "forge/prompts/manager.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/prompts/system.py"
   ],
   "request_log_entries": [
     {
@@ -678,6 +679,33 @@
       "streaming": true,
       "actual_cost": 0.11996825,
       "generation_id": "gen-1768851170-eRr8Mr46JsquMpawnlBP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768851191562.json",
+      "response_file": "/tmp/forge_debug/response_1768851191562.json",
+      "timestamp": 1768851191.5622082,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000221,
+      "generation_id": "gen-1768851191-wmDJVn5t4wvvEHTqe1dA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768851218235.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768851218235.json",
+      "timestamp": 1768851218.236245,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03789425,
+      "generation_id": "gen-1768851218-gDi1JL95qnYpkbyiScr3"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768851225212.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768851225212.json",
+      "timestamp": 1768851225.2131863,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0588175,
+      "generation_id": "gen-1768851225-hS1wuT9ZMhHe4uTQae7y"
     }
   ],
   "messages": [
@@ -2498,6 +2526,62 @@
         {
           "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_wnmkz0qo\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.26s ==============================\n",
           "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_wnmkz0qo\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.26s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 09191f50",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "you have to quote xml tokens. the parser for them is very twitchy. :-P\n\ncan you add it to the prompt? note that this is a case where you have to escape html entities, edit has a flag for that."
+    },
+    {
+      "role": "assistant",
+      "content": "Got it! Let me add this to the system prompt with proper escaping:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01CTm9CCaQCiMK9xMtF99pTG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01CTm9CCaQCiMK9xMtF99pTG",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the system prompt. I'll add the section about inline commands vs API tool calls in the \"Batch Operations\" section, using HTML escaping:\n\n<edit file=\"forge/prompts/system.py\" escape=\"html\">\n<search>\n**The ideal turn**: Do everything in one response:\n```\n[make edits]\n<run_tests/>\n<commit message=\"Refactored X to use Y\"/>\n\nDone! Refactored X to use Y.\n```\n\n### IMPORTANT: Assume Tools Succeed\n</search>\n<replace>\n**The ideal turn**: Do everything in one response:\n```\n[make edits]\n&lt;run_tests/&gt;\n&lt;commit message=\"Refactored X to use Y\"/&gt;\n\nDone! Refactored X to use Y.\n```\n\n### Inline Commands vs API Tool Calls\n\nThere are two ways to take actions:\n\n1. **Inline commands** (`&lt;edit&gt;`, `&lt;run_tests/&gt;`, `&lt;commit/&gt;`, `&lt;check/&gt;`) - written directly in your response text\n2. **API tool calls** (`update_context`, `grep_open`, `scout`, etc.) - invoked via `&lt;antml:function_calls&gt;` blocks\n\nThese execute in a specific order: **inline commands run first**, then API tool calls. When you want to do both in one response, put inline commands in your prose, then make API calls.\n\nCommon mistake: saying \"let me run tests\" while only making an `update_context` call. If you want `&lt;run_tests/&gt;`, you must write it in your response text - it's not a function you invoke in a tool-call block.\n\n### IMPORTANT: Assume Tools Succeed\n</replace>\n</edit>\n\n<run_tests>tests/test_prompt_manager.py</run_tests>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j3fjizea\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j3fjizea\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
           "passed": false,
           "side_effects": [
             "has_display_output"

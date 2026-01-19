@@ -1,9 +1,7 @@
 {
   "active_files": [
-    "forge/prompts/manager.py",
+    "forge/tools/builtin/get_lines.py",
     "CLAUDE.md",
-    "forge/tools/builtin/git_history.py",
-    "forge/ui/commit_diff_window.py",
     "tests/test_session_spawn.py"
   ],
   "request_log_entries": [
@@ -465,6 +463,42 @@
       "streaming": true,
       "actual_cost": 0.47172,
       "generation_id": "gen-1768850686-a2DyUjWI9xaCG9l2Mc8j"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768850708698.json",
+      "response_file": "/tmp/forge_debug/response_1768850708698.json",
+      "timestamp": 1768850708.6989539,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003644,
+      "generation_id": "gen-1768850708-zuajcPD5NCoNb9CIOZsR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850751665.json",
+      "response_file": null,
+      "timestamp": 1768850751.6665328,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": null
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850755428.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768850755428.json",
+      "timestamp": 1768850755.4293444,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.46264375,
+      "generation_id": "gen-1768850755-rEmjSJqaSmzdLWeE3jzH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850765781.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768850765781.json",
+      "timestamp": 1768850765.7825766,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.36832125,
+      "generation_id": "gen-1768850766-ErdxIZXNhzrPEYsUTeaq"
     }
   ],
   "messages": [
@@ -1608,6 +1642,75 @@
           "message": "Replaced in forge/prompts/manager.py",
           "modified_files": [
             "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 89 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Yep that's good! Okay, pivoting again lol. get_lines should be ephemeral for the same reason as grep_context."
+    },
+    {
+      "role": "user",
+      "content": "**Error from LLM provider:**\n\n```\n('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "Got it! Let me add the ephemeral side effect to `get_lines` as well:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/get_lines.py\"], \"remove\": [\"forge/prompts/manager.py\", \"forge/tools/builtin/grep_context.py\", \"forge/tools/side_effects.py\", \"forge/ui/commit_diff_window.py\", \"forge/tools/builtin/git_history.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_0133JQLaSFPW4kgJcCar3WAF",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_0133JQLaSFPW4kgJcCar3WAF",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/get_lines.py\"], \"message\": \"Added 1 files, removed 5 files from context\", \"remove\": [\"forge/prompts/manager.py\", \"forge/tools/builtin/grep_context.py\", \"forge/tools/side_effects.py\", \"forge/ui/commit_diff_window.py\", \"forge/tools/builtin/git_history.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "<edit file=\"forge/tools/builtin/get_lines.py\">\n<search>\n\"\"\"\nGet lines surrounding a specific line number in a file.\nUseful for investigating error messages that reference line numbers.\n\"\"\"\n\nfrom typing import TYPE_CHECKING, Any\n\nif TYPE_CHECKING:\n    from forge.vfs.base import VFS\n</search>\n<replace>\n\"\"\"\nGet lines surrounding a specific line number in a file.\nUseful for investigating error messages that reference line numbers.\n\"\"\"\n\nfrom typing import TYPE_CHECKING, Any\n\nfrom forge.tools.side_effects import SideEffect\n\nif TYPE_CHECKING:\n    from forge.vfs.base import VFS\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/get_lines.py\">\n<search>\n            \"description\": \"Get lines surrounding a specific line number in a file. Useful for investigating errors that reference line numbers.\",\n</search>\n<replace>\n            \"description\": \"\"\"Get lines surrounding a specific line number in a file. Useful for investigating errors that reference line numbers.\n\n**EPHEMERAL**: This tool's results are only available for ONE response. After you respond,\nthe full output is replaced with a placeholder to save context space. Use this for quick\nlookups where you'll act immediately on the results.\"\"\",\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/get_lines.py\">\n<search>\n    return {\n        \"success\": True,\n        \"filepath\": filepath,\n        \"target_line\": line_num,\n        \"range\": f\"{start + 1}-{end}\",\n        \"total_lines\": total_lines,\n        \"content\": result,\n    }\n</search>\n<replace>\n    return {\n        \"success\": True,\n        \"filepath\": filepath,\n        \"target_line\": line_num,\n        \"range\": f\"{start + 1}-{end}\",\n        \"total_lines\": total_lines,\n        \"content\": result,\n        \"side_effects\": [SideEffect.EPHEMERAL_RESULT],\n    }\n</replace>\n</edit>\n\nDone! `get_lines` is now ephemeral - its results will be replaced with a placeholder after one AI response, just like `grep_context`.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/get_lines.py",
+          "modified_files": [
+            "forge/tools/builtin/get_lines.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/get_lines.py",
+          "modified_files": [
+            "forge/tools/builtin/get_lines.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/get_lines.py",
+          "modified_files": [
+            "forge/tools/builtin/get_lines.py"
           ],
           "side_effects": [
             "files_modified"

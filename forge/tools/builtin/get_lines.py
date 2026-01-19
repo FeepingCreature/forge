@@ -5,6 +5,8 @@ Useful for investigating error messages that reference line numbers.
 
 from typing import TYPE_CHECKING, Any
 
+from forge.tools.side_effects import SideEffect
+
 if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
@@ -15,7 +17,11 @@ def get_schema() -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": "get_lines",
-            "description": "Get lines surrounding a specific line number in a file. Useful for investigating errors that reference line numbers.",
+            "description": """Get lines surrounding a specific line number in a file. Useful for investigating errors that reference line numbers.
+
+**EPHEMERAL**: This tool's results are only available for ONE response. After you respond,
+the full output is replaced with a placeholder to save context space. Use this for quick
+lookups where you'll act immediately on the results.""",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -86,4 +92,5 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         "range": f"{start + 1}-{end}",
         "total_lines": total_lines,
         "content": result,
+        "side_effects": [SideEffect.EPHEMERAL_RESULT],
     }

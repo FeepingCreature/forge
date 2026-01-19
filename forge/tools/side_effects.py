@@ -30,8 +30,10 @@ class SideEffect(str, Enum):
     # Result must include "display_output": str (the content to show)
     HAS_DISPLAY_OUTPUT = "has_display_output"
 
-    # Marks that this tool result is ephemeral - only available for one AI response.
-    # After the AI sees this result, it's replaced with a placeholder message.
+    # Marks that this tool result is ephemeral - only available within the current turn.
+    # At the start of the NEXT turn (next user message), it's replaced with a placeholder.
+    # This allows the AI to use the result across multiple tool calls within a single turn,
+    # but saves context space in subsequent turns.
     # Use for tools that return large results used for immediate decision-making
     # (e.g., grep_context snippets that help decide what files to load).
     EPHEMERAL_RESULT = "ephemeral_result"

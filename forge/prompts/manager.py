@@ -1098,8 +1098,12 @@ Chain everything optimistically. The pipeline handles failures for you."""
         """
         Convert the block stream to API message format.
 
-        Skips deleted blocks. Places cache_control on the last content block
-        BEFORE the stats/recap injection.
+        Skips deleted blocks. Places cache_control on:
+        1. The last user message (start of turn) - ensures prefix is always cacheable
+        2. The last content block before stats injection
+
+        This handles the 20-breakpoint limit: even with many tool calls in a turn,
+        the prefix before the turn gets a cache hit via the user message breakpoint.
 
         Groups consecutive user-role blocks (SUMMARIES, FILE_CONTENT, USER_MESSAGE)
         into single messages to avoid consecutive user messages which break the API.
@@ -1121,6 +1125,14 @@ Chain everything optimistically. The pipeline handles failures for you."""
         for i, block in enumerate(active_blocks):
             if block.block_type not in (BlockType.TOOL_CALL,):
                 last_content_idx = i
+
+        # Find the last user message index (for turn-boundary cache point)
+        # This ensures the prefix before the current turn is always cacheable,
+        # even if there are 20+ tool calls in the turn
+        last_user_message_idx = -1
+        for i, block in enumerate(active_blocks):
+            if block.block_type == BlockType.USER_MESSAGE:
+                last_user_message_idx = i
 
         i = 0
         while i < len(active_blocks):
@@ -1145,9 +1157,18 @@ Chain everything optimistically. The pipeline handles failures for you."""
                     BlockType.FILE_CONTENT,
                     BlockType.USER_MESSAGE,
                 ):
+                    # Add cache_control if this is the last content OR the last user message
+                    # The last user message gets a cache point to ensure the prefix before
+                    # the current turn is cacheable (handles 20-breakpoint limit)
                     is_this_last = i == last_content_idx
+                    is_turn_boundary = (
+                        active_blocks[i].block_type == BlockType.USER_MESSAGE
+                        and i == last_user_message_idx
+                    )
                     content_blocks.append(
-                        self._make_content_block(active_blocks[i].content, is_this_last)
+                        self._make_content_block(
+                            active_blocks[i].content, is_this_last or is_turn_boundary
+                        )
                     )
                     i += 1
 

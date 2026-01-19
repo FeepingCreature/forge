@@ -19,7 +19,7 @@ def get_schema() -> dict[str, Any]:
             "name": "get_lines",
             "description": """Get lines surrounding a specific line number in a file. Useful for investigating errors that reference line numbers.
 
-**EPHEMERAL**: This tool's results are only available for ONE response. After you respond,
+**EPHEMERAL**: This tool's results are only available for ONE turn. After you respond,
 the full output is replaced with a placeholder to save context space. Use this for quick
 lookups where you'll act immediately on the results.""",
             "parameters": {

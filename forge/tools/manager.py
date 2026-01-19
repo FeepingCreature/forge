@@ -62,6 +62,9 @@ class ToolManager:
         # Loaded tool modules cache
         self._tool_modules: dict[str, Any] = {}
 
+        # Skills discovered from tools (skill_name -> documentation)
+        self._skills: dict[str, str] = {}
+
         # Approved tools tracking
         self.approved_tools_path = APPROVED_TOOLS_FILE
         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash
@@ -231,6 +234,12 @@ class ToolManager:
                     tools.append(schema)
                     self._schema_cache[tool_name] = schema
                     self._tool_modules[tool_name] = tool_module
+                    # Discover skill if present
+                    if hasattr(tool_module, "get_skill"):
+                        skill_info = tool_module.get_skill()
+                        if skill_info:
+                            skill_name, skill_doc = skill_info
+                            self._skills[skill_name] = skill_doc
 
         # Load user tools from VFS (includes committed + pending changes)
         tools_prefix = str(self.tools_dir).lstrip("./") + "/"
@@ -253,6 +262,12 @@ class ToolManager:
                 tools.append(schema)
                 self._schema_cache[tool_name] = schema
                 self._tool_modules[tool_name] = tool_module
+                # Discover skill if present
+                if hasattr(tool_module, "get_skill"):
+                    skill_info = tool_module.get_skill()
+                    if skill_info:
+                        skill_name, skill_doc = skill_info
+                        self._skills[skill_name] = skill_doc
 
         return self._filter_inline_tools(tools)
 
@@ -370,6 +385,14 @@ class ToolManager:
                     session_manager.remove_active_file(filepath)
 
         return result
+
+    def get_skills(self) -> dict[str, str]:
+        """Get all discovered skills from tools.
+
+        Returns:
+            Dict mapping skill_name -> documentation
+        """
+        return self._skills.copy()
 
     def get_pending_changes(self) -> dict[str, str]:
         """Get all pending changes from VFS"""

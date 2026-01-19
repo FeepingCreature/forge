@@ -3,98 +3,19 @@ Get skill documentation - returns detailed instructions for specific tasks.
 
 This tool provides documentation for rarely-used but complex tasks,
 keeping this information out of the main system prompt.
+
+Skills are discovered from tools that export a get_skill() function,
+plus some built-in skills defined here.
 """
 
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from forge.vfs.base import VFS
+    from forge.tools.context import ToolContext
 
 
-SKILLS: dict[str, str] = {
-    "session": """\
-# Managing Child Sessions
-
-Child sessions let you parallelize work by spawning AI workers on separate branches.
-Each child works independently with its own conversation and can make commits.
-
-## Workflow
-
-1. **spawn** - Create a child on a new branch with a task instruction
-2. **wait** - Check if children are done (yields if all still running)
-3. **resume** - Answer a child's question or give follow-up instructions
-4. **merge** - Incorporate a child's changes into your branch
-
-## Actions
-
-### spawn
-Create a child session:
-```
-session(action="spawn", branch="ai/fix-bug", instruction="Fix the bug in foo.py...")
-```
-
-IMPORTANT: Children have NO context from parent. Be explicit:
-- What files to look at
-- What problem to solve
-- What approach to take
-- What "done" looks like
-
-### wait
-Check on children (returns immediately if any ready, yields if all running):
-```
-session(action="wait", branches=["ai/fix-bug", "ai/add-tests"])
-```
-
-Returns:
-- `ready: true` + `branch`, `message`, `merge_clean` if a child finished
-- `ready: false` + `waiting_on` list if all still running (session yields)
-
-### resume
-Send a message to a child (answer questions, give feedback):
-```
-session(action="resume", branch="ai/fix-bug", message="Yes, use the new API")
-```
-
-### merge
-Merge a completed child's changes:
-```
-session(action="merge", branch="ai/fix-bug")
-session(action="merge", branch="ai/fix-bug", delete_branch=False)  # Keep branch
-session(action="merge", branch="ai/fix-bug", allow_conflicts=True)  # Commit conflicts
-```
-
-## Example: Parallel Tasks
-
-```
-# Spawn two workers
-session(action="spawn", branch="ai/task-a", instruction="Implement feature A in src/a.py...")
-session(action="spawn", branch="ai/task-b", instruction="Implement feature B in src/b.py...")
-
-# Wait for either to finish
-result = session(action="wait", branches=["ai/task-a", "ai/task-b"])
-
-# When ready, merge
-if result["ready"] and result["merge_clean"]:
-    session(action="merge", branch=result["branch"])
-```
-
-## Example: Answering Child Questions
-
-```
-result = session(action="wait", branches=["ai/my-task"])
-
-if result["state"] == "waiting_input":
-    # Child asked a question - answer it
-    session(action="resume", branch="ai/my-task", message="The answer is...")
-```
-
-## Tips
-
-- Use `ai/` prefix for branch names by convention
-- Check `merge_clean` before merging to avoid conflicts
-- Children can spawn their own children (nested parallelism)
-- If merge has conflicts, use `allow_conflicts=True` then fix the markers
-""",
+# Built-in skills that aren't associated with a specific tool
+BUILTIN_SKILLS: dict[str, str] = {
     "create_tool": """\
 # Creating a Custom Tool
 
@@ -297,9 +218,26 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
 }
 
 
+def _get_all_skills(ctx: "ToolContext | None") -> dict[str, str]:
+    """Get all available skills from tools and built-ins."""
+    skills = BUILTIN_SKILLS.copy()
+
+    # If we have a context with session_manager, get tool-defined skills
+    if ctx and ctx.session_manager:
+        tool_skills = ctx.session_manager.tool_manager.get_skills()
+        skills.update(tool_skills)
+
+    return skills
+
+
 def get_schema() -> dict[str, Any]:
-    """Return tool schema for LLM"""
-    skill_names = list(SKILLS.keys())
+    """Return tool schema for LLM.
+
+    Note: The enum is populated dynamically at runtime via execute(),
+    since we can't know all skills until tools are discovered.
+    """
+    # List known built-in skills for the schema
+    # Tool-defined skills are discovered at runtime
     return {
         "type": "function",
         "function": {
@@ -307,14 +245,13 @@ def get_schema() -> dict[str, Any]:
             "description": (
                 "Get detailed documentation for a specific skill. "
                 "Use this when you need instructions for complex, rarely-used tasks. "
-                f"Available skills: {', '.join(skill_names)}"
+                f"Available skills: {', '.join(BUILTIN_SKILLS.keys())}"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "skill": {
                         "type": "string",
-                        "enum": skill_names,
                         "description": "The skill to get documentation for",
                     },
                 },
@@ -324,26 +261,29 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Return skill documentation"""
     skill = args.get("skill", "")
+
+    # Get all skills (built-in + tool-defined)
+    all_skills = _get_all_skills(ctx)
 
     if not skill:
         return {
             "success": False,
             "error": "No skill specified",
-            "available_skills": list(SKILLS.keys()),
+            "available_skills": list(all_skills.keys()),
         }
 
-    if skill not in SKILLS:
+    if skill not in all_skills:
         return {
             "success": False,
             "error": f"Unknown skill: {skill}",
-            "available_skills": list(SKILLS.keys()),
+            "available_skills": list(all_skills.keys()),
         }
 
     return {
         "success": True,
         "skill": skill,
-        "documentation": SKILLS[skill],
+        "documentation": all_skills[skill],
     }

@@ -20,7 +20,7 @@ BUILTIN_SKILLS: dict[str, str] = {
 # Creating a Custom Tool
 
 Custom tools live in the `/tools` directory at the repository root.
-Each tool is a single Python file that exports two functions: `get_schema()` and `execute()`.
+Each tool is a single Python file that exports `get_schema()` and `execute()`.
 
 ## File Structure
 
@@ -30,7 +30,7 @@ Create a file at `tools/<tool_name>.py`:
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from forge.vfs.work_in_progress import WorkInProgressVFS
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -59,7 +59,7 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     \"\"\"Execute the tool\"\"\"
     param1 = args.get("param1", "")
     param2 = args.get("param2", False)
@@ -72,41 +72,39 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     }
 ```
 
-## VFS API
+## ToolContext API
 
-The `vfs` parameter is a `WorkInProgressVFS` that provides access to files:
+The `ctx` parameter is a `ToolContext` that provides access to files and more:
 
-### Reading Files
 ```python
-content = vfs.read_file("path/to/file.py")  # Returns str, raises FileNotFoundError if missing
-exists = vfs.file_exists("path/to/file.py")  # Returns bool
-```
+# File operations (convenience methods)
+content = ctx.read_file("path/to/file.py")   # Returns str, raises FileNotFoundError
+ctx.write_file("path/to/file.py", "content") # Accumulates in pending changes
+exists = ctx.file_exists("path/to/file.py")  # Returns bool
+files = ctx.list_files()                      # List all text files
 
-### Writing Files
-```python
-vfs.write_file("path/to/file.py", "new content")  # Accumulates in pending changes
-```
+# Access VFS directly for more operations
+ctx.vfs.delete_file("path/to/file.py")       # Mark for deletion
+pending = ctx.vfs.get_pending_changes()      # dict[path, content]
+deleted = ctx.vfs.get_deleted_files()        # set of deleted paths
 
-### Listing Files
-```python
-files = vfs.list_files()  # Returns list of all file paths
-```
+# Branch info
+current = ctx.branch_name                    # Current branch name
 
-### Deleting Files
-```python
-vfs.delete_file("path/to/file.py")  # Marks for deletion
-```
+# Cross-branch operations
+other_vfs = ctx.get_branch_vfs("other-branch")
+other_content = other_vfs.read_file("file.py")
 
-### Getting Changes
-```python
-pending = vfs.get_pending_changes()  # Returns dict[path, content]
-deleted = vfs.get_deleted_files()  # Returns set of deleted paths
+# Git repository access (for advanced operations)
+ctx.repo  # ForgeRepository instance
 ```
 
 ### Materializing to Disk
+
 For tools that need to run external commands:
+
 ```python
-tmpdir = vfs.materialize_to_tempdir()  # Returns Path to temp directory
+tmpdir = ctx.vfs.materialize_to_tempdir()  # Returns Path to temp directory
 # tmpdir contains the full repo state with pending changes applied
 # Remember to clean up:
 import shutil
@@ -115,8 +113,7 @@ shutil.rmtree(tmpdir, ignore_errors=True)
 
 ## Calling the LLM (Scout Model)
 
-Custom tools can call the summarization/scout model for analysis tasks.
-Since Forge is installed as a package, you can import and use its LLM client:
+Custom tools can call the summarization/scout model for analysis tasks:
 
 ```python
 from typing import TYPE_CHECKING, Any
@@ -125,10 +122,10 @@ from forge.config.settings import Settings
 from forge.llm.client import LLMClient
 
 if TYPE_CHECKING:
-    from forge.vfs.work_in_progress import WorkInProgressVFS
+    from forge.tools.context import ToolContext
 
 
-def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     # Get API key and summarization model from settings
     settings = Settings()
     api_key = settings.get_api_key()
@@ -151,9 +148,30 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     return {"success": True, "answer": answer}
 ```
 
-The summarization model is typically a smaller/cheaper model (like Haiku) configured
-in settings. Use this for analysis, classification, or summarization tasks within
-your tool.
+## Exporting a Skill
+
+Tools can provide detailed documentation via the `get_skill` tool by exporting
+a `get_skill()` function. This is useful for complex tools that need more
+explanation than fits in a schema description.
+
+```python
+def get_skill() -> tuple[str, str]:
+    \"\"\"Return (skill_name, documentation) for this tool.\"\"\"
+    return ("my_skill", \"\"\"\\
+# My Skill Documentation
+
+Detailed instructions for using this tool...
+
+## Examples
+
+```python
+# Example usage
+```
+\"\"\")
+```
+
+The skill name doesn't have to match the tool name. Users can then call
+`get_skill("my_skill")` to retrieve this documentation.
 
 ## Tool Approval
 
@@ -164,12 +182,12 @@ is stored in `.forge/approved_tools.json` so modifications require re-approval.
 ## Example: A Tool That Runs Commands
 
 ```python
+import shutil
 import subprocess
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from forge.vfs.work_in_progress import WorkInProgressVFS
+    from forge.tools.context import ToolContext
 
 
 def get_schema() -> dict[str, Any]:
@@ -192,11 +210,11 @@ def get_schema() -> dict[str, Any]:
     }
 
 
-def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     target = args.get("target", "")
 
     # Materialize VFS to run commands
-    tmpdir = vfs.materialize_to_tempdir()
+    tmpdir = ctx.vfs.materialize_to_tempdir()
 
     try:
         result = subprocess.run(
@@ -211,7 +229,6 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             "stderr": result.stderr,
         }
     finally:
-        import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
 ```
 """,

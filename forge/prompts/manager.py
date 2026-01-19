@@ -758,7 +758,9 @@ class PromptManager:
                 # If there's accompanying assistant text, show it as a separate segment
                 if block.content:
                     content_tokens = len(block.content) // 3
-                    preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
+                    preview = (
+                        block.content[:100] + "..." if len(block.content) > 100 else block.content
+                    )
                     segments.append(
                         {
                             "name": "Assistant",

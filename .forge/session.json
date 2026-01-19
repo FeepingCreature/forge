@@ -2,7 +2,7 @@
   "active_files": [
     "CLAUDE.md",
     "tests/test_session_spawn.py",
-    "forge/tools/builtin/session.py"
+    "forge/session/live_session.py"
   ],
   "request_log_entries": [
     {
@@ -274,6 +274,33 @@
       "streaming": true,
       "actual_cost": 0.1306705,
       "generation_id": "gen-1768850339-sf4WhO7g41RfmkOu1RxV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1768850350588.json",
+      "response_file": "/tmp/forge_debug/response_1768850350588.json",
+      "timestamp": 1768850350.5882308,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1768850351-lrphmIpzEmklna28NcBD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850390888.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768850390888.json",
+      "timestamp": 1768850390.889856,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1464565,
+      "generation_id": "gen-1768850392-pCBW9clqidq7fzTM5OVO"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1768850401725.json",
+      "response_file": "/tmp/forge_debug/response_stream_1768850401725.json",
+      "timestamp": 1768850401.726431,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.212499,
+      "generation_id": "gen-1768850401-qZb97HwC0dgCNAEqba5z"
     }
   ],
   "messages": [
@@ -992,6 +1019,72 @@
         {
           "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_fkll_kmk\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
           "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_fkll_kmk\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: ec43b24e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Nice! I think something might be busted with ephemeral results... can you check if you *ever* see the results of a grep_context?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good point! Looking back at my conversation, I called `grep_context` multiple times but the results were replaced with \"Ephemeral tool result removed\" - but that's happening *within the same turn*, not after I responded. The ephemeral cleanup is being triggered too early.\n\nLet me check where `expire_ephemeral_results()` is being called:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/live_session.py\"], \"remove\": [\"tests/test_session_spawn.py\", \"forge/tools/builtin/session.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01DLZmcL1fGfSMGfWLuHTxUY",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01DLZmcL1fGfSMGfWLuHTxUY",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/live_session.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"tests/test_session_spawn.py\", \"forge/tools/builtin/session.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Looking at the code in `live_session.py`, I see the problem! The `expire_ephemeral_results()` is being called in `_process_llm_request()` - which is called at the START of each LLM request. But within a single turn, the AI makes multiple tool calls, and each tool result is added, then the AI continues (calling `_continue_after_tools()` which calls `_process_llm_request()` again).\n\nSo if I call `grep_context` and then the AI needs to continue processing (e.g., to make more tool calls), `_process_llm_request()` is called again, which expires the ephemeral result *before* the AI even sees it!\n\nThe fix is to only expire ephemeral results at the START of a new user-initiated turn, not on every `_process_llm_request()` call. Let me fix this:\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n    def send_message(self, text: str, _trigger_only: bool = False) -> bool:\n        \"\"\"\n        Send a user message to the AI.\n\n        Returns True if message was accepted, False if session is busy.\n        If busy but running, the message is queued for after current operation.\n\n        Args:\n            text: The message text\n            _trigger_only: If True, just start processing without adding a message\n                          (used when message is already in loaded session.json)\n        \"\"\"\n        if self._state == SessionState.RUNNING:\n            # Queue the message\n            self._queued_message = text\n            return True\n\n        if self._state not in (\n            SessionState.IDLE,\n            SessionState.WAITING_INPUT,\n            SessionState.WAITING_CHILDREN,\n        ):\n            return False\n\n        # Check if we're resuming from a pending wait_session call\n        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:\n            return self._resume_pending_wait(text)\n\n        # Add message to conversation (unless just triggering)\n        if not _trigger_only and text:\n            self.add_message({\"role\": \"user\", \"content\": text})\n            self.session_manager.append_user_message(text)\n\n        # Reset turn tracking\n        self._turn_executed_tool_ids = set()\n        self._cancel_requested = False\n\n        # Start processing\n        self.state = SessionState.RUNNING\n        self._process_llm_request()\n\n        return True\n</search>\n<replace>\n    def send_message(self, text: str, _trigger_only: bool = False) -> bool:\n        \"\"\"\n        Send a user message to the AI.\n\n        Returns True if message was accepted, False if session is busy.\n        If busy but running, the message is queued for after current operation.\n\n        Args:\n            text: The message text\n            _trigger_only: If True, just start processing without adding a message\n                          (used when message is already in loaded session.json)\n        \"\"\"\n        if self._state == SessionState.RUNNING:\n            # Queue the message\n            self._queued_message = text\n            return True\n\n        if self._state not in (\n            SessionState.IDLE,\n            SessionState.WAITING_INPUT,\n            SessionState.WAITING_CHILDREN,\n        ):\n            return False\n\n        # Check if we're resuming from a pending wait_session call\n        if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:\n            return self._resume_pending_wait(text)\n\n        # Add message to conversation (unless just triggering)\n        if not _trigger_only and text:\n            self.add_message({\"role\": \"user\", \"content\": text})\n            self.session_manager.append_user_message(text)\n\n        # Expire ephemeral tool results from previous turn\n        # This must happen here (new user message) not in _process_llm_request,\n        # because _process_llm_request is also called after tool execution within\n        # the same turn, and we need ephemeral results to persist through the turn.\n        expired = self.session_manager.prompt_manager.expire_ephemeral_results()\n        if expired:\n            print(f\"\u23f3 Expired {expired} ephemeral tool result(s) from previous turn\")\n\n        # Reset turn tracking\n        self._turn_executed_tool_ids = set()\n        self._cancel_requested = False\n\n        # Start processing\n        self.state = SessionState.RUNNING\n        self._process_llm_request()\n\n        return True\n</replace>\n</edit>\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n    def _process_llm_request(self) -> None:\n        \"\"\"Start an LLM request with streaming.\"\"\"\n        from forge.llm.client import LLMClient\n        from forge.ui.ai_chat_widget import StreamWorker\n\n        api_key = self.session_manager.settings.get_api_key()\n        model = self.session_manager.settings.get(\"llm.model\", \"anthropic/claude-3.5-sonnet\")\n        client = LLMClient(api_key, model)\n\n        # Expire any ephemeral tool results from previous responses\n        expired = self.session_manager.prompt_manager.expire_ephemeral_results()\n        if expired:\n            print(f\"\u23f3 Expired {expired} ephemeral tool result(s)\")\n\n        # Build prompt\n        self.session_manager.sync_prompt_manager()\n</search>\n<replace>\n    def _process_llm_request(self) -> None:\n        \"\"\"Start an LLM request with streaming.\"\"\"\n        from forge.llm.client import LLMClient\n        from forge.ui.ai_chat_widget import StreamWorker\n\n        api_key = self.session_manager.settings.get_api_key()\n        model = self.session_manager.settings.get(\"llm.model\", \"anthropic/claude-3.5-sonnet\")\n        client = LLMClient(api_key, model)\n\n        # Build prompt\n        self.session_manager.sync_prompt_manager()\n</replace>\n</edit>\n\n<run_tests>pytest tests/test_prompt_manager.py -x</run_tests>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_ewdimsih\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_ewdimsih\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 71 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py ......................................      [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 71 passed in 0.28s ==============================\n",
           "passed": false,
           "side_effects": [
             "has_display_output"

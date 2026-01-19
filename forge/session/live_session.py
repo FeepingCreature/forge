@@ -442,6 +442,14 @@ class LiveSession(QObject):
             self.add_message({"role": "user", "content": text})
             self.session_manager.append_user_message(text)
 
+        # Expire ephemeral tool results from previous turn
+        # This must happen here (new user message) not in _process_llm_request,
+        # because _process_llm_request is also called after tool execution within
+        # the same turn, and we need ephemeral results to persist through the turn.
+        expired = self.session_manager.prompt_manager.expire_ephemeral_results()
+        if expired:
+            print(f"⏳ Expired {expired} ephemeral tool result(s) from previous turn")
+
         # Reset turn tracking
         self._turn_executed_tool_ids = set()
         self._cancel_requested = False
@@ -546,11 +554,6 @@ class LiveSession(QObject):
         api_key = self.session_manager.settings.get_api_key()
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         client = LLMClient(api_key, model)
-
-        # Expire any ephemeral tool results from previous responses
-        expired = self.session_manager.prompt_manager.expire_ephemeral_results()
-        if expired:
-            print(f"⏳ Expired {expired} ephemeral tool result(s)")
 
         # Build prompt
         self.session_manager.sync_prompt_manager()

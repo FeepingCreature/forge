@@ -756,15 +756,18 @@ class PromptManager:
 
             elif block.block_type == BlockType.TOOL_CALL:
                 tool_calls = block.metadata.get("tool_calls", [])
-                # Add tokens for tool call JSON
+                # For tool calls, count only the tool call JSON, not block.content
+                # (block.content is the assistant's accompanying text, shown separately
+                # or already counted if there were inline edits)
+                tool_tokens = 0
                 for tc in tool_calls:
-                    tokens += len(json.dumps(tc)) // 3
+                    tool_tokens += len(json.dumps(tc)) // 3
                 tool_names = [tc.get("function", {}).get("name", "?") for tc in tool_calls]
                 segments.append(
                     {
                         "name": f"Tool call: {', '.join(tool_names)}",
                         "type": "tool_call",
-                        "tokens": tokens,
+                        "tokens": tool_tokens,
                         "details": ", ".join(tool_names),
                     }
                 )

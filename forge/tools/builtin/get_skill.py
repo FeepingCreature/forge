@@ -12,6 +12,89 @@ if TYPE_CHECKING:
 
 
 SKILLS: dict[str, str] = {
+    "session": """\
+# Managing Child Sessions
+
+Child sessions let you parallelize work by spawning AI workers on separate branches.
+Each child works independently with its own conversation and can make commits.
+
+## Workflow
+
+1. **spawn** - Create a child on a new branch with a task instruction
+2. **wait** - Check if children are done (yields if all still running)
+3. **resume** - Answer a child's question or give follow-up instructions
+4. **merge** - Incorporate a child's changes into your branch
+
+## Actions
+
+### spawn
+Create a child session:
+```
+session(action="spawn", branch="ai/fix-bug", instruction="Fix the bug in foo.py...")
+```
+
+IMPORTANT: Children have NO context from parent. Be explicit:
+- What files to look at
+- What problem to solve
+- What approach to take
+- What "done" looks like
+
+### wait
+Check on children (returns immediately if any ready, yields if all running):
+```
+session(action="wait", branches=["ai/fix-bug", "ai/add-tests"])
+```
+
+Returns:
+- `ready: true` + `branch`, `message`, `merge_clean` if a child finished
+- `ready: false` + `waiting_on` list if all still running (session yields)
+
+### resume
+Send a message to a child (answer questions, give feedback):
+```
+session(action="resume", branch="ai/fix-bug", message="Yes, use the new API")
+```
+
+### merge
+Merge a completed child's changes:
+```
+session(action="merge", branch="ai/fix-bug")
+session(action="merge", branch="ai/fix-bug", delete_branch=False)  # Keep branch
+session(action="merge", branch="ai/fix-bug", allow_conflicts=True)  # Commit conflicts
+```
+
+## Example: Parallel Tasks
+
+```
+# Spawn two workers
+session(action="spawn", branch="ai/task-a", instruction="Implement feature A in src/a.py...")
+session(action="spawn", branch="ai/task-b", instruction="Implement feature B in src/b.py...")
+
+# Wait for either to finish
+result = session(action="wait", branches=["ai/task-a", "ai/task-b"])
+
+# When ready, merge
+if result["ready"] and result["merge_clean"]:
+    session(action="merge", branch=result["branch"])
+```
+
+## Example: Answering Child Questions
+
+```
+result = session(action="wait", branches=["ai/my-task"])
+
+if result["state"] == "waiting_input":
+    # Child asked a question - answer it
+    session(action="resume", branch="ai/my-task", message="The answer is...")
+```
+
+## Tips
+
+- Use `ai/` prefix for branch names by convention
+- Check `merge_clean` before merging to avoid conflicts
+- Children can spawn their own children (nested parallelism)
+- If merge has conflicts, use `allow_conflicts=True` then fix the markers
+""",
     "create_tool": """\
 # Creating a Custom Tool
 

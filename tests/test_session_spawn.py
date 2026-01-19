@@ -125,12 +125,12 @@ class TestToolApiVersionDetection:
         assert get_tool_api_version(execute) == 2
 
 
-class TestWaitSessionTool:
-    """Tests for wait_session tool - uses registry for live session state."""
+class TestSessionTool:
+    """Tests for unified session tool - uses registry for live session state."""
     
     def test_wait_returns_ready_child(self):
-        """Test that wait_session returns when a child is ready."""
-        from forge.tools.builtin.wait_session import execute
+        """Test that session(action='wait') returns when a child is ready."""
+        from forge.tools.builtin.session import execute
         from forge.session.registry import SESSION_REGISTRY
         
         # Create mock ToolContext
@@ -177,8 +177,8 @@ class TestWaitSessionTool:
             SESSION_REGISTRY.unregister("child-2")
     
     def test_wait_yields_when_no_children_ready(self):
-        """Test that wait_session yields when all children still running."""
-        from forge.tools.builtin.wait_session import execute
+        """Test that session(action='wait') yields when all children still running."""
+        from forge.tools.builtin.session import execute
         from forge.session.registry import SESSION_REGISTRY
         
         mock_vfs = MagicMock()
@@ -213,12 +213,12 @@ class TestWaitSessionTool:
             SESSION_REGISTRY.unregister("child-1")
 
 
-class TestResumeSessionTool:
-    """Tests for resume_session tool."""
+class TestResumeAction:
+    """Tests for session(action='resume')."""
     
     def test_resume_adds_message_and_starts(self):
-        """Test that resume_session adds message and signals start."""
-        from forge.tools.builtin.resume_session import execute
+        """Test that session(action='resume') adds message and signals start."""
+        from forge.tools.builtin.session import execute
         from forge.session.registry import SESSION_REGISTRY
         
         mock_vfs = MagicMock()
@@ -240,6 +240,7 @@ class TestResumeSessionTool:
         )
         
         result = execute(ctx, {
+            "action": "resume",
             "branch": "child-branch",
             "message": "Continue with this feedback",
         })
@@ -340,10 +341,7 @@ class TestFullSpawnWaitMergeFlow:
         """
         from forge.vfs.work_in_progress import WorkInProgressVFS
         from forge.tools.context import ToolContext
-        from forge.tools.builtin.spawn_session import execute as spawn_execute
-        from forge.tools.builtin.resume_session import execute as resume_execute
-        from forge.tools.builtin.wait_session import execute as wait_execute
-        from forge.tools.builtin.merge_session import execute as merge_execute
+        from forge.tools.builtin.session import execute as session_execute
         from forge.constants import SESSION_FILE
         
         # =====================================================================
@@ -378,8 +376,9 @@ class TestFullSpawnWaitMergeFlow:
         print("\n=== STEP 1: Spawn child session ===")
         
         child_branch = "ai/add-hello"
-        spawn_result = spawn_execute(parent_ctx, {
-            "branch_name": child_branch,
+        spawn_result = session_execute(parent_ctx, {
+            "action": "spawn",
+            "branch": child_branch,
             "instruction": "Add a hello.py file with a greeting function",
         })
         
@@ -465,7 +464,8 @@ class TestFullSpawnWaitMergeFlow:
         SESSION_REGISTRY.register(child_branch, child_runner)
         
         try:
-            wait_result = wait_execute(parent_ctx, {
+            wait_result = session_execute(parent_ctx, {
+                "action": "wait",
                 "branches": [child_branch],
             })
             
@@ -483,7 +483,8 @@ class TestFullSpawnWaitMergeFlow:
         # =====================================================================
         print("\n=== STEP 5: Parent merges child ===")
         
-        merge_result = merge_execute(parent_ctx, {
+        merge_result = session_execute(parent_ctx, {
+            "action": "merge",
             "branch": child_branch,
             "delete_branch": True,
         })
@@ -521,13 +522,11 @@ class TestFullSpawnWaitMergeFlow:
     
     def test_wait_yields_when_child_still_running(self, qtbot, forge_repo, temp_git_repo):
         """
-        Test that wait_session returns _yield flag when child is still running.
+        Test that session(action='wait') returns _yield flag when child is still running.
         """
         from forge.vfs.work_in_progress import WorkInProgressVFS
         from forge.tools.context import ToolContext
-        from forge.tools.builtin.spawn_session import execute as spawn_execute
-        from forge.tools.builtin.resume_session import execute as resume_execute
-        from forge.tools.builtin.wait_session import execute as wait_execute
+        from forge.tools.builtin.session import execute as session_execute
         from forge.constants import SESSION_FILE
         
         # Setup parent
@@ -550,8 +549,9 @@ class TestFullSpawnWaitMergeFlow:
         
         # Spawn child (now auto-starts)
         child_branch = "ai/some-task"
-        spawn_result = spawn_execute(parent_ctx, {
-            "branch_name": child_branch,
+        spawn_result = session_execute(parent_ctx, {
+            "action": "spawn",
+            "branch": child_branch,
             "instruction": "some task",
         })
         assert spawn_result["success"], f"Spawn failed: {spawn_result}"
@@ -572,7 +572,7 @@ class TestFullSpawnWaitMergeFlow:
         
         try:
             # Child is now "running" - wait should yield
-            wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+            wait_result = session_execute(parent_ctx, {"action": "wait", "branches": [child_branch]})
             
             assert wait_result["success"] is True
             assert wait_result["ready"] is False, "Child still running, not ready"
@@ -590,16 +590,13 @@ class TestFullSpawnWaitMergeFlow:
         1. Parent creates shared.py with version A
         2. Child modifies shared.py to version B  
         3. Parent modifies shared.py to version C (creates conflict)
-        4. wait_session reports merge_clean=False
-        5. merge_session with allow_conflicts=True commits with <<<>>> markers
+        4. session(action='wait') reports merge_clean=False
+        5. session(action='merge') with allow_conflicts=True commits with <<<>>> markers
         6. Verify conflict markers are in the file
         """
         from forge.vfs.work_in_progress import WorkInProgressVFS
         from forge.tools.context import ToolContext
-        from forge.tools.builtin.spawn_session import execute as spawn_execute
-        from forge.tools.builtin.resume_session import execute as resume_execute
-        from forge.tools.builtin.wait_session import execute as wait_execute
-        from forge.tools.builtin.merge_session import execute as merge_execute
+        from forge.tools.builtin.session import execute as session_execute
         from forge.constants import SESSION_FILE
         
         # =====================================================================
@@ -629,8 +626,9 @@ class TestFullSpawnWaitMergeFlow:
         # =====================================================================
         print("\n=== STEP 1: Spawn child ===")
         child_branch = "ai/modify-shared"
-        spawn_result = spawn_execute(parent_ctx, {
-            "branch_name": child_branch,
+        spawn_result = session_execute(parent_ctx, {
+            "action": "spawn",
+            "branch": child_branch,
             "instruction": "modify shared.py",
         })
         assert spawn_result["success"], f"Spawn failed: {spawn_result}"
@@ -683,7 +681,7 @@ class TestFullSpawnWaitMergeFlow:
         SESSION_REGISTRY.register(child_branch, child_runner)
         
         try:
-            wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+            wait_result = session_execute(parent_ctx, {"action": "wait", "branches": [child_branch]})
             assert wait_result["success"], f"Wait failed: {wait_result}"
             assert wait_result["ready"] is True
             assert wait_result["merge_clean"] is False, "Should report merge conflict"
@@ -695,7 +693,8 @@ class TestFullSpawnWaitMergeFlow:
         # STEP 5: Merge with allow_conflicts=True
         # =====================================================================
         print("\n=== STEP 5: Merge with conflict markers ===")
-        merge_result = merge_execute(parent_ctx, {
+        merge_result = session_execute(parent_ctx, {
+            "action": "merge",
             "branch": child_branch,
             "allow_conflicts": True,
             "delete_branch": False,  # Keep branch since there are conflicts
@@ -733,21 +732,19 @@ class TestFullSpawnWaitMergeFlow:
     
     def test_pending_wait_call_reexecution(self, qtbot, forge_repo, temp_git_repo):
         """
-        Test that when parent yields on wait_session, the call is stored
+        Test that when parent yields on session(action='wait'), the call is stored
         and re-executed (not the stale result) when parent resumes.
         
         Flow:
         1. Parent spawns child
-        2. Parent calls wait_session → child still running → yields with _pending_wait_call
+        2. Parent calls session(action='wait') → child still running → yields with _pending_wait_call
         3. Child completes
-        4. Parent resumes → wait_session re-executed → gets fresh result showing child ready
+        4. Parent resumes → session(action='wait') re-executed → gets fresh result showing child ready
         5. Verify the tool result message has the FRESH result, not stale "still waiting"
         """
         from forge.vfs.work_in_progress import WorkInProgressVFS
         from forge.tools.context import ToolContext
-        from forge.tools.builtin.spawn_session import execute as spawn_execute
-        from forge.tools.builtin.resume_session import execute as resume_execute
-        from forge.tools.builtin.wait_session import execute as wait_execute
+        from forge.tools.builtin.session import execute as session_execute
         from forge.session.live_session import LiveSession, SessionState
         SessionRunner = LiveSession  # Backwards compatibility
         from forge.session.manager import SessionManager
@@ -778,8 +775,9 @@ class TestFullSpawnWaitMergeFlow:
         # =====================================================================
         print("\n=== STEP 1: Spawn child ===")
         child_branch = "ai/do-something"
-        spawn_result = spawn_execute(parent_ctx, {
-            "branch_name": child_branch,
+        spawn_result = session_execute(parent_ctx, {
+            "action": "spawn",
+            "branch": child_branch,
             "instruction": "do something",
         })
         assert spawn_result["success"], f"Spawn failed: {spawn_result}"
@@ -802,7 +800,7 @@ class TestFullSpawnWaitMergeFlow:
         child_runner.state_changed.connect = MagicMock()
         SESSION_REGISTRY.register(child_branch, child_runner)
         
-        wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+        wait_result = session_execute(parent_ctx, {"action": "wait", "branches": [child_branch]})
         
         assert wait_result["ready"] is False, "Child should still be running"
         assert wait_result.get("_yield") is True, "Should yield"
@@ -827,8 +825,8 @@ class TestFullSpawnWaitMergeFlow:
         # Simulate what _on_tools_all_finished does when it sees _yield
         parent_runner._pending_wait_call = {
             "tool_call_id": "call_123",
-            "tool_name": "wait_session",
-            "tool_args": {"branches": [child_branch]},
+            "tool_name": "session",
+            "tool_args": {"action": "wait", "branches": [child_branch]},
         }
         parent_runner._state = SessionState.WAITING_CHILDREN
         
@@ -865,7 +863,7 @@ class TestFullSpawnWaitMergeFlow:
         parent_vfs = WorkInProgressVFS(forge_repo, parent_branch)
         parent_ctx = ToolContext(vfs=parent_vfs, repo=forge_repo, branch_name=parent_branch)
         
-        fresh_wait_result = wait_execute(parent_ctx, {"branches": [child_branch]})
+        fresh_wait_result = session_execute(parent_ctx, {"action": "wait", "branches": [child_branch]})
         
         # NOW the result should show child is ready
         assert fresh_wait_result["ready"] is True, f"Child should be ready now: {fresh_wait_result}"

@@ -139,6 +139,8 @@ class CommitDiffWindow(QMainWindow):
         self._file_diffs = {}
 
         for patch in diff:
+            if patch is None:
+                continue
             filepath = patch.delta.new_file.path or patch.delta.old_file.path
 
             # Determine status

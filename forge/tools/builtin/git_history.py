@@ -165,6 +165,8 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
     # Format diff output
     diff_lines = []
     for patch in diff:
+        if patch is None:
+            continue
         file_path = patch.delta.new_file.path or patch.delta.old_file.path
 
         # Skip session.json - it's noise in diffs

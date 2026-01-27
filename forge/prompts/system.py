@@ -143,7 +143,7 @@ Example: After implementing a feature with 10+ edits, compact with: "Implemented
 
 ### Message IDs
 
-Every message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.
+Every message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. Use these IDs when calling the `compact` tool to specify which messages to compact.
 
 # Work In Progress
 

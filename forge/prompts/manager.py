@@ -288,6 +288,10 @@ class PromptManager:
 
     def append_assistant_message(self, content: str) -> None:
         """Add an assistant message to the stream"""
+        import re
+        # Strip any [id N] prefix the model may have echoed (we re-inject these)
+        content = re.sub(r"^\[id \d+\]\s*", "", content)
+        
         msg_id = self._assign_message_id()
         print(f"🤖 PromptManager: Appending assistant message #{msg_id} ({len(content)} chars)")
         self.blocks.append(
@@ -300,6 +304,11 @@ class PromptManager:
 
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the stream, optionally with accompanying text content"""
+        import re
+        # Strip any [id N] prefix the model may have echoed (we re-inject these)
+        if content:
+            content = re.sub(r"^\[id \d+\]\s*", "", content)
+        
         msg_id = self._assign_message_id()
         print(f"🔧 PromptManager: Appending tool call #{msg_id} ({len(tool_calls)} calls)")
         self.blocks.append(
@@ -1046,20 +1055,17 @@ class PromptManager:
                 if block.metadata.get("is_system_nudge"):
                     continue
                 # Show full user message (they're short)
-                msg_id = block.metadata.get("message_id", "?")
                 content = block.content.strip()
-                lines.append(f"[id {msg_id}] **User**: {content}\n")
+                lines.append(f"**User**: {content}\n")
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
                 # Truncate long assistant messages
-                msg_id = block.metadata.get("message_id", "?")
                 content = block.content.strip()
                 if len(content) > 200:
                     content = content[:197] + "..."
-                lines.append(f"[id {msg_id}] **Assistant**: {content}\n")
+                lines.append(f"**Assistant**: {content}\n")
 
             elif block.block_type == BlockType.TOOL_CALL:
-                msg_id = block.metadata.get("message_id", "?")
                 tool_calls = block.metadata.get("tool_calls", [])
                 if tool_calls:
                     summaries = [self._summarize_tool_call(tc) for tc in tool_calls]
@@ -1068,9 +1074,9 @@ class PromptManager:
                         text = block.content.strip()
                         if len(text) > 100:
                             text = text[:97] + "..."
-                        lines.append(f"[id {msg_id}] **Assistant**: {text}\n")
+                        lines.append(f"**Assistant**: {text}\n")
                     else:
-                        lines.append(f"[id {msg_id}] **Assistant** (tool calls)\n")
+                        lines.append(f"**Assistant** (tool calls)\n")
                     lines.append(f"  → Tool calls: {', '.join(summaries)}\n")
 
             elif block.block_type == BlockType.TOOL_RESULT:

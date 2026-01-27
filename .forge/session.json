@@ -346,6 +346,42 @@
       "streaming": true,
       "actual_cost": 0.2622575,
       "generation_id": "gen-1769541117-3so2NKmBKBEJp5Znajir"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541206044.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541206044.json",
+      "timestamp": 1769541206.045659,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.26705,
+      "generation_id": "gen-1769541208-IgO6tPiiEAX22glcEEaZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541245740.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541245740.json",
+      "timestamp": 1769541245.7411642,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03501625,
+      "generation_id": "gen-1769541245-iheCf5UnaAfEZLYInwOg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541280299.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541280299.json",
+      "timestamp": 1769541280.299768,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03651725,
+      "generation_id": "gen-1769541280-XL2H4bSQHKwtH0f3ObJG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541360650.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541360650.json",
+      "timestamp": 1769541360.6506662,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0854795,
+      "generation_id": "gen-1769541364-mWIJ1iVc74ryHVKPHF0C"
     }
   ],
   "messages": [
@@ -1005,6 +1041,129 @@
         {
           "commit": "7aea33d73236",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: ba7a288b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, why not start with message 1? Important: I'm trying to debug your reasoning, not looking for a correction... why keep the first two answers?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right to probe this - I made a reasoning error.\n\nLooking at the recap, I can see messages 1 and 2 exist (they're in the \"[21 earlier messages omitted]\" section). I compacted from message 3 to 16, leaving messages 1 and 2 untouched.\n\n**Why I did this (my flawed reasoning):**\nI couldn't *see* messages 1 and 2 in the recap - they were truncated. So I thought \"I don't know what those are, I shouldn't compact them.\" I started from message 3 because that's where my compaction summary `[id 3] [COMPACTED]` appeared in the history I could see.\n\n**Why that's wrong:**\nThe whole point of injecting `[id N]` into the full message history (which we just implemented!) is that I *can* see early messages even when the recap truncates them. If I scroll up in the actual conversation, I'd see `[id 1]` and `[id 2]` on those early messages.\n\nI was being overly cautious - avoiding compacting messages I \"couldn't see\" when I actually could see them in the full history above. I should have started from `1` to compact the entire implementation work.\n\n**The fix for my reasoning:**\nWhen compacting, look at the full conversation history above (where IDs are injected), not just the recap. The recap is a summary for orientation; the actual messages have the authoritative IDs."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 7195aaaa",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "would it help to actually *remove* ids from the recap? so the recap doesn't look like it's the primary source of ids"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 36] Yes, I think that would help! \n\nThe problem is that when I see `[id 18]` in the recap, it *looks* like the recap is providing me with authoritative ID information. So when the recap says \"*[23 earlier messages omitted]*\", I subconsciously think \"those IDs aren't available to me\" - even though they ARE available in the actual conversation history above.\n\nIf the recap just showed:\n```\n## Conversation Recap\n*[23 earlier messages omitted]*\n**User**: would it help to actually *remove* ids from the recap?\n**Assistant**: Yes, I think that would help!\n```\n\n...then the recap is clearly just an orientation tool, and I'd naturally look at the actual messages above (which have the `[id N]` prefixes) as the source of truth for IDs.\n\nThe current design has a mixed signal: the recap shows IDs but also admits it's incomplete. Removing IDs from the recap makes it unambiguous that the recap is a *summary* and the full history is where IDs live.\n\nWant me to make that change?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 21221c16",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "also you just added [id 36] to your message again. now it has [id] [id] :) I'm not sure if it's possible to fix that. It's a really strong bias."
+    },
+    {
+      "role": "assistant",
+      "content": "Yeah, I keep doing it! The pattern is deeply ingrained - I see `[id N]` at the start of every message in the history, so when I start writing, my pattern-matching brain goes \"message starts with [id N]\".\n\nA few options:\n\n1. **Remove IDs from the recap** - This helps with the \"recap as authoritative source\" confusion, but doesn't fix the echo problem in my responses.\n\n2. **Move the ID to the end of messages** - Like `... [msg:36]` at the end. Harder to echo at the start of my response.\n\n3. **Use a different format that's less \"prefix-like\"** - Something like `\u27e836\u27e9` or `#36:` that doesn't read as naturally as a message start.\n\n4. **Only inject IDs on user messages** - Since those are what I'm responding to, and assistant messages get IDs from the recap anyway. But this might not help since I still see the pattern.\n\n5. **Accept it and strip `[id N]` prefixes from my responses** - Post-process my output to remove any `[id \\d+]` at the very start.\n\nOption 5 is probably the most robust since it handles the bias rather than fighting it. The code that receives my response could just regex-strip `^\\[id \\d+\\]\\s*` from the start.\n\nWhat do you think?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 52873107",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah sounds good. then you can remove the guidance about not generating it too. even if you write the wrong id, it'll be autocorrected by the removal and reinjection. if they're at the start of blocks, it's easier to mentally locate them I think."
+    },
+    {
+      "role": "assistant",
+      "content": "Good plan! Let me:\n1. Remove IDs from the recap (so it's clearly just orientation)\n2. Strip `[id N]` prefixes from assistant responses before storing\n3. Remove the \"don't add them yourself\" guidance since it'll be auto-corrected\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        for block in blocks_to_show:\n            if block.block_type == BlockType.USER_MESSAGE:\n                # Skip system nudges in recap\n                if block.metadata.get(\"is_system_nudge\"):\n                    continue\n                # Show full user message (they're short)\n                msg_id = block.metadata.get(\"message_id\", \"?\")\n                content = block.content.strip()\n                lines.append(f\"[id {msg_id}] **User**: {content}\\n\")\n\n            elif block.block_type == BlockType.ASSISTANT_MESSAGE:\n                # Truncate long assistant messages\n                msg_id = block.metadata.get(\"message_id\", \"?\")\n                content = block.content.strip()\n                if len(content) > 200:\n                    content = content[:197] + \"...\"\n                lines.append(f\"[id {msg_id}] **Assistant**: {content}\\n\")\n\n            elif block.block_type == BlockType.TOOL_CALL:\n                msg_id = block.metadata.get(\"message_id\", \"?\")\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                if tool_calls:\n                    summaries = [self._summarize_tool_call(tc) for tc in tool_calls]\n                    # Show accompanying text if present\n                    if block.content.strip():\n                        text = block.content.strip()\n                        if len(text) > 100:\n                            text = text[:97] + \"...\"\n                        lines.append(f\"[id {msg_id}] **Assistant**: {text}\\n\")\n                    else:\n                        lines.append(f\"[id {msg_id}] **Assistant** (tool calls)\\n\")\n                    lines.append(f\"  \u2192 Tool calls: {', '.join(summaries)}\\n\")\n</search>\n<replace>\n        for block in blocks_to_show:\n            if block.block_type == BlockType.USER_MESSAGE:\n                # Skip system nudges in recap\n                if block.metadata.get(\"is_system_nudge\"):\n                    continue\n                # Show full user message (they're short)\n                content = block.content.strip()\n                lines.append(f\"**User**: {content}\\n\")\n\n            elif block.block_type == BlockType.ASSISTANT_MESSAGE:\n                # Truncate long assistant messages\n                content = block.content.strip()\n                if len(content) > 200:\n                    content = content[:197] + \"...\"\n                lines.append(f\"**Assistant**: {content}\\n\")\n\n            elif block.block_type == BlockType.TOOL_CALL:\n                tool_calls = block.metadata.get(\"tool_calls\", [])\n                if tool_calls:\n                    summaries = [self._summarize_tool_call(tc) for tc in tool_calls]\n                    # Show accompanying text if present\n                    if block.content.strip():\n                        text = block.content.strip()\n                        if len(text) > 100:\n                            text = text[:97] + \"...\"\n                        lines.append(f\"**Assistant**: {text}\\n\")\n                    else:\n                        lines.append(f\"**Assistant** (tool calls)\\n\")\n                    lines.append(f\"  \u2192 Tool calls: {', '.join(summaries)}\\n\")\n</replace>\n</edit>\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n### Message IDs\n\nEvery message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.\n</search>\n<replace>\n### Message IDs\n\nEvery message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.\n</replace>\n</edit>\n\nNow I need to add stripping of `[id N]` prefixes from assistant messages. Let me find where assistant messages are appended:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def append_assistant_message(self, content: str) -> None:\n        \"\"\"Add an assistant message to the stream\"\"\"\n        msg_id = self._assign_message_id()\n        print(f\"\ud83e\udd16 PromptManager: Appending assistant message #{msg_id} ({len(content)} chars)\")\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.ASSISTANT_MESSAGE,\n                content=content,\n                metadata={\"message_id\": msg_id},\n            )\n        )\n</search>\n<replace>\n    def append_assistant_message(self, content: str) -> None:\n        \"\"\"Add an assistant message to the stream\"\"\"\n        import re\n        # Strip any [id N] prefix the model may have echoed (we re-inject these)\n        content = re.sub(r\"^\\[id \\d+\\]\\s*\", \"\", content)\n        \n        msg_id = self._assign_message_id()\n        print(f\"\ud83e\udd16 PromptManager: Appending assistant message #{msg_id} ({len(content)} chars)\")\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.ASSISTANT_MESSAGE,\n                content=content,\n                metadata={\"message_id\": msg_id},\n            )\n        )\n</replace>\n</edit>\n\nAlso need to strip from tool call content:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \"\") -> None:\n        \"\"\"Add tool calls to the stream, optionally with accompanying text content\"\"\"\n        msg_id = self._assign_message_id()\n        print(f\"\ud83d\udd27 PromptManager: Appending tool call #{msg_id} ({len(tool_calls)} calls)\")\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.TOOL_CALL,\n                content=content,  # Assistant's text that accompanied the tool calls\n                metadata={\"tool_calls\": tool_calls, \"message_id\": msg_id},\n            )\n        )\n</search>\n<replace>\n    def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = \"\") -> None:\n        \"\"\"Add tool calls to the stream, optionally with accompanying text content\"\"\"\n        import re\n        # Strip any [id N] prefix the model may have echoed (we re-inject these)\n        if content:\n            content = re.sub(r\"^\\[id \\d+\\]\\s*\", \"\", content)\n        \n        msg_id = self._assign_message_id()\n        print(f\"\ud83d\udd27 PromptManager: Appending tool call #{msg_id} ({len(tool_calls)} calls)\")\n        self.blocks.append(\n            ContentBlock(\n                block_type=BlockType.TOOL_CALL,\n                content=content,  # Assistant's text that accompanied the tool calls\n                metadata={\"tool_calls\": tool_calls, \"message_id\": msg_id},\n            )\n        )\n</replace>\n</edit>\n\nNow update the system prompt to remove the \"don't add them yourself\" guidance:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n### Message IDs\n\nEvery message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.\n</search>\n<replace>\n### Message IDs\n\nEvery message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. Use these IDs when calling the `compact` tool to specify which messages to compact.\n</replace>\n</edit>\n\n<run_tests/>\n\n<commit message=\"fix: strip echoed [id N] prefixes from assistant messages\n\nThe model has a strong pattern bias to echo the [id N] prefix it sees\non previous messages. Rather than fighting this with prompt guidance,\nwe now strip any [id N] prefix from assistant messages and tool call\ncontent before storing. The IDs are re-injected when building API\nmessages, so the correct ID is always shown.\n\nAlso removes IDs from the conversation recap since the recap is just\nfor orientation - the authoritative IDs are in the full message history.\"/>\n\nDone! Now:\n1. The recap no longer shows `[id N]` - it's just an orientation summary\n2. Any `[id N]` I accidentally echo gets stripped before storage\n3. The correct ID gets re-injected when building API messages\n4. The prompt guidance is simplified since the stripping handles my bias",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_ct5bdry0\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_ct5bdry0\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "5da330443037",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

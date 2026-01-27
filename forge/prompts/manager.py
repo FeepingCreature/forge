@@ -291,7 +291,7 @@ class PromptManager:
         import re
         # Strip any [id N] prefix the model may have echoed (we re-inject these)
         content = re.sub(r"^\[id \d+\]\s*", "", content)
-        
+
         msg_id = self._assign_message_id()
         print(f"🤖 PromptManager: Appending assistant message #{msg_id} ({len(content)} chars)")
         self.blocks.append(
@@ -308,7 +308,7 @@ class PromptManager:
         # Strip any [id N] prefix the model may have echoed (we re-inject these)
         if content:
             content = re.sub(r"^\[id \d+\]\s*", "", content)
-        
+
         msg_id = self._assign_message_id()
         print(f"🔧 PromptManager: Appending tool call #{msg_id} ({len(tool_calls)} calls)")
         self.blocks.append(
@@ -501,7 +501,7 @@ class PromptManager:
         # Reset tool ID tracking
         self._next_tool_id = 1
         self._tool_id_map = {}
-        
+
         # Reset message ID tracking
         self._next_message_id = 1
 
@@ -693,12 +693,11 @@ class PromptManager:
             if block.deleted or block.block_type != BlockType.TOOL_RESULT:
                 continue
             tool_call_id = block.metadata.get("tool_call_id")
-            if tool_call_id in compacted_tool_ids:
-                if not block.content.startswith("[COMPACTED"):
-                    block.content = "[COMPACTED - see above]"
-                    compacted += 1
-                    user_id = block.metadata.get("user_id", "?")
-                    print(f"📦 Compacted tool result #{user_id}")
+            if tool_call_id in compacted_tool_ids and not block.content.startswith("[COMPACTED"):
+                block.content = "[COMPACTED - see above]"
+                compacted += 1
+                user_id = block.metadata.get("user_id", "?")
+                print(f"📦 Compacted tool result #{user_id}")
 
         if compacted == 0:
             return 0, f"No messages found in range #{from_id} to #{to_id}"
@@ -1076,7 +1075,7 @@ class PromptManager:
                             text = text[:97] + "..."
                         lines.append(f"**Assistant**: {text}\n")
                     else:
-                        lines.append(f"**Assistant** (tool calls)\n")
+                        lines.append("**Assistant** (tool calls)\n")
                     lines.append(f"  → Tool calls: {', '.join(summaries)}\n")
 
             elif block.block_type == BlockType.TOOL_RESULT:

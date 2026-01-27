@@ -554,6 +554,15 @@
       "streaming": true,
       "actual_cost": 0.0576995,
       "generation_id": "gen-1769541977-Cu7dqzAm6Et0w7E8rK4R"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769542098003.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769542098003.json",
+      "timestamp": 1769542098.00451,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.45343625,
+      "generation_id": "gen-1769542099-LGsTXRHjlKsdEjEf43DC"
     }
   ],
   "messages": [
@@ -1682,6 +1691,79 @@
         },
         {
           "commit": "03e28607ebaa",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 578d9fea",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Sorry hang on- that's a weird way to do it, and won't work. If we receive [id then we'll have *already* emitted it and using _emitted_length will just skip the text *after* it wrongly. We should strip it out in the widget text. Just load the whole file?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're absolutely right. The issue is that `StreamWorker` emits chunks as they arrive, and by the time we see `[id 123]` the individual characters have already been emitted. We need to strip it in the widget's `_append_streaming_chunk` method instead, where we're building up the display.\n\nLooking at the file, I see `_append_streaming_chunk` uses `self.streaming_content` (which comes from `self.runner.streaming_content`). The fix should be in how we display it, not in how we accumulate it.\n\nLet me revert the StreamWorker changes and fix it in the display path:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        self.current_content = \"\"\n        self.current_tool_calls: list[dict[str, Any]] = []\n        self._emitted_length = 0  # Track how much we've already emitted\n        self._emitted_length = 0  # Track how much we've already emitted\n</search>\n<replace>\n        self.current_content = \"\"\n        self.current_tool_calls: list[dict[str, Any]] = []\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n                # Handle content chunks\n                if \"content\" in delta and delta[\"content\"]:\n                    content = delta[\"content\"]\n                    self.current_content += content\n\n                    # Strip [id N] prefix that the model might echo back\n                    # This is cheap to check on every update since it's just a regex at position 0\n                    import re\n                    self.current_content = re.sub(r\"^\\[id \\d+\\]\\s*\", \"\", self.current_content)\n\n                    # Emit only the new content (after stripping prefix)\n                    # This handles the case where we stripped a prefix - we emit the delta\n                    new_content = self.current_content[self._emitted_length:]\n                    if new_content:\n                        self._emitted_length = len(self.current_content)\n                        self.chunk_received.emit(new_content)\n</search>\n<replace>\n                # Handle content chunks\n                if \"content\" in delta and delta[\"content\"]:\n                    content = delta[\"content\"]\n                    self.current_content += content\n                    self.chunk_received.emit(content)\n</replace>\n</edit>\n\nNow fix the display path - in `_append_streaming_chunk`, we should strip the prefix when rendering:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _append_streaming_chunk(self, chunk: str) -> None:\n        \"\"\"Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs\"\"\"\n        from forge.ui.tool_rendering import render_streaming_edits\n\n        # Accumulate the chunk\n        # (streaming_content is already updated in _on_stream_chunk before this is called)\n\n        # Check if we have any <edit> blocks in the accumulated content\n        if \"<edit\" in self.streaming_content:\n</search>\n<replace>\n    def _append_streaming_chunk(self, chunk: str) -> None:\n        \"\"\"Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs\"\"\"\n        import re\n        from forge.ui.tool_rendering import render_streaming_edits\n\n        # Accumulate the chunk\n        # (streaming_content is already updated in _on_stream_chunk before this is called)\n\n        # Strip [id N] prefix that the model might echo back (cheap regex at start)\n        display_content = re.sub(r\"^\\[id \\d+\\]\\s*\", \"\", self.streaming_content)\n\n        # Check if we have any <edit> blocks in the accumulated content\n        if \"<edit\" in display_content:\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Check if we have any <edit> blocks in the accumulated content\n        if \"<edit\" in display_content:\n            # Render inline edits as diff views\n            rendered_html = render_streaming_edits(self.streaming_content)\n</search>\n<replace>\n        # Check if we have any <edit> blocks in the accumulated content\n        if \"<edit\" in display_content:\n            # Render inline edits as diff views\n            rendered_html = render_streaming_edits(display_content)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        else:\n            # No edit blocks - use simple text append for performance\n            escaped_chunk = (\n                chunk.replace(\"\\\\\", \"\\\\\\\\\")\n                .replace(\"`\", \"\\\\`\")\n                .replace(\"$\", \"\\\\$\")\n                .replace(\"\\n\", \"\\\\n\")\n                .replace(\"\\r\", \"\\\\r\")\n            )\n\n            js_code = f\"\"\"\n            (function() {{\n                var streamingMsg = document.getElementById('streaming-message');\n                if (streamingMsg) {{\n                    var scrollThreshold = 50;\n                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\n\n                    var content = streamingMsg.querySelector('.content');\n                    if (content) {{\n                        if (!content.dataset.rawText) content.dataset.rawText = '';\n                        content.dataset.rawText += `{escaped_chunk}`;\n                        content.innerText = content.dataset.rawText;\n                    }}\n\n                    if (wasAtBottom) {{\n                        window.scrollTo(0, document.body.scrollHeight);\n                    }}\n                }}\n            }})();\n            \"\"\"\n            self.chat_view.page().runJavaScript(js_code)\n</search>\n<replace>\n        else:\n            # No edit blocks - replace entire content with stripped version\n            escaped_content = (\n                display_content.replace(\"\\\\\", \"\\\\\\\\\")\n                .replace(\"`\", \"\\\\`\")\n                .replace(\"$\", \"\\\\$\")\n                .replace(\"\\n\", \"\\\\n\")\n                .replace(\"\\r\", \"\\\\r\")\n            )\n\n            js_code = f\"\"\"\n            (function() {{\n                var streamingMsg = document.getElementById('streaming-message');\n                if (streamingMsg) {{\n                    var scrollThreshold = 50;\n                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\n\n                    var content = streamingMsg.querySelector('.content');\n                    if (content) {{\n                        content.innerText = `{escaped_content}`;\n                    }}\n\n                    if (wasAtBottom) {{\n                        window.scrollTo(0, document.body.scrollHeight);\n                    }}\n                }}\n            }})();\n            \"\"\"\n            self.chat_view.page().runJavaScript(js_code)\n</replace>\n</edit>\n\n<commit message=\"Strip [id N] prefix in display layer, not streaming layer\" />\n\nDone! Now the approach is:\n1. `StreamWorker` emits raw chunks as they arrive (no stripping)\n2. `_append_streaming_chunk` strips the `[id N]` prefix from the accumulated `display_content` before rendering\n3. We replace the entire content each time (slightly less efficient but correct)\n\nThis way if we receive `[`, then `id`, then ` 5`, then `]`, then ` Hello`, the display will show nothing until the prefix is complete, then show `Hello`.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "0d117769e156",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

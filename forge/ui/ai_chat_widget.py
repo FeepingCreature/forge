@@ -84,8 +84,6 @@ class StreamWorker(QObject):
         self.tools = tools
         self.current_content = ""
         self.current_tool_calls: list[dict[str, Any]] = []
-        self._emitted_length = 0  # Track how much we've already emitted
-        self._emitted_length = 0  # Track how much we've already emitted
 
     def run(self) -> None:
         """Run the streaming request"""
@@ -100,18 +98,7 @@ class StreamWorker(QObject):
                 if "content" in delta and delta["content"]:
                     content = delta["content"]
                     self.current_content += content
-
-                    # Strip [id N] prefix that the model might echo back
-                    # This is cheap to check on every update since it's just a regex at position 0
-                    import re
-                    self.current_content = re.sub(r"^\[id \d+\]\s*", "", self.current_content)
-
-                    # Emit only the new content (after stripping prefix)
-                    # This handles the case where we stripped a prefix - we emit the delta
-                    new_content = self.current_content[self._emitted_length:]
-                    if new_content:
-                        self._emitted_length = len(self.current_content)
-                        self.chunk_received.emit(new_content)
+                    self.chunk_received.emit(content)
 
                 # Handle tool calls
                 if "tool_calls" in delta:
@@ -1381,15 +1368,19 @@ class AIChatWidget(QWidget):
 
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
+        import re
         from forge.ui.tool_rendering import render_streaming_edits
 
         # Accumulate the chunk
         # (streaming_content is already updated in _on_stream_chunk before this is called)
 
+        # Strip [id N] prefix that the model might echo back (cheap regex at start)
+        display_content = re.sub(r"^\[id \d+\]\s*", "", self.streaming_content)
+
         # Check if we have any <edit> blocks in the accumulated content
-        if "<edit" in self.streaming_content:
+        if "<edit" in display_content:
             # Render inline edits as diff views
-            rendered_html = render_streaming_edits(self.streaming_content)
+            rendered_html = render_streaming_edits(display_content)
 
             # Escape for JavaScript string
             escaped_html = (
@@ -1422,9 +1413,9 @@ class AIChatWidget(QWidget):
             """
             self.chat_view.page().runJavaScript(js_code)
         else:
-            # No edit blocks - use simple text append for performance
-            escaped_chunk = (
-                chunk.replace("\\", "\\\\")
+            # No edit blocks - replace entire content with stripped version
+            escaped_content = (
+                display_content.replace("\\", "\\\\")
                 .replace("`", "\\`")
                 .replace("$", "\\$")
                 .replace("\n", "\\n")
@@ -1440,9 +1431,7 @@ class AIChatWidget(QWidget):
 
                     var content = streamingMsg.querySelector('.content');
                     if (content) {{
-                        if (!content.dataset.rawText) content.dataset.rawText = '';
-                        content.dataset.rawText += `{escaped_chunk}`;
-                        content.innerText = content.dataset.rawText;
+                        content.innerText = `{escaped_content}`;
                     }}
 
                     if (wasAtBottom) {{

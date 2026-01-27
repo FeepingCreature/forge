@@ -5,7 +5,7 @@ These tests cover:
 - Basic conversation flow (user/assistant messages)
 - Tool call and result handling
 - filter_tool_calls() for multi-batch tool execution
-- compact_tool_results() for context compaction
+- compact_messages() for context compaction
 - to_messages() API format output
 - Save/load simulation via block inspection
 """
@@ -245,98 +245,138 @@ class TestFilterToolCalls:
         assert turn2_block.deleted
 
 
-class TestCompactToolResults:
-    """Test compact_tool_results() for context size management"""
+class TestCompactMessages:
+    """Test compact_messages() for context size management"""
 
-    def test_compact_single_result(self):
+    def test_compact_single_message(self):
+        """Compact a single assistant message with tool call"""
         pm = PromptManager(system_prompt="System")
-        pm.append_user_message("Do something")
-        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "tool", "arguments": "{}"}}])
+        pm.append_user_message("Do something")  # message #1
+        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "tool", "arguments": "{}"}}])  # message #2
         pm.append_tool_result("call_1", '{"very": "long", "result": "data" * 100}')
         
-        count, error = pm.compact_tool_results("1", "1", "Did the thing successfully")
+        # Compact message #2 (the tool call)
+        count, error = pm.compact_messages("2", "2", "Did the thing successfully")
         
         assert error is None
-        assert count == 1
+        assert count >= 1  # At least the tool call block
         
+        # Tool call should be compacted
+        tool_block = next(b for b in pm.blocks if b.block_type == BlockType.TOOL_CALL)
+        assert tool_block.content == "[COMPACTED] Did the thing successfully"
+        assert tool_block.metadata["tool_calls"][0]["function"]["arguments"] == '{"_compacted": true}'
+        
+        # Tool result associated with that call should also be compacted
         result_block = next(b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT)
-        assert result_block.content == "[COMPACTED] Did the thing successfully"
+        assert "[COMPACTED" in result_block.content
 
-    def test_compact_range(self):
+    def test_compact_message_range(self):
+        """Compact a range of messages"""
         pm = PromptManager(system_prompt="System")
-        pm.append_user_message("Do things")
+        pm.append_user_message("Do things")  # message #1
         
+        # Messages #2, #3, #4, #5, #6 are tool calls
         for i in range(5):
             pm.append_tool_call([{"id": f"call_{i}", "type": "function", "function": {"name": f"tool{i}", "arguments": "{}"}}])
             pm.append_tool_result(f"call_{i}", f'{{"result": {i}}}')
         
-        count, error = pm.compact_tool_results("2", "4", "Tools 2-4 completed")
+        # Compact messages #3-#5 (tool calls 2, 3, 4)
+        count, error = pm.compact_messages("3", "5", "Tools 2-4 completed")
         
         assert error is None
-        assert count == 3  # Results 2, 3, 4
+        assert count >= 3  # At least the 3 tool call blocks
         
-        # Check compaction
-        results = [b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT]
-        assert "[COMPACTED] Tools 2-4 completed" in results[1].content  # #2
-        assert "[COMPACTED - see above]" in results[2].content  # #3
-        assert "[COMPACTED - see above]" in results[3].content  # #4
-        # #1 and #5 should be unaffected
-        assert "COMPACTED" not in results[0].content
-        assert "COMPACTED" not in results[4].content
+        # Check tool call compaction
+        tool_blocks = [b for b in pm.blocks if b.block_type == BlockType.TOOL_CALL]
+        
+        # First tool call (#2) - not compacted
+        assert tool_blocks[0].metadata["tool_calls"][0]["function"]["arguments"] == "{}"
+        
+        # Second tool call (#3) - compacted with summary
+        assert "[COMPACTED] Tools 2-4 completed" in tool_blocks[1].content
+        
+        # Third and fourth tool calls (#4, #5) - compacted with reference
+        assert "[COMPACTED - see above]" in tool_blocks[2].content
+        assert "[COMPACTED - see above]" in tool_blocks[3].content
+        
+        # Fifth tool call (#6) - not compacted
+        assert tool_blocks[4].metadata["tool_calls"][0]["function"]["arguments"] == "{}"
 
-    def test_compact_truncates_tool_calls_between_results(self):
-        """Compaction truncates tool calls that fall BETWEEN compacted results"""
+    def test_compact_includes_associated_tool_results(self):
+        """When compacting tool call messages, their results are also compacted"""
         pm = PromptManager(system_prompt="System")
-        pm.append_user_message("Edit files")
+        pm.append_user_message("Edit files")  # #1
         
-        # Create sequence: TC1, TR1, TC2, TR2, TC3, TR3
-        # When compacting TR2-TR3, TC3 is between them and should be compacted
-        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "tool1", "arguments": "{}"}}])
+        # Tool call #2 with large args
+        large_args = json.dumps({"filepath": "test.py", "content": "x" * 1000})
+        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "write_file", "arguments": large_args}}])
         pm.append_tool_result("call_1", '{"success": true}')
         
-        large_args = json.dumps({"filepath": "test.py", "content": "x" * 1000})
-        pm.append_tool_call([{"id": "call_2", "type": "function", "function": {"name": "write_file", "arguments": large_args}}])
+        # Tool call #3
+        pm.append_tool_call([{"id": "call_2", "type": "function", "function": {"name": "tool2", "arguments": "{}"}}])
         pm.append_tool_result("call_2", '{"success": true}')
         
-        pm.append_tool_call([{"id": "call_3", "type": "function", "function": {"name": "tool3", "arguments": "{}"}}])
-        pm.append_tool_result("call_3", '{"success": true}')
+        # Compact message #2 only
+        count, error = pm.compact_messages("2", "2", "Wrote file")
         
-        # Compact range 2-3
-        # Block layout: [sys, user, TC1, TR1, TC2, TR2, TC3, TR3]
-        # Indices:       0    1     2    3    4    5    6    7
-        # from_idx=5 (TR2), to_idx=7 (TR3)
-        # TC3 at idx 6 is IN the range and should be compacted
-        pm.compact_tool_results("2", "3", "Wrote files")
+        assert error is None
         
         tool_blocks = [b for b in pm.blocks if b.block_type == BlockType.TOOL_CALL and not b.deleted]
         
-        # TC1 (before range) - unaffected
-        assert tool_blocks[0].metadata["tool_calls"][0]["function"]["arguments"] == "{}"
+        # First tool call compacted
+        tc1 = tool_blocks[0].metadata["tool_calls"][0]
+        assert tc1["function"]["arguments"] == '{"_compacted": true}'
         
-        # TC2 (before range - its result TR2 starts the range) - unaffected  
-        # The tool call precedes its result, so it's at idx 4, before from_idx=5
+        # Second tool call NOT compacted
         tc2 = tool_blocks[1].metadata["tool_calls"][0]
-        assert "filepath" in tc2["function"]["arguments"]  # NOT compacted
+        assert tc2["function"]["arguments"] == "{}"
         
-        # TC3 (idx 6, between TR2 and TR3) - SHOULD be compacted
-        tc3 = tool_blocks[2].metadata["tool_calls"][0]
-        assert tc3["function"]["arguments"] == '{"_compacted": true}'
+        # First tool result compacted
+        results = [b for b in pm.blocks if b.block_type == BlockType.TOOL_RESULT]
+        assert "[COMPACTED" in results[0].content
+        # Second tool result NOT compacted
+        assert "success" in results[1].content
 
     def test_compact_invalid_range(self):
         pm = PromptManager(system_prompt="System")
-        pm.append_user_message("Do something")
-        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "tool", "arguments": "{}"}}])
+        pm.append_user_message("Do something")  # #1
+        pm.append_tool_call([{"id": "call_1", "type": "function", "function": {"name": "tool", "arguments": "{}"}}])  # #2
         pm.append_tool_result("call_1", '{"result": true}')
         
         # from > to
-        count, error = pm.compact_tool_results("5", "1", "Invalid")
+        count, error = pm.compact_messages("5", "1", "Invalid")
         assert error is not None
         assert "must be <=" in error
         
-        # Non-existent ID
-        count, error = pm.compact_tool_results("99", "99", "Missing")
+        # Non-existent ID (out of range)
+        count, error = pm.compact_messages("99", "99", "Missing")
         assert error is not None
-        assert "not found" in error
+        assert "No messages found" in error
+
+    def test_compact_user_and_assistant_messages(self):
+        """Can compact plain user and assistant messages too"""
+        pm = PromptManager(system_prompt="System")
+        pm.append_user_message("First question with lots of detail " * 20)  # #1
+        pm.append_assistant_message("Long answer " * 50)  # #2
+        pm.append_user_message("Follow up")  # #3
+        pm.append_assistant_message("Short answer")  # #4
+        
+        # Compact messages #1 and #2
+        count, error = pm.compact_messages("1", "2", "Initial Q&A about topic X")
+        
+        assert error is None
+        assert count == 2
+        
+        # Check compaction
+        user_blocks = [b for b in pm.blocks if b.block_type == BlockType.USER_MESSAGE]
+        assistant_blocks = [b for b in pm.blocks if b.block_type == BlockType.ASSISTANT_MESSAGE]
+        
+        assert "[COMPACTED] Initial Q&A about topic X" in user_blocks[0].content
+        assert "[COMPACTED - see above]" in assistant_blocks[0].content
+        
+        # Later messages unaffected
+        assert "Follow up" in user_blocks[1].content
+        assert "Short answer" in assistant_blocks[1].content
 
 
 class TestFileContent:
@@ -522,25 +562,32 @@ class TestSessionSimulation:
     def test_compaction_survives_reload(self):
         """After compaction, reloading should preserve compacted state"""
         pm = PromptManager(system_prompt="System")
-        pm.append_user_message("Do work")
+        pm.append_user_message("Do work")  # #1
         
+        # Messages #2, #3, #4 are tool calls
+        # In real usage, all executed tool IDs are accumulated before filter is called
+        all_tool_ids = set()
         for i in range(3):
             pm.append_tool_call([{"id": f"c{i}", "type": "function", "function": {"name": f"t{i}", "arguments": "{}"}}])
             pm.append_tool_result(f"c{i}", f'{{"data": "{("x" * 100)}"}}')
-            pm.filter_tool_calls({f"c{i}"})
+            all_tool_ids.add(f"c{i}")
         
-        # Compact
-        pm.compact_tool_results("1", "3", "Did 3 things")
+        # Filter once at the end with ALL executed tool IDs (how it works in real usage)
+        pm.filter_tool_calls(all_tool_ids)
+        
+        # Compact messages #2-#4 (the tool calls)
+        pm.compact_messages("2", "4", "Did 3 things")
         
         # Get messages (simulating what would be sent to API after reload)
         messages = pm.to_messages()
         
-        # Tool results should be compacted
+        # Tool results should be compacted (they're associated with compacted tool calls)
         tool_results = [m for m in messages if m.get("role") == "tool"]
         assert len(tool_results) == 3
         
-        # First should have summary, rest should reference it
-        assert "COMPACTED" in tool_results[0]["content"][0]["text"]
+        # All should be compacted
+        for tr in tool_results:
+            assert "COMPACTED" in tr["content"][0]["text"]
 
 
 class TestContextStats:

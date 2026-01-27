@@ -98,6 +98,12 @@ class StreamWorker(QObject):
                 if "content" in delta and delta["content"]:
                     content = delta["content"]
                     self.current_content += content
+                    
+                    # Strip [id N] prefix that the model might echo back
+                    # This is cheap to check on every update since it's just a regex at position 0
+                    import re
+                    self.current_content = re.sub(r"^\[id \d+\]\s*", "", self.current_content)
+                    
                     self.chunk_received.emit(content)
 
                 # Handle tool calls

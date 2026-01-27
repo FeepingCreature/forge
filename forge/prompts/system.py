@@ -141,6 +141,10 @@ Use `compact` to replace old tool results with a summary when they become redund
 
 Example: After implementing a feature with 10+ edits, compact with: "Implemented FooWidget: added calculate(), render(), and tests. Fixed edge case with empty input."
 
+### Message IDs
+
+Every message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.
+
 # Work In Progress
 
 That all said, this is a tool in progress- if any of your operations don't seem to be working, instead of trying to continue, flag it to the user and end.

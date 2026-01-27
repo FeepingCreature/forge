@@ -1,12 +1,8 @@
 {
   "active_files": [
-    "tests/test_prompt_manager.py",
-    "CLAUDE.md",
-    "forge/session/manager.py",
-    "forge/tools/builtin/compact.py",
     "forge/prompts/manager.py",
-    "forge/session/startup.py",
-    "forge/session/live_session.py"
+    "CLAUDE.md",
+    "forge/prompts/system.py"
   ],
   "request_log_entries": [
     {
@@ -296,6 +292,33 @@
       "streaming": true,
       "actual_cost": 0.59471875,
       "generation_id": "gen-1769540880-mS6yhBrVmlVxdWd4scjB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541006721.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541006721.json",
+      "timestamp": 1769541006.7233214,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.5577525,
+      "generation_id": "gen-1769541007-zVhUOwdw7bS8pJ2U6uGx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541025168.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541025168.json",
+      "timestamp": 1769541025.1695101,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05620525,
+      "generation_id": "gen-1769541027-0bgfchutNDr0aBVfsNXb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769541036527.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769541036527.json",
+      "timestamp": 1769541036.528239,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.37883625,
+      "generation_id": "gen-1769541036-JJ7RHKj6mVRsIvbfQPn2"
     }
   ],
   "messages": [
@@ -810,6 +833,68 @@
         {
           "commit": "259462303a65",
           "message": "Committed: 3 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 90 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ahaha, we have a problem now. Your pattern bias is too strong; you're instinctually adding [id 25] at the start of messages. Add to prompt guidance that this is done for you automatically?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ha! You're right, I was doing that. Let me add a note to the system prompt to make it clear the IDs are injected automatically:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\nExample: To find all files that use `MyClass`, call grep_open with pattern=\"MyClass\"\n</search>\n<replace>\nExample: To find all files that use `MyClass`, call grep_open with pattern=\"MyClass\"\n\n## Message IDs for Compaction\n\nEvery message in the conversation has an ID prefix like `[id 1]`, `[id 2]`, etc.\nThese are **injected automatically** - do NOT add them yourself when writing responses.\nUse these IDs to reference messages when calling the `compact` tool.\n</replace>\n</edit>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nSearch text not found in forge/prompts/system.py.\n\n**NO CLOSE MATCH - the text may have been modified or doesn't exist.\nYou may need to reload the file to see current content.**\n\nFound 42.9% similar text at line 43 (edit distance: 48):\n\n```\n- \"Find the files that define or use the User class\"\n```\n\nDiff (--- your search vs +++ actual file):\n```diff\n--- expected\n+++ actual\n@@ -1 +1 @@\n-Example: To find all files that use `MyClass`, call grep_open with pattern=\"MyClass\"+- \"Find the files that define or use the User class\"\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Let me load the system prompt file to see its current content:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"], \"remove\": [\"tests/test_prompt_manager.py\", \"forge/session/live_session.py\", \"forge/session/startup.py\", \"forge/session/manager.py\", \"forge/tools/builtin/compact.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01GUDvmpPoPWRzBCwnBm3rkc",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01GUDvmpPoPWRzBCwnBm3rkc",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 5 files from context\", \"remove\": [\"tests/test_prompt_manager.py\", \"forge/session/live_session.py\", \"forge/session/startup.py\", \"forge/session/manager.py\", \"forge/tools/builtin/compact.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the file. Let me add the guidance about message IDs being auto-injected:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n**Compact proactively** - don't wait until context is huge. The summary preserves your intent and reasoning while reducing token costs.\n\nExample: After implementing a feature with 10+ edits, compact with: \"Implemented FooWidget: added calculate(), render(), and tests. Fixed edge case with empty input.\"\n\n# Work In Progress\n</search>\n<replace>\n**Compact proactively** - don't wait until context is huge. The summary preserves your intent and reasoning while reducing token costs.\n\nExample: After implementing a feature with 10+ edits, compact with: \"Implemented FooWidget: added calculate(), render(), and tests. Fixed edge case with empty input.\"\n\n### Message IDs\n\nEvery message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. These are **injected automatically** into the conversation - do NOT add them yourself when writing responses. Use these IDs when calling the `compact` tool to specify which messages to compact.\n\n# Work In Progress\n</replace>\n</edit>\n\n<commit message=\"docs: add guidance that message IDs are auto-injected\n\nClarifies in the system prompt that [id N] prefixes are added automatically\nand should not be written manually by the model.\"/>\n\nDone! Added a section explaining that message IDs are auto-injected and shouldn't be added manually.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "1182444ecffd",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

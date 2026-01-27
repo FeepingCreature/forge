@@ -1245,9 +1245,16 @@ Chain everything optimistically. The pipeline handles failures for you."""
                         active_blocks[i].block_type == BlockType.USER_MESSAGE
                         and i == last_user_message_idx
                     )
+                    # Inject message ID for user messages so they're visible for compaction
+                    current_block = active_blocks[i]
+                    content = current_block.content
+                    if current_block.block_type == BlockType.USER_MESSAGE:
+                        msg_id = current_block.metadata.get("message_id")
+                        if msg_id:
+                            content = f"[id {msg_id}] {content}"
                     content_blocks.append(
                         self._make_content_block(
-                            active_blocks[i].content, is_this_last or is_turn_boundary
+                            content, is_this_last or is_turn_boundary
                         )
                     )
                     i += 1

@@ -84,6 +84,8 @@ class StreamWorker(QObject):
         self.tools = tools
         self.current_content = ""
         self.current_tool_calls: list[dict[str, Any]] = []
+        self._emitted_length = 0  # Track how much we've already emitted
+        self._emitted_length = 0  # Track how much we've already emitted
 
     def run(self) -> None:
         """Run the streaming request"""
@@ -104,7 +106,12 @@ class StreamWorker(QObject):
                     import re
                     self.current_content = re.sub(r"^\[id \d+\]\s*", "", self.current_content)
 
-                    self.chunk_received.emit(content)
+                    # Emit only the new content (after stripping prefix)
+                    # This handles the case where we stripped a prefix - we emit the delta
+                    new_content = self.current_content[self._emitted_length:]
+                    if new_content:
+                        self._emitted_length = len(self.current_content)
+                        self.chunk_received.emit(new_content)
 
                 # Handle tool calls
                 if "tool_calls" in delta:

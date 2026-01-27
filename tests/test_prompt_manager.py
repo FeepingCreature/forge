@@ -122,7 +122,7 @@ class TestToolCalls:
         assert tool_call_msg["role"] == "assistant"
         assert len(tool_call_msg["tool_calls"]) == 1
         # Content includes message ID prefix for compaction reference
-        assert tool_call_msg["content"] == "[2] I'll help."
+        assert tool_call_msg["content"] == "[id 2] I'll help."
         
         # Find the tool result message
         tool_result_msg = next(m for m in messages if m.get("role") == "tool")

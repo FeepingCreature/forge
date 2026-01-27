@@ -27,7 +27,7 @@ def get_schema() -> dict[str, Any]:
                 "Use when previous edits are redundant (file is in context), old search results "
                 "are stale, or you want to consolidate multiple operations. "
                 "The summary replaces the original message content. "
-                "Message IDs are shown in the conversation recap as [1], [2], etc."
+                "Message IDs are shown in the conversation recap as [id 1], [id 2], etc."
             ),
             "parameters": {
                 "type": "object",

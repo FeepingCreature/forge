@@ -1048,7 +1048,7 @@ class PromptManager:
                 # Show full user message (they're short)
                 msg_id = block.metadata.get("message_id", "?")
                 content = block.content.strip()
-                lines.append(f"[{msg_id}] **User**: {content}\n")
+                lines.append(f"[id {msg_id}] **User**: {content}\n")
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
                 # Truncate long assistant messages
@@ -1056,7 +1056,7 @@ class PromptManager:
                 content = block.content.strip()
                 if len(content) > 200:
                     content = content[:197] + "..."
-                lines.append(f"[{msg_id}] **Assistant**: {content}\n")
+                lines.append(f"[id {msg_id}] **Assistant**: {content}\n")
 
             elif block.block_type == BlockType.TOOL_CALL:
                 msg_id = block.metadata.get("message_id", "?")
@@ -1068,9 +1068,9 @@ class PromptManager:
                         text = block.content.strip()
                         if len(text) > 100:
                             text = text[:97] + "..."
-                        lines.append(f"[{msg_id}] **Assistant**: {text}\n")
+                        lines.append(f"[id {msg_id}] **Assistant**: {text}\n")
                     else:
-                        lines.append(f"[{msg_id}] **Assistant** (tool calls)\n")
+                        lines.append(f"[id {msg_id}] **Assistant** (tool calls)\n")
                     lines.append(f"  → Tool calls: {', '.join(summaries)}\n")
 
             elif block.block_type == BlockType.TOOL_RESULT:
@@ -1305,7 +1305,7 @@ Chain everything optimistically. The pipeline handles failures for you."""
         msg_id = block.metadata.get("message_id")
         content = block.content
         if msg_id:
-            content = f"[{msg_id}] {content}"
+            content = f"[id {msg_id}] {content}"
         return {
             "role": "user",
             "content": [self._make_content_block(content, is_last)],
@@ -1316,7 +1316,7 @@ Chain everything optimistically. The pipeline handles failures for you."""
         msg_id = block.metadata.get("message_id")
         content = block.content
         if msg_id:
-            content = f"[{msg_id}] {content}"
+            content = f"[id {msg_id}] {content}"
         return {
             "role": "assistant",
             "content": [self._make_content_block(content, is_last)],
@@ -1360,11 +1360,11 @@ Chain everything optimistically. The pipeline handles failures for you."""
         if block.content:
             content = block.content
             if msg_id:
-                content = f"[{msg_id}] {content}"
+                content = f"[id {msg_id}] {content}"
             msg["content"] = content
         elif msg_id:
             # Even without content, inject the message ID so it's visible
-            msg["content"] = f"[{msg_id}]"
+            msg["content"] = f"[id {msg_id}]"
         return msg
 
     def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:

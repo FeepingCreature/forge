@@ -1,10 +1,13 @@
 """
-Compact tool - replace tool results with summaries to reduce context size.
+Compact tool - replace conversation messages with summaries to reduce context size.
 
 Use this when:
-- A diff is redundant because the full file is now in context
-- Old search results are no longer relevant
+- Previous edits are redundant because the file is now in context
+- Old search results or tool outputs are no longer relevant
 - You want to consolidate multiple operations into a single summary
+
+The conversation recap shows message IDs in brackets like [1], [2], etc.
+Use these IDs to specify the range to compact.
 """
 
 from typing import TYPE_CHECKING, Any
@@ -20,26 +23,27 @@ def get_schema() -> dict[str, Any]:
         "function": {
             "name": "compact",
             "description": (
-                "Replace previous tool results with a summary to reduce context size. "
-                "Use when diffs are redundant (file is in context), old search results "
+                "Replace previous conversation messages with a summary to reduce context size. "
+                "Use when previous edits are redundant (file is in context), old search results "
                 "are stale, or you want to consolidate multiple operations. "
-                "The summary replaces the original tool result content."
+                "The summary replaces the original message content. "
+                "Message IDs are shown in the conversation recap as [1], [2], etc."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "from_id": {
                         "type": "string",
-                        "description": "First tool_call_id to compact (inclusive)",
+                        "description": "First message ID to compact (inclusive). See conversation recap for IDs.",
                     },
                     "to_id": {
                         "type": "string",
-                        "description": "Last tool_call_id to compact (inclusive)",
+                        "description": "Last message ID to compact (inclusive). See conversation recap for IDs.",
                     },
                     "summary": {
                         "type": "string",
                         "description": (
-                            "Summary of what those tool calls did. Include enough detail "
+                            "Summary of what those messages did. Include enough detail "
                             "to stay oriented: which functions/classes were added or modified, "
                             "key logic changes, etc. E.g., 'Added calculate_totals() and "
                             "format_output() to utils.py, updated main() to call them'"
@@ -54,10 +58,10 @@ def get_schema() -> dict[str, Any]:
 
 def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """
-    Compact tool results by replacing them with a summary.
+    Compact conversation messages by replacing them with a summary.
 
     This is a special tool - it doesn't use VFS directly but signals
-    to the PromptManager to replace tool result blocks.
+    to the PromptManager to replace message blocks.
     """
     from_id = args.get("from_id", "")
     to_id = args.get("to_id", "")

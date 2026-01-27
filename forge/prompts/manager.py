@@ -61,6 +61,10 @@ class PromptManager:
         # Mapping from user-friendly ID -> actual tool_call_id
         self._tool_id_map: dict[str, str] = {}
 
+        # Rolling counter for user-friendly message IDs
+        # Only conversation messages get IDs (not system, summaries, file content)
+        self._next_message_id: int = 1
+
         # Track ephemeral tool results (tool_call_id -> True)
         # These get replaced with placeholders after one AI response
         self._ephemeral_tool_results: set[str] = set()
@@ -264,33 +268,45 @@ class PromptManager:
                 print(f"   ↳ Found and deleted {filepath}")
                 break
 
+    def _assign_message_id(self) -> str:
+        """Assign the next user-friendly message ID"""
+        msg_id = str(self._next_message_id)
+        self._next_message_id += 1
+        return msg_id
+
     def append_user_message(self, content: str) -> None:
         """Add a user message to the stream"""
-        print(f"👤 PromptManager: Appending user message ({len(content)} chars)")
+        msg_id = self._assign_message_id()
+        print(f"👤 PromptManager: Appending user message #{msg_id} ({len(content)} chars)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.USER_MESSAGE,
                 content=content,
+                metadata={"message_id": msg_id},
             )
         )
 
     def append_assistant_message(self, content: str) -> None:
         """Add an assistant message to the stream"""
-        print(f"🤖 PromptManager: Appending assistant message ({len(content)} chars)")
+        msg_id = self._assign_message_id()
+        print(f"🤖 PromptManager: Appending assistant message #{msg_id} ({len(content)} chars)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.ASSISTANT_MESSAGE,
                 content=content,
+                metadata={"message_id": msg_id},
             )
         )
 
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the stream, optionally with accompanying text content"""
+        msg_id = self._assign_message_id()
+        print(f"🔧 PromptManager: Appending tool call #{msg_id} ({len(tool_calls)} calls)")
         self.blocks.append(
             ContentBlock(
                 block_type=BlockType.TOOL_CALL,
                 content=content,  # Assistant's text that accompanied the tool calls
-                metadata={"tool_calls": tool_calls},
+                metadata={"tool_calls": tool_calls, "message_id": msg_id},
             )
         )
 
@@ -476,6 +492,9 @@ class PromptManager:
         # Reset tool ID tracking
         self._next_tool_id = 1
         self._tool_id_map = {}
+        
+        # Reset message ID tracking
+        self._next_message_id = 1
 
     def _resolve_tool_ids(self, ids: list[str]) -> set[str]:
         """
@@ -626,6 +645,154 @@ class PromptManager:
                 if len(block.content) > 100:
                     block.content = block.content[:100] + "..."
                     print("📦 Truncated assistant message in range")
+
+        return compacted, None
+
+    def compact_messages(
+        self, from_id: str, to_id: str, summary: str
+    ) -> tuple[int, str | None]:
+        """
+        Compact conversation messages in a range by replacing their content with a summary.
+
+        This compacts USER_MESSAGE, ASSISTANT_MESSAGE, TOOL_CALL, and TOOL_RESULT blocks
+        that fall within the message ID range. The first message in range gets the summary,
+        subsequent messages get a "[COMPACTED - see above]" marker.
+
+        Args:
+            from_id: First message_id to compact (user-friendly like "1")
+            to_id: Last message_id to compact (user-friendly like "5")
+            summary: Summary text to replace the content with
+
+        Returns:
+            Tuple of (number of blocks compacted, error message or None)
+        """
+        # Convert IDs to ints for range comparison
+        try:
+            from_int = int(from_id)
+            to_int = int(to_id)
+        except ValueError:
+            return 0, f"Invalid IDs: from_id={from_id}, to_id={to_id} (must be integers)"
+
+        if from_int > to_int:
+            return 0, f"from_id ({from_int}) must be <= to_id ({to_int})"
+
+        if from_int < 1:
+            return 0, f"from_id must be >= 1, got {from_int}"
+
+        print(f"📦 Compacting messages #{from_id} to #{to_id}")
+
+        # Compact everything in the range
+        compacted = 0
+        first_compacted = True
+
+        # Track which message types we're looking at
+        conversation_types = {
+            BlockType.USER_MESSAGE,
+            BlockType.ASSISTANT_MESSAGE,
+            BlockType.TOOL_CALL,
+            BlockType.TOOL_RESULT,
+        }
+
+        for block in self.blocks:
+            if block.deleted:
+                continue
+            if block.block_type not in conversation_types:
+                continue
+
+            # Get the message ID for this block
+            msg_id_str = block.metadata.get("message_id")
+            if msg_id_str is None:
+                # Tool results don't have message_id, they have user_id
+                # We'll handle them if they fall between compacted messages
+                continue
+
+            try:
+                msg_id = int(msg_id_str)
+            except (ValueError, TypeError):
+                continue
+
+            # Check if this message is in the range
+            if msg_id < from_int or msg_id > to_int:
+                continue
+
+            # Compact this block
+            if first_compacted:
+                if block.block_type == BlockType.TOOL_CALL:
+                    # For tool calls, compact both the content and the tool_calls
+                    block.content = f"[COMPACTED] {summary}"
+                    tool_calls = block.metadata.get("tool_calls", [])
+                    compacted_calls = []
+                    for tc in tool_calls:
+                        compacted_calls.append(
+                            {
+                                "id": tc.get("id", ""),
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("function", {}).get("name", "?"),
+                                    "arguments": '{"_compacted": true}',
+                                },
+                            }
+                        )
+                    block.metadata["tool_calls"] = compacted_calls
+                else:
+                    block.content = f"[COMPACTED] {summary}"
+                first_compacted = False
+            else:
+                if block.block_type == BlockType.TOOL_CALL:
+                    block.content = "[COMPACTED - see above]"
+                    tool_calls = block.metadata.get("tool_calls", [])
+                    compacted_calls = []
+                    for tc in tool_calls:
+                        compacted_calls.append(
+                            {
+                                "id": tc.get("id", ""),
+                                "type": "function",
+                                "function": {
+                                    "name": tc.get("function", {}).get("name", "?"),
+                                    "arguments": '{"_compacted": true}',
+                                },
+                            }
+                        )
+                    block.metadata["tool_calls"] = compacted_calls
+                else:
+                    block.content = "[COMPACTED - see above]"
+
+            compacted += 1
+            print(f"📦 Compacted message #{msg_id_str} ({block.block_type.value})")
+
+        # Also compact tool results that are associated with compacted tool calls
+        # Find all tool_call_ids from compacted TOOL_CALL blocks
+        compacted_tool_ids: set[str] = set()
+        for block in self.blocks:
+            if block.deleted or block.block_type != BlockType.TOOL_CALL:
+                continue
+            msg_id_str = block.metadata.get("message_id")
+            if msg_id_str is None:
+                continue
+            try:
+                msg_id = int(msg_id_str)
+            except (ValueError, TypeError):
+                continue
+            if from_int <= msg_id <= to_int:
+                for tc in block.metadata.get("tool_calls", []):
+                    tc_id = tc.get("id")
+                    if tc_id:
+                        compacted_tool_ids.add(tc_id)
+
+        # Compact the corresponding tool results
+        for block in self.blocks:
+            if block.deleted or block.block_type != BlockType.TOOL_RESULT:
+                continue
+            tool_call_id = block.metadata.get("tool_call_id")
+            if tool_call_id in compacted_tool_ids:
+                if not block.content.startswith("[COMPACTED"):
+                    block.content = "[COMPACTED - see above]"
+                    compacted += 1
+                    user_id = block.metadata.get("user_id", "?")
+                    print(f"📦 Compacted tool result #{user_id}")
+
+        if compacted == 0:
+            return 0, f"No messages found in range #{from_id} to #{to_id}"
 
         return compacted, None
 
@@ -979,17 +1146,20 @@ class PromptManager:
                 if block.metadata.get("is_system_nudge"):
                     continue
                 # Show full user message (they're short)
+                msg_id = block.metadata.get("message_id", "?")
                 content = block.content.strip()
-                lines.append(f"**User**: {content}\n")
+                lines.append(f"[{msg_id}] **User**: {content}\n")
 
             elif block.block_type == BlockType.ASSISTANT_MESSAGE:
                 # Truncate long assistant messages
+                msg_id = block.metadata.get("message_id", "?")
                 content = block.content.strip()
                 if len(content) > 200:
                     content = content[:197] + "..."
-                lines.append(f"**Assistant**: {content}\n")
+                lines.append(f"[{msg_id}] **Assistant**: {content}\n")
 
             elif block.block_type == BlockType.TOOL_CALL:
+                msg_id = block.metadata.get("message_id", "?")
                 tool_calls = block.metadata.get("tool_calls", [])
                 if tool_calls:
                     summaries = [self._summarize_tool_call(tc) for tc in tool_calls]
@@ -998,7 +1168,9 @@ class PromptManager:
                         text = block.content.strip()
                         if len(text) > 100:
                             text = text[:97] + "..."
-                        lines.append(f"**Assistant**: {text}\n")
+                        lines.append(f"[{msg_id}] **Assistant**: {text}\n")
+                    else:
+                        lines.append(f"[{msg_id}] **Assistant** (tool calls)\n")
                     lines.append(f"  → Tool calls: {', '.join(summaries)}\n")
 
             elif block.block_type == BlockType.TOOL_RESULT:

@@ -861,7 +861,7 @@ class LiveSession(QObject):
             from_id = result.get("from_id", "")
             to_id = result.get("to_id", "")
             summary = result.get("summary", "")
-            self.session_manager.compact_tool_results(from_id, to_id, summary)
+            self.session_manager.compact_messages(from_id, to_id, summary)
 
         self._emit_event(ToolFinishedEvent(tool_call_id, tool_name, tool_args, result))
 

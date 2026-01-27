@@ -60,10 +60,10 @@ def replay_messages_to_prompt_manager(
                                 to_id = args.get("to_id", "")
                                 summary = args.get("summary", "")
                                 if from_id and to_id:
-                                    compacted, _ = session_manager.compact_tool_results(
+                                    compacted, _ = session_manager.compact_messages(
                                         from_id, to_id, summary
                                     )
-                                    print(f"📦 Replayed compaction: {compacted} tool result(s)")
+                                    print(f"📦 Replayed compaction: {compacted} message(s)")
                             except (json.JSONDecodeError, TypeError):
                                 pass  # Malformed args, skip
             elif content:

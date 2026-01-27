@@ -1301,15 +1301,25 @@ Chain everything optimistically. The pipeline handles failures for you."""
         }
 
     def _make_user_message(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        # Inject message ID into content so it's visible in history (for compaction)
+        msg_id = block.metadata.get("message_id")
+        content = block.content
+        if msg_id:
+            content = f"[{msg_id}] {content}"
         return {
             "role": "user",
-            "content": [self._make_content_block(block.content, is_last)],
+            "content": [self._make_content_block(content, is_last)],
         }
 
     def _make_assistant_message(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
+        # Inject message ID into content so it's visible in history (for compaction)
+        msg_id = block.metadata.get("message_id")
+        content = block.content
+        if msg_id:
+            content = f"[{msg_id}] {content}"
         return {
             "role": "assistant",
-            "content": [self._make_content_block(block.content, is_last)],
+            "content": [self._make_content_block(content, is_last)],
         }
 
     def _make_assistant_tool_call(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:
@@ -1345,8 +1355,16 @@ Chain everything optimistically. The pipeline handles failures for you."""
             "tool_calls": compacted_tool_calls,
         }
         # Include content if present (assistant may explain what it's doing)
+        # Inject message ID so it's visible in history (for compaction)
+        msg_id = block.metadata.get("message_id")
         if block.content:
-            msg["content"] = block.content
+            content = block.content
+            if msg_id:
+                content = f"[{msg_id}] {content}"
+            msg["content"] = content
+        elif msg_id:
+            # Even without content, inject the message ID so it's visible
+            msg["content"] = f"[{msg_id}]"
         return msg
 
     def _make_tool_result(self, block: ContentBlock, is_last: bool) -> dict[str, Any]:

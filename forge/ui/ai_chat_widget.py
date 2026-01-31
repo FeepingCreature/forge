@@ -140,7 +140,7 @@ class AIChatWidget(QWidget):
         else:
             # Summaries already exist (restored session) - emit initial context stats
             self._summaries_ready = True
-            self._emit_context_stats()
+            self.session_manager._emit_context_stats()
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
@@ -271,10 +271,8 @@ class AIChatWidget(QWidget):
             if commit_oid:
                 self.mid_turn_commit.emit(commit_oid)
 
-        # If tool modified context, emit signal to update UI
-        if result.get("action") == "update_context":
-            self.context_changed.emit(self.session_manager.active_files.copy())
-            self._emit_context_stats()
+        # If tool modified context, SessionManager will have already emitted signals
+        # via add_active_file/remove_active_file, so we don't need to do anything here
 
         # Display tool result (system messages for failures, etc.)
         self._display_tool_result(tool_name, tool_args, result)
@@ -295,13 +293,14 @@ class AIChatWidget(QWidget):
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
         self.ai_turn_finished.emit(commit_oid)
         self._notify_turn_complete(commit_oid)
-        self._emit_context_stats()
+        # Context stats are emitted by SessionManager when files change
+        self.session_manager._emit_context_stats()
 
         # Generate summaries for newly created files
         if self.runner._newly_created_files:
             for filepath in self.runner._newly_created_files:
                 self.session_manager.generate_summary_for_file(filepath)
-            self.summaries_ready.emit(self.session_manager.repo_summaries)
+            self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)
 
     def _on_runner_error(self, error_msg: str) -> None:
         """Handle error from runner."""
@@ -536,8 +535,8 @@ class AIChatWidget(QWidget):
         # Mark summaries as ready
         self._summaries_ready = True
 
-        # Emit signal so other widgets (like AskWidget) can access summaries
-        self.summaries_ready.emit(self.session_manager.repo_summaries)
+        # Emit signal through SessionManager so other widgets can access summaries
+        self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)
 
         # Set summaries in prompt manager (one-time snapshot for this session)
         self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)
@@ -548,9 +547,9 @@ class AIChatWidget(QWidget):
             if self.session_manager.vfs.file_exists(instructions_file):
                 self.session_manager.add_active_file(instructions_file)
 
-        # Emit context changed signal if we added any files
+        # Emit context changed signal through SessionManager if we added any files
         if self.session_manager.active_files:
-            self.context_changed.emit(self.session_manager.active_files.copy())
+            self.session_manager.context_changed.emit(self.session_manager.active_files.copy())
 
         # Update the progress message to show completion
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
@@ -564,7 +563,7 @@ class AIChatWidget(QWidget):
             self._add_system_message(f"✅ Generated summaries for {count} files")
 
         # Emit initial context stats now that summaries are ready
-        self._emit_context_stats()
+        self.session_manager._emit_context_stats()
 
     def _on_summaries_error(self, error_msg: str) -> None:
         """Handle summary generation error"""
@@ -689,29 +688,30 @@ class AIChatWidget(QWidget):
                 )
 
     def add_file_to_context(self, filepath: str) -> None:
-        """Add a file to the AI context"""
+        """Add a file to the AI context.
+
+        DEPRECATED: Connect directly to session_manager.add_active_file instead.
+        This method is kept for backward compatibility.
+        """
         # Never add session.json to context - it contains the conversation history
         # which would duplicate context and waste tokens
         if filepath == SESSION_FILE:
             return
+        # SessionManager now emits context_changed and context_stats_updated signals
         self.session_manager.add_active_file(filepath)
-        self.context_changed.emit(self.session_manager.active_files.copy())
-        self._emit_context_stats()
 
     def remove_file_from_context(self, filepath: str) -> None:
-        """Remove a file from the AI context"""
+        """Remove a file from the AI context.
+
+        DEPRECATED: Connect directly to session_manager.remove_active_file instead.
+        This method is kept for backward compatibility.
+        """
+        # SessionManager now emits context_changed and context_stats_updated signals
         self.session_manager.remove_active_file(filepath)
-        self.context_changed.emit(self.session_manager.active_files.copy())
-        self._emit_context_stats()
 
     def get_active_files(self) -> set[str]:
         """Get the set of files currently in AI context"""
         return self.session_manager.active_files.copy()
-
-    def _emit_context_stats(self) -> None:
-        """Emit context stats for status bar updates"""
-        stats = self.session_manager.get_active_files_with_stats()
-        self.context_stats_updated.emit(stats)
 
     def _process_tool_side_effects(
         self, result: dict[str, Any], cmd: InlineCommand | None = None
@@ -1661,7 +1661,7 @@ class AIChatWidget(QWidget):
         if self.runner.rewind_to_message(message_index):
             self._add_system_message(f"⏪ Rewound conversation to message {message_index + 1}")
             self._update_chat_display()
-            self._emit_context_stats()
+            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot rewind while AI is processing")
 
@@ -1680,7 +1680,7 @@ class AIChatWidget(QWidget):
         if self.runner.revert_turn(first_message_index):
             self._add_system_message("⏪ Reverted to before this turn")
             self._update_chat_display()
-            self._emit_context_stats()
+            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
 
@@ -1689,7 +1689,7 @@ class AIChatWidget(QWidget):
         if self.runner.revert_to_turn(first_message_index):
             self._add_system_message("⏪ Reverted to after this turn")
             self._update_chat_display()
-            self._emit_context_stats()
+            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
 

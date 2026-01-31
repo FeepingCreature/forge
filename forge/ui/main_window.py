@@ -199,9 +199,12 @@ class MainWindow(QMainWindow):
         branch_widget.ai_turn_started.connect(self._on_ai_turn_started)
         branch_widget.ai_turn_finished.connect(self._on_ai_turn_finished)
 
+        # Get session manager for direct signal connections
+        session_manager = workspace.session_manager
+
         # Connect file open to AI context sync (opening adds to context)
         # Note: closing a tab does NOT remove from context - use file explorer to manage
-        branch_widget.file_opened.connect(chat_widget.add_file_to_context)
+        branch_widget.file_opened.connect(session_manager.add_active_file)
 
         # Connect user typing signal to clear waiting indicator
         chat_widget.user_typing.connect(branch_widget.clear_waiting_indicator)
@@ -211,15 +214,15 @@ class MainWindow(QMainWindow):
             lambda msg_idx, bn=branch_name: self._fork_from_turn(bn, msg_idx)
         )
 
-        # Connect file explorer context changes to chat widget
-        branch_widget.context_file_added.connect(chat_widget.add_file_to_context)
-        branch_widget.context_file_removed.connect(chat_widget.remove_file_from_context)
+        # Connect file explorer context changes directly to SessionManager
+        branch_widget.context_file_added.connect(session_manager.add_active_file)
+        branch_widget.context_file_removed.connect(session_manager.remove_active_file)
 
-        # Connect chat widget context changes back to file explorer for visual update
-        chat_widget.context_changed.connect(branch_widget.update_context_display)
+        # Connect SessionManager context changes to file explorer for visual update
+        session_manager.context_changed.connect(branch_widget.update_context_display)
 
         # Connect context stats for status bar updates and file tab tooltips
-        chat_widget.context_stats_updated.connect(
+        session_manager.context_stats_updated.connect(
             lambda stats, bw=branch_widget: self._on_context_stats_updated(stats, bw)
         )
 
@@ -232,7 +235,7 @@ class MainWindow(QMainWindow):
                     continue
                 # Just add to context, don't open tab
                 with contextlib.suppress(FileNotFoundError):
-                    chat_widget.add_file_to_context(filepath)
+                    session_manager.add_active_file(filepath)
 
         # Restore open file tabs from XDG cache
         branch_widget.restore_open_files(str(self.repo.repo.workdir))

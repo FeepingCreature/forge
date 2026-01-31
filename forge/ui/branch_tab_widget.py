@@ -135,9 +135,9 @@ class BranchTabWidget(QWidget):
         if hasattr(chat_widget, "mid_turn_commit"):
             chat_widget.mid_turn_commit.connect(self._on_mid_turn_commit)
 
-        # Connect summaries_ready to pass summaries to AskWidget
-        if hasattr(chat_widget, "summaries_ready") and self._side_panel:
-            chat_widget.summaries_ready.connect(self._side_panel.set_summaries)
+        # Connect summaries_ready from SessionManager to AskWidget
+        if self._side_panel:
+            self.workspace.session_manager.summaries_ready.connect(self._side_panel.set_summaries)
 
         return index
 

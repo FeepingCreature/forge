@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
+from PySide6.QtCore import QObject, Signal
+
 from forge.constants import SESSION_FILE
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
@@ -24,10 +26,20 @@ from forge.prompts.manager import PromptManager
 from forge.tools.manager import ToolManager
 
 
-class SessionManager:
-    """Manages AI session lifecycle and git integration"""
+class SessionManager(QObject):
+    """Manages AI session lifecycle and git integration.
+
+    Emits signals for context changes so UI can update without
+    routing through the chat widget.
+    """
+
+    # Signals for context changes
+    context_changed = Signal(set)  # Emitted when active_files changes (set of filepaths)
+    context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
+    summaries_ready = Signal(dict)  # Emitted when repo summaries are ready (filepath -> summary)
 
     def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
+        super().__init__()
         self.branch_name = branch_name
         self.settings = settings
 
@@ -213,6 +225,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
+        if filepath in self.active_files:
+            return  # Already in context
+
         self.active_files.add(filepath)
 
         # Also add to prompt manager with current content (from VFS to include pending changes)
@@ -222,12 +237,28 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         except (FileNotFoundError, KeyError):
             pass  # File doesn't exist yet
 
+        # Emit signals for UI updates
+        self.context_changed.emit(self.active_files.copy())
+        self._emit_context_stats()
+
     def remove_active_file(self, filepath: str) -> None:
         """Remove a file from active context"""
+        if filepath not in self.active_files:
+            return  # Not in context
+
         self.active_files.discard(filepath)
 
         # Also remove from prompt manager
         self.prompt_manager.remove_file_content(filepath)
+
+        # Emit signals for UI updates
+        self.context_changed.emit(self.active_files.copy())
+        self._emit_context_stats()
+
+    def _emit_context_stats(self) -> None:
+        """Emit context stats signal for UI updates"""
+        stats = self.get_active_files_with_stats()
+        self.context_stats_updated.emit(stats)
 
     def file_was_modified(self, filepath: str, tool_call_id: str | None = None) -> None:
         """

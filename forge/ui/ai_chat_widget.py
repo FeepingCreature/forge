@@ -24,11 +24,15 @@ from forge.constants import SESSION_FILE
 from forge.tools.invocation import InlineCommand
 from forge.tools.side_effects import SideEffect
 from forge.ui.chat_helpers import ChatBridge, ExternalLinkPage
+from forge.ui.chat_message import (
+    ChatMessage,
+    build_tool_results_lookup,
+    group_messages_into_turns,
+)
 from forge.ui.chat_workers import SummaryWorker
 from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import (
     get_diff_styles,
-    render_completed_tool_html,
     render_streaming_tool_html,
 )
 
@@ -1477,94 +1481,23 @@ class AIChatWidget(QWidget):
         """
         self.chat_view.setHtml(html)
 
-    def _render_tool_calls_html(
-        self, tool_calls: list[dict[str, Any]], tool_results: dict[str, dict[str, Any]]
-    ) -> str:
-        """Render tool calls from a historical message as HTML.
-
-        Args:
-            tool_calls: List of tool call objects from assistant message
-            tool_results: Map of tool_call_id -> parsed result dict
-        """
-        html_parts = []
-        for tc in tool_calls:
-            func = tc.get("function", {})
-            name = func.get("name", "")
-            args_str = func.get("arguments", "")
-            tool_call_id = tc.get("id", "")
-
-            if not name:
-                continue
-
-            # Parse arguments
-            try:
-                args = json.loads(args_str) if args_str else {}
-            except json.JSONDecodeError:
-                args = {}
-
-            # Get the result for this tool call (if available)
-            result = tool_results.get(tool_call_id)
-
-            # Try native rendering for built-in tools
-            native_html = render_completed_tool_html(name, args, result)
-            if native_html:
-                html_parts.append(native_html)
-            else:
-                # Default rendering for unknown tools
-                escaped_args = (
-                    args_str.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                )
-                html_parts.append(f"""
-                <div class="tool-call-display">
-                    <div class="tool-name">🔧 {name}</div>
-                    <pre class="tool-args">{escaped_args}</pre>
-                </div>
-                """)
-
-        return "".join(html_parts)
-
     def _build_messages_html(self) -> str:
         """Build HTML for all messages, grouped by turn.
 
         A "turn" is a user message followed by all AI responses until the next user message.
         Each turn gets Revert/Fork buttons at the bottom.
         """
+        # Convert raw message dicts to ChatMessage objects
+        chat_messages = [ChatMessage.from_dict(msg) for msg in self.messages]
+        
+        # Build tool results lookup
+        tool_results = build_tool_results_lookup(chat_messages)
+        
+        # Group messages into turns
+        turns = group_messages_into_turns(chat_messages)
+        
         html_parts = []
-
-        # Build a lookup of tool_call_id -> parsed result for rendering tool calls with results
-        tool_results: dict[str, dict[str, Any]] = {}
-        for msg in self.messages:
-            if msg.get("role") == "tool" and "tool_call_id" in msg:
-                tool_call_id = msg["tool_call_id"]
-                content = msg.get("content", "")
-                try:
-                    tool_results[tool_call_id] = json.loads(content) if content else {}
-                except json.JSONDecodeError:
-                    tool_results[tool_call_id] = {}
-
-        # Group messages into turns (user message starts a new turn)
-        turns: list[list[tuple[int, dict[str, Any]]]] = []
-        current_turn: list[tuple[int, dict[str, Any]]] = []
-
-        for i, msg in enumerate(self.messages):
-            if msg.get("_skip_display"):
-                continue
-
-            role = msg.get("role", "")
-
-            # User message starts a new turn (except for the very first message)
-            # BUT mid-turn user messages (interruptions) stay in the current turn
-            is_mid_turn = msg.get("_mid_turn", False)
-            if role == "user" and current_turn and not is_mid_turn:
-                turns.append(current_turn)
-                current_turn = []
-
-            current_turn.append((i, msg))
-
-        # Don't forget the last turn
-        if current_turn:
-            turns.append(current_turn)
-
+        
         # Render each turn
         for turn_idx, turn_messages in enumerate(turns):
             # Check if this turn is currently streaming (last turn and we're streaming)
@@ -1593,53 +1526,18 @@ class AIChatWidget(QWidget):
                 """)
 
             for i, msg in turn_messages:
-                role = msg["role"]
-                content_md = msg["content"] or ""
-
                 # Check if this is the currently streaming message
                 is_streaming_msg = (
-                    self._is_streaming and i == len(self.messages) - 1 and role == "assistant"
+                    self._is_streaming and i == len(self.messages) - 1 and msg.role == "assistant"
                 )
-                msg_id = 'id="streaming-message"' if is_streaming_msg else ""
-
-                # Check if this message contains approval buttons that should be disabled
-                for tool_name in self.handled_approvals:
-                    if (
-                        f"onclick=\"approveTool('{tool_name}'" in content_md
-                        or f"onclick=\"rejectTool('{tool_name}'" in content_md
-                    ):
-                        content_md = content_md.replace(
-                            f"<button onclick=\"approveTool('{tool_name}', this)\">",
-                            f"<button onclick=\"approveTool('{tool_name}', this)\" disabled>",
-                        )
-                        content_md = content_md.replace(
-                            f"<button onclick=\"rejectTool('{tool_name}', this)\">",
-                            f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
-                        )
-
-                # For assistant messages with tool_calls, render them specially
-                tool_calls_html = ""
-                if role == "assistant" and "tool_calls" in msg:
-                    tool_calls_html = self._render_tool_calls_html(msg["tool_calls"], tool_results)
-
-                # Render content with markdown, handling any <edit> blocks as diffs
-                from forge.ui.tool_rendering import render_markdown
-
-                # Pass inline results if available (for showing execution results in widgets)
-                inline_results = msg.get("_inline_results")
-                content = render_markdown(content_md, inline_results=inline_results)
-
-                html_parts.append(f"""
-                <div class="message {role}" {msg_id}>
-                    <div class="role">{role.capitalize()}</div>
-                    <div class="content">{content}</div>
-                    {tool_calls_html}
-                </div>
-                """)
+                
+                # Render the message
+                html_parts.append(
+                    msg.render_html(tool_results, self.handled_approvals, is_streaming_msg)
+                )
 
             # Add turn actions at bottom - but not for streaming turns or first turn
             if not turn_is_streaming and turn_idx > 0:
-                first_msg_idx = turn_messages[0][0]
                 html_parts.append(f"""
                 <div class="turn-actions turn-actions-bottom">
                     <button class="turn-btn revert-btn" onclick="revertToTurn({first_msg_idx})" title="Revert to after this turn (undo later turns)">

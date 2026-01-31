@@ -278,9 +278,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
         self._had_mid_turn_commit = True
 
-    def compact_messages(
-        self, from_id: str, to_id: str, summary: str
-    ) -> tuple[int, str | None]:
+    def compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:
         """
         Compact conversation messages by replacing them with a summary.
 

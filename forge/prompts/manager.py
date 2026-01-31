@@ -289,6 +289,7 @@ class PromptManager:
     def append_assistant_message(self, content: str) -> None:
         """Add an assistant message to the stream"""
         import re
+
         # Strip any [id N] prefix the model may have echoed (we re-inject these)
         content = re.sub(r"^\[id \d+\]\s*", "", content)
 
@@ -305,6 +306,7 @@ class PromptManager:
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the stream, optionally with accompanying text content"""
         import re
+
         # Strip any [id N] prefix the model may have echoed (we re-inject these)
         if content:
             content = re.sub(r"^\[id \d+\]\s*", "", content)
@@ -557,9 +559,7 @@ class PromptManager:
                         return True
         return False
 
-    def compact_messages(
-        self, from_id: str, to_id: str, summary: str
-    ) -> tuple[int, str | None]:
+    def compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:
         """
         Compact conversation messages in a range by replacing their content with a summary.
 
@@ -1252,9 +1252,7 @@ Chain everything optimistically. The pipeline handles failures for you."""
                         if msg_id:
                             content = f"[id {msg_id}] {content}"
                     content_blocks.append(
-                        self._make_content_block(
-                            content, is_this_last or is_turn_boundary
-                        )
+                        self._make_content_block(content, is_this_last or is_turn_boundary)
                     )
                     i += 1
 

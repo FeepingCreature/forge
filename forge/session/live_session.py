@@ -549,7 +549,7 @@ class LiveSession(QObject):
     def _process_llm_request(self) -> None:
         """Start an LLM request with streaming."""
         from forge.llm.client import LLMClient
-        from forge.ui.ai_chat_widget import StreamWorker
+        from forge.ui.chat_workers import StreamWorker
 
         api_key = self.session_manager.settings.get_api_key()
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
@@ -640,7 +640,7 @@ class LiveSession(QObject):
 
     def _start_inline_command_execution(self, commands: list) -> None:
         """Start executing inline commands in background thread."""
-        from forge.ui.ai_chat_widget import InlineCommandWorker
+        from forge.ui.chat_workers import InlineCommandWorker
 
         self._inline_thread = QThread()
         self._inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)
@@ -789,7 +789,7 @@ class LiveSession(QObject):
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
         """Execute tool calls in background thread."""
-        from forge.ui.ai_chat_widget import ToolExecutionWorker
+        from forge.ui.chat_workers import ToolExecutionWorker
 
         self._pending_tools = self.session_manager.tool_manager.discover_tools()
 

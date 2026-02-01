@@ -222,9 +222,41 @@ class SessionRegistry(QObject):
         branch_name: str,
         repo: ForgeRepository | None = None,
         settings: Settings | None = None,
-    ) -> LiveSession | None:
-        """Load session if not loaded, return it."""
-        return self.load(branch_name, repo, settings)
+        session_manager: SessionManager | None = None,
+    ) -> LiveSession:
+        """
+        Get or create a LiveSession for a branch.
+
+        This is the main entry point for getting a session:
+        1. If already loaded, returns existing
+        2. If session.json exists, loads from disk
+        3. Otherwise creates a new empty session
+
+        Always returns a LiveSession (never None).
+        """
+        # Return existing if already loaded
+        if branch_name in self._sessions:
+            return self._sessions[branch_name]
+
+        # Try to load from disk
+        session = self.load(branch_name, repo, settings, session_manager)
+        if session:
+            return session
+
+        # Create new session - requires session_manager
+        if not session_manager:
+            from forge.session.manager import SessionManager
+
+            repo = repo or self._repo
+            if not repo or not settings:
+                raise ValueError("Cannot create new session without repo and settings")
+            session_manager = SessionManager(repo, branch_name, settings)
+
+        from forge.session.live_session import LiveSession
+
+        session = LiveSession(session_manager, [])
+        self.register(branch_name, session)
+        return session
 
     def get_all_loaded(self) -> dict[str, LiveSession]:
         """Get all currently loaded sessions."""

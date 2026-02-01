@@ -402,6 +402,15 @@
       "streaming": true,
       "actual_cost": 0.0619255,
       "generation_id": "gen-1769904764-nja6PmfcfpJ2NMKJxmbQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769904800065.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769904800065.json",
+      "timestamp": 1769904800.0670114,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.07173925,
+      "generation_id": "gen-1769904800-jnrIuatlK5PeC5OesSOv"
     }
   ],
   "messages": [
@@ -1433,6 +1442,63 @@
         },
         {
           "commit": "ca50cccd8f96",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 67607bf4",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "We still have a ton of fallback code in __init__, do we actually still *need* that?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 72] You're right! Looking at the `__init__` code:\n\n```python\nexisting_session = SESSION_REGISTRY.get(self.branch_name)\nif existing_session:\n    self.runner = existing_session\nelse:\n    loaded = SESSION_REGISTRY.load(...)\n    if loaded:\n        self.runner = loaded\n        if session_data:\n            self.session_manager.restore_request_log(session_data)\n    else:\n        # New session - create fresh LiveSession\n        from forge.session.live_session import LiveSession\n        self.runner = LiveSession(self.session_manager, [])\n        SESSION_REGISTRY.register(self.branch_name, self.runner)\n```\n\nThis is \"No fallbacks\" territory from CLAUDE.md! The widget shouldn't be doing this orchestration at all. The caller should ensure a session exists before creating the widget, or we should have a single clear path.\n\nLet me simplify - the registry should handle ALL of this, including creating new sessions:\n\n<edit file=\"forge/session/registry.py\">\n<search>\n    def ensure_loaded(\n        self,\n        branch_name: str,\n        repo: ForgeRepository | None = None,\n        settings: Settings | None = None,\n    ) -> LiveSession | None:\n        \"\"\"Load session if not loaded, return it.\"\"\"\n        return self.load(branch_name, repo, settings)\n</search>\n<replace>\n    def ensure_loaded(\n        self,\n        branch_name: str,\n        repo: ForgeRepository | None = None,\n        settings: Settings | None = None,\n        session_manager: SessionManager | None = None,\n    ) -> LiveSession:\n        \"\"\"\n        Get or create a LiveSession for a branch.\n\n        This is the main entry point for getting a session:\n        1. If already loaded, returns existing\n        2. If session.json exists, loads from disk\n        3. Otherwise creates a new empty session\n\n        Always returns a LiveSession (never None).\n        \"\"\"\n        # Return existing if already loaded\n        if branch_name in self._sessions:\n            return self._sessions[branch_name]\n\n        # Try to load from disk\n        session = self.load(branch_name, repo, settings, session_manager)\n        if session:\n            return session\n\n        # Create new session - requires session_manager\n        if not session_manager:\n            from forge.session.manager import SessionManager\n\n            repo = repo or self._repo\n            if not repo or not settings:\n                raise ValueError(\"Cannot create new session without repo and settings\")\n            session_manager = SessionManager(repo, branch_name, settings)\n\n        from forge.session.live_session import LiveSession\n\n        session = LiveSession(session_manager, [])\n        self.register(branch_name, session)\n        return session\n</replace>\n</edit>\n\nNow simplify `AIChatWidget.__init__` to use `ensure_loaded`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # Get or load the LiveSession from registry\n        # Pass our existing SessionManager to avoid creating duplicates\n        from forge.session.registry import SESSION_REGISTRY\n\n        existing_session = SESSION_REGISTRY.get(self.branch_name)\n        if existing_session:\n            # Reuse existing session (e.g., from spawn_session or already loaded)\n            self.runner = existing_session\n        else:\n            # Try to load from disk (registry handles replay, state restoration, etc.)\n            # Pass our SessionManager so it doesn't create a duplicate\n            loaded = SESSION_REGISTRY.load(\n                self.branch_name,\n                self.repo,\n                self.settings,\n                session_manager=self.session_manager,\n            )\n            if loaded:\n                self.runner = loaded\n                # Restore request log (UI concern, not session logic)\n                if session_data:\n                    self.session_manager.restore_request_log(session_data)\n            else:\n                # New session (no session.json) - create fresh LiveSession\n                from forge.session.live_session import LiveSession\n\n                self.runner = LiveSession(self.session_manager, [])\n                SESSION_REGISTRY.register(self.branch_name, self.runner)\n</search>\n<replace>\n        # Get or create the LiveSession from registry\n        # Registry handles: loading from disk, replaying messages, restoring state, or creating new\n        from forge.session.registry import SESSION_REGISTRY\n\n        self.runner = SESSION_REGISTRY.ensure_loaded(\n            self.branch_name,\n            self.repo,\n            self.settings,\n            session_manager=self.session_manager,\n        )\n\n        # Restore request log if we have session data (UI concern)\n        if session_data:\n            self.session_manager.restore_request_log(session_data)\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Simplify AIChatWidget session init - use ensure_loaded()\n\n- SessionRegistry.ensure_loaded() now handles all cases: get existing,\n  load from disk, or create new session\n- AIChatWidget.__init__ is now a single call instead of branching fallback code\n- Follows 'No fallbacks' principle from CLAUDE.md\"/>\n\nNow `AIChatWidget.__init__` is much simpler - just one call to `ensure_loaded()` which handles all the cases internally.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/registry.py",
+          "modified_files": [
+            "forge/session/registry.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 89 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "f36e7f880658",
           "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

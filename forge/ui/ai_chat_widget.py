@@ -93,34 +93,20 @@ class AIChatWidget(QWidget):
         # that need UI elements (send_button, chat_view, etc.)
         self._setup_ui()
 
-        # Get or load the LiveSession from registry
-        # Pass our existing SessionManager to avoid creating duplicates
+        # Get or create the LiveSession from registry
+        # Registry handles: loading from disk, replaying messages, restoring state, or creating new
         from forge.session.registry import SESSION_REGISTRY
 
-        existing_session = SESSION_REGISTRY.get(self.branch_name)
-        if existing_session:
-            # Reuse existing session (e.g., from spawn_session or already loaded)
-            self.runner = existing_session
-        else:
-            # Try to load from disk (registry handles replay, state restoration, etc.)
-            # Pass our SessionManager so it doesn't create a duplicate
-            loaded = SESSION_REGISTRY.load(
-                self.branch_name,
-                self.repo,
-                self.settings,
-                session_manager=self.session_manager,
-            )
-            if loaded:
-                self.runner = loaded
-                # Restore request log (UI concern, not session logic)
-                if session_data:
-                    self.session_manager.restore_request_log(session_data)
-            else:
-                # New session (no session.json) - create fresh LiveSession
-                from forge.session.live_session import LiveSession
+        self.runner = SESSION_REGISTRY.ensure_loaded(
+            self.branch_name,
+            self.repo,
+            self.settings,
+            session_manager=self.session_manager,
+        )
 
-                self.runner = LiveSession(self.session_manager, [])
-                SESSION_REGISTRY.register(self.branch_name, self.runner)
+        # Restore request log if we have session data (UI concern)
+        if session_data:
+            self.session_manager.restore_request_log(session_data)
 
         # Attach to the runner (we're the UI now)
         self._attach_to_runner()

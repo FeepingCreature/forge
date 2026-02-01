@@ -217,10 +217,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
             return False
 
         # Check user-defined exclusion patterns
-        if self._matches_exclusion_pattern(filepath):
-            return False
-
-        return True
+        return not self._matches_exclusion_pattern(filepath)
 
     def _load_exclusion_patterns(self) -> list[str]:
         """Load exclusion patterns from repo config."""
@@ -233,10 +230,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         from forge.ui.summary_exclusions_dialog import matches_pattern
 
         patterns = self._load_exclusion_patterns()
-        for pattern in patterns:
-            if matches_pattern(filepath, pattern):
-                return True
-        return False
+        return any(matches_pattern(filepath, pattern) for pattern in patterns)
 
     def build_context(self) -> dict[str, Any]:
         """Build context for LLM with summaries and active files (legacy method)"""

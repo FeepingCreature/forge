@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 if TYPE_CHECKING:
     from forge.ui.branch_workspace import BranchWorkspace
+    from forge.vfs.base import VFS
 
 CONFIG_FILE = ".forge/config.json"
 
@@ -149,9 +150,7 @@ class SummaryExclusionsDialog(QDialog):
         layout.addLayout(list_row)
 
         # Note about when changes take effect
-        note = QLabel(
-            "<i>Changes take effect on the next AI request.</i>"
-        )
+        note = QLabel("<i>Changes take effect on the next AI request.</i>")
         note.setWordWrap(True)
         note.setStyleSheet("color: #888; font-size: 10px;")
         layout.addWidget(note)
@@ -230,12 +229,13 @@ class SummaryExclusionsDialog(QDialog):
             self.pattern_list.setCurrentRow(row + 1)
             self._update_file_counts()
 
-    def _load_config(self) -> dict:
+    def _load_config(self) -> dict[str, list[str]]:
         """Load the repo config file."""
         try:
             if self.workspace.vfs.file_exists(CONFIG_FILE):
                 content = self.workspace.vfs.read_file(CONFIG_FILE)
-                return json.loads(content)
+                result: dict[str, list[str]] = json.loads(content)
+                return result
         except (json.JSONDecodeError, FileNotFoundError, KeyError):
             pass
         return {}
@@ -246,20 +246,22 @@ class SummaryExclusionsDialog(QDialog):
 
         self.workspace.vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
         # Commit as PREPARE so it merges into the next real commit
-        self.workspace.vfs.commit("Update summary exclusion patterns", commit_type=CommitType.PREPARE)
+        self.workspace.vfs.commit(
+            "Update summary exclusion patterns", commit_type=CommitType.PREPARE
+        )
 
     def _load_patterns(self) -> None:
         """Load current exclusion patterns into the list.
-        
+
         Uses load_summary_exclusions() which creates defaults if needed.
         """
         # Cache file list for counting
         self._all_files = self.workspace.vfs.list_files()
-        
+
         patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)
         for pattern in patterns:
             self._add_pattern_item(pattern)
-        
+
         self._update_file_counts()
 
     def _add_pattern_item(self, pattern: str) -> QListWidgetItem:
@@ -272,26 +274,26 @@ class SummaryExclusionsDialog(QDialog):
     def _update_file_counts(self) -> None:
         """Update file counts for all patterns, showing incremental matches."""
         already_matched: set[str] = set()
-        
+
         for i in range(self.pattern_list.count()):
             item = self.pattern_list.item(i)
             pattern = item.data(Qt.ItemDataRole.UserRole)
-            
+
             # Count files matching this pattern
             matches_this = set()
             for filepath in self._all_files:
                 if filepath not in already_matched and matches_pattern(filepath, pattern):
                     matches_this.add(filepath)
-            
+
             # Update display text
             new_matches = len(matches_this)
             total_would_match = sum(1 for f in self._all_files if matches_pattern(f, pattern))
-            
+
             if new_matches == total_would_match:
                 item.setText(f"{pattern}  ({new_matches} files)")
             else:
                 item.setText(f"{pattern}  ({new_matches} new, {total_would_match} total)")
-            
+
             already_matched.update(matches_this)
 
     def _save_and_close(self) -> None:
@@ -311,7 +313,7 @@ class SummaryExclusionsDialog(QDialog):
 
 def matches_pattern(filepath: str, pattern: str) -> bool:
     """Check if a filepath matches a gitignore-style exclusion pattern.
-    
+
     Gitignore pattern rules:
     - /folder/ → anchored to root, matches folder/ at top level only
     - folder/ → matches folder/ anywhere in the tree
@@ -320,32 +322,32 @@ def matches_pattern(filepath: str, pattern: str) -> bool:
     - folder/*.ext → matches that specific path pattern
     - **/ → matches zero or more directories
     - !pattern → negation (handled separately, not here)
-    
+
     Returns True if the filepath matches the pattern.
     """
     if not pattern:
         return False
-    
+
     # Handle negation marker (caller should handle this)
     if pattern.startswith("!"):
         return False
-    
+
     # Check if pattern is anchored to root
     anchored = pattern.startswith("/")
     if anchored:
         pattern = pattern[1:]  # Remove leading slash
-    
+
     # Check if pattern is for directories
     is_dir_pattern = pattern.endswith("/")
     if is_dir_pattern:
         pattern = pattern[:-1]  # Remove trailing slash for matching
-    
-    # If pattern contains no slash (after removing leading/trailing), 
+
+    # If pattern contains no slash (after removing leading/trailing),
     # it matches basename anywhere (unless anchored)
     if "/" not in pattern and not anchored:
         # Match against any path component or the basename
         return _match_basename_anywhere(filepath, pattern, is_dir_pattern)
-    
+
     # Pattern with slash - match against full path
     return _match_path(filepath, pattern, anchored, is_dir_pattern)
 
@@ -353,31 +355,19 @@ def matches_pattern(filepath: str, pattern: str) -> bool:
 def _match_basename_anywhere(filepath: str, pattern: str, is_dir_pattern: bool) -> bool:
     """Match a pattern against basename anywhere in the path."""
     parts = filepath.split("/")
-    
+
     if is_dir_pattern:
         # For directory patterns, check if any directory component matches
         # e.g., "node_modules/" should match "foo/node_modules/bar.js"
-        for i, part in enumerate(parts[:-1]):  # Exclude filename
-            if fnmatch.fnmatch(part, pattern):
-                return True
-        # Also match if the file itself is in a matching directory
-        # Check all prefixes
-        for i in range(len(parts)):
-            if fnmatch.fnmatch(parts[i], pattern):
-                # This is a directory in the path
-                if i < len(parts) - 1:
-                    return True
-        return False
+        # Check all directory components (excluding the filename)
+        return any(fnmatch.fnmatch(parts[i], pattern) for i in range(len(parts) - 1))
     else:
         # For file patterns, match against basename
         basename = parts[-1]
         if fnmatch.fnmatch(basename, pattern):
             return True
         # Also try matching against each path component (for patterns like __pycache__)
-        for part in parts:
-            if fnmatch.fnmatch(part, pattern):
-                return True
-        return False
+        return any(fnmatch.fnmatch(part, pattern) for part in parts)
 
 
 def _match_path(filepath: str, pattern: str, anchored: bool, is_dir_pattern: bool) -> bool:
@@ -386,7 +376,7 @@ def _match_path(filepath: str, pattern: str, anchored: bool, is_dir_pattern: boo
     # ** matches any number of directories
     fnmatch_pattern = pattern.replace("**/", "[-STARSTAR-]")
     fnmatch_pattern = fnmatch_pattern.replace("**", "[-STARSTAR-]")
-    
+
     if anchored:
         # Anchored patterns match from the start
         if is_dir_pattern:
@@ -410,9 +400,7 @@ def _match_path(filepath: str, pattern: str, anchored: bool, is_dir_pattern: boo
             # Match if this directory appears anywhere in path
             if filepath.startswith(pattern + "/"):
                 return True
-            if ("/" + pattern + "/") in ("/" + filepath):
-                return True
-            return False
+            return ("/" + pattern + "/") in ("/" + filepath)
         else:
             # Try matching at each position
             if fnmatch.fnmatch(filepath, pattern):
@@ -457,7 +445,7 @@ def _glob_to_regex(pattern: str) -> re.Pattern:
     return re.compile("^" + result + "$")
 
 
-def load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:
+def load_summary_exclusions(vfs: "VFS", create_default: bool = True) -> list[str]:
     """
     Load summary exclusion patterns from repo config.
 
@@ -474,16 +462,17 @@ def load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:
             config = json.loads(content)
             # Key exists - return it (even if empty, user may have cleared it)
             if "summary_exclusions" in config:
-                return config["summary_exclusions"]
+                exclusions: list[str] = config["summary_exclusions"]
+                return exclusions
             # Config exists but no exclusions key - add defaults
             config["summary_exclusions"] = DEFAULT_EXCLUSIONS.copy()
             vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
-            return config["summary_exclusions"]
+            return DEFAULT_EXCLUSIONS.copy()
         elif create_default:
             # No config file - create with defaults
             config = {"summary_exclusions": DEFAULT_EXCLUSIONS.copy()}
             vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
-            return config["summary_exclusions"]
+            return DEFAULT_EXCLUSIONS.copy()
     except (json.JSONDecodeError, FileNotFoundError, KeyError):
         pass
     return []

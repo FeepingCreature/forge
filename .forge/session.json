@@ -1,9 +1,9 @@
 {
   "active_files": [
+    "forge/tools/builtin/grep_open.py",
     "forge/tools/builtin/grep_context.py",
     "forge/session/manager.py",
     "forge/ui/summary_exclusions_dialog.py",
-    "forge/tools/builtin/grep_open.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -456,6 +456,15 @@
       "streaming": true,
       "actual_cost": 0.06563075,
       "generation_id": "gen-1769968497-s35FIiIO9hcJpVr0ujkJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968650990.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968650990.json",
+      "timestamp": 1769968650.991507,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.45028125,
+      "generation_id": "gen-1769968651-SNrcVAvFbc1xq2eHlY6b"
     }
   ],
   "messages": [
@@ -1391,6 +1400,60 @@
         {
           "commit": "e8976d58e661",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, on reflection... summary exclusions really don't need to consider files that aren't committed in the first place, right? So if a file like node_modules wouldn't be git committed in the first place, it doesn't really have to be in the exclusion list? The tools only operate on vfs state anyway."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 48] You're absolutely right! The VFS only sees files that are tracked in git. If `node_modules/` isn't committed (because it's in `.gitignore`), it won't appear in `vfs.list_files()` and thus doesn't need to be in the exclusion list.\n\nThe exclusion list is really for files that ARE committed but that you don't want summarized - things like:\n- Vendored code (committed but not interesting)\n- Large generated files that happen to be tracked\n- Test fixtures/snapshots\n- Lock files (often committed)\n\nLet me update the defaults to remove patterns that would already be handled by `.gitignore`:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n# Default exclusion patterns for new repositories\n# These match the DEFAULT_EXCLUDE_DIRS used in grep tools, plus common generated files\nDEFAULT_EXCLUSIONS = [\n    # Directories (matching grep_open/grep_context defaults)\n    \".git/\",\n    \"__pycache__/\",\n    \"node_modules/\",\n    \".venv/\",\n    \"venv/\",\n    # Build/dist directories\n    \"dist/\",\n    \"build/\",\n    \".next/\",\n    \".nuxt/\",\n    \"coverage/\",\n    # IDE/editor directories\n    \".idea/\",\n    \".vscode/\",\n    # Minified files\n    \"*.min.js\",\n    \"*.min.css\",\n    # Lock files\n    \"*.lock\",\n    \"package-lock.json\",\n    \"yarn.lock\",\n    \"poetry.lock\",\n    \"pnpm-lock.yaml\",\n    # Compiled files\n    \"*.pyc\",\n    \"*.pyo\",\n    # OS files\n    \".DS_Store\",\n    \"Thumbs.db\",\n]\n</search>\n<replace>\n# Default exclusion patterns for new repositories\n# Note: Files not tracked in git (via .gitignore) won't appear anyway.\n# This list is for committed files you don't want summarized.\nDEFAULT_EXCLUSIONS = [\n    # Vendored/dependency directories (if committed)\n    \"vendor/\",\n    \"third_party/\",\n    # Lock files (often committed)\n    \"*.lock\",\n    \"package-lock.json\",\n    \"yarn.lock\",\n    \"poetry.lock\",\n    \"pnpm-lock.yaml\",\n    # Minified files (if committed)\n    \"*.min.js\",\n    \"*.min.css\",\n    # Test snapshots\n    \"__snapshots__/\",\n    \"*.snap\",\n]\n</replace>\n</edit>\n\nAlso update the dialog instructions to clarify this:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n        instructions = QLabel(\n            \"Patterns use gitignore syntax:\\n\"\n            \"\u2022 <code>folder/</code> \u2014 exclude folder anywhere\\n\"\n            \"\u2022 <code>/folder/</code> \u2014 exclude folder at root only\\n\"\n            \"\u2022 <code>*.ext</code> \u2014 exclude extension everywhere\\n\"\n            \"\u2022 <code>**/test/*.py</code> \u2014 glob with <code>**</code> wildcards\"\n        )\n</search>\n<replace>\n        instructions = QLabel(\n            \"Exclude committed files from AI summaries (gitignore syntax):\\n\"\n            \"\u2022 <code>folder/</code> \u2014 exclude folder anywhere\\n\"\n            \"\u2022 <code>/folder/</code> \u2014 exclude folder at root only\\n\"\n            \"\u2022 <code>*.ext</code> \u2014 exclude extension everywhere\\n\"\n            \"<i>Note: Files in .gitignore are already excluded.</i>\"\n        )\n</replace>\n</edit>\n\n<run_tests/>\n<commit message=\"refactor: Simplify default exclusions - gitignored files already excluded\n\nVFS only sees git-tracked files, so patterns like node_modules/,\n__pycache__/, .venv/ are redundant if they're in .gitignore.\n\nNew defaults focus on committed-but-uninteresting files:\n- vendor/, third_party/ (vendored code)\n- Lock files (package-lock.json, etc.)\n- Minified files (*.min.js, *.min.css)\n- Test snapshots\"/>\n\nGood catch! The defaults are now much more focused on files that would actually be committed but aren't useful to summarize:\n- **Vendored code**: `vendor/`, `third_party/`\n- **Lock files**: `*.lock`, `package-lock.json`, `yarn.lock`, `poetry.lock`, `pnpm-lock.yaml`\n- **Minified files**: `*.min.js`, `*.min.css`\n- **Test snapshots**: `__snapshots__/`, `*.snap`",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j72jteet\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 98 items\n\ntests/test_inline_edit.py ................                               [ 16%]\ntests/test_prompt_manager.py .......................................     [ 56%]\ntests/test_session_spawn.py .................                            [ 73%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================== 98 passed in 0.32s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j72jteet\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 98 items\n\ntests/test_inline_edit.py ................                               [ 16%]\ntests/test_prompt_manager.py .......................................     [ 56%]\ntests/test_session_spawn.py .................                            [ 73%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================== 98 passed in 0.32s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "cc1533da27e3",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

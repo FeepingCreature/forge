@@ -27,38 +27,24 @@ if TYPE_CHECKING:
 CONFIG_FILE = ".forge/config.json"
 
 # Default exclusion patterns for new repositories
-# These match the DEFAULT_EXCLUDE_DIRS used in grep tools, plus common generated files
+# Note: Files not tracked in git (via .gitignore) won't appear anyway.
+# This list is for committed files you don't want summarized.
 DEFAULT_EXCLUSIONS = [
-    # Directories (matching grep_open/grep_context defaults)
-    ".git/",
-    "__pycache__/",
-    "node_modules/",
-    ".venv/",
-    "venv/",
-    # Build/dist directories
-    "dist/",
-    "build/",
-    ".next/",
-    ".nuxt/",
-    "coverage/",
-    # IDE/editor directories
-    ".idea/",
-    ".vscode/",
-    # Minified files
-    "*.min.js",
-    "*.min.css",
-    # Lock files
+    # Vendored/dependency directories (if committed)
+    "vendor/",
+    "third_party/",
+    # Lock files (often committed)
     "*.lock",
     "package-lock.json",
     "yarn.lock",
     "poetry.lock",
     "pnpm-lock.yaml",
-    # Compiled files
-    "*.pyc",
-    "*.pyo",
-    # OS files
-    ".DS_Store",
-    "Thumbs.db",
+    # Minified files (if committed)
+    "*.min.js",
+    "*.min.css",
+    # Test snapshots
+    "__snapshots__/",
+    "*.snap",
 ]
 
 
@@ -84,11 +70,11 @@ class SummaryExclusionsDialog(QDialog):
         layout.addWidget(title)
 
         instructions = QLabel(
-            "Patterns use gitignore syntax:\n"
+            "Exclude committed files from AI summaries (gitignore syntax):\n"
             "• <code>folder/</code> — exclude folder anywhere\n"
             "• <code>/folder/</code> — exclude folder at root only\n"
             "• <code>*.ext</code> — exclude extension everywhere\n"
-            "• <code>**/test/*.py</code> — glob with <code>**</code> wildcards"
+            "<i>Note: Files in .gitignore are already excluded.</i>"
         )
         instructions.setTextFormat(Qt.TextFormat.RichText)
         instructions.setStyleSheet("color: #666; margin-bottom: 8px;")

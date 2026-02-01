@@ -24,20 +24,38 @@ if TYPE_CHECKING:
 CONFIG_FILE = ".forge/config.json"
 
 # Default exclusion patterns for new repositories
+# These match the DEFAULT_EXCLUDE_DIRS used in grep tools, plus common generated files
 DEFAULT_EXCLUSIONS = [
-    "node_modules/",
+    # Directories (matching grep_open/grep_context defaults)
+    ".git/",
     "__pycache__/",
+    "node_modules/",
     ".venv/",
     "venv/",
-    ".git/",
+    # Build/dist directories
+    "dist/",
+    "build/",
+    ".next/",
+    ".nuxt/",
+    "coverage/",
+    # IDE/editor directories
+    ".idea/",
+    ".vscode/",
+    # Minified files
     "*.min.js",
     "*.min.css",
+    # Lock files
     "*.lock",
     "package-lock.json",
     "yarn.lock",
     "poetry.lock",
+    "pnpm-lock.yaml",
+    # Compiled files
     "*.pyc",
+    "*.pyo",
+    # OS files
     ".DS_Store",
+    "Thumbs.db",
 ]
 
 

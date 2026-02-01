@@ -239,9 +239,11 @@ class SummaryExclusionsDialog(QDialog):
         self.workspace.commit("Update summary exclusion patterns")
 
     def _load_patterns(self) -> None:
-        """Load current exclusion patterns into the list."""
-        config = self._load_config()
-        patterns = config.get("summary_exclusions", [])
+        """Load current exclusion patterns into the list.
+        
+        Uses load_summary_exclusions() which creates defaults if needed.
+        """
+        patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)
         for pattern in patterns:
             self.pattern_list.addItem(QListWidgetItem(pattern))
 

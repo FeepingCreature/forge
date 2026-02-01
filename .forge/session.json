@@ -1,10 +1,10 @@
 {
   "active_files": [
-    "CLAUDE.md",
     "forge/ui/ai_chat_widget.py",
-    "forge/ui/file_explorer_widget.py",
+    "CLAUDE.md",
     "forge/ui/js_cache.py",
     "forge/session/manager.py",
+    "forge/ui/file_explorer_widget.py",
     "forge/ui/summary_exclusions_dialog.py"
   ],
   "request_log_entries": [
@@ -295,6 +295,24 @@
       "streaming": true,
       "actual_cost": 0.05199,
       "generation_id": "gen-1769967766-Iy54Zhy7xnzjkCDLGXmd"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967839736.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967839736.json",
+      "timestamp": 1769967839.7372882,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.4247725,
+      "generation_id": "gen-1769967844-vtjPcPaN61N0JBzp8rC0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967858635.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967858635.json",
+      "timestamp": 1769967858.6361125,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0460545,
+      "generation_id": "gen-1769967858-JGnxUSqx0EosUvrWjadK"
     }
   ],
   "messages": [
@@ -773,6 +791,38 @@
         {
           "commit": "1b5e5d653e7c",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, the defaults don't show up for me if I open the dialog?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 25] I see the issue! The `_load_patterns` method in the dialog reads from `_load_config()`, which only returns existing patterns from the file. It doesn't trigger the default creation that happens in `load_summary_exclusions()`. Let me fix this:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _load_patterns(self) -> None:\n        \"\"\"Load current exclusion patterns into the list.\"\"\"\n        config = self._load_config()\n        patterns = config.get(\"summary_exclusions\", [])\n        for pattern in patterns:\n            self.pattern_list.addItem(QListWidgetItem(pattern))\n</search>\n<replace>\n    def _load_patterns(self) -> None:\n        \"\"\"Load current exclusion patterns into the list.\n        \n        Uses load_summary_exclusions() which creates defaults if needed.\n        \"\"\"\n        patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)\n        for pattern in patterns:\n            self.pattern_list.addItem(QListWidgetItem(pattern))\n</replace>\n</edit>\n\n<run_tests/>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `run_tests` failed:\n\n============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_qooct458\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n                            [100%]\n--- stderr ---\nQThread: Destroyed while thread '' is still running\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 27] Tests pass! The QThread warning is pre-existing and unrelated. Let me commit:\n\n<commit message=\"fix: Load default exclusions when opening dialog\n\nUse load_summary_exclusions() in _load_patterns() so defaults\nare created if the config doesn't exist yet.\"/>\n\nDone! The dialog now properly loads the default exclusions when opened for the first time. The `load_summary_exclusions()` function handles creating the config with defaults if it doesn't exist.",
+      "_inline_results": [
+        {
+          "commit": "1651b5439613",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

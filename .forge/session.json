@@ -1,6 +1,7 @@
 {
   "active_files": [
     "forge/tools/builtin/grep_context.py",
+    "forge/session/manager.py",
     "forge/ui/summary_exclusions_dialog.py",
     "forge/tools/builtin/grep_open.py",
     "CLAUDE.md"
@@ -365,6 +366,33 @@
       "streaming": true,
       "actual_cost": 0.07496125,
       "generation_id": "gen-1769968162-SCD2DaNJHvFoMCCk7bUr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968195339.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968195339.json",
+      "timestamp": 1769968195.3403351,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.15052975,
+      "generation_id": "gen-1769968195-mW1wcTDCNxIijS3MZKyK"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968233666.json",
+      "response_file": null,
+      "timestamp": 1769968233.667978,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": null
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968236714.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968236714.json",
+      "timestamp": 1769968236.7151415,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0609395,
+      "generation_id": "gen-1769968236-yXx2rugTqFd3UrbhvTaV"
     }
   ],
   "messages": [
@@ -1053,6 +1081,116 @@
         {
           "commit": "53f1630f036c",
           "message": "Committed: 3 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: aac168a1",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Can we make the pattern format generic? We should use the same logic that .gitignore does. Ie. /folder/ vs folder/ and wildcard parsing."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 40] Good idea! Let me implement proper gitignore-style pattern matching. The key differences are:\n\n- `/folder/` - anchored to root\n- `folder/` - matches anywhere\n- `*` - matches within path component\n- `**` - matches across path components\n- `!pattern` - negation (exclude from exclusion)\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\ndef matches_pattern(filepath: str, pattern: str) -> bool:\n    \"\"\"Check if a filepath matches an exclusion pattern.\n    \n    Patterns can be:\n    - folder/ \u2192 matches folder/**/* (entire directory)\n    - *.ext \u2192 matches **/*.ext (extension anywhere)\n    - folder/*.ext \u2192 matches folder/*.ext (specific folder + extension)\n    - exact/path.py \u2192 matches exact path\n    \"\"\"\n    if not pattern:\n        return False\n\n    # Directory pattern: \"folder/\" matches everything under folder\n    if pattern.endswith(\"/\"):\n        dir_prefix = pattern\n        return filepath.startswith(dir_prefix) or filepath + \"/\" == dir_prefix\n\n    # Extension pattern without path: \"*.ext\" matches anywhere\n    if pattern.startswith(\"*.\") and \"/\" not in pattern:\n        ext_pattern = pattern[1:]  # e.g., \".min.js\"\n        return filepath.endswith(ext_pattern)\n\n    # General glob pattern: use fnmatch\n    if fnmatch.fnmatch(filepath, pattern):\n        return True\n\n    # Also try with ** prefix for patterns that should match anywhere\n    if \"*\" in pattern and not pattern.startswith(\"*\"):\n        if fnmatch.fnmatch(filepath, \"**/\" + pattern):\n            return True\n\n    return False\n</search>\n<replace>\ndef matches_pattern(filepath: str, pattern: str) -> bool:\n    \"\"\"Check if a filepath matches a gitignore-style exclusion pattern.\n    \n    Gitignore pattern rules:\n    - /folder/ \u2192 anchored to root, matches folder/ at top level only\n    - folder/ \u2192 matches folder/ anywhere in the tree\n    - /file.txt \u2192 anchored to root, matches file.txt at top level only\n    - *.ext \u2192 matches *.ext anywhere (no slash = basename match)\n    - folder/*.ext \u2192 matches that specific path pattern\n    - **/ \u2192 matches zero or more directories\n    - !pattern \u2192 negation (handled separately, not here)\n    \n    Returns True if the filepath matches the pattern.\n    \"\"\"\n    if not pattern:\n        return False\n    \n    # Handle negation marker (caller should handle this)\n    if pattern.startswith(\"!\"):\n        return False\n    \n    # Check if pattern is anchored to root\n    anchored = pattern.startswith(\"/\")\n    if anchored:\n        pattern = pattern[1:]  # Remove leading slash\n    \n    # Check if pattern is for directories\n    is_dir_pattern = pattern.endswith(\"/\")\n    if is_dir_pattern:\n        pattern = pattern[:-1]  # Remove trailing slash for matching\n    \n    # If pattern contains no slash (after removing leading/trailing), \n    # it matches basename anywhere (unless anchored)\n    if \"/\" not in pattern and not anchored:\n        # Match against any path component or the basename\n        return _match_basename_anywhere(filepath, pattern, is_dir_pattern)\n    \n    # Pattern with slash - match against full path\n    return _match_path(filepath, pattern, anchored, is_dir_pattern)\n\n\ndef _match_basename_anywhere(filepath: str, pattern: str, is_dir_pattern: bool) -> bool:\n    \"\"\"Match a pattern against basename anywhere in the path.\"\"\"\n    parts = filepath.split(\"/\")\n    \n    if is_dir_pattern:\n        # For directory patterns, check if any directory component matches\n        # e.g., \"node_modules/\" should match \"foo/node_modules/bar.js\"\n        for i, part in enumerate(parts[:-1]):  # Exclude filename\n            if fnmatch.fnmatch(part, pattern):\n                return True\n        # Also match if the file itself is in a matching directory\n        # Check all prefixes\n        for i in range(len(parts)):\n            if fnmatch.fnmatch(parts[i], pattern):\n                # This is a directory in the path\n                if i < len(parts) - 1:\n                    return True\n        return False\n    else:\n        # For file patterns, match against basename\n        basename = parts[-1]\n        if fnmatch.fnmatch(basename, pattern):\n            return True\n        # Also try matching against each path component (for patterns like __pycache__)\n        for part in parts:\n            if fnmatch.fnmatch(part, pattern):\n                return True\n        return False\n\n\ndef _match_path(filepath: str, pattern: str, anchored: bool, is_dir_pattern: bool) -> bool:\n    \"\"\"Match a pattern against the full path.\"\"\"\n    # Convert gitignore glob to fnmatch pattern\n    # ** matches any number of directories\n    fnmatch_pattern = pattern.replace(\"**/\", \"[-STARSTAR-]\")\n    fnmatch_pattern = fnmatch_pattern.replace(\"**\", \"[-STARSTAR-]\")\n    \n    if anchored:\n        # Anchored patterns match from the start\n        if is_dir_pattern:\n            # Directory pattern: file must be under this directory\n            if \"[-STARSTAR-]\" in fnmatch_pattern:\n                # Has **, use regex\n                regex = _glob_to_regex(pattern)\n                return bool(re.match(regex, filepath))\n            else:\n                return filepath.startswith(pattern + \"/\") or filepath == pattern\n        else:\n            # File pattern\n            if \"[-STARSTAR-]\" in fnmatch_pattern:\n                regex = _glob_to_regex(pattern)\n                return bool(re.match(regex, filepath))\n            else:\n                return fnmatch.fnmatch(filepath, pattern)\n    else:\n        # Non-anchored patterns can match anywhere\n        if is_dir_pattern:\n            # Match if this directory appears anywhere in path\n            if filepath.startswith(pattern + \"/\"):\n                return True\n            if (\"/\" + pattern + \"/\") in (\"/\" + filepath):\n                return True\n            return False\n        else:\n            # Try matching at each position\n            if fnmatch.fnmatch(filepath, pattern):\n                return True\n            if fnmatch.fnmatch(filepath, \"**/\" + pattern):\n                return True\n            # Try with ** expansion\n            if \"[-STARSTAR-]\" in fnmatch_pattern:\n                regex = _glob_to_regex(\"**/\" + pattern)\n                return bool(re.match(regex, filepath))\n            return (\"/\" + pattern) in (\"/\" + filepath) or filepath.endswith(\"/\" + pattern)\n\n\ndef _glob_to_regex(pattern: str) -> re.Pattern:\n    \"\"\"Convert a gitignore glob pattern to a regex.\"\"\"\n    # Escape regex special chars except * and ?\n    result = \"\"\n    i = 0\n    while i < len(pattern):\n        c = pattern[i]\n        if c == \"*\":\n            if i + 1 < len(pattern) and pattern[i + 1] == \"*\":\n                # ** matches anything including /\n                if i + 2 < len(pattern) and pattern[i + 2] == \"/\":\n                    result += \"(?:.*/)?\"\n                    i += 3\n                    continue\n                else:\n                    result += \".*\"\n                    i += 2\n                    continue\n            else:\n                # * matches anything except /\n                result += \"[^/]*\"\n        elif c == \"?\":\n            result += \"[^/]\"\n        elif c in \".^$+{}[]|()\":\n            result += \"\\\\\" + c\n        else:\n            result += c\n        i += 1\n    return re.compile(\"^\" + result + \"$\")\n</replace>\n</edit>\n\nAlso need to add re import:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\nimport fnmatch\nimport json\nfrom typing import TYPE_CHECKING\n</search>\n<replace>\nimport fnmatch\nimport json\nimport re\nfrom typing import TYPE_CHECKING\n</replace>\n</edit>\n\nNow update the instructions in the dialog to reflect gitignore syntax:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n        instructions = QLabel(\n            \"Patterns to exclude from AI file summaries:\\n\"\n            \"\u2022 <code>folder/</code> \u2014 exclude entire folder\\n\"\n            \"\u2022 <code>*.ext</code> \u2014 exclude extension everywhere\\n\"\n            \"\u2022 <code>folder/*.ext</code> \u2014 exclude extension in folder\"\n        )\n</search>\n<replace>\n        instructions = QLabel(\n            \"Patterns use gitignore syntax:\\n\"\n            \"\u2022 <code>folder/</code> \u2014 exclude folder anywhere\\n\"\n            \"\u2022 <code>/folder/</code> \u2014 exclude folder at root only\\n\"\n            \"\u2022 <code>*.ext</code> \u2014 exclude extension everywhere\\n\"\n            \"\u2022 <code>**/test/*.py</code> \u2014 glob with <code>**</code> wildcards\"\n        )\n</replace>\n</edit>\n\nNow update the SessionManager to use the same matching function:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/manager.py\"], \"remove\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01LHtbiS2DAX7KwwZ6gNVqBn",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01LHtbiS2DAX7KwwZ6gNVqBn",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/manager.py\"], \"message\": \"Added 1 files, removed 2 files from context\", \"remove\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "user",
+      "content": "**Error from LLM provider:**\n\n```\n('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 43] I see the SessionManager still has the old pattern matching logic. Now that we have proper gitignore-style matching in `summary_exclusions_dialog.py`, I should update SessionManager to use that shared function:\n\n<edit file=\"forge/session/manager.py\">\n<search>\n    def _load_exclusion_patterns(self) -> list[str]:\n        \"\"\"Load exclusion patterns from repo config.\"\"\"\n        from forge.ui.summary_exclusions_dialog import load_summary_exclusions\n\n        return load_summary_exclusions(self.vfs)\n\n    def _matches_exclusion_pattern(self, filepath: str) -> bool:\n        \"\"\"Check if a filepath matches any exclusion pattern.\n\n        Patterns can be:\n        - folder/ \u2192 matches folder/**/* (entire directory)\n        - *.ext \u2192 matches **/*.ext (extension anywhere)\n        - folder/*.ext \u2192 matches folder/*.ext (specific folder + extension)\n        - exact/path.py \u2192 matches exact path\n        \"\"\"\n        patterns = self._load_exclusion_patterns()\n\n        for pattern in patterns:\n            if not pattern:\n                continue\n\n            # Directory pattern: \"folder/\" matches everything under folder\n            if pattern.endswith(\"/\"):\n                dir_prefix = pattern  # e.g., \"node_modules/\"\n                if filepath.startswith(dir_prefix) or filepath + \"/\" == dir_prefix:\n                    return True\n                continue\n\n            # Extension pattern without path: \"*.ext\" matches anywhere\n            if pattern.startswith(\"*.\") and \"/\" not in pattern:\n                ext_pattern = pattern[1:]  # e.g., \".min.js\"\n                if filepath.endswith(ext_pattern):\n                    return True\n                continue\n\n            # General glob pattern: use fnmatch\n            # For patterns like \"folder/*.ext\" or \"**/*.snap\"\n            if fnmatch.fnmatch(filepath, pattern):\n                return True\n\n            # Also try with ** prefix for patterns that should match anywhere\n            if \"*\" in pattern and not pattern.startswith(\"*\"):\n                if fnmatch.fnmatch(filepath, \"**/\" + pattern):\n                    return True\n\n        return False\n</search>\n<replace>\n    def _load_exclusion_patterns(self) -> list[str]:\n        \"\"\"Load exclusion patterns from repo config.\"\"\"\n        from forge.ui.summary_exclusions_dialog import load_summary_exclusions\n\n        return load_summary_exclusions(self.vfs)\n\n    def _matches_exclusion_pattern(self, filepath: str) -> bool:\n        \"\"\"Check if a filepath matches any exclusion pattern (gitignore-style).\"\"\"\n        from forge.ui.summary_exclusions_dialog import matches_pattern\n\n        patterns = self._load_exclusion_patterns()\n        for pattern in patterns:\n            if matches_pattern(filepath, pattern):\n                return True\n        return False\n</replace>\n</edit>\n\nNow remove the unused `fnmatch` import from session/manager.py since we're using the shared function:\n\n<edit file=\"forge/session/manager.py\">\n<search>\nimport fnmatch\nimport hashlib\nimport json\nimport re\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n</search>\n<replace>\nimport hashlib\nimport json\nimport re\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n</replace>\n</edit>\n\n<run_tests/>\n<commit message=\"refactor: Use shared gitignore-style pattern matching\n\n- SessionManager now uses matches_pattern() from summary_exclusions_dialog\n- Supports full gitignore syntax: /folder/, folder/, *.ext, **/glob\"/>\n\nDone! Now the SessionManager uses the shared `matches_pattern()` function which implements proper gitignore-style matching:\n\n- `/folder/` - anchored to root only\n- `folder/` - matches anywhere in tree  \n- `*.ext` - matches extension anywhere\n- `**/test/*.py` - full glob with `**` wildcards",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_971j9mju\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.30s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_971j9mju\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.30s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "1c2d846b4a82",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

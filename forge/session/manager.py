@@ -2,7 +2,6 @@
 Session manager for coordinating AI turns and git commits
 """
 
-import fnmatch
 import hashlib
 import json
 import re
@@ -230,44 +229,13 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         return load_summary_exclusions(self.vfs)
 
     def _matches_exclusion_pattern(self, filepath: str) -> bool:
-        """Check if a filepath matches any exclusion pattern.
+        """Check if a filepath matches any exclusion pattern (gitignore-style)."""
+        from forge.ui.summary_exclusions_dialog import matches_pattern
 
-        Patterns can be:
-        - folder/ → matches folder/**/* (entire directory)
-        - *.ext → matches **/*.ext (extension anywhere)
-        - folder/*.ext → matches folder/*.ext (specific folder + extension)
-        - exact/path.py → matches exact path
-        """
         patterns = self._load_exclusion_patterns()
-
         for pattern in patterns:
-            if not pattern:
-                continue
-
-            # Directory pattern: "folder/" matches everything under folder
-            if pattern.endswith("/"):
-                dir_prefix = pattern  # e.g., "node_modules/"
-                if filepath.startswith(dir_prefix) or filepath + "/" == dir_prefix:
-                    return True
-                continue
-
-            # Extension pattern without path: "*.ext" matches anywhere
-            if pattern.startswith("*.") and "/" not in pattern:
-                ext_pattern = pattern[1:]  # e.g., ".min.js"
-                if filepath.endswith(ext_pattern):
-                    return True
-                continue
-
-            # General glob pattern: use fnmatch
-            # For patterns like "folder/*.ext" or "**/*.snap"
-            if fnmatch.fnmatch(filepath, pattern):
+            if matches_pattern(filepath, pattern):
                 return True
-
-            # Also try with ** prefix for patterns that should match anywhere
-            if "*" in pattern and not pattern.startswith("*"):
-                if fnmatch.fnmatch(filepath, "**/" + pattern):
-                    return True
-
         return False
 
     def build_context(self) -> dict[str, Any]:

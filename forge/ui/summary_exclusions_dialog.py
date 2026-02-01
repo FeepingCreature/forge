@@ -4,6 +4,7 @@ Dialog for configuring per-repository summary exclusion patterns.
 
 import fnmatch
 import json
+import re
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -82,10 +83,11 @@ class SummaryExclusionsDialog(QDialog):
         layout.addWidget(title)
 
         instructions = QLabel(
-            "Patterns to exclude from AI file summaries:\n"
-            "• <code>folder/</code> — exclude entire folder\n"
+            "Patterns use gitignore syntax:\n"
+            "• <code>folder/</code> — exclude folder anywhere\n"
+            "• <code>/folder/</code> — exclude folder at root only\n"
             "• <code>*.ext</code> — exclude extension everywhere\n"
-            "• <code>folder/*.ext</code> — exclude extension in folder"
+            "• <code>**/test/*.py</code> — glob with <code>**</code> wildcards"
         )
         instructions.setTextFormat(Qt.TextFormat.RichText)
         instructions.setStyleSheet("color: #666; margin-bottom: 8px;")
@@ -308,37 +310,151 @@ class SummaryExclusionsDialog(QDialog):
 
 
 def matches_pattern(filepath: str, pattern: str) -> bool:
-    """Check if a filepath matches an exclusion pattern.
+    """Check if a filepath matches a gitignore-style exclusion pattern.
     
-    Patterns can be:
-    - folder/ → matches folder/**/* (entire directory)
-    - *.ext → matches **/*.ext (extension anywhere)
-    - folder/*.ext → matches folder/*.ext (specific folder + extension)
-    - exact/path.py → matches exact path
+    Gitignore pattern rules:
+    - /folder/ → anchored to root, matches folder/ at top level only
+    - folder/ → matches folder/ anywhere in the tree
+    - /file.txt → anchored to root, matches file.txt at top level only
+    - *.ext → matches *.ext anywhere (no slash = basename match)
+    - folder/*.ext → matches that specific path pattern
+    - **/ → matches zero or more directories
+    - !pattern → negation (handled separately, not here)
+    
+    Returns True if the filepath matches the pattern.
     """
     if not pattern:
         return False
+    
+    # Handle negation marker (caller should handle this)
+    if pattern.startswith("!"):
+        return False
+    
+    # Check if pattern is anchored to root
+    anchored = pattern.startswith("/")
+    if anchored:
+        pattern = pattern[1:]  # Remove leading slash
+    
+    # Check if pattern is for directories
+    is_dir_pattern = pattern.endswith("/")
+    if is_dir_pattern:
+        pattern = pattern[:-1]  # Remove trailing slash for matching
+    
+    # If pattern contains no slash (after removing leading/trailing), 
+    # it matches basename anywhere (unless anchored)
+    if "/" not in pattern and not anchored:
+        # Match against any path component or the basename
+        return _match_basename_anywhere(filepath, pattern, is_dir_pattern)
+    
+    # Pattern with slash - match against full path
+    return _match_path(filepath, pattern, anchored, is_dir_pattern)
 
-    # Directory pattern: "folder/" matches everything under folder
-    if pattern.endswith("/"):
-        dir_prefix = pattern
-        return filepath.startswith(dir_prefix) or filepath + "/" == dir_prefix
 
-    # Extension pattern without path: "*.ext" matches anywhere
-    if pattern.startswith("*.") and "/" not in pattern:
-        ext_pattern = pattern[1:]  # e.g., ".min.js"
-        return filepath.endswith(ext_pattern)
-
-    # General glob pattern: use fnmatch
-    if fnmatch.fnmatch(filepath, pattern):
-        return True
-
-    # Also try with ** prefix for patterns that should match anywhere
-    if "*" in pattern and not pattern.startswith("*"):
-        if fnmatch.fnmatch(filepath, "**/" + pattern):
+def _match_basename_anywhere(filepath: str, pattern: str, is_dir_pattern: bool) -> bool:
+    """Match a pattern against basename anywhere in the path."""
+    parts = filepath.split("/")
+    
+    if is_dir_pattern:
+        # For directory patterns, check if any directory component matches
+        # e.g., "node_modules/" should match "foo/node_modules/bar.js"
+        for i, part in enumerate(parts[:-1]):  # Exclude filename
+            if fnmatch.fnmatch(part, pattern):
+                return True
+        # Also match if the file itself is in a matching directory
+        # Check all prefixes
+        for i in range(len(parts)):
+            if fnmatch.fnmatch(parts[i], pattern):
+                # This is a directory in the path
+                if i < len(parts) - 1:
+                    return True
+        return False
+    else:
+        # For file patterns, match against basename
+        basename = parts[-1]
+        if fnmatch.fnmatch(basename, pattern):
             return True
+        # Also try matching against each path component (for patterns like __pycache__)
+        for part in parts:
+            if fnmatch.fnmatch(part, pattern):
+                return True
+        return False
 
-    return False
+
+def _match_path(filepath: str, pattern: str, anchored: bool, is_dir_pattern: bool) -> bool:
+    """Match a pattern against the full path."""
+    # Convert gitignore glob to fnmatch pattern
+    # ** matches any number of directories
+    fnmatch_pattern = pattern.replace("**/", "[-STARSTAR-]")
+    fnmatch_pattern = fnmatch_pattern.replace("**", "[-STARSTAR-]")
+    
+    if anchored:
+        # Anchored patterns match from the start
+        if is_dir_pattern:
+            # Directory pattern: file must be under this directory
+            if "[-STARSTAR-]" in fnmatch_pattern:
+                # Has **, use regex
+                regex = _glob_to_regex(pattern)
+                return bool(re.match(regex, filepath))
+            else:
+                return filepath.startswith(pattern + "/") or filepath == pattern
+        else:
+            # File pattern
+            if "[-STARSTAR-]" in fnmatch_pattern:
+                regex = _glob_to_regex(pattern)
+                return bool(re.match(regex, filepath))
+            else:
+                return fnmatch.fnmatch(filepath, pattern)
+    else:
+        # Non-anchored patterns can match anywhere
+        if is_dir_pattern:
+            # Match if this directory appears anywhere in path
+            if filepath.startswith(pattern + "/"):
+                return True
+            if ("/" + pattern + "/") in ("/" + filepath):
+                return True
+            return False
+        else:
+            # Try matching at each position
+            if fnmatch.fnmatch(filepath, pattern):
+                return True
+            if fnmatch.fnmatch(filepath, "**/" + pattern):
+                return True
+            # Try with ** expansion
+            if "[-STARSTAR-]" in fnmatch_pattern:
+                regex = _glob_to_regex("**/" + pattern)
+                return bool(re.match(regex, filepath))
+            return ("/" + pattern) in ("/" + filepath) or filepath.endswith("/" + pattern)
+
+
+def _glob_to_regex(pattern: str) -> re.Pattern:
+    """Convert a gitignore glob pattern to a regex."""
+    # Escape regex special chars except * and ?
+    result = ""
+    i = 0
+    while i < len(pattern):
+        c = pattern[i]
+        if c == "*":
+            if i + 1 < len(pattern) and pattern[i + 1] == "*":
+                # ** matches anything including /
+                if i + 2 < len(pattern) and pattern[i + 2] == "/":
+                    result += "(?:.*/)?"
+                    i += 3
+                    continue
+                else:
+                    result += ".*"
+                    i += 2
+                    continue
+            else:
+                # * matches anything except /
+                result += "[^/]*"
+        elif c == "?":
+            result += "[^/]"
+        elif c in ".^$+{}[]|()":
+            result += "\\" + c
+        else:
+            result += c
+        i += 1
+    return re.compile("^" + result + "$")
 
 
 def load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:

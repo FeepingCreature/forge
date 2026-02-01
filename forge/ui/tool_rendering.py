@@ -1020,12 +1020,17 @@ def render_markdown(
         HTML string with markdown rendered and inline commands as tool cards
     """
     import markdown as md
-    from markdown.extensions.fenced_code import FencedCodeExtension
 
     from forge.tools.invocation import discover_inline_tools
 
-    # Configure fenced_code to use language-X class format (needed for Mermaid.js)
-    fenced_code_ext = FencedCodeExtension(lang_prefix="language-")
+    # Configure markdown extensions for code blocks with language-X class format
+    # The extension_configs dict configures fenced_code to use "language-" prefix
+    md_extensions = ["fenced_code", "tables"]
+    md_extension_configs = {
+        "fenced_code": {
+            "lang_prefix": "language-",
+        }
+    }
 
     inline_tools = discover_inline_tools()
     result_parts = []
@@ -1050,13 +1055,17 @@ def render_markdown(
             # No more commands - render remaining as markdown
             remaining = content[pos:].strip()
             if remaining:
-                result_parts.append(md.markdown(remaining, extensions=[fenced_code_ext, "tables"]))
+                result_parts.append(
+                    md.markdown(remaining, extensions=md_extensions, extension_configs=md_extension_configs)
+                )
             break
 
         # Render markdown text before this command
         text_before = content[pos : earliest_match.start()].rstrip()
         if text_before:
-            result_parts.append(md.markdown(text_before, extensions=[fenced_code_ext, "tables"]))
+            result_parts.append(
+                md.markdown(text_before, extensions=md_extensions, extension_configs=md_extension_configs)
+            )
 
         # Get result for this command if available
         result = None

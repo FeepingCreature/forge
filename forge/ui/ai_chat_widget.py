@@ -29,12 +29,15 @@ from forge.ui.chat_message import (
     build_tool_results_lookup,
     group_messages_into_turns,
 )
+from forge.ui.chat_streaming import (
+    build_queued_message_js,
+    build_streaming_chunk_js,
+    build_streaming_tool_calls_js,
+)
+from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
 from forge.ui.chat_workers import SummaryWorker
 from forge.ui.editor_widget import SearchBar
-from forge.ui.tool_rendering import (
-    get_diff_styles,
-    render_streaming_tool_html,
-)
+from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
     from forge.session.live_session import SessionEvent
@@ -873,73 +876,9 @@ class AIChatWidget(QWidget):
         if not self._streaming_tool_calls:
             return
 
-        # Build HTML for streaming tool calls
-        tool_html_parts = []
-        for tc in self._streaming_tool_calls:
-            func = tc.get("function", {})
-            name = func.get("name", "")
-            args = func.get("arguments", "")
-
-            # Show tool name with spinning indicator
-            if name:
-                # Check for special rendering (search_replace gets a diff view)
-                special_html = render_streaming_tool_html(tc)
-                if special_html:
-                    tool_html_parts.append(special_html)
-                else:
-                    # Default rendering for other tools
-                    tool_html_parts.append('<div class="streaming-tool-call">')
-                    tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
-
-                    # Try to pretty-print arguments if they're valid JSON so far
-                    if args:
-                        # Show arguments as they stream (may be partial JSON)
-                        # Escape for display
-                        escaped_args = (
-                            args.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                        )
-                        tool_html_parts.append(
-                            f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
-                        )
-
-                    tool_html_parts.append("</div>")
-
-        tool_html = "".join(tool_html_parts)
-
-        # Escape for JavaScript
-        escaped_html = (
-            tool_html.replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-            .replace("\n", "\\n")
-        )
-
-        # Update the streaming message to show tool calls
-        js_code = f"""
-        (function() {{
-            var streamingMsg = document.getElementById('streaming-message');
-            if (streamingMsg) {{
-                // Check if user is at bottom before modifying content
-                var scrollThreshold = 50;
-                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-
-                // Find or create tool calls container
-                var toolsContainer = streamingMsg.querySelector('.streaming-tools');
-                if (!toolsContainer) {{
-                    toolsContainer = document.createElement('div');
-                    toolsContainer.className = 'streaming-tools';
-                    streamingMsg.appendChild(toolsContainer);
-                }}
-                toolsContainer.innerHTML = `{escaped_html}`;
-
-                // Only scroll if user was already at bottom
-                if (wasAtBottom) {{
-                    window.scrollTo(0, document.body.scrollHeight);
-                }}
-            }}
-        }})();
-        """
-        self.chat_view.page().runJavaScript(js_code)
+        js_code = build_streaming_tool_calls_js(self._streaming_tool_calls)
+        if js_code:
+            self.chat_view.page().runJavaScript(js_code)
 
     def _cancel_ai_turn(self) -> None:
         """Cancel the current AI turn - abort streaming/tool execution and discard changes"""
@@ -1004,130 +943,25 @@ class AIChatWidget(QWidget):
 
     def _append_queued_message_indicator(self, text: str) -> None:
         """Append a queued message indicator via JavaScript without disrupting streaming"""
-        # Don't truncate - show full message (escaped for display)
-        # Escape for JavaScript
-        escaped_preview = (
-            text.replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
-            .replace("\n", "<br>")
-            .replace("\r", "")
-        )
-
-        js_code = f"""
-        (function() {{
-            // Check if we already have a queued indicator
-            var existing = document.getElementById('queued-message-indicator');
-            if (existing) {{
-                existing.remove();
-            }}
-
-            // Create the indicator element
-            var indicator = document.createElement('div');
-            indicator.id = 'queued-message-indicator';
-            indicator.className = 'message system';
-            indicator.style.cssText = 'background: #e8f5e9; border: 2px solid #4caf50; margin: 0 10%;';
-            indicator.innerHTML = '<div class="role">Queued</div><div class="content">📝 Message queued (will be sent after current turn):<br><em>"{escaped_preview}"</em></div>';
-
-            // Append to messages container
-            var container = document.getElementById('messages-container');
-            if (container) {{
-                container.appendChild(indicator);
-                window.scrollTo(0, document.body.scrollHeight);
-            }}
-        }})();
-        """
+        js_code = build_queued_message_js(text)
         self.chat_view.page().runJavaScript(js_code)
 
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
-        import re  # noqa: I001
-
-        from forge.ui.tool_rendering import render_streaming_edits
-
-        # Accumulate the chunk
-        # (streaming_content is already updated in _on_stream_chunk before this is called)
-
-        # Strip [id N] prefix that the model might echo back (cheap regex at start)
-        display_content = re.sub(r"^\[id \d+\]\s*", "", self.streaming_content)
-
-        # Check if we have any <edit> blocks in the accumulated content
-        if "<edit" in display_content:
-            # Render inline edits as diff views
-            rendered_html = render_streaming_edits(display_content)
-
-            # Escape for JavaScript string
-            escaped_html = (
-                rendered_html.replace("\\", "\\\\")
-                .replace("`", "\\`")
-                .replace("$", "\\$")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-            )
-
-            # Update the entire content with rendered edits
-            js_code = f"""
-            (function() {{
-                var streamingMsg = document.getElementById('streaming-message');
-                if (streamingMsg) {{
-                    var scrollThreshold = 50;
-                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-
-                    var content = streamingMsg.querySelector('.content');
-                    if (content) {{
-                        content.innerHTML = `{escaped_html}`;
-                        content.style.whiteSpace = 'pre-wrap';
-                    }}
-
-                    if (wasAtBottom) {{
-                        window.scrollTo(0, document.body.scrollHeight);
-                    }}
-                }}
-            }})();
-            """
-            self.chat_view.page().runJavaScript(js_code)
-        else:
-            # No edit blocks - replace entire content with stripped version
-            escaped_content = (
-                display_content.replace("\\", "\\\\")
-                .replace("`", "\\`")
-                .replace("$", "\\$")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-            )
-
-            js_code = f"""
-            (function() {{
-                var streamingMsg = document.getElementById('streaming-message');
-                if (streamingMsg) {{
-                    var scrollThreshold = 50;
-                    var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
-
-                    var content = streamingMsg.querySelector('.content');
-                    if (content) {{
-                        content.innerText = `{escaped_content}`;
-                    }}
-
-                    if (wasAtBottom) {{
-                        window.scrollTo(0, document.body.scrollHeight);
-                    }}
-                }}
-            }})();
-            """
-            self.chat_view.page().runJavaScript(js_code)
+        # streaming_content is already updated in _on_stream_chunk before this is called
+        js_code = build_streaming_chunk_js(self.streaming_content)
+        self.chat_view.page().runJavaScript(js_code)
 
     def _finalize_streaming_content(self) -> None:
         """Convert accumulated streaming text to markdown (called once at end)"""
-        from forge.ui.tool_rendering import render_markdown
-
         if not self.streaming_content:
             return
 
         # Convert markdown to HTML, preserving <edit> blocks as diff views
-        content_html = render_markdown(self.streaming_content)
+        from forge.ui.chat_streaming import escape_for_js
 
-        # Escape for JavaScript string
-        escaped_html = content_html.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+        content_html = render_markdown(self.streaming_content)
+        escaped_html = escape_for_js(content_html)
 
         # Replace streaming content with rendered markdown
         js_code = f"""
@@ -1151,293 +985,7 @@ class AIChatWidget(QWidget):
             "active_files": list(self.session_manager.active_files),
         }
 
-    def _get_chat_styles(self) -> str:
-        """Return CSS styles for the chat display"""
-        return (
-            get_diff_styles()
-            + """
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                padding: 20px;
-                background: #ffffff;
-                margin: 0;
-            }
-            #messages-container {
-                /* Container for all messages - content is injected here */
-            }
-            .message {
-                margin-bottom: 20px;
-                padding: 15px;
-                border-radius: 8px;
-            }
-            .user {
-                background: #e3f2fd;
-                margin-left: 20%;
-            }
-            .assistant {
-                background: #f5f5f5;
-                margin-right: 20%;
-            }
-            .system {
-                background: #fff3cd;
-                border: 2px solid #ffc107;
-                margin: 0 10%;
-            }
-            .role {
-                font-weight: bold;
-                margin-bottom: 8px;
-                color: #666;
-            }
-            code {
-                background: #f0f0f0;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-family: "Courier New", monospace;
-            }
-            pre {
-                background: #f0f0f0;
-                padding: 12px;
-                border-radius: 6px;
-                overflow-x: auto;
-            }
-            /* Streaming content shows as preformatted until finalized */
-            #streaming-message .content {
-                white-space: pre-wrap;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            }
-            /* Streaming tool calls */
-            .streaming-tools {
-                margin-top: 12px;
-                border-top: 1px solid #ddd;
-                padding-top: 12px;
-            }
-            .streaming-tool-call {
-                margin-bottom: 10px;
-            }
-            .streaming-tool-call .tool-name {
-                font-weight: bold;
-                color: #1976d2;
-                font-size: 14px;
-            }
-            .streaming-tool-call .tool-args {
-                background: #f5f5f5;
-                border: 1px solid #e0e0e0;
-                border-radius: 4px;
-                padding: 8px 12px;
-                margin-top: 6px;
-                font-family: "Courier New", monospace;
-                font-size: 12px;
-                white-space: pre-wrap;
-                word-break: break-all;
-                max-height: 200px;
-                overflow-y: auto;
-            }
-            .streaming-tool-call .cursor {
-                animation: blink 1s step-end infinite;
-                color: #1976d2;
-            }
-            @keyframes blink {
-                0%, 100% { opacity: 1; }
-                50% { opacity: 0; }
-            }
-            .approval-buttons {
-                margin-top: 10px;
-                display: flex;
-                gap: 10px;
-            }
-            .approval-buttons button {
-                padding: 8px 16px;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            .approval-buttons button:first-child {
-                background: #4caf50;
-                color: white;
-            }
-            .approval-buttons button:first-child:hover {
-                background: #45a049;
-            }
-            .approval-buttons button:last-child {
-                background: #f44336;
-                color: white;
-            }
-            .approval-buttons button:last-child:hover {
-                background: #da190b;
-            }
-            .approval-buttons button:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            /* Turn wrapper and actions */
-            .turn {
-                position: relative;
-                margin-bottom: 8px;
-                padding-left: 24px;  /* Fixed space for turn marker */
-            }
-            .turn-marker {
-                position: absolute;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                width: 20px;
-                border-left: 3px solid transparent;
-                cursor: pointer;
-                transition: border-color 0.2s;
-            }
-            .turn:hover .turn-marker {
-                border-left-color: #e0e0e0;
-            }
-            .turn-marker:hover {
-                border-left-color: #2196f3 !important;
-            }
-            .turn-actions {
-                display: flex;
-                gap: 8px;
-                padding: 4px 0;
-                opacity: 0;
-                transition: opacity 0.2s;
-            }
-            .turn-actions-top {
-                padding-bottom: 8px;
-            }
-            .turn-actions-bottom {
-                padding-top: 8px;
-            }
-            .turn:hover .turn-actions {
-                opacity: 1;
-            }
-            .turn-btn {
-                background: #f5f5f5;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px 12px;
-                font-size: 12px;
-                cursor: pointer;
-                transition: background 0.2s;
-            }
-            .turn-btn:hover {
-                background: #e0e0e0;
-            }
-            .revert-btn:hover {
-                background: #ffecb3;
-                border-color: #ff9800;
-            }
-            .fork-btn:hover {
-                background: #e3f2fd;
-                border-color: #2196f3;
-            }
-        """
-        )
 
-    def _get_chat_scripts(self) -> str:
-        """Return JavaScript for the chat display"""
-        return """
-            var bridge;
-
-            // Initialize web channel
-            new QWebChannel(qt.webChannelTransport, function(channel) {
-                bridge = channel.objects.bridge;
-            });
-
-            function approveTool(toolName, buttonElement) {
-                // Disable the button immediately
-                buttonElement.disabled = true;
-
-                if (bridge) {
-                    bridge.handleToolApproval(toolName, true);
-                    // Disable both buttons for this tool
-                    disableToolButtons(toolName);
-                }
-            }
-
-            function rejectTool(toolName, buttonElement) {
-                // Disable the button immediately
-                buttonElement.disabled = true;
-
-                if (bridge) {
-                    bridge.handleToolApproval(toolName, false);
-                    // Disable both buttons for this tool
-                    disableToolButtons(toolName);
-                }
-            }
-
-            function disableToolButtons(toolName) {
-                // Find the button that was clicked and disable both buttons in its container
-                var buttons = document.querySelectorAll('.approval-buttons button');
-                buttons.forEach(function(btn) {
-                    var onclick = btn.getAttribute('onclick');
-                    if (onclick && onclick.includes(toolName)) {
-                        // Found a button for this tool - disable its parent container's buttons
-                        var container = btn.closest('.approval-buttons');
-                        if (container) {
-                            var containerButtons = container.querySelectorAll('button');
-                            containerButtons.forEach(function(b) {
-                                b.disabled = true;
-                            });
-                        }
-                    }
-                });
-            }
-
-            function revertTurn(messageIndex) {
-                // Revert THIS turn and all later turns
-                if (bridge) {
-                    bridge.handleRevertTurn(messageIndex);
-                }
-            }
-
-            function revertToTurn(messageIndex) {
-                // Revert TO here (keep this turn, undo later turns)
-                if (bridge) {
-                    bridge.handleRevertToTurn(messageIndex);
-                }
-            }
-
-            function forkBeforeTurn(messageIndex) {
-                // Fork from BEFORE this turn
-                if (bridge) {
-                    bridge.handleForkBeforeTurn(messageIndex);
-                }
-            }
-
-            function forkAfterTurn(messageIndex) {
-                // Fork from AFTER this turn
-                if (bridge) {
-                    bridge.handleForkAfterTurn(messageIndex);
-                }
-            }
-
-            function scrollTurn(turnIndex) {
-                // Click on turn marker scrolls to top/bottom of that turn
-                var turn = document.querySelector('.turn[data-turn="' + turnIndex + '"]');
-                if (!turn) return;
-
-                var turnRect = turn.getBoundingClientRect();
-                var viewportMid = window.innerHeight / 2;
-
-                // If turn top is in bottom half of viewport, scroll to top of turn
-                // Otherwise scroll to bottom of turn
-                if (turnRect.top > viewportMid) {
-                    turn.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } else {
-                    turn.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }
-            }
-
-            // Update messages container content (called from Python)
-            function updateMessages(html, scrollToBottom) {
-                var container = document.getElementById('messages-container');
-                if (container) {
-                    container.innerHTML = html;
-                    if (scrollToBottom) {
-                        window.scrollTo(0, document.body.scrollHeight);
-                    }
-                }
-            }
-        """
 
     def _on_js_console_message(
         self,
@@ -1469,10 +1017,10 @@ class AIChatWidget(QWidget):
         <!DOCTYPE html>
         <html>
         <head>
-            <style>{self._get_chat_styles()}</style>
+            <style>{get_chat_styles()}</style>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            <script>{self._get_chat_scripts()}</script>
+            <script>{get_chat_scripts()}</script>
         </head>
         <body>
             <div id="messages-container"></div>

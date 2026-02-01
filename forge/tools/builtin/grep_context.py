@@ -33,6 +33,7 @@ Good for:
 - Scanning multiple files for a pattern to find the relevant one
 - Investigating before committing to loading large files
 
+Excludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.
 The pattern is a Python regex.""",
             "parameters": {
                 "type": "object",

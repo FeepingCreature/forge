@@ -2,6 +2,7 @@
 Dialog for configuring per-repository summary exclusion patterns.
 """
 
+import fnmatch
 import json
 from typing import TYPE_CHECKING
 
@@ -107,11 +108,14 @@ class SummaryExclusionsDialog(QDialog):
         # List and control buttons in horizontal layout
         list_row = QHBoxLayout()
 
-        # Pattern list
+        # Pattern list (two columns: pattern and file count)
         self.pattern_list = QListWidget()
         self.pattern_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self.pattern_list.itemSelectionChanged.connect(self._update_button_states)
         list_row.addWidget(self.pattern_list)
+
+        # Cache all files for counting
+        self._all_files: list[str] = []
 
         # Control buttons (vertical)
         btn_layout = QVBoxLayout()
@@ -187,16 +191,16 @@ class SummaryExclusionsDialog(QDialog):
 
         # Check for duplicates
         for i in range(self.pattern_list.count()):
-            if self.pattern_list.item(i).text() == pattern:
+            if self.pattern_list.item(i).data(Qt.ItemDataRole.UserRole) == pattern:
                 self.pattern_input.clear()
                 self.pattern_list.setCurrentRow(i)
                 return
 
-        item = QListWidgetItem(pattern)
-        self.pattern_list.addItem(item)
+        item = self._add_pattern_item(pattern)
         self.pattern_list.setCurrentItem(item)
         self.pattern_input.clear()
         self.pattern_input.setFocus()
+        self._update_file_counts()
 
     def _remove_pattern(self) -> None:
         """Remove the selected pattern from the list."""
@@ -204,6 +208,7 @@ class SummaryExclusionsDialog(QDialog):
         if row >= 0:
             self.pattern_list.takeItem(row)
             self._update_button_states()
+            self._update_file_counts()
 
     def _move_up(self) -> None:
         """Move the selected pattern up in the list."""
@@ -212,6 +217,7 @@ class SummaryExclusionsDialog(QDialog):
             item = self.pattern_list.takeItem(row)
             self.pattern_list.insertItem(row - 1, item)
             self.pattern_list.setCurrentRow(row - 1)
+            self._update_file_counts()
 
     def _move_down(self) -> None:
         """Move the selected pattern down in the list."""
@@ -220,6 +226,7 @@ class SummaryExclusionsDialog(QDialog):
             item = self.pattern_list.takeItem(row)
             self.pattern_list.insertItem(row + 1, item)
             self.pattern_list.setCurrentRow(row + 1)
+            self._update_file_counts()
 
     def _load_config(self) -> dict:
         """Load the repo config file."""
@@ -244,16 +251,53 @@ class SummaryExclusionsDialog(QDialog):
         
         Uses load_summary_exclusions() which creates defaults if needed.
         """
+        # Cache file list for counting
+        self._all_files = self.workspace.vfs.list_files()
+        
         patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)
         for pattern in patterns:
-            self.pattern_list.addItem(QListWidgetItem(pattern))
+            self._add_pattern_item(pattern)
+        
+        self._update_file_counts()
+
+    def _add_pattern_item(self, pattern: str) -> QListWidgetItem:
+        """Add a pattern to the list with placeholder count."""
+        item = QListWidgetItem(pattern)
+        item.setData(Qt.ItemDataRole.UserRole, pattern)  # Store raw pattern
+        self.pattern_list.addItem(item)
+        return item
+
+    def _update_file_counts(self) -> None:
+        """Update file counts for all patterns, showing incremental matches."""
+        already_matched: set[str] = set()
+        
+        for i in range(self.pattern_list.count()):
+            item = self.pattern_list.item(i)
+            pattern = item.data(Qt.ItemDataRole.UserRole)
+            
+            # Count files matching this pattern
+            matches_this = set()
+            for filepath in self._all_files:
+                if filepath not in already_matched and matches_pattern(filepath, pattern):
+                    matches_this.add(filepath)
+            
+            # Update display text
+            new_matches = len(matches_this)
+            total_would_match = sum(1 for f in self._all_files if matches_pattern(f, pattern))
+            
+            if new_matches == total_would_match:
+                item.setText(f"{pattern}  ({new_matches} files)")
+            else:
+                item.setText(f"{pattern}  ({new_matches} new, {total_would_match} total)")
+            
+            already_matched.update(matches_this)
 
     def _save_and_close(self) -> None:
         """Save patterns and close the dialog."""
-        # Collect patterns from list
+        # Collect patterns from list (use stored raw pattern, not display text)
         patterns = []
         for i in range(self.pattern_list.count()):
-            patterns.append(self.pattern_list.item(i).text())
+            patterns.append(self.pattern_list.item(i).data(Qt.ItemDataRole.UserRole))
 
         # Load existing config, update exclusions, save
         config = self._load_config()
@@ -261,6 +305,40 @@ class SummaryExclusionsDialog(QDialog):
         self._save_config(config)
 
         self.accept()
+
+
+def matches_pattern(filepath: str, pattern: str) -> bool:
+    """Check if a filepath matches an exclusion pattern.
+    
+    Patterns can be:
+    - folder/ → matches folder/**/* (entire directory)
+    - *.ext → matches **/*.ext (extension anywhere)
+    - folder/*.ext → matches folder/*.ext (specific folder + extension)
+    - exact/path.py → matches exact path
+    """
+    if not pattern:
+        return False
+
+    # Directory pattern: "folder/" matches everything under folder
+    if pattern.endswith("/"):
+        dir_prefix = pattern
+        return filepath.startswith(dir_prefix) or filepath + "/" == dir_prefix
+
+    # Extension pattern without path: "*.ext" matches anywhere
+    if pattern.startswith("*.") and "/" not in pattern:
+        ext_pattern = pattern[1:]  # e.g., ".min.js"
+        return filepath.endswith(ext_pattern)
+
+    # General glob pattern: use fnmatch
+    if fnmatch.fnmatch(filepath, pattern):
+        return True
+
+    # Also try with ** prefix for patterns that should match anywhere
+    if "*" in pattern and not pattern.startswith("*"):
+        if fnmatch.fnmatch(filepath, "**/" + pattern):
+            return True
+
+    return False
 
 
 def load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:

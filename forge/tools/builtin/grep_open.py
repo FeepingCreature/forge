@@ -30,6 +30,7 @@ The pattern is a Python regex. Common patterns:
 - "import.*module" - find imports of a module
 - "TODO|FIXME" - find multiple patterns
 
+Excludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.
 Returns list of matching files with match counts. All matching files are added to context.""",
             "parameters": {
                 "type": "object",

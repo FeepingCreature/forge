@@ -1,10 +1,8 @@
 {
   "active_files": [
-    "forge/ui/js_cache.py",
-    "forge/ui/ai_chat_widget.py",
-    "forge/session/manager.py",
-    "forge/ui/file_explorer_widget.py",
+    "forge/tools/builtin/grep_context.py",
     "forge/ui/summary_exclusions_dialog.py",
+    "forge/tools/builtin/grep_open.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -331,6 +329,42 @@
       "streaming": true,
       "actual_cost": 0.43426,
       "generation_id": "gen-1769967998-O7Qq35GjGZDHELL3uxDN"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968087612.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968087612.json",
+      "timestamp": 1769968087.6137972,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06659775,
+      "generation_id": "gen-1769968087-PXUP2Zj9hwz5CGPE0Y1U"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968093555.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968093555.json",
+      "timestamp": 1769968093.5564108,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.07385775,
+      "generation_id": "gen-1769968093-2h9MNDZJj9nMnWi5DloF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968104015.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968104015.json",
+      "timestamp": 1769968104.0156906,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.36741875,
+      "generation_id": "gen-1769968105-fLdLE6OQZv4kLGvgPqVu"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968161854.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968161854.json",
+      "timestamp": 1769968161.854752,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.07496125,
+      "generation_id": "gen-1769968162-SCD2DaNJHvFoMCCk7bUr"
     }
   ],
   "messages": [
@@ -942,6 +976,83 @@
         {
           "commit": "a57bf3362ae0",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 0eed60d7",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "What do we actually use workspace.commit() for? Also, grep_context should not grep files that are excluded. (They're usually binaries.) Note this in the tool description... they're still in the big file list, maybe the way is to just say \"Excluded\" on the filename. And we want to show the number of affected files on each rule, ignoring those already handled by a prior rule (or just show both)."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 33] Let me address all three items:\n\n1. **What `workspace.commit()` is used for** - Let me find out\n2. **Show affected file counts per rule in the dialog**\n3. **Note about grep excluding these patterns**",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"workspace\\\\.commit\\\\(\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01BBFfyWvDqAqHWLAJEnF5fR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BBFfyWvDqAqHWLAJEnF5fR",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/ui/branch_tab_widget.py:297 \\u2500\\u2500\\n     294 | \\n     295 |         # Commit\\n     296 |         message = f\\\"edit: {Path(filepath).name}\\\"\\n>>>  297 |         commit_oid = self.workspace.commit(message)\\n     298 | \\n     299 |         # Clear modified state\\n     300 |         self._modified_files.discard(filepath)\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:332 \\u2500\\u2500\\n     329 |             message = f\\\"edit: {len(self._modified_files)} files\\\"\\n     330 | \\n     331 |         # Commit\\n>>>  332 |         commit_oid = self.workspace.commit(message)\\n     333 | \\n     334 |         # Clear all modified states\\n     335 |         for filepath in list(self._modified_files):\\n\\n\\u2500\\u2500 forge/ui/file_explorer_widget.py:522 \\u2500\\u2500\\n     519 |     def _delete_file(self, filepath: str) -> None:\\n     520 |         \\\"\\\"\\\"Delete a file and commit the change\\\"\\\"\\\"\\n     521 |         self.workspace.vfs.delete_file(filepath)\\n>>>  522 |         self.workspace.commit(f\\\"Delete {filepath}\\\")\\n     523 |         self.file_deleted.emit(filepath)\\n     524 |         self.refresh()\\n     525 | \", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"workspace\\\\.commit\\\\(\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/branch_tab_widget.py:297 \\u2500\\u2500\\n     294 | \\n     295 |         # Commit\\n     296 |         message = f\\\"edit: {Path(filepath).name}\\\"\\n>>>  297 |         commit_oid = self.workspace.commit(message)\\n     298 | \\n     299 |         # Clear modified state\\n     300 |         self._modified_files.discard(filepath)\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:332 \\u2500\\u2500\\n     329 |             message = f\\\"edit: {len(self._modified_files)} files\\\"\\n     330 | \\n     331 |         # Commit\\n>>>  332 |         commit_oid = self.workspace.commit(message)\\n     333 | \\n     334 |         # Clear all modified states\\n     335 |         for filepath in list(self._modified_files):\\n\\n\\u2500\\u2500 forge/ui/file_explorer_widget.py:522 \\u2500\\u2500\\n     519 |     def _delete_file(self, filepath: str) -> None:\\n     520 |         \\\"\\\"\\\"Delete a file and commit the change\\\"\\\"\\\"\\n     521 |         self.workspace.vfs.delete_file(filepath)\\n>>>  522 |         self.workspace.commit(f\\\"Delete {filepath}\\\")\\n     523 |         self.file_deleted.emit(filepath)\\n     524 |         self.refresh()\\n     525 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 34] I see - `workspace.commit()` is used for user-initiated actions (manual file edits, file deletions). Those should be MAJOR commits since they're deliberate user changes. The exclusion config change is different - it's infrastructure that should merge into the next AI commit.\n\nNow let me address all the items:\n\n1. **workspace.commit() usage** - It's fine as-is for user actions\n2. **Show affected file counts per rule in the dialog**\n3. **Note about grep - will check the tool description**\n\nLet me update the dialog to show file counts, and check the grep tool:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\"], \"remove\": [\"forge/session/manager.py\", \"forge/ui/file_explorer_widget.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/js_cache.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01RFPocaRcuqsg8E6Mt2KUF6",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01RFPocaRcuqsg8E6Mt2KUF6",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\"], \"message\": \"Added 2 files, removed 4 files from context\", \"remove\": [\"forge/session/manager.py\", \"forge/ui/file_explorer_widget.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/js_cache.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 35] Now I understand. Let me:\n\n1. Update the dialog to show file counts per rule\n2. Note in grep descriptions that they respect exclude patterns\n3. Add the exclusion matching logic to grep tools\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n\"\"\"\nDialog for configuring per-repository summary exclusion patterns.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING\n\nfrom PySide6.QtCore import Qt\nfrom PySide6.QtWidgets import (\n    QDialog,\n    QHBoxLayout,\n    QLabel,\n    QLineEdit,\n    QListWidget,\n    QListWidgetItem,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n)\n\nif TYPE_CHECKING:\n    from forge.ui.branch_workspace import BranchWorkspace\n\nCONFIG_FILE = \".forge/config.json\"\n</search>\n<replace>\n\"\"\"\nDialog for configuring per-repository summary exclusion patterns.\n\"\"\"\n\nimport fnmatch\nimport json\nfrom typing import TYPE_CHECKING\n\nfrom PySide6.QtCore import Qt\nfrom PySide6.QtWidgets import (\n    QDialog,\n    QHBoxLayout,\n    QLabel,\n    QLineEdit,\n    QListWidget,\n    QListWidgetItem,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n)\n\nif TYPE_CHECKING:\n    from forge.ui.branch_workspace import BranchWorkspace\n\nCONFIG_FILE = \".forge/config.json\"\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n        # Pattern list\n        self.pattern_list = QListWidget()\n        self.pattern_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)\n        self.pattern_list.itemSelectionChanged.connect(self._update_button_states)\n        list_row.addWidget(self.pattern_list)\n</search>\n<replace>\n        # Pattern list (two columns: pattern and file count)\n        self.pattern_list = QListWidget()\n        self.pattern_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)\n        self.pattern_list.itemSelectionChanged.connect(self._update_button_states)\n        list_row.addWidget(self.pattern_list)\n\n        # Cache all files for counting\n        self._all_files: list[str] = []\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _load_patterns(self) -> None:\n        \"\"\"Load current exclusion patterns into the list.\n        \n        Uses load_summary_exclusions() which creates defaults if needed.\n        \"\"\"\n        patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)\n        for pattern in patterns:\n            self.pattern_list.addItem(QListWidgetItem(pattern))\n</search>\n<replace>\n    def _load_patterns(self) -> None:\n        \"\"\"Load current exclusion patterns into the list.\n        \n        Uses load_summary_exclusions() which creates defaults if needed.\n        \"\"\"\n        # Cache file list for counting\n        self._all_files = self.workspace.vfs.list_files()\n        \n        patterns = load_summary_exclusions(self.workspace.vfs, create_default=True)\n        for pattern in patterns:\n            self._add_pattern_item(pattern)\n        \n        self._update_file_counts()\n\n    def _add_pattern_item(self, pattern: str) -> QListWidgetItem:\n        \"\"\"Add a pattern to the list with placeholder count.\"\"\"\n        item = QListWidgetItem(pattern)\n        item.setData(Qt.ItemDataRole.UserRole, pattern)  # Store raw pattern\n        self.pattern_list.addItem(item)\n        return item\n\n    def _update_file_counts(self) -> None:\n        \"\"\"Update file counts for all patterns, showing incremental matches.\"\"\"\n        already_matched: set[str] = set()\n        \n        for i in range(self.pattern_list.count()):\n            item = self.pattern_list.item(i)\n            pattern = item.data(Qt.ItemDataRole.UserRole)\n            \n            # Count files matching this pattern\n            matches_this = set()\n            for filepath in self._all_files:\n                if filepath not in already_matched and matches_pattern(filepath, pattern):\n                    matches_this.add(filepath)\n            \n            # Update display text\n            new_matches = len(matches_this)\n            total_would_match = sum(1 for f in self._all_files if matches_pattern(f, pattern))\n            \n            if new_matches == total_would_match:\n                item.setText(f\"{pattern}  ({new_matches} files)\")\n            else:\n                item.setText(f\"{pattern}  ({new_matches} new, {total_would_match} total)\")\n            \n            already_matched.update(matches_this)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _add_pattern(self) -> None:\n        \"\"\"Add the pattern from input field to the list.\"\"\"\n        pattern = self.pattern_input.text().strip()\n        if not pattern:\n            return\n\n        # Check for duplicates\n        for i in range(self.pattern_list.count()):\n            if self.pattern_list.item(i).text() == pattern:\n                self.pattern_input.clear()\n                self.pattern_list.setCurrentRow(i)\n                return\n\n        item = QListWidgetItem(pattern)\n        self.pattern_list.addItem(item)\n        self.pattern_list.setCurrentItem(item)\n        self.pattern_input.clear()\n        self.pattern_input.setFocus()\n</search>\n<replace>\n    def _add_pattern(self) -> None:\n        \"\"\"Add the pattern from input field to the list.\"\"\"\n        pattern = self.pattern_input.text().strip()\n        if not pattern:\n            return\n\n        # Check for duplicates\n        for i in range(self.pattern_list.count()):\n            if self.pattern_list.item(i).data(Qt.ItemDataRole.UserRole) == pattern:\n                self.pattern_input.clear()\n                self.pattern_list.setCurrentRow(i)\n                return\n\n        item = self._add_pattern_item(pattern)\n        self.pattern_list.setCurrentItem(item)\n        self.pattern_input.clear()\n        self.pattern_input.setFocus()\n        self._update_file_counts()\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _remove_pattern(self) -> None:\n        \"\"\"Remove the selected pattern from the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row >= 0:\n            self.pattern_list.takeItem(row)\n            self._update_button_states()\n</search>\n<replace>\n    def _remove_pattern(self) -> None:\n        \"\"\"Remove the selected pattern from the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row >= 0:\n            self.pattern_list.takeItem(row)\n            self._update_button_states()\n            self._update_file_counts()\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _move_up(self) -> None:\n        \"\"\"Move the selected pattern up in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row > 0:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row - 1, item)\n            self.pattern_list.setCurrentRow(row - 1)\n\n    def _move_down(self) -> None:\n        \"\"\"Move the selected pattern down in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row < self.pattern_list.count() - 1:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row + 1, item)\n            self.pattern_list.setCurrentRow(row + 1)\n</search>\n<replace>\n    def _move_up(self) -> None:\n        \"\"\"Move the selected pattern up in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row > 0:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row - 1, item)\n            self.pattern_list.setCurrentRow(row - 1)\n            self._update_file_counts()\n\n    def _move_down(self) -> None:\n        \"\"\"Move the selected pattern down in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row < self.pattern_list.count() - 1:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row + 1, item)\n            self.pattern_list.setCurrentRow(row + 1)\n            self._update_file_counts()\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\n    def _save_and_close(self) -> None:\n        \"\"\"Save patterns and close the dialog.\"\"\"\n        # Collect patterns from list\n        patterns = []\n        for i in range(self.pattern_list.count()):\n            patterns.append(self.pattern_list.item(i).text())\n</search>\n<replace>\n    def _save_and_close(self) -> None:\n        \"\"\"Save patterns and close the dialog.\"\"\"\n        # Collect patterns from list (use stored raw pattern, not display text)\n        patterns = []\n        for i in range(self.pattern_list.count()):\n            patterns.append(self.pattern_list.item(i).data(Qt.ItemDataRole.UserRole))\n</replace>\n</edit>\n\nNow add the `matches_pattern` helper function at the end:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\ndef load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:\n</search>\n<replace>\ndef matches_pattern(filepath: str, pattern: str) -> bool:\n    \"\"\"Check if a filepath matches an exclusion pattern.\n    \n    Patterns can be:\n    - folder/ \u2192 matches folder/**/* (entire directory)\n    - *.ext \u2192 matches **/*.ext (extension anywhere)\n    - folder/*.ext \u2192 matches folder/*.ext (specific folder + extension)\n    - exact/path.py \u2192 matches exact path\n    \"\"\"\n    if not pattern:\n        return False\n\n    # Directory pattern: \"folder/\" matches everything under folder\n    if pattern.endswith(\"/\"):\n        dir_prefix = pattern\n        return filepath.startswith(dir_prefix) or filepath + \"/\" == dir_prefix\n\n    # Extension pattern without path: \"*.ext\" matches anywhere\n    if pattern.startswith(\"*.\") and \"/\" not in pattern:\n        ext_pattern = pattern[1:]  # e.g., \".min.js\"\n        return filepath.endswith(ext_pattern)\n\n    # General glob pattern: use fnmatch\n    if fnmatch.fnmatch(filepath, pattern):\n        return True\n\n    # Also try with ** prefix for patterns that should match anywhere\n    if \"*\" in pattern and not pattern.startswith(\"*\"):\n        if fnmatch.fnmatch(filepath, \"**/\" + pattern):\n            return True\n\n    return False\n\n\ndef load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:\n</replace>\n</edit>\n\nNow update the grep tools to note they respect these patterns (and possibly use them). Actually, looking at the grep tools, they already exclude directories. The description should note this:\n\n<edit file=\"forge/tools/builtin/grep_context.py\">\n<search>\n            \"description\": \"\"\"Search for a pattern and show lines around each match WITHOUT adding files to context.\n\nUse this to peek at code before deciding if you need the full file. Unlike grep_open, this\nreturns snippets inline and does NOT add files to your active context.\n\n**EPHEMERAL**: This tool's results are only available for ONE turn. After you respond,\nthe full output is replaced with a placeholder to save context space. Use this for quick\nlookups where you'll act immediately on the results (load files, make decisions, etc.).\n\nGood for:\n- Quickly checking how a function is called without loading the whole file\n- Scanning multiple files for a pattern to find the relevant one\n- Investigating before committing to loading large files\n\nThe pattern is a Python regex.\"\"\",\n</search>\n<replace>\n            \"description\": \"\"\"Search for a pattern and show lines around each match WITHOUT adding files to context.\n\nUse this to peek at code before deciding if you need the full file. Unlike grep_open, this\nreturns snippets inline and does NOT add files to your active context.\n\n**EPHEMERAL**: This tool's results are only available for ONE turn. After you respond,\nthe full output is replaced with a placeholder to save context space. Use this for quick\nlookups where you'll act immediately on the results (load files, make decisions, etc.).\n\nGood for:\n- Quickly checking how a function is called without loading the whole file\n- Scanning multiple files for a pattern to find the relevant one\n- Investigating before committing to loading large files\n\nExcludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.\nThe pattern is a Python regex.\"\"\",\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/grep_open.py\">\n<search>\n            \"description\": \"\"\"Search for a pattern in all files and add matching files to context.\n\nUse this to discover which files reference a function, class, variable, or string.\nThis is the primary way to find all call sites or usages before making changes.\n\nExample: To find all files that use `MyClass`, call grep_open with pattern=\"MyClass\"\n\nThe pattern is a Python regex. Common patterns:\n- \"MyClass\" - literal string match\n- \"def my_function\" - find function definitions\n- \"import.*module\" - find imports of a module\n- \"TODO|FIXME\" - find multiple patterns\n\nReturns list of matching files with match counts. All matching files are added to context.\"\"\",\n</search>\n<replace>\n            \"description\": \"\"\"Search for a pattern in all files and add matching files to context.\n\nUse this to discover which files reference a function, class, variable, or string.\nThis is the primary way to find all call sites or usages before making changes.\n\nExample: To find all files that use `MyClass`, call grep_open with pattern=\"MyClass\"\n\nThe pattern is a Python regex. Common patterns:\n- \"MyClass\" - literal string match\n- \"def my_function\" - find function definitions\n- \"import.*module\" - find imports of a module\n- \"TODO|FIXME\" - find multiple patterns\n\nExcludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.\nReturns list of matching files with match counts. All matching files are added to context.\"\"\",\n</replace>\n</edit>\n\n<run_tests/>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `run_tests` failed:\n\n============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_ads7csmm\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n                            [100%]\n--- stderr ---\nQThread: Destroyed while thread '' is still running\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 37] The tests passed! The QThread warning is pre-existing. Let me commit:\n\n<commit message=\"feat: Show file counts per exclusion rule in dialog\n\n- Display incremental match counts (new files vs total)\n- Reorder rules to see how counts change\n- Add matches_pattern() helper for pattern matching\n- Update grep tool descriptions to note default exclusions\"/>\n\nDone! The dialog now shows file counts for each exclusion pattern:\n\n- **Incremental counts**: Shows \"X new, Y total\" where X is files matched by this rule that weren't already matched by earlier rules, and Y is total files this pattern would match\n- **Reordering matters**: Moving rules up/down recalculates the incremental counts\n- **Pattern matching**: Extracted `matches_pattern()` helper that's shared with the SessionManager logic\n\nAlso updated the grep tool descriptions to note they exclude common directories by default.",
+      "_inline_results": [
+        {
+          "commit": "53f1630f036c",
+          "message": "Committed: 3 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

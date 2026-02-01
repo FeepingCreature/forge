@@ -1,10 +1,10 @@
 {
   "active_files": [
-    "forge/session/manager.py",
-    "forge/session/live_session.py",
-    "forge/ui/ai_chat_widget.py",
     "forge/ui/main_window.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/ui/ai_chat_widget.py",
+    "forge/session/live_session.py",
+    "forge/session/manager.py"
   ],
   "request_log_entries": [
     {
@@ -798,6 +798,42 @@
       "streaming": true,
       "actual_cost": 0.141235,
       "generation_id": "gen-1769906792-mEwAIpSRpIyfyRFNEYDu"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769906858821.json",
+      "response_file": "/tmp/forge_debug/response_1769906858821.json",
+      "timestamp": 1769906858.823053,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00346,
+      "generation_id": "gen-1769906858-Wy2ibkwDCFuCixje8ron"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769906858822.json",
+      "response_file": "/tmp/forge_debug/response_1769906858822.json",
+      "timestamp": 1769906858.8233683,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.005214,
+      "generation_id": "gen-1769906858-uckQbckTooSFoRXSf39P"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906887397.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906887397.json",
+      "timestamp": 1769906887.3997457,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 1.04557625,
+      "generation_id": "gen-1769906887-Occ61xow86pNddLMzhrT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906909691.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906909691.json",
+      "timestamp": 1769906909.6926916,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.4248475,
+      "generation_id": "gen-1769906909-3MGnlhJjb3bKIQqpFHo5"
     }
   ],
   "messages": [
@@ -2631,6 +2667,39 @@
           "success": true
         }
       ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 89 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks!\nI'm going through ai_chat_widget, and it's still 1014 lines but they seem to be pretty \"honest\" UI concerns. Good job!"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 88] Great to hear! 1014 lines of \"honest\" UI code is much better than ~1700 lines of mixed concerns we started with.\n\nLet me compact the conversation since we're at 191k tokens:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"1\", \"to_id\": \"86\", \"summary\": \"Major refactoring of AIChatWidget from ~1700 lines god object to ~1014 lines pure UI view:\\n\\n**Extracted modules:**\\n- forge/ui/chat_workers.py - SummaryWorker, StreamWorker, InlineCommandWorker, ToolExecutionWorker\\n- forge/ui/chat_helpers.py - ExternalLinkPage, ChatBridge  \\n- forge/ui/chat_message.py - ChatMessage dataclass, group_messages_into_turns(), build_tool_results_lookup()\\n- forge/ui/chat_styles.py - get_chat_styles(), get_chat_scripts()\\n- forge/ui/chat_streaming.py - escape_for_js(), build_streaming_chunk_js(), etc.\\n\\n**SessionManager changes:**\\n- Now QObject with signals: context_changed, context_stats_updated, summaries_ready, summary_progress, summary_finished, summary_error, mid_turn_commit\\n- Auto-starts summary generation in __init__ (session infrastructure, not UI concern)\\n- Added is_on_checked_out_branch(), is_workdir_clean(), get_workdir_changes() methods\\n- mark_mid_turn_commit() now emits mid_turn_commit signal\\n\\n**SessionRegistry changes:**\\n- load() and ensure_loaded() accept optional existing SessionManager to avoid duplicates\\n- ensure_loaded() handles all cases: get existing, load from disk, or create new\\n\\n**AIChatWidget changes:**\\n- Takes runner (LiveSession) directly in __init__, not workspace\\n- Removed all proxy properties (session_manager, messages, streaming_content, etc.) - now access via self.runner.X directly\\n- Removed dead signals: context_changed, context_stats_updated, summaries_ready (duplicates of SessionManager)\\n- Moved mid_turn_commit signal to SessionManager\\n- Removed deprecated facade methods: add/remove_file_to_context, get_active_files, get_context_stats, check_unsaved_changes\\n- Removed dead methods: _build_prompt_messages, get_session_data\\n- Removed manual _emit_context_stats() calls - SessionManager handles automatically\\n- MainWindow creates runner via SESSION_REGISTRY.ensure_loaded() and passes to widget\\n\\n**CLAUDE.md additions:**\\n- \\\"Ownership and need to know\\\" - ask who should answer questions\\n- Accessors answer questions, don't hand out objects\\n- If you weren't given it at construction, you probably don't need it\"}",
+            "name": "compact"
+          },
+          "id": "toolu_016GqMsqpzKBUVz9XmqDcB4D",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_016GqMsqpzKBUVz9XmqDcB4D",
+      "content": "{\"compact\": true, \"from_id\": \"1\", \"success\": true, \"summary\": \"Major refactoring of AIChatWidget from ~1700 lines god object to ~1014 lines pure UI view:\\n\\n**Extracted modules:**\\n- forge/ui/chat_workers.py - SummaryWorker, StreamWorker, InlineCommandWorker, ToolExecutionWorker\\n- forge/ui/chat_helpers.py - ExternalLinkPage, ChatBridge  \\n- forge/ui/chat_message.py - ChatMessage dataclass, group_messages_into_turns(), build_tool_results_lookup()\\n- forge/ui/chat_styles.py - get_chat_styles(), get_chat_scripts()\\n- forge/ui/chat_streaming.py - escape_for_js(), build_streaming_chunk_js(), etc.\\n\\n**SessionManager changes:**\\n- Now QObject with signals: context_changed, context_stats_updated, summaries_ready, summary_progress, summary_finished, summary_error, mid_turn_commit\\n- Auto-starts summary generation in __init__ (session infrastructure, not UI concern)\\n- Added is_on_checked_out_branch(), is_workdir_clean(), get_workdir_changes() methods\\n- mark_mid_turn_commit() now emits mid_turn_commit signal\\n\\n**SessionRegistry changes:**\\n- load() and ensure_loaded() accept optional existing SessionManager to avoid duplicates\\n- ensure_loaded() handles all cases: get existing, load from disk, or create new\\n\\n**AIChatWidget changes:**\\n- Takes runner (LiveSession) directly in __init__, not workspace\\n- Removed all proxy properties (session_manager, messages, streaming_content, etc.) - now access via self.runner.X directly\\n- Removed dead signals: context_changed, context_stats_updated, summaries_ready (duplicates of SessionManager)\\n- Moved mid_turn_commit signal to SessionManager\\n- Removed deprecated facade methods: add/remove_file_to_context, get_active_files, get_context_stats, check_unsaved_changes\\n- Removed dead methods: _build_prompt_messages, get_session_data\\n- Removed manual _emit_context_stats() calls - SessionManager handles automatically\\n- MainWindow creates runner via SESSION_REGISTRY.ensure_loaded() and passes to widget\\n\\n**CLAUDE.md additions:**\\n- \\\"Ownership and need to know\\\" - ask who should answer questions\\n- Accessors answer questions, don't hand out objects\\n- If you weren't given it at construction, you probably don't need it\", \"to_id\": \"86\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Thanks! The refactoring moved a lot of responsibility to where it belongs:\n\n- **SessionManager** now owns context tracking and summary generation (with signals for UI updates)\n- **LiveSession** owns the conversation state and streaming\n- **AIChatWidget** is now purely a view - it renders what the runner tells it and forwards user input\n\nThe remaining ~1014 lines handle legitimate UI concerns:\n- HTML/JS rendering and the web channel bridge\n- Input field handling and keyboard shortcuts\n- Tool approval UI flow\n- Search bar integration\n- System tray notifications\n- Workdir state confirmation dialogs\n\nIf you want to continue refactoring, there are a few areas that could potentially be further extracted, but they're all genuinely UI-specific so the gains would be marginal:\n- The approval handling (~80 lines) could become a separate `ApprovalManager` \n- The HTML building (~100 lines) is already delegated to `ChatMessage.render_html()` but the `_build_messages_html()` method with turn grouping is still here\n\nBut honestly, 1014 lines for a rich chat widget with markdown rendering, tool approval, streaming, and rewind/fork controls is pretty reasonable. Let me know if you want to tackle anything else!"
     }
   ],
   "parent_session": null,

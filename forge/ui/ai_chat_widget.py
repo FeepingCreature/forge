@@ -85,21 +85,21 @@ class AIChatWidget(QWidget):
 
         # Restore request log if we have session data (UI concern)
         if session_data:
-            self.session_manager.restore_request_log(session_data)
+            self.runner.session_manager.restore_request_log(session_data)
 
         # Attach to the runner (we're the UI now)
         self._attach_to_runner()
 
         # Connect to SessionManager summary signals for UI updates
-        self.session_manager.summary_progress.connect(self._on_summaries_progress)
-        self.session_manager.summary_finished.connect(self._on_summaries_finished)
-        self.session_manager.summary_error.connect(self._on_summaries_error)
+        self.runner.session_manager.summary_progress.connect(self._on_summaries_progress)
+        self.runner.session_manager.summary_finished.connect(self._on_summaries_finished)
+        self.runner.session_manager.summary_error.connect(self._on_summaries_error)
 
         # SessionManager auto-starts summary generation in __init__
         # We just need to show UI feedback if it's still running
-        if not self.session_manager.are_summaries_ready:
+        if not self.runner.session_manager.are_summaries_ready:
             self._add_system_message("🔍 Generating repository summaries in background...")
-            self._summary_message_index = len(self.messages) - 1
+            self._summary_message_index = len(self.runner.messages) - 1
         # Note: SessionManager emits context_stats_updated when summaries finish,
         # no need to manually trigger here
 
@@ -246,9 +246,10 @@ class AIChatWidget(QWidget):
 
         # Generate summaries for newly created files
         if self.runner._newly_created_files:
+            sm = self.runner.session_manager
             for filepath in self.runner._newly_created_files:
-                self.session_manager.generate_summary_for_file(filepath)
-            self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)
+                sm.generate_summary_for_file(filepath)
+            sm.summaries_ready.emit(sm.repo_summaries)
 
     def _on_runner_error(self, error_msg: str) -> None:
         """Handle error from runner."""
@@ -315,8 +316,9 @@ class AIChatWidget(QWidget):
                 f"```json\n{json.dumps(result, indent=2)}\n```",
             ]
             filepath = tool_args.get("filepath")
-            if filepath and filepath not in self.session_manager.active_files:
-                self.session_manager.add_active_file(filepath)
+            sm = self.runner.session_manager
+            if filepath and filepath not in sm.active_files:
+                sm.add_active_file(filepath)
                 tool_display_parts.append(
                     f"\n📂 Added `{filepath}` to context so you can see its actual content"
                 )
@@ -334,50 +336,6 @@ class AIChatWidget(QWidget):
                 f"```json\n{json.dumps(result, indent=2)}\n```",
             ]
             self._add_system_message("\n".join(tool_display_parts))
-
-    # === Properties to access through runner ===
-
-    @property
-    def session_manager(self) -> Any:
-        """Access session manager through the runner."""
-        return self.runner.session_manager
-
-    @property
-    def branch_name(self) -> str:
-        """Access branch name through the runner."""
-        return self.runner.branch_name
-
-    @property
-    def settings(self) -> Any:
-        """Access settings through the session manager."""
-        return self.session_manager.settings
-
-    @property
-    def messages(self) -> list[dict[str, Any]]:
-        """Access messages through the runner (source of truth)."""
-        return self.runner.messages
-
-    @property
-    def streaming_content(self) -> str:
-        """Access streaming content through the runner."""
-        return self.runner.streaming_content
-
-    @property
-    def _streaming_tool_calls(self) -> list[dict[str, Any]]:
-        """Access streaming tool calls through the runner."""
-        return self.runner.streaming_tool_calls
-
-    @property
-    def _is_streaming(self) -> bool:
-        """Access streaming state through the runner."""
-        return self.runner.is_streaming
-
-    @property
-    def is_processing(self) -> bool:
-        """Check if runner is processing."""
-        from forge.session.live_session import SessionState
-
-        return self.runner.state == SessionState.RUNNING
 
     def _setup_ui(self) -> None:
         """Setup the chat UI"""
@@ -463,18 +421,18 @@ class AIChatWidget(QWidget):
 
         # Update the existing message in place
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
-            self.messages
+            self.runner.messages
         ):
-            self.messages[self._summary_message_index]["content"] = progress_text
+            self.runner.messages[self._summary_message_index]["content"] = progress_text
             self._update_chat_display()
 
     def _on_summaries_finished(self, count: int) -> None:
         """Handle summary generation completion (UI update only - SessionManager handles logic)"""
         # Update the progress message to show completion
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
-            self.messages
+            self.runner.messages
         ):
-            self.messages[self._summary_message_index]["content"] = (
+            self.runner.messages[self._summary_message_index]["content"] = (
                 f"✅ Generated summaries for {count} files"
             )
             self._update_chat_display(scroll_to_bottom=True)
@@ -487,13 +445,14 @@ class AIChatWidget(QWidget):
 
     def _check_for_unapproved_tools(self) -> None:
         """Check for unapproved tools and show approval requests in chat"""
-        unapproved = self.session_manager.tool_manager.get_unapproved_tools()
+        tool_manager = self.runner.session_manager.tool_manager
+        unapproved = tool_manager.get_unapproved_tools()
 
         if unapproved:
             for tool_name, current_code, is_new, old_code in unapproved:
                 # Check if this tool has already been handled in this session
                 # by checking if it's in the approved_tools.json file
-                if self.session_manager.tool_manager.is_tool_approved(tool_name):
+                if tool_manager.is_tool_approved(tool_name):
                     # Already handled, mark it so buttons render disabled
                     self.handled_approvals.add(tool_name)
                     continue
@@ -535,11 +494,12 @@ class AIChatWidget(QWidget):
         # Mark as handled so buttons render disabled on reload
         self.handled_approvals.add(tool_name)
 
+        tool_manager = self.runner.session_manager.tool_manager
         if approved:
-            self.session_manager.tool_manager.approve_tool(tool_name)
+            tool_manager.approve_tool(tool_name)
             self.add_message("system", f"✅ Approved tool: `{tool_name}`")
         else:
-            self.session_manager.tool_manager.reject_tool(tool_name)
+            tool_manager.reject_tool(tool_name)
             self.add_message("system", f"❌ Rejected tool: `{tool_name}`")
 
         del self.pending_approvals[tool_name]
@@ -547,7 +507,7 @@ class AIChatWidget(QWidget):
 
         # If all approvals done, commit them
         if not self.pending_approvals:
-            new_commit_oid = self.session_manager.tool_manager.commit_pending_approvals()
+            new_commit_oid = tool_manager.commit_pending_approvals()
             if new_commit_oid:
                 self.add_message(
                     "system", f"✅ Tool approvals committed: {str(new_commit_oid)[:8]}"
@@ -576,6 +536,8 @@ class AIChatWidget(QWidget):
 
     def _update_blocking_state(self) -> None:
         """Update UI blocking state based on pending approvals"""
+        from forge.session.live_session import SessionState
+
         if self.pending_approvals:
             # Block input while approvals pending
             self.input_field.setEnabled(False)
@@ -586,7 +548,7 @@ class AIChatWidget(QWidget):
             )
         else:
             # Unblock input (unless processing)
-            if not self.is_processing:
+            if self.runner.state != SessionState.RUNNING:
                 self.input_field.setEnabled(True)
                 self.send_button.setEnabled(True)
                 self.input_field.setPlaceholderText(
@@ -608,24 +570,26 @@ class AIChatWidget(QWidget):
         """
         from PySide6.QtWidgets import QMessageBox
 
+        sm = self.runner.session_manager
+
         # Check if we're working on the checked-out branch
-        if not self.session_manager.is_on_checked_out_branch():
+        if not sm.is_on_checked_out_branch():
             # Not working on the checked-out branch, no workdir concerns
             return True
 
         # Check if workdir is clean
-        if self.session_manager.is_workdir_clean():
+        if sm.is_workdir_clean():
             return True
 
         # Workdir has uncommitted changes - warn user
-        changes = self.session_manager.get_workdir_changes()
+        changes = sm.get_workdir_changes()
         change_count = len(changes)
 
         reply = QMessageBox.warning(
             self,
             "Uncommitted Working Directory Changes",
             f"The working directory has {change_count} uncommitted change(s).\n\n"
-            f"You're working on '{self.branch_name}' which is currently checked out. "
+            f"You're working on '{self.runner.branch_name}' which is currently checked out. "
             f"AI changes will update the working directory, which will OVERWRITE these uncommitted changes.\n\n"
             f"Options:\n"
             f"• Cancel and commit/stash your changes first\n"
@@ -638,12 +602,14 @@ class AIChatWidget(QWidget):
 
     def _send_message(self) -> None:
         """Send user message to AI"""
+        from forge.session.live_session import SessionState
+
         text = self.input_field.toPlainText().strip()
         if not text:
             return
 
         # If processing, queue the message instead of sending
-        if self.is_processing:
+        if self.runner.state == SessionState.RUNNING:
             # Queue in runner
             self.runner._queued_message = text
             self.input_field.clear()
@@ -652,7 +618,7 @@ class AIChatWidget(QWidget):
             return
 
         # Block if summaries are still being generated
-        if not self.session_manager.are_summaries_ready:
+        if not self.runner.session_manager.are_summaries_ready:
             self._add_system_message(
                 "⏳ Please wait for repository summaries to finish generating..."
             )
@@ -676,16 +642,18 @@ class AIChatWidget(QWidget):
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
-        if not self._streaming_tool_calls:
+        if not self.runner.streaming_tool_calls:
             return
 
-        js_code = build_streaming_tool_calls_js(self._streaming_tool_calls)
+        js_code = build_streaming_tool_calls_js(self.runner.streaming_tool_calls)
         if js_code:
             self.chat_view.page().runJavaScript(js_code)
 
     def _cancel_ai_turn(self) -> None:
         """Cancel the current AI turn - abort streaming/tool execution and discard changes"""
-        if not self.is_processing:
+        from forge.session.live_session import SessionState
+
+        if self.runner.state != SessionState.RUNNING:
             return
 
         # Delegate to runner - it handles all the cleanup
@@ -701,7 +669,6 @@ class AIChatWidget(QWidget):
 
     def _reset_input(self) -> None:
         """Re-enable input after processing (if no pending approvals)"""
-        # Note: is_processing is a read-only property, UI state is managed by _set_processing_ui
 
         # Hide cancel button, show send button
         self.cancel_button.setEnabled(False)
@@ -742,7 +709,7 @@ class AIChatWidget(QWidget):
 
     def _get_conversation_messages(self) -> list[dict[str, Any]]:
         """Get messages that are part of the actual conversation (excludes UI-only messages)"""
-        return [msg for msg in self.messages if not msg.get("_ui_only", False)]
+        return [msg for msg in self.runner.messages if not msg.get("_ui_only", False)]
 
     def _append_queued_message_indicator(self, text: str) -> None:
         """Append a queued message indicator via JavaScript without disrupting streaming"""
@@ -752,18 +719,18 @@ class AIChatWidget(QWidget):
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
         # streaming_content is already updated in _on_stream_chunk before this is called
-        js_code = build_streaming_chunk_js(self.streaming_content)
+        js_code = build_streaming_chunk_js(self.runner.streaming_content)
         self.chat_view.page().runJavaScript(js_code)
 
     def _finalize_streaming_content(self) -> None:
         """Convert accumulated streaming text to markdown (called once at end)"""
-        if not self.streaming_content:
+        if not self.runner.streaming_content:
             return
 
         # Convert markdown to HTML, preserving <edit> blocks as diff views
         from forge.ui.chat_streaming import escape_for_js
 
-        content_html = render_markdown(self.streaming_content)
+        content_html = render_markdown(self.runner.streaming_content)
         escaped_html = escape_for_js(content_html)
 
         # Replace streaming content with rendered markdown
@@ -830,7 +797,7 @@ class AIChatWidget(QWidget):
         Each turn gets Revert/Fork buttons at the bottom.
         """
         # Convert raw message dicts to ChatMessage objects
-        chat_messages = [ChatMessage.from_dict(msg) for msg in self.messages]
+        chat_messages = [ChatMessage.from_dict(msg) for msg in self.runner.messages]
 
         # Build tool results lookup
         tool_results = build_tool_results_lookup(chat_messages)
@@ -844,7 +811,7 @@ class AIChatWidget(QWidget):
         for turn_idx, turn_messages in enumerate(turns):
             # Check if this turn is currently streaming (last turn and we're streaming)
             is_current_turn = turn_idx == len(turns) - 1
-            turn_is_streaming = is_current_turn and self._is_streaming
+            turn_is_streaming = is_current_turn and self.runner.is_streaming
             first_msg_idx = turn_messages[0][0]
 
             # Start turn wrapper with clickable marker
@@ -870,7 +837,9 @@ class AIChatWidget(QWidget):
             for i, msg in turn_messages:
                 # Check if this is the currently streaming message
                 is_streaming_msg = (
-                    self._is_streaming and i == len(self.messages) - 1 and msg.role == "assistant"
+                    self.runner.is_streaming
+                    and i == len(self.runner.messages) - 1
+                    and msg.role == "assistant"
                 )
 
                 # Render the message
@@ -939,17 +908,20 @@ class AIChatWidget(QWidget):
 
         This emits a signal that MainWindow should handle to create a new branch.
         """
+        from forge.session.live_session import SessionState
+
         # Don't allow fork while processing
-        if self.is_processing:
+        if self.runner.state == SessionState.RUNNING:
             self._add_system_message("⚠️ Cannot fork while AI is processing")
             return
 
         # For "fork after", we need to find the end of this turn
+        messages = self.runner.messages
         if not before:
             # Find end of turn (next user message or end)
-            end_idx = len(self.messages)
-            for i in range(first_message_index + 1, len(self.messages)):
-                if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+            end_idx = len(messages)
+            for i in range(first_message_index + 1, len(messages)):
+                if messages[i].get("role") == "user" and not messages[i].get("_ui_only"):
                     end_idx = i
                     break
             # Emit the end index so fork includes this turn

@@ -1015,7 +1015,7 @@ class MainWindow(QMainWindow):
             return
 
         # Get segments directly from prompt manager (not stats dict)
-        segments = chat_widget.session_manager.get_mood_bar_segments()
+        segments = chat_widget.runner.session_manager.get_mood_bar_segments()
         self._mood_bar.set_segments(segments)
 
     def _get_model_context_limit(self, model: str) -> int | None:

@@ -393,6 +393,24 @@
       "streaming": true,
       "actual_cost": 0.0609395,
       "generation_id": "gen-1769968236-yXx2rugTqFd3UrbhvTaV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769968262380.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769968262380.json",
+      "timestamp": 1769968262.3810577,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.08890225,
+      "generation_id": "gen-1769968262-Q2SjpVHtaHGOaS2n89pB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769968293301.json",
+      "response_file": "/tmp/forge_debug/response_1769968293301.json",
+      "timestamp": 1769968293.3013642,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002195,
+      "generation_id": "gen-1769968293-qtPybuZGCUP5XnLHpnJO"
     }
   ],
   "messages": [
@@ -1191,6 +1209,54 @@
         {
           "commit": "1c2d846b4a82",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 4c52c2cb",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Can you make sure the matcher has a unittest?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 46] Let me create a unittest for the gitignore-style pattern matching:\n\n<edit file=\"tests/test_summary_exclusions.py\">\n\"\"\"Tests for summary exclusion pattern matching (gitignore-style).\"\"\"\n\nimport pytest\n\nfrom forge.ui.summary_exclusions_dialog import matches_pattern\n\n\nclass TestMatchesPattern:\n    \"\"\"Test gitignore-style pattern matching.\"\"\"\n\n    # --- Directory patterns ---\n\n    def test_dir_pattern_matches_files_under_dir(self):\n        \"\"\"folder/ should match files under that folder anywhere.\"\"\"\n        assert matches_pattern(\"node_modules/foo.js\", \"node_modules/\")\n        assert matches_pattern(\"node_modules/bar/baz.js\", \"node_modules/\")\n\n    def test_dir_pattern_matches_nested(self):\n        \"\"\"folder/ should match folder anywhere in path.\"\"\"\n        assert matches_pattern(\"src/node_modules/foo.js\", \"node_modules/\")\n        assert matches_pattern(\"a/b/node_modules/c/d.js\", \"node_modules/\")\n\n    def test_dir_pattern_no_match_partial_name(self):\n        \"\"\"folder/ should not match partial directory names.\"\"\"\n        assert not matches_pattern(\"node_modules_backup/foo.js\", \"node_modules/\")\n        assert not matches_pattern(\"my_node_modules/foo.js\", \"node_modules/\")\n\n    def test_anchored_dir_pattern_root_only(self):\n        \"\"\"/folder/ should only match at root.\"\"\"\n        assert matches_pattern(\"build/output.js\", \"/build/\")\n        assert not matches_pattern(\"src/build/output.js\", \"/build/\")\n\n    # --- Extension patterns ---\n\n    def test_extension_pattern_matches_anywhere(self):\n        \"\"\"*.ext should match that extension anywhere.\"\"\"\n        assert matches_pattern(\"foo.min.js\", \"*.min.js\")\n        assert matches_pattern(\"src/bar.min.js\", \"*.min.js\")\n        assert matches_pattern(\"a/b/c/baz.min.js\", \"*.min.js\")\n\n    def test_extension_pattern_no_match_different_ext(self):\n        \"\"\"*.ext should not match different extensions.\"\"\"\n        assert not matches_pattern(\"foo.js\", \"*.min.js\")\n        assert not matches_pattern(\"foo.min.css\", \"*.min.js\")\n\n    def test_simple_extension(self):\n        \"\"\"*.ext matches simple extensions.\"\"\"\n        assert matches_pattern(\"foo.pyc\", \"*.pyc\")\n        assert matches_pattern(\"src/bar.pyc\", \"*.pyc\")\n\n    # --- Exact file patterns ---\n\n    def test_exact_file_at_root(self):\n        \"\"\"Exact filename should match.\"\"\"\n        assert matches_pattern(\"package-lock.json\", \"package-lock.json\")\n\n    def test_exact_file_matches_anywhere(self):\n        \"\"\"Exact filename without slash matches anywhere.\"\"\"\n        assert matches_pattern(\"src/package-lock.json\", \"package-lock.json\")\n\n    def test_anchored_exact_file(self):\n        \"\"\"/file should only match at root.\"\"\"\n        assert matches_pattern(\"README.md\", \"/README.md\")\n        assert not matches_pattern(\"docs/README.md\", \"/README.md\")\n\n    # --- Glob patterns with ** ---\n\n    def test_double_star_glob(self):\n        \"\"\"**/pattern should match at any depth.\"\"\"\n        assert matches_pattern(\"test/foo.snap\", \"**/test/*.snap\")\n        assert matches_pattern(\"src/test/bar.snap\", \"**/test/*.snap\")\n\n    def test_double_star_prefix(self):\n        \"\"\"**/ at start matches any leading path.\"\"\"\n        assert matches_pattern(\"foo.test.js\", \"**/*.test.js\")\n        assert matches_pattern(\"src/components/Button.test.js\", \"**/*.test.js\")\n\n    # --- Path patterns ---\n\n    def test_path_pattern_with_wildcard(self):\n        \"\"\"folder/*.ext matches in specific folder.\"\"\"\n        assert matches_pattern(\"tests/__snapshots__/foo.snap\", \"tests/__snapshots__/*.snap\")\n        # Should not match in different folder\n        assert not matches_pattern(\"other/__snapshots__/foo.snap\", \"tests/__snapshots__/*.snap\")\n\n    # --- Negation patterns ---\n\n    def test_negation_pattern_returns_false(self):\n        \"\"\"!pattern should return False (handled by caller).\"\"\"\n        assert not matches_pattern(\"important.log\", \"!important.log\")\n\n    # --- Edge cases ---\n\n    def test_empty_pattern(self):\n        \"\"\"Empty pattern should not match anything.\"\"\"\n        assert not matches_pattern(\"foo.js\", \"\")\n\n    def test_empty_filepath(self):\n        \"\"\"Empty filepath edge case.\"\"\"\n        assert not matches_pattern(\"\", \"*.js\")\n\n    def test_hidden_files(self):\n        \"\"\"Hidden files (dotfiles) should match.\"\"\"\n        assert matches_pattern(\".gitignore\", \".gitignore\")\n        assert matches_pattern(\"src/.env\", \".env\")\n\n    def test_hidden_directories(self):\n        \"\"\"Hidden directories should match.\"\"\"\n        assert matches_pattern(\".git/config\", \".git/\")\n        assert matches_pattern(\"src/.cache/foo\", \".cache/\")\n\n\nclass TestDefaultExclusions:\n    \"\"\"Test that default exclusions work correctly.\"\"\"\n\n    def test_node_modules(self):\n        assert matches_pattern(\"node_modules/lodash/index.js\", \"node_modules/\")\n\n    def test_pycache(self):\n        assert matches_pattern(\"src/__pycache__/module.cpython-311.pyc\", \"__pycache__/\")\n\n    def test_venv(self):\n        assert matches_pattern(\".venv/lib/python3.11/site.py\", \".venv/\")\n        assert matches_pattern(\"venv/bin/python\", \"venv/\")\n\n    def test_git(self):\n        assert matches_pattern(\".git/objects/ab/cd1234\", \".git/\")\n\n    def test_minified_js(self):\n        assert matches_pattern(\"dist/bundle.min.js\", \"*.min.js\")\n\n    def test_lock_files(self):\n        assert matches_pattern(\"package-lock.json\", \"package-lock.json\")\n        assert matches_pattern(\"yarn.lock\", \"yarn.lock\")\n        assert matches_pattern(\"poetry.lock\", \"poetry.lock\")\n\n    def test_pyc_files(self):\n        assert matches_pattern(\"module.pyc\", \"*.pyc\")\n        assert matches_pattern(\"src/utils.pyo\", \"*.pyo\")\n\n    def test_ds_store(self):\n        assert matches_pattern(\".DS_Store\", \".DS_Store\")\n        assert matches_pattern(\"folder/.DS_Store\", \".DS_Store\")\n</edit>\n\n<run_tests/>\n<commit message=\"test: Add comprehensive tests for gitignore-style pattern matching\"/>\n\nDone! Added comprehensive unittests for the `matches_pattern()` function covering:\n\n- **Directory patterns**: `folder/`, `/folder/` (anchored)\n- **Extension patterns**: `*.ext`, `*.min.js`\n- **Exact file patterns**: `package-lock.json`, `/README.md` (anchored)\n- **Glob patterns**: `**/test/*.snap`, `**/*.test.js`\n- **Path patterns**: `tests/__snapshots__/*.snap`\n- **Edge cases**: empty patterns, hidden files/directories, negation\n- **Default exclusions**: node_modules, __pycache__, .venv, .git, minified files, lock files, etc.",
+      "_inline_results": [
+        {
+          "message": "Wrote 5604 bytes to tests/test_summary_exclusions.py",
+          "modified_files": [
+            "tests/test_summary_exclusions.py"
+          ],
+          "new_files": [
+            "tests/test_summary_exclusions.py"
+          ],
+          "side_effects": [
+            "files_modified",
+            "new_files_created"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_57k2ogmk\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 98 items\n\ntests/test_inline_edit.py ................                               [ 16%]\ntests/test_prompt_manager.py .......................................     [ 56%]\ntests/test_session_spawn.py .................                            [ 73%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================== 98 passed in 0.32s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_57k2ogmk\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 98 items\n\ntests/test_inline_edit.py ................                               [ 16%]\ntests/test_prompt_manager.py .......................................     [ 56%]\ntests/test_session_spawn.py .................                            [ 73%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================== 98 passed in 0.32s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "f094f9e8f5d8",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

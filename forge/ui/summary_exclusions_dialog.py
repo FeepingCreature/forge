@@ -144,8 +144,7 @@ class SummaryExclusionsDialog(QDialog):
 
         # Note about when changes take effect
         note = QLabel(
-            "<i>Changes apply to new summarization runs. "
-            "Use Regenerate Summaries to apply immediately.</i>"
+            "<i>Changes take effect on the next AI request.</i>"
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #888; font-size: 10px;")
@@ -234,9 +233,11 @@ class SummaryExclusionsDialog(QDialog):
 
     def _save_config(self, config: dict) -> None:
         """Save the repo config file."""
+        from forge.git_backend.commit_types import CommitType
+
         self.workspace.vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
-        # Commit the config change
-        self.workspace.commit("Update summary exclusion patterns")
+        # Commit as PREPARE so it merges into the next real commit
+        self.workspace.vfs.commit("Update summary exclusion patterns", commit_type=CommitType.PREPARE)
 
     def _load_patterns(self) -> None:
         """Load current exclusion patterns into the list.

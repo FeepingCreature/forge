@@ -1,11 +1,11 @@
 {
   "active_files": [
     "CLAUDE.md",
-    "forge/session/manager.py",
     "forge/ui/ai_chat_widget.py",
-    "forge/ui/summary_exclusions_dialog.py",
+    "forge/ui/file_explorer_widget.py",
     "forge/ui/js_cache.py",
-    "forge/ui/file_explorer_widget.py"
+    "forge/session/manager.py",
+    "forge/ui/summary_exclusions_dialog.py"
   ],
   "request_log_entries": [
     {
@@ -214,6 +214,51 @@
       "streaming": true,
       "actual_cost": 0.3699825,
       "generation_id": "gen-1769967605-k1MnljlYN9QwykPcv6bw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967644021.json",
+      "response_file": "/tmp/forge_debug/response_1769967644021.json",
+      "timestamp": 1769967644.0218055,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001687,
+      "generation_id": "gen-1769967644-vEB89s8RRjPFj5Tr8tdl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967644021.json",
+      "response_file": "/tmp/forge_debug/response_1769967644021.json",
+      "timestamp": 1769967644.0221846,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1769967644-yKZE2L4O1ZHsNJXk2EsH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967644022.json",
+      "response_file": "/tmp/forge_debug/response_1769967644022.json",
+      "timestamp": 1769967644.0239413,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1769967644-k6QibHA6C8jXWMYfuHhZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967695432.json",
+      "response_file": null,
+      "timestamp": 1769967695.433374,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": null
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967696925.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967696925.json",
+      "timestamp": 1769967696.9263375,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.42059125,
+      "generation_id": "gen-1769967697-5j1QygAFHeOaKKYBLInl"
     }
   ],
   "messages": [
@@ -577,6 +622,64 @@
         {
           "commit": "f90752123006",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 88 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Can confirm the error on start is gone. I think we had a list of default exclusions, can we move this into the dialog and initialize it when we create the configuration key?"
+    },
+    {
+      "role": "user",
+      "content": "**Error from LLM provider:**\n\n```\n('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea! Let me add default exclusions that get populated when the config is first created:\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\nCONFIG_FILE = \".forge/config.json\"\n\n\nclass SummaryExclusionsDialog(QDialog):\n</search>\n<replace>\nCONFIG_FILE = \".forge/config.json\"\n\n# Default exclusion patterns for new repositories\nDEFAULT_EXCLUSIONS = [\n    \"node_modules/\",\n    \"__pycache__/\",\n    \".venv/\",\n    \"venv/\",\n    \".git/\",\n    \"*.min.js\",\n    \"*.min.css\",\n    \"*.lock\",\n    \"package-lock.json\",\n    \"yarn.lock\",\n    \"poetry.lock\",\n    \"*.pyc\",\n    \".DS_Store\",\n]\n\n\nclass SummaryExclusionsDialog(QDialog):\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n<search>\ndef load_summary_exclusions(vfs) -> list[str]:\n    \"\"\"\n    Load summary exclusion patterns from repo config.\n\n    Args:\n        vfs: The VFS to read from\n\n    Returns:\n        List of exclusion patterns\n    \"\"\"\n    try:\n        if vfs.file_exists(CONFIG_FILE):\n            content = vfs.read_file(CONFIG_FILE)\n            config = json.loads(content)\n            return config.get(\"summary_exclusions\", [])\n    except (json.JSONDecodeError, FileNotFoundError, KeyError):\n        pass\n    return []\n</search>\n<replace>\ndef load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:\n    \"\"\"\n    Load summary exclusion patterns from repo config.\n\n    Args:\n        vfs: The VFS to read from\n        create_default: If True and config doesn't exist, create with defaults\n\n    Returns:\n        List of exclusion patterns\n    \"\"\"\n    try:\n        if vfs.file_exists(CONFIG_FILE):\n            content = vfs.read_file(CONFIG_FILE)\n            config = json.loads(content)\n            # Key exists - return it (even if empty, user may have cleared it)\n            if \"summary_exclusions\" in config:\n                return config[\"summary_exclusions\"]\n            # Config exists but no exclusions key - add defaults\n            config[\"summary_exclusions\"] = DEFAULT_EXCLUSIONS.copy()\n            vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))\n            return config[\"summary_exclusions\"]\n        elif create_default:\n            # No config file - create with defaults\n            config = {\"summary_exclusions\": DEFAULT_EXCLUSIONS.copy()}\n            vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))\n            return config[\"summary_exclusions\"]\n    except (json.JSONDecodeError, FileNotFoundError, KeyError):\n        pass\n    return []\n</replace>\n</edit>\n\n<run_tests/>\n<commit message=\"feat: Add default exclusion patterns for new repositories\n\nInitializes .forge/config.json with sensible defaults:\n- node_modules/, __pycache__/, .venv/, venv/, .git/\n- *.min.js, *.min.css, *.lock, package-lock.json, etc.\"/>\n\nDone! Now when `load_summary_exclusions()` is called and no config exists (or the key is missing), it automatically creates `.forge/config.json` with sensible defaults. The defaults include common directories and files that typically don't need summarization:\n\n- **Directories**: `node_modules/`, `__pycache__/`, `.venv/`, `venv/`, `.git/`\n- **Minified files**: `*.min.js`, `*.min.css`  \n- **Lock files**: `*.lock`, `package-lock.json`, `yarn.lock`, `poetry.lock`\n- **Other**: `*.pyc`, `.DS_Store`\n\nIf users have already explicitly set exclusions (even to an empty list), those are preserved.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_myhycwqj\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_myhycwqj\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "2b4bf5841946",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

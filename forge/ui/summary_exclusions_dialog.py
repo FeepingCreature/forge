@@ -23,6 +23,23 @@ if TYPE_CHECKING:
 
 CONFIG_FILE = ".forge/config.json"
 
+# Default exclusion patterns for new repositories
+DEFAULT_EXCLUSIONS = [
+    "node_modules/",
+    "__pycache__/",
+    ".venv/",
+    "venv/",
+    ".git/",
+    "*.min.js",
+    "*.min.css",
+    "*.lock",
+    "package-lock.json",
+    "yarn.lock",
+    "poetry.lock",
+    "*.pyc",
+    ".DS_Store",
+]
+
 
 class SummaryExclusionsDialog(QDialog):
     """Dialog for editing summary exclusion patterns with a list interface."""
@@ -225,12 +242,13 @@ class SummaryExclusionsDialog(QDialog):
         self.accept()
 
 
-def load_summary_exclusions(vfs) -> list[str]:
+def load_summary_exclusions(vfs, create_default: bool = True) -> list[str]:
     """
     Load summary exclusion patterns from repo config.
 
     Args:
         vfs: The VFS to read from
+        create_default: If True and config doesn't exist, create with defaults
 
     Returns:
         List of exclusion patterns
@@ -239,7 +257,18 @@ def load_summary_exclusions(vfs) -> list[str]:
         if vfs.file_exists(CONFIG_FILE):
             content = vfs.read_file(CONFIG_FILE)
             config = json.loads(content)
-            return config.get("summary_exclusions", [])
+            # Key exists - return it (even if empty, user may have cleared it)
+            if "summary_exclusions" in config:
+                return config["summary_exclusions"]
+            # Config exists but no exclusions key - add defaults
+            config["summary_exclusions"] = DEFAULT_EXCLUSIONS.copy()
+            vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
+            return config["summary_exclusions"]
+        elif create_default:
+            # No config file - create with defaults
+            config = {"summary_exclusions": DEFAULT_EXCLUSIONS.copy()}
+            vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
+            return config["summary_exclusions"]
     except (json.JSONDecodeError, FileNotFoundError, KeyError):
         pass
     return []

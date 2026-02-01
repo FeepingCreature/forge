@@ -37,8 +37,7 @@ from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
-    from forge.session.live_session import SessionEvent
-    from forge.ui.branch_workspace import BranchWorkspace
+    from forge.session.live_session import LiveSession, SessionEvent
 
 
 class AIChatWidget(QWidget):
@@ -67,15 +66,13 @@ class AIChatWidget(QWidget):
 
     def __init__(
         self,
-        workspace: "BranchWorkspace",
+        runner: "LiveSession",
         session_data: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        # Get branch info from workspace
-        self.workspace = workspace
-        self.branch_name = workspace.branch_name
-        self.settings = workspace._settings
-        self.repo = workspace._repo
+
+        # Runner is passed in, already initialized
+        self.runner = runner
 
         # Tool approval tracking - initialize BEFORE any method calls
         self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info
@@ -86,23 +83,9 @@ class AIChatWidget(QWidget):
         self.channel = QWebChannel()
         self.channel.registerObject("bridge", self.bridge)
 
-        # Get session manager from workspace (branch-level ownership)
-        self.session_manager = workspace.session_manager
-
         # Setup UI BEFORE attaching to runner - the runner may emit events
         # that need UI elements (send_button, chat_view, etc.)
         self._setup_ui()
-
-        # Get or create the LiveSession from registry
-        # Registry handles: loading from disk, replaying messages, restoring state, or creating new
-        from forge.session.registry import SESSION_REGISTRY
-
-        self.runner = SESSION_REGISTRY.ensure_loaded(
-            self.branch_name,
-            self.repo,
-            self.settings,
-            session_manager=self.session_manager,
-        )
 
         # Restore request log if we have session data (UI concern)
         if session_data:
@@ -116,14 +99,12 @@ class AIChatWidget(QWidget):
         self.session_manager.summary_finished.connect(self._on_summaries_finished)
         self.session_manager.summary_error.connect(self._on_summaries_error)
 
-        # Generate repository summaries on session creation (if not already done)
+        # Check if summaries need to be generated (SessionManager handles the actual generation)
         if not self.session_manager.repo_summaries:
             self._add_system_message("🔍 Generating repository summaries in background...")
-            # Track the message index for in-place updates
             self._summary_message_index = len(self.messages) - 1
             self.session_manager.start_summary_generation()
         else:
-            # Summaries already exist (restored session) - emit initial context stats
             self.session_manager._emit_context_stats()
 
         self._update_chat_display()
@@ -371,7 +352,27 @@ class AIChatWidget(QWidget):
             ]
             self._add_system_message("\n".join(tool_display_parts))
 
-    # === Property to access messages through runner ===
+    # === Properties to access through runner ===
+
+    @property
+    def session_manager(self) -> Any:
+        """Access session manager through the runner."""
+        return self.runner.session_manager
+
+    @property
+    def branch_name(self) -> str:
+        """Access branch name through the runner."""
+        return self.runner.branch_name
+
+    @property
+    def repo(self) -> Any:
+        """Access repo through the session manager."""
+        return self.session_manager._repo
+
+    @property
+    def settings(self) -> Any:
+        """Access settings through the session manager."""
+        return self.session_manager.settings
 
     @property
     def messages(self) -> list[dict[str, Any]]:
@@ -641,11 +642,13 @@ class AIChatWidget(QWidget):
 
     def get_active_files(self) -> set[str]:
         """Get the set of files currently in AI context"""
-        return self.session_manager.active_files.copy()
+        result: set[str] = self.session_manager.active_files.copy()
+        return result
 
     def get_context_stats(self) -> dict[str, Any]:
         """Get current context statistics"""
-        return self.session_manager.get_active_files_with_stats()
+        result: dict[str, Any] = self.session_manager.get_active_files_with_stats()
+        return result
 
     def check_unsaved_changes(self) -> bool:
         """
@@ -755,7 +758,8 @@ class AIChatWidget(QWidget):
         self.session_manager.sync_prompt_manager()
 
         # Get optimized messages from prompt manager
-        return self.session_manager.get_prompt_messages()
+        result: list[dict[str, Any]] = self.session_manager.get_prompt_messages()
+        return result
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""

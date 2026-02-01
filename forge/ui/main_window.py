@@ -178,11 +178,20 @@ class MainWindow(QMainWindow):
         workspace = BranchWorkspace(branch_name=branch_name, repo=self.repo, settings=self.settings)
         branch_widget = BranchTabWidget(workspace, self.settings)
 
-        # Create AI chat for this branch
-        # Try to load existing session data from .forge/session.json
+        # Get or create LiveSession from registry
+        from forge.session.registry import SESSION_REGISTRY
+
         session_data = self._load_session_data(branch_name)
+        runner = SESSION_REGISTRY.ensure_loaded(
+            branch_name,
+            self.repo,
+            self.settings,
+            session_manager=workspace.session_manager,
+        )
+
+        # Create AI chat widget with the runner
         chat_widget = AIChatWidget(
-            workspace=workspace,
+            runner=runner,
             session_data=session_data,
         )
 

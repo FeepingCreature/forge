@@ -38,7 +38,7 @@ def _download_script(url: str, cache_path: Path) -> bool:
         return False
 
 
-def get_script_tag(name: str) -> str:
+def get_script_tag(name: str, onload: str | None = None) -> str:
     """Get HTML script tag for a cached script.
 
     Returns a file:// URL if cached, otherwise falls back to CDN URL.
@@ -46,6 +46,7 @@ def get_script_tag(name: str) -> str:
 
     Args:
         name: Script name (e.g., 'mathjax', 'mermaid')
+        onload: Optional JavaScript to run when script loads
 
     Returns:
         HTML <script> tag string
@@ -56,21 +57,31 @@ def get_script_tag(name: str) -> str:
     url = EXTERNAL_SCRIPTS[name]
     cache_path = _get_cache_path(name, url)
 
+    # Build onload attribute if provided
+    onload_attr = f' onload="{onload}"' if onload else ""
+
     # Try to use cached version
     if cache_path.exists():
-        return f'<script src="file://{cache_path}"></script>'
+        return f'<script src="file://{cache_path}"{onload_attr}></script>'
 
     # Try to download and cache
     if _download_script(url, cache_path):
-        return f'<script src="file://{cache_path}"></script>'
+        return f'<script src="file://{cache_path}"{onload_attr}></script>'
 
     # Fall back to CDN
-    return f'<script src="{url}"></script>'
+    return f'<script src="{url}"{onload_attr}></script>'
 
 
 def get_all_script_tags() -> str:
-    """Get script tags for all external scripts."""
-    return "\n            ".join(get_script_tag(name) for name in EXTERNAL_SCRIPTS)
+    """Get script tags for all external scripts, with appropriate onload handlers."""
+    tags = []
+    for name in EXTERNAL_SCRIPTS:
+        if name == "mermaid":
+            # Initialize mermaid when it loads
+            tags.append(get_script_tag(name, onload="initMermaid()"))
+        else:
+            tags.append(get_script_tag(name))
+    return "\n            ".join(tags)
 
 
 def precache_all() -> None:

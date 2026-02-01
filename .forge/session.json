@@ -4,6 +4,7 @@
     "forge/session/manager.py",
     "forge/ui/ai_chat_widget.py",
     "forge/ui/summary_exclusions_dialog.py",
+    "forge/ui/js_cache.py",
     "forge/ui/file_explorer_widget.py"
   ],
   "request_log_entries": [
@@ -186,6 +187,33 @@
       "streaming": true,
       "actual_cost": 0.34947125,
       "generation_id": "gen-1769967577-peZlI9L0dlM1JwlzlYUw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967588142.json",
+      "response_file": "/tmp/forge_debug/response_1769967588142.json",
+      "timestamp": 1769967588.1426117,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000167,
+      "generation_id": "gen-1769967588-fc7jPsHzKIUHPdRKGpPA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967595963.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967595963.json",
+      "timestamp": 1769967595.963988,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3352575,
+      "generation_id": "gen-1769967596-y5ruxRXkmavJAmJqMlb2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967602219.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967602219.json",
+      "timestamp": 1769967602.2201471,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.3699825,
+      "generation_id": "gen-1769967605-k1MnljlYN9QwykPcv6bw"
     }
   ],
   "messages": [
@@ -469,6 +497,90 @@
           "success": true,
           "summary": "\u2713 Tests passed (pytest)",
           "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c7b7fb48",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm the initMermaid thing seems hacky. Is there a natural way to wait for a script to finish loading?"
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, that is hacky. The proper way is to use the `onload` attribute on the script tag, or load scripts dynamically with a callback. Let me check how scripts are loaded:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/js_cache.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01UtWAgQ7f8VDfSpwPheuUvz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UtWAgQ7f8VDfSpwPheuUvz",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/js_cache.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Yes! The proper way is to add an `onload` handler to the script tag. Let me fix `get_script_tag` to support this:\n\n<edit file=\"forge/ui/js_cache.py\">\n<search>\ndef get_script_tag(name: str) -> str:\n    \"\"\"Get HTML script tag for a cached script.\n\n    Returns a file:// URL if cached, otherwise falls back to CDN URL.\n    Downloads and caches on first access.\n\n    Args:\n        name: Script name (e.g., 'mathjax', 'mermaid')\n\n    Returns:\n        HTML <script> tag string\n    \"\"\"\n    if name not in EXTERNAL_SCRIPTS:\n        raise ValueError(f\"Unknown script: {name}\")\n\n    url = EXTERNAL_SCRIPTS[name]\n    cache_path = _get_cache_path(name, url)\n\n    # Try to use cached version\n    if cache_path.exists():\n        return f'<script src=\"file://{cache_path}\"></script>'\n\n    # Try to download and cache\n    if _download_script(url, cache_path):\n        return f'<script src=\"file://{cache_path}\"></script>'\n\n    # Fall back to CDN\n    return f'<script src=\"{url}\"></script>'\n</search>\n<replace>\ndef get_script_tag(name: str, onload: str | None = None) -> str:\n    \"\"\"Get HTML script tag for a cached script.\n\n    Returns a file:// URL if cached, otherwise falls back to CDN URL.\n    Downloads and caches on first access.\n\n    Args:\n        name: Script name (e.g., 'mathjax', 'mermaid')\n        onload: Optional JavaScript to run when script loads\n\n    Returns:\n        HTML <script> tag string\n    \"\"\"\n    if name not in EXTERNAL_SCRIPTS:\n        raise ValueError(f\"Unknown script: {name}\")\n\n    url = EXTERNAL_SCRIPTS[name]\n    cache_path = _get_cache_path(name, url)\n\n    # Build onload attribute if provided\n    onload_attr = f' onload=\"{onload}\"' if onload else \"\"\n\n    # Try to use cached version\n    if cache_path.exists():\n        return f'<script src=\"file://{cache_path}\"{onload_attr}></script>'\n\n    # Try to download and cache\n    if _download_script(url, cache_path):\n        return f'<script src=\"file://{cache_path}\"{onload_attr}></script>'\n\n    # Fall back to CDN\n    return f'<script src=\"{url}\"{onload_attr}></script>'\n</replace>\n</edit>\n\n<edit file=\"forge/ui/js_cache.py\">\n<search>\ndef get_all_script_tags() -> str:\n    \"\"\"Get script tags for all external scripts.\"\"\"\n    return \"\\n            \".join(get_script_tag(name) for name in EXTERNAL_SCRIPTS)\n</search>\n<replace>\ndef get_all_script_tags() -> str:\n    \"\"\"Get script tags for all external scripts, with appropriate onload handlers.\"\"\"\n    tags = []\n    for name in EXTERNAL_SCRIPTS:\n        if name == \"mermaid\":\n            # Initialize mermaid when it loads\n            tags.append(get_script_tag(name, onload=\"initMermaid()\"))\n        else:\n            tags.append(get_script_tag(name))\n    return \"\\n            \".join(tags)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            <script>\n                // Initialize Mermaid when loaded (script may load async)\n                function initMermaid() {{\n                    if (typeof mermaid !== 'undefined') {{\n                        mermaid.initialize({{\n                            startOnLoad: false,\n                            theme: 'default',\n                            securityLevel: 'loose',\n                            flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                            sequence: {{ mirrorActors: false }}\n                        }});\n                    }}\n                }}\n                // Try immediately, and also on DOMContentLoaded and window load\n                initMermaid();\n                document.addEventListener('DOMContentLoaded', initMermaid);\n                window.addEventListener('load', initMermaid);\n            </script>\n</search>\n<replace>\n            <script>\n                // Called by mermaid script's onload handler\n                function initMermaid() {{\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n                }}\n            </script>\n</replace>\n</edit>\n\n<run_tests/>\n<commit message=\"fix: Use script onload handler for mermaid initialization\"/>\n\nMuch cleaner - now the mermaid script tag gets `onload=\"initMermaid()\"` and the initialization only runs once the script is actually loaded.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/js_cache.py",
+          "modified_files": [
+            "forge/ui/js_cache.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/js_cache.py",
+          "modified_files": [
+            "forge/ui/js_cache.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_gm6_9gue\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_gm6_9gue\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py .................                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "f90752123006",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
         }
       ]
     }

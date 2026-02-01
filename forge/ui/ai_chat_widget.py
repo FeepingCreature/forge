@@ -783,14 +783,22 @@ class AIChatWidget(QWidget):
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
             {get_all_script_tags()}
             <script>
-                // Initialize Mermaid with settings optimized for chat
-                mermaid.initialize({{
-                    startOnLoad: false,  // We'll trigger manually after content injection
-                    theme: 'default',
-                    securityLevel: 'loose',  // Allow click handlers
-                    flowchart: {{ htmlLabels: true, curve: 'basis' }},
-                    sequence: {{ mirrorActors: false }}
-                }});
+                // Initialize Mermaid when loaded (script may load async)
+                function initMermaid() {{
+                    if (typeof mermaid !== 'undefined') {{
+                        mermaid.initialize({{
+                            startOnLoad: false,
+                            theme: 'default',
+                            securityLevel: 'loose',
+                            flowchart: {{ htmlLabels: true, curve: 'basis' }},
+                            sequence: {{ mirrorActors: false }}
+                        }});
+                    }}
+                }}
+                // Try immediately, and also on DOMContentLoaded and window load
+                initMermaid();
+                document.addEventListener('DOMContentLoaded', initMermaid);
+                window.addEventListener('load', initMermaid);
             </script>
             <script>{get_chat_scripts()}</script>
         </head>

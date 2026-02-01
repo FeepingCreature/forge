@@ -1,11 +1,10 @@
 {
   "active_files": [
-    "forge/ui/file_explorer_widget.py",
-    "forge/config/settings.py",
-    "forge/session/manager.py",
-    "forge/ui/settings_dialog.py",
     "CLAUDE.md",
-    "forge/ui/side_panel.py"
+    "forge/session/manager.py",
+    "forge/ui/ai_chat_widget.py",
+    "forge/ui/summary_exclusions_dialog.py",
+    "forge/ui/file_explorer_widget.py"
   ],
   "request_log_entries": [
     {
@@ -106,6 +105,87 @@
       "streaming": false,
       "actual_cost": 0.001906,
       "generation_id": "gen-1769967168-JTk1VH1UsaqSDgII9sZx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967337095.json",
+      "response_file": "/tmp/forge_debug/response_1769967337095.json",
+      "timestamp": 1769967337.0959513,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004042,
+      "generation_id": "gen-1769967337-KaqlBOOHPidLpnqvMg2n"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967337096.json",
+      "response_file": "/tmp/forge_debug/response_1769967337096.json",
+      "timestamp": 1769967337.0968466,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004275,
+      "generation_id": "gen-1769967337-ndGKf4bVBdVzgVABYa1b"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769967337097.json",
+      "response_file": "/tmp/forge_debug/response_1769967337097.json",
+      "timestamp": 1769967337.0984166,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001891,
+      "generation_id": "gen-1769967337-abJOPl4AE6sdI7HRQFpE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967498207.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967498207.json",
+      "timestamp": 1769967498.2082748,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.307705,
+      "generation_id": "gen-1769967498-LaYzpicmr8bYG9jOBsEY"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967507087.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967507087.json",
+      "timestamp": 1769967507.0879283,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05511675,
+      "generation_id": "gen-1769967509-H2Qs7V22Njb1QGnZ9G2t"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967518502.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967518502.json",
+      "timestamp": 1769967518.503218,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.05069,
+      "generation_id": "gen-1769967518-6w7L6kRqKXISrAMdWcW1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967523699.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967523699.json",
+      "timestamp": 1769967523.7003093,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1860145,
+      "generation_id": "gen-1769967525-LVldt1KMP6gsCqWEh0Ga"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967563184.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967563184.json",
+      "timestamp": 1769967563.1851447,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.17836375,
+      "generation_id": "gen-1769967563-bZIGLLSS7dxYQMONvXd6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769967576080.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769967576080.json",
+      "timestamp": 1769967576.0812154,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.34947125,
+      "generation_id": "gen-1769967577-peZlI9L0dlM1JwlzlYUw"
     }
   ],
   "messages": [
@@ -203,6 +283,192 @@
             "mid_turn_commit"
           ],
           "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 90 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Can you make it more of a traditional list with add/remove, up, down, and an input line? Then we can add stuff like showing affected files per rule in the repository in the list.\nAlso, speculating, is .forge/config.json committed correctly? We have an old bug where tool acceptance isn't actually committed, just added to the tree. Might want to look into it.\nAlso this is unrelated, but I get `[JS WARNING] Uncaught ReferenceError: mermaid is not defined (line 469, data:text/html;charset=UTF-8,[giant dump]` on start. Ideas?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll address all three items. Let me start by investigating the issues:\n\n1. **List-based UI for exclusions** - I'll redesign the dialog\n2. **Commit bug** - Let me check how commit_pending_approvals works\n3. **Mermaid error** - Likely a missing script load",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"mermaid\", \"include_extensions\": [\".py\", \".html\", \".js\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01AkbXSjNYpkgURZ5LqF9s2i",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/summary_exclusions_dialog.py\", \"forge/ui/js_cache.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_013x1DVru7Mes8g1Kxk1HkVd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01AkbXSjNYpkgURZ5LqF9s2i",
+      "content": "{\"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/prompts/system.py:161 \\u2500\\u2500\\n     158 | You can render diagrams using Mermaid syntax in fenced code blocks:\\n     159 | \\n     160 | ~~~\\n>>>  161 | ```mermaid\\n     162 | graph TD\\n     163 |     A[Start] --> B{Decision}\\n     164 |     B -->|Yes| C[Do thing]\\n\\n\\u2500\\u2500 forge/prompts/system.py:169 \\u2500\\u2500\\n     166 | ```\\n     167 | ~~~\\n     168 | \\n>>>  169 | Mermaid supports flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, and more. See https://mermaid.js.org/syntax/ for full documentation.\\n     170 | \\n     171 | \\\"\\\"\\\"\\n     172 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:787 \\u2500\\u2500\\n     784 |             {get_all_script_tags()}\\n     785 |             <script>\\n     786 |                 // Initialize Mermaid with settings optimized for chat\\n>>>  787 |                 mermaid.initialize({{\\n     788 |                     startOnLoad: false,  // We'll trigger manually after content injection\\n     789 |                     theme: 'default',\\n     790 |                     securityLevel: 'loose',  // Allow click handlers\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:212 \\u2500\\u2500\\n     209 |             background: #e3f2fd;\\n     210 |         }\\n     211 |         /* Mermaid diagram containers */\\n>>>  212 |         .mermaid-container {\\n     213 |             margin: 12px 0;\\n     214 |             padding: 16px;\\n     215 |             background: #fafafa;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:220 \\u2500\\u2500\\n     217 |             overflow-x: auto;\\n     218 |             text-align: center;\\n     219 |         }\\n>>>  220 |         .mermaid-container svg {\\n     221 |             max-width: 100%;\\n     222 |             height: auto;\\n     223 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:224 \\u2500\\u2500\\n     221 |             max-width: 100%;\\n     222 |             height: auto;\\n     223 |         }\\n>>>  224 |         .mermaid-error {\\n     225 |             color: #d32f2f;\\n     226 |             font-size: 12px;\\n     227 |             margin-bottom: 8px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:346 \\u2500\\u2500\\n     343 |             }\\n     344 |         }\\n     345 | \\n>>>  346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:349 \\u2500\\u2500\\n     346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n>>>  349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n     352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:351 \\u2500\\u2500\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n>>>  351 |             // Find all mermaid code blocks that haven't been rendered yet\\n     352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:352 \\u2500\\u2500\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n>>>  352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n     355 |                 // Skip if already processed\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 11}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\",\n    \".html\",\n    \".js\"\n  ],\n  \"pattern\": \"mermaid\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/system.py:161 \\u2500\\u2500\\n     158 | You can render diagrams using Mermaid syntax in fenced code blocks:\\n     159 | \\n     160 | ~~~\\n>>>  161 | ```mermaid\\n     162 | graph TD\\n     163 |     A[Start] --> B{Decision}\\n     164 |     B -->|Yes| C[Do thing]\\n\\n\\u2500\\u2500 forge/prompts/system.py:169 \\u2500\\u2500\\n     166 | ```\\n     167 | ~~~\\n     168 | \\n>>>  169 | Mermaid supports flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, and more. See https://mermaid.js.org/syntax/ for full documentation.\\n     170 | \\n     171 | \\\"\\\"\\\"\\n     172 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:787 \\u2500\\u2500\\n     784 |             {get_all_script_tags()}\\n     785 |             <script>\\n     786 |                 // Initialize Mermaid with settings optimized for chat\\n>>>  787 |                 mermaid.initialize({{\\n     788 |                     startOnLoad: false,  // We'll trigger manually after content injection\\n     789 |                     theme: 'default',\\n     790 |                     securityLevel: 'loose',  // Allow click handlers\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:212 \\u2500\\u2500\\n     209 |             background: #e3f2fd;\\n     210 |         }\\n     211 |         /* Mermaid diagram containers */\\n>>>  212 |         .mermaid-container {\\n     213 |             margin: 12px 0;\\n     214 |             padding: 16px;\\n     215 |             background: #fafafa;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:220 \\u2500\\u2500\\n     217 |             overflow-x: auto;\\n     218 |             text-align: center;\\n     219 |         }\\n>>>  220 |         .mermaid-container svg {\\n     221 |             max-width: 100%;\\n     222 |             height: auto;\\n     223 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:224 \\u2500\\u2500\\n     221 |             max-width: 100%;\\n     222 |             height: auto;\\n     223 |         }\\n>>>  224 |         .mermaid-error {\\n     225 |             color: #d32f2f;\\n     226 |             font-size: 12px;\\n     227 |             margin-bottom: 8px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:346 \\u2500\\u2500\\n     343 |             }\\n     344 |         }\\n     345 | \\n>>>  346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:349 \\u2500\\u2500\\n     346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n>>>  349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n     352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:351 \\u2500\\u2500\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n>>>  351 |             // Find all mermaid code blocks that haven't been rendered yet\\n     352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:352 \\u2500\\u2500\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n>>>  352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n     355 |                 // Skip if already processed\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_013x1DVru7Mes8g1Kxk1HkVd",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/summary_exclusions_dialog.py\", \"forge/ui/js_cache.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issues. Let me address all three:\n\n1. **Mermaid error**: The `mermaid.initialize()` call happens immediately in the HTML, but the script might not be loaded yet (especially from file:// cache). Need to wait for script load.\n\n2. **Commit bug**: Looking at the dialog, `workspace.commit()` should work, but let me check the tool approval flow to compare.\n\n3. **List-based UI**: I'll redesign the dialog with proper list management.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"commit_pending_approvals|approve_tool\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01XcrdBzV7mfmyQiyfepyyhR",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01XcrdBzV7mfmyQiyfepyyhR",
+      "content": "{\"message\": \"Found 4 matches\", \"output\": \"\\u2500\\u2500 forge/tools/manager.py:120 \\u2500\\u2500\\n     117 |         # Check if tool is in approved list with matching hash\\n     118 |         return self._approved_tools.get(tool_name) == current_hash\\n     119 | \\n>>>  120 |     def approve_tool(self, tool_name: str) -> None:\\n     121 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     122 |         content = self._get_tool_content(tool_name)\\n     123 |         if content is None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:141 \\u2500\\u2500\\n     138 |         if tool_name in self._pending_approvals:\\n     139 |             del self._pending_approvals[tool_name]\\n     140 | \\n>>>  141 |     def commit_pending_approvals(self) -> pygit2.Oid | None:\\n     142 |         \\\"\\\"\\\"\\n     143 |         Commit pending tool approvals as a [follow-up] commit.\\n     144 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:500 \\u2500\\u2500\\n     497 | \\n     498 |         tool_manager = self.runner.session_manager.tool_manager\\n     499 |         if approved:\\n>>>  500 |             tool_manager.approve_tool(tool_name)\\n     501 |             self.add_message(\\\"system\\\", f\\\"\\u2705 Approved tool: `{tool_name}`\\\")\\n     502 |         else:\\n     503 |             tool_manager.reject_tool(tool_name)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:511 \\u2500\\u2500\\n     508 | \\n     509 |         # If all approvals done, commit them\\n     510 |         if not self.pending_approvals:\\n>>>  511 |             new_commit_oid = tool_manager.commit_pending_approvals()\\n     512 |             if new_commit_oid:\\n     513 |                 self.add_message(\\n     514 |                     \\\"system\\\", f\\\"\\u2705 Tool approvals committed: {str(new_commit_oid)[:8]}\\\"\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 4}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"commit_pending_approvals|approve_tool\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 4 matches\",\n  \"output\": \"\\u2500\\u2500 forge/tools/manager.py:120 \\u2500\\u2500\\n     117 |         # Check if tool is in approved list with matching hash\\n     118 |         return self._approved_tools.get(tool_name) == current_hash\\n     119 | \\n>>>  120 |     def approve_tool(self, tool_name: str) -> None:\\n     121 |         \\\"\\\"\\\"Approve a tool (records its current hash in pending approvals)\\\"\\\"\\\"\\n     122 |         content = self._get_tool_content(tool_name)\\n     123 |         if content is None:\\n\\n\\u2500\\u2500 forge/tools/manager.py:141 \\u2500\\u2500\\n     138 |         if tool_name in self._pending_approvals:\\n     139 |             del self._pending_approvals[tool_name]\\n     140 | \\n>>>  141 |     def commit_pending_approvals(self) -> pygit2.Oid | None:\\n     142 |         \\\"\\\"\\\"\\n     143 |         Commit pending tool approvals as a [follow-up] commit.\\n     144 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:500 \\u2500\\u2500\\n     497 | \\n     498 |         tool_manager = self.runner.session_manager.tool_manager\\n     499 |         if approved:\\n>>>  500 |             tool_manager.approve_tool(tool_name)\\n     501 |             self.add_message(\\\"system\\\", f\\\"\\u2705 Approved tool: `{tool_name}`\\\")\\n     502 |         else:\\n     503 |             tool_manager.reject_tool(tool_name)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:511 \\u2500\\u2500\\n     508 | \\n     509 |         # If all approvals done, commit them\\n     510 |         if not self.pending_approvals:\\n>>>  511 |             new_commit_oid = tool_manager.commit_pending_approvals()\\n     512 |             if new_commit_oid:\\n     513 |                 self.add_message(\\n     514 |                     \\\"system\\\", f\\\"\\u2705 Tool approvals committed: {str(new_commit_oid)[:8]}\\\"\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 4\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 10] Let me check the `commit_pending_approvals` implementation to understand the commit pattern:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01NxMYr5Gc6L6K9XqjQTJoJ3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01NxMYr5Gc6L6K9XqjQTJoJ3",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 11] Now I understand all the issues. Let me fix all three:\n\n1. **Mermaid error**: The script loads async but `mermaid.initialize()` runs immediately. Need to wait for script load.\n2. **Commit bug**: The dialog uses `workspace.commit()` which goes through VFS properly, unlike tool approvals which use `repo.create_tree_from_changes` directly. The dialog should be fine, but let me verify the VFS commit path.\n3. **List-based UI**: I'll redesign the dialog with a proper list widget.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            <script>\n                // Initialize Mermaid with settings optimized for chat\n                mermaid.initialize({{\n                    startOnLoad: false,  // We'll trigger manually after content injection\n                    theme: 'default',\n                    securityLevel: 'loose',  // Allow click handlers\n                    flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                    sequence: {{ mirrorActors: false }}\n                }});\n            </script>\n</search>\n<replace>\n            <script>\n                // Initialize Mermaid when loaded (script may load async)\n                function initMermaid() {{\n                    if (typeof mermaid !== 'undefined') {{\n                        mermaid.initialize({{\n                            startOnLoad: false,\n                            theme: 'default',\n                            securityLevel: 'loose',\n                            flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                            sequence: {{ mirrorActors: false }}\n                        }});\n                    }}\n                }}\n                // Try immediately, and also on DOMContentLoaded and window load\n                initMermaid();\n                document.addEventListener('DOMContentLoaded', initMermaid);\n                window.addEventListener('load', initMermaid);\n            </script>\n</replace>\n</edit>\n\n<edit file=\"forge/ui/summary_exclusions_dialog.py\">\n\"\"\"\nDialog for configuring per-repository summary exclusion patterns.\n\"\"\"\n\nimport json\nfrom typing import TYPE_CHECKING\n\nfrom PySide6.QtCore import Qt\nfrom PySide6.QtWidgets import (\n    QDialog,\n    QHBoxLayout,\n    QLabel,\n    QLineEdit,\n    QListWidget,\n    QListWidgetItem,\n    QPushButton,\n    QVBoxLayout,\n    QWidget,\n)\n\nif TYPE_CHECKING:\n    from forge.ui.branch_workspace import BranchWorkspace\n\nCONFIG_FILE = \".forge/config.json\"\n\n\nclass SummaryExclusionsDialog(QDialog):\n    \"\"\"Dialog for editing summary exclusion patterns with a list interface.\"\"\"\n\n    def __init__(self, workspace: \"BranchWorkspace\", parent: QWidget | None = None) -> None:\n        super().__init__(parent)\n        self.workspace = workspace\n        self.setWindowTitle(\"Summary Exclusions\")\n        self.setMinimumWidth(500)\n        self.setMinimumHeight(400)\n\n        self._setup_ui()\n        self._load_patterns()\n\n    def _setup_ui(self) -> None:\n        \"\"\"Setup the dialog UI.\"\"\"\n        layout = QVBoxLayout(self)\n\n        # Title and instructions\n        title = QLabel(\"<b>Exclude from Summarization</b>\")\n        layout.addWidget(title)\n\n        instructions = QLabel(\n            \"Patterns to exclude from AI file summaries:\\n\"\n            \"\u2022 <code>folder/</code> \u2014 exclude entire folder\\n\"\n            \"\u2022 <code>*.ext</code> \u2014 exclude extension everywhere\\n\"\n            \"\u2022 <code>folder/*.ext</code> \u2014 exclude extension in folder\"\n        )\n        instructions.setTextFormat(Qt.TextFormat.RichText)\n        instructions.setStyleSheet(\"color: #666; margin-bottom: 8px;\")\n        layout.addWidget(instructions)\n\n        # Input row for adding new patterns\n        input_layout = QHBoxLayout()\n        self.pattern_input = QLineEdit()\n        self.pattern_input.setPlaceholderText(\"Enter pattern (e.g., node_modules/ or *.min.js)\")\n        self.pattern_input.returnPressed.connect(self._add_pattern)\n        input_layout.addWidget(self.pattern_input)\n\n        add_btn = QPushButton(\"Add\")\n        add_btn.clicked.connect(self._add_pattern)\n        add_btn.setFixedWidth(60)\n        input_layout.addWidget(add_btn)\n\n        layout.addLayout(input_layout)\n\n        # List and control buttons in horizontal layout\n        list_row = QHBoxLayout()\n\n        # Pattern list\n        self.pattern_list = QListWidget()\n        self.pattern_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)\n        self.pattern_list.itemSelectionChanged.connect(self._update_button_states)\n        list_row.addWidget(self.pattern_list)\n\n        # Control buttons (vertical)\n        btn_layout = QVBoxLayout()\n        btn_layout.setSpacing(4)\n\n        self.up_btn = QPushButton(\"\u25b2\")\n        self.up_btn.setFixedWidth(32)\n        self.up_btn.setToolTip(\"Move up\")\n        self.up_btn.clicked.connect(self._move_up)\n        btn_layout.addWidget(self.up_btn)\n\n        self.down_btn = QPushButton(\"\u25bc\")\n        self.down_btn.setFixedWidth(32)\n        self.down_btn.setToolTip(\"Move down\")\n        self.down_btn.clicked.connect(self._move_down)\n        btn_layout.addWidget(self.down_btn)\n\n        btn_layout.addSpacing(8)\n\n        self.remove_btn = QPushButton(\"\u2715\")\n        self.remove_btn.setFixedWidth(32)\n        self.remove_btn.setToolTip(\"Remove selected\")\n        self.remove_btn.clicked.connect(self._remove_pattern)\n        btn_layout.addWidget(self.remove_btn)\n\n        btn_layout.addStretch()\n        list_row.addLayout(btn_layout)\n\n        layout.addLayout(list_row)\n\n        # Note about when changes take effect\n        note = QLabel(\n            \"<i>Changes apply to new summarization runs. \"\n            \"Use Regenerate Summaries to apply immediately.</i>\"\n        )\n        note.setWordWrap(True)\n        note.setStyleSheet(\"color: #888; font-size: 10px;\")\n        layout.addWidget(note)\n\n        # Dialog buttons\n        button_layout = QHBoxLayout()\n        button_layout.addStretch()\n\n        cancel_btn = QPushButton(\"Cancel\")\n        cancel_btn.clicked.connect(self.reject)\n\n        save_btn = QPushButton(\"Save\")\n        save_btn.clicked.connect(self._save_and_close)\n        save_btn.setDefault(True)\n\n        button_layout.addWidget(cancel_btn)\n        button_layout.addWidget(save_btn)\n\n        layout.addLayout(button_layout)\n\n        # Initial button states\n        self._update_button_states()\n\n    def _update_button_states(self) -> None:\n        \"\"\"Update enabled state of control buttons based on selection.\"\"\"\n        selected = self.pattern_list.currentRow()\n        has_selection = selected >= 0\n        count = self.pattern_list.count()\n\n        self.up_btn.setEnabled(has_selection and selected > 0)\n        self.down_btn.setEnabled(has_selection and selected < count - 1)\n        self.remove_btn.setEnabled(has_selection)\n\n    def _add_pattern(self) -> None:\n        \"\"\"Add the pattern from input field to the list.\"\"\"\n        pattern = self.pattern_input.text().strip()\n        if not pattern:\n            return\n\n        # Check for duplicates\n        for i in range(self.pattern_list.count()):\n            if self.pattern_list.item(i).text() == pattern:\n                self.pattern_input.clear()\n                self.pattern_list.setCurrentRow(i)\n                return\n\n        item = QListWidgetItem(pattern)\n        self.pattern_list.addItem(item)\n        self.pattern_list.setCurrentItem(item)\n        self.pattern_input.clear()\n        self.pattern_input.setFocus()\n\n    def _remove_pattern(self) -> None:\n        \"\"\"Remove the selected pattern from the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row >= 0:\n            self.pattern_list.takeItem(row)\n            self._update_button_states()\n\n    def _move_up(self) -> None:\n        \"\"\"Move the selected pattern up in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row > 0:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row - 1, item)\n            self.pattern_list.setCurrentRow(row - 1)\n\n    def _move_down(self) -> None:\n        \"\"\"Move the selected pattern down in the list.\"\"\"\n        row = self.pattern_list.currentRow()\n        if row < self.pattern_list.count() - 1:\n            item = self.pattern_list.takeItem(row)\n            self.pattern_list.insertItem(row + 1, item)\n            self.pattern_list.setCurrentRow(row + 1)\n\n    def _load_config(self) -> dict:\n        \"\"\"Load the repo config file.\"\"\"\n        try:\n            if self.workspace.vfs.file_exists(CONFIG_FILE):\n                content = self.workspace.vfs.read_file(CONFIG_FILE)\n                return json.loads(content)\n        except (json.JSONDecodeError, FileNotFoundError, KeyError):\n            pass\n        return {}\n\n    def _save_config(self, config: dict) -> None:\n        \"\"\"Save the repo config file.\"\"\"\n        self.workspace.vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))\n        # Commit the config change\n        self.workspace.commit(\"Update summary exclusion patterns\")\n\n    def _load_patterns(self) -> None:\n        \"\"\"Load current exclusion patterns into the list.\"\"\"\n        config = self._load_config()\n        patterns = config.get(\"summary_exclusions\", [])\n        for pattern in patterns:\n            self.pattern_list.addItem(QListWidgetItem(pattern))\n\n    def _save_and_close(self) -> None:\n        \"\"\"Save patterns and close the dialog.\"\"\"\n        # Collect patterns from list\n        patterns = []\n        for i in range(self.pattern_list.count()):\n            patterns.append(self.pattern_list.item(i).text())\n\n        # Load existing config, update exclusions, save\n        config = self._load_config()\n        config[\"summary_exclusions\"] = patterns\n        self._save_config(config)\n\n        self.accept()\n\n\ndef load_summary_exclusions(vfs) -> list[str]:\n    \"\"\"\n    Load summary exclusion patterns from repo config.\n\n    Args:\n        vfs: The VFS to read from\n\n    Returns:\n        List of exclusion patterns\n    \"\"\"\n    try:\n        if vfs.file_exists(CONFIG_FILE):\n            content = vfs.read_file(CONFIG_FILE)\n            config = json.loads(content)\n            return config.get(\"summary_exclusions\", [])\n    except (json.JSONDecodeError, FileNotFoundError, KeyError):\n        pass\n    return []\n</edit>\n\nNow let me check the `workspace.commit()` path to verify it commits properly:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/branch_workspace.py\", \"forge/vfs/work_in_progress.py\"], \"remove\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_018saSnri5D8jtYzRijRFxvi",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Wrote 8183 bytes to forge/ui/summary_exclusions_dialog.py",
+          "modified_files": [
+            "forge/ui/summary_exclusions_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_018saSnri5D8jtYzRijRFxvi",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/branch_workspace.py\", \"forge/vfs/work_in_progress.py\"], \"message\": \"Added 2 files, removed 2 files from context\", \"remove\": [\"forge/tools/manager.py\", \"forge/ui/ai_chat_widget.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 13] Looking at the code, I can verify the commit path. The `workspace.commit()` calls `vfs.commit()` which properly creates a tree and commits it. This looks correct - unlike the tool approval bug you mentioned.\n\nLet me compact the earlier investigation messages and run tests:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"2\", \"to_id\": \"7\", \"summary\": \"Investigated summarization and UI structure:\\n- Summarization in SessionManager.generate_repo_summaries() filters via _should_summarize()\\n- Added SummaryExclusionsDialog with text area, stores patterns in .forge/config.json\\n- Added \u2699 button to FileExplorerWidget header\\n- Added _matches_exclusion_pattern() to SessionManager for fnmatch-based filtering\\n- Patterns: folder/ (dir), *.ext (extension), folder/*.ext (specific)\\n- Commit made: \\\"feat: Add per-repository summary exclusion patterns\\\"\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01M1vtCEL2hkoV93CdtRhgJ4",
+          "type": "function"
+        },
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/branch_workspace.py\", \"forge/vfs/work_in_progress.py\", \"forge/ui/js_cache.py\", \"forge/config/settings.py\", \"forge/ui/settings_dialog.py\", \"forge/ui/side_panel.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01WteQjgE5CP1XMjnQACBMPe",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01M1vtCEL2hkoV93CdtRhgJ4",
+      "content": "{\"compact\": true, \"from_id\": \"2\", \"success\": true, \"summary\": \"Investigated summarization and UI structure:\\n- Summarization in SessionManager.generate_repo_summaries() filters via _should_summarize()\\n- Added SummaryExclusionsDialog with text area, stores patterns in .forge/config.json\\n- Added \\u2699 button to FileExplorerWidget header\\n- Added _matches_exclusion_pattern() to SessionManager for fnmatch-based filtering\\n- Patterns: folder/ (dir), *.ext (extension), folder/*.ext (specific)\\n- Commit made: \\\"feat: Add per-repository summary exclusion patterns\\\"\", \"to_id\": \"7\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01WteQjgE5CP1XMjnQACBMPe",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 6 files from context\", \"remove\": [\"forge/ui/branch_workspace.py\", \"forge/vfs/work_in_progress.py\", \"forge/ui/js_cache.py\", \"forge/config/settings.py\", \"forge/ui/settings_dialog.py\", \"forge/ui/side_panel.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Good, the edits have been applied. Let me run the tests to make sure everything works:\n\n<run_tests/>\n\nDone! I've made the following changes:\n\n1. **Fixed Mermaid initialization** (`forge/ui/ai_chat_widget.py`): Changed from immediate `mermaid.initialize()` call to a function that tries on load, DOMContentLoaded, and window load events. This handles the case where the mermaid script loads asynchronously from the file cache.\n\n2. **Redesigned Summary Exclusions Dialog** (`forge/ui/summary_exclusions_dialog.py`): Replaced the text area with a proper list-based UI:\n   - Input field + Add button at top\n   - List widget showing all patterns\n   - Up/Down/Remove buttons on the side\n   - Duplicate detection when adding\n   - Clean instructions with pattern examples\n\nThe commit functionality uses `workspace.commit()` which goes through the VFS properly - this should work correctly. If it's not committing, could you describe what happens when you click Save? Does it show any error?",
+      "_inline_results": [
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_b7aijuhl\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_b7aijuhl\nconfigfile: pyproject.toml\nplugins: qt-4.5.0, anyio-4.12.0, asyncio-1.3.0, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 72 items\n\ntests/test_inline_edit.py ................                               [ 22%]\ntests/test_prompt_manager.py .......................................     [ 76%]\ntests/test_session_spawn.py ................\ud83d\udcda Summaries: 0 to generate, 1 cached, 0 beyond budget (parallel=8)\n   \u2713 README.md (cached)\n\ud83d\udccb PromptManager: Setting summaries for 1 files (1 total)\n.                            [100%]\n\n============================== 72 passed in 0.29s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
         }
       ]
     }

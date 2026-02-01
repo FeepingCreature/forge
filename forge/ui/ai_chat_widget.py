@@ -55,14 +55,12 @@ class AIChatWidget(QWidget):
     - Manages UI-specific state (approvals, summaries UI)
     """
 
-    # Signals for AI turn lifecycle
+    # Signals for AI turn lifecycle (UI events only - session state signals are on SessionManager)
     ai_turn_started = Signal()  # Emitted when AI turn begins
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
     mid_turn_commit = Signal(str)  # Emitted when commit tool runs mid-turn (commit_oid)
     fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)
-    context_changed = Signal(set)  # Emitted when active files change (set of filepaths)
-    context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
-    summaries_ready = Signal(dict)  # Emitted when repo summaries are ready (filepath -> summary)
+    user_typing = Signal()  # Emitted when user types (to clear waiting indicator)
 
     def __init__(
         self,
@@ -571,9 +569,6 @@ class AIChatWidget(QWidget):
                 )
             # Clear handled approvals for next batch
             self.handled_approvals.clear()
-
-    # Signal emitted when user starts typing (to clear waiting indicator)
-    user_typing = Signal()
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         """Filter events to catch Enter key in input field"""

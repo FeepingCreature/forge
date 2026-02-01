@@ -208,6 +208,27 @@ def get_chat_styles() -> str:
         tr:hover td {
             background: #e3f2fd;
         }
+        /* Mermaid diagram containers */
+        .mermaid-container {
+            margin: 12px 0;
+            padding: 16px;
+            background: #fafafa;
+            border-radius: 8px;
+            overflow-x: auto;
+            text-align: center;
+        }
+        .mermaid-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .mermaid-error {
+            color: #d32f2f;
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #ffebee;
+            border-radius: 4px;
+        }
     """
     )
 
@@ -312,9 +333,51 @@ def get_chat_scripts() -> str:
             var container = document.getElementById('messages-container');
             if (container) {
                 container.innerHTML = html;
+
+                // Render any Mermaid diagrams in the new content
+                renderMermaidDiagrams();
+
                 if (scrollToBottom) {
                     window.scrollTo(0, document.body.scrollHeight);
                 }
             }
+        }
+
+        // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'
+        // and converts them to rendered SVG diagrams
+        function renderMermaidDiagrams() {
+            if (typeof mermaid === 'undefined') return;
+
+            // Find all mermaid code blocks that haven't been rendered yet
+            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
+            codeBlocks.forEach(function(codeBlock, index) {
+                var pre = codeBlock.parentElement;
+                // Skip if already processed
+                if (pre.dataset.mermaidProcessed) return;
+                pre.dataset.mermaidProcessed = 'true';
+
+                var diagramText = codeBlock.textContent;
+                var diagramId = 'mermaid-diagram-' + Date.now() + '-' + index;
+
+                // Create container for the rendered diagram
+                var container = document.createElement('div');
+                container.className = 'mermaid-container';
+
+                try {
+                    mermaid.render(diagramId, diagramText).then(function(result) {
+                        container.innerHTML = result.svg;
+                        pre.replaceWith(container);
+                    }).catch(function(err) {
+                        // On error, show the original code with an error indicator
+                        container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
+                            err.message + '</div>';
+                        container.appendChild(pre.cloneNode(true));
+                        pre.replaceWith(container);
+                    });
+                } catch (err) {
+                    // Sync error (e.g., mermaid.render not available)
+                    console.error('Mermaid render error:', err);
+                }
+            });
         }
     """

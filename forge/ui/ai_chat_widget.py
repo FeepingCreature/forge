@@ -781,6 +781,17 @@ class AIChatWidget(QWidget):
             <style>{get_chat_styles()}</style>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
             <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+            <script>
+                // Initialize Mermaid with settings optimized for chat
+                mermaid.initialize({{
+                    startOnLoad: false,  // We'll trigger manually after content injection
+                    theme: 'default',
+                    securityLevel: 'loose',  // Allow click handlers
+                    flowchart: {{ htmlLabels: true, curve: 'basis' }},
+                    sequence: {{ mirrorActors: false }}
+                }});
+            </script>
             <script>{get_chat_scripts()}</script>
         </head>
         <body>

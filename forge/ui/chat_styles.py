@@ -191,21 +191,22 @@ def get_chat_styles() -> str:
             margin: 12px 0;
             width: 100%;
             font-size: 14px;
+            background: #ffffff;
         }
         th, td {
-            border: 1px solid #ddd;
+            border: 1px solid #ccc;
             padding: 8px 12px;
             text-align: left;
         }
         th {
-            background: #f5f5f5;
+            background: #e8e8e8;
             font-weight: 600;
         }
-        tr:nth-child(even) {
-            background: #fafafa;
+        tr:nth-child(even) td {
+            background: #f5f5f5;
         }
-        tr:hover {
-            background: #f0f0f0;
+        tr:hover td {
+            background: #e3f2fd;
         }
     """
     )

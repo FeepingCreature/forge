@@ -23,22 +23,22 @@ def escape_for_js(text: str) -> str:
 
 def build_streaming_chunk_js(streaming_content: str) -> str:
     """Build JavaScript to update the streaming message with new content.
-    
+
     Args:
         streaming_content: The accumulated streaming content so far
-        
+
     Returns:
         JavaScript code to execute in the web view
     """
     # Strip [id N] prefix that the model might echo back
     display_content = re.sub(r"^\[id \d+\]\s*", "", streaming_content)
-    
+
     # Check if we have any <edit> blocks in the accumulated content
     if "<edit" in display_content:
         # Render inline edits as diff views
         rendered_html = render_streaming_edits(display_content)
         escaped_html = escape_for_js(rendered_html)
-        
+
         # Update the entire content with rendered edits
         return f"""
         (function() {{
@@ -62,7 +62,7 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
     else:
         # No edit blocks - replace entire content with stripped version
         escaped_content = escape_for_js(display_content)
-        
+
         return f"""
         (function() {{
             var streamingMsg = document.getElementById('streaming-message');
@@ -85,26 +85,26 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
 
 def build_streaming_tool_calls_js(tool_calls: list[dict]) -> str:
     """Build JavaScript to update the streaming tool calls display.
-    
+
     Args:
         tool_calls: List of streaming tool call dicts
-        
+
     Returns:
         JavaScript code to execute in the web view
     """
     if not tool_calls:
         return ""
-    
+
     # Build HTML for streaming tool calls
     tool_html_parts = []
     for tc in tool_calls:
         func = tc.get("function", {})
         name = func.get("name", "")
         args = func.get("arguments", "")
-        
+
         if not name:
             continue
-        
+
         # Check for special rendering (search_replace gets a diff view)
         special_html = render_streaming_tool_html(tc)
         if special_html:
@@ -113,23 +113,19 @@ def build_streaming_tool_calls_js(tool_calls: list[dict]) -> str:
             # Default rendering for other tools
             tool_html_parts.append('<div class="streaming-tool-call">')
             tool_html_parts.append(f'<span class="tool-name">🔧 {name}</span>')
-            
+
             # Show arguments as they stream (may be partial JSON)
             if args:
-                escaped_args = (
-                    args.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                )
+                escaped_args = args.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                 tool_html_parts.append(
                     f'<pre class="tool-args">{escaped_args}<span class="cursor">▋</span></pre>'
                 )
-            
+
             tool_html_parts.append("</div>")
-    
+
     tool_html = "".join(tool_html_parts)
     escaped_html = escape_for_js(tool_html)
-    
+
     return f"""
     (function() {{
         var streamingMsg = document.getElementById('streaming-message');
@@ -158,15 +154,15 @@ def build_streaming_tool_calls_js(tool_calls: list[dict]) -> str:
 
 def build_queued_message_js(text: str) -> str:
     """Build JavaScript to show a queued message indicator.
-    
+
     Args:
         text: The queued message text
-        
+
     Returns:
         JavaScript code to execute in the web view
     """
     escaped_preview = escape_for_js(text).replace("\\n", "<br>")
-    
+
     return f"""
     (function() {{
         // Check if we already have a queued indicator

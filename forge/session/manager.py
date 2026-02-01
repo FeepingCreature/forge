@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QThread, Signal
 
 from forge.constants import SESSION_FILE
 from forge.git_backend.commit_types import CommitType
@@ -37,6 +37,11 @@ class SessionManager(QObject):
     context_changed = Signal(set)  # Emitted when active_files changes (set of filepaths)
     context_stats_updated = Signal(dict)  # Emitted with token counts for status bar
     summaries_ready = Signal(dict)  # Emitted when repo summaries are ready (filepath -> summary)
+
+    # Signals for summary generation progress
+    summary_progress = Signal(int, int, str)  # current, total, filepath
+    summary_finished = Signal(int)  # count of files summarized
+    summary_error = Signal(str)  # error message
 
     def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
         super().__init__()
@@ -66,6 +71,16 @@ class SessionManager(QObject):
         # XDG cache directory for persistent summary cache
         self.cache_dir = self._get_cache_dir()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Summary generation state
+        self._summaries_ready = False
+        self._summary_thread: QThread | None = None
+        self._summary_worker: Any = None  # SummaryWorker, but imported lazily to avoid cycles
+
+    @property
+    def are_summaries_ready(self) -> bool:
+        """Check if summaries have been generated."""
+        return self._summaries_ready
 
     def _get_cache_dir(self) -> Path:
         """Get XDG cache directory for repository summaries"""
@@ -514,6 +529,67 @@ Keep it under 72 characters."""
     def _get_path_depth(self, filepath: str) -> int:
         """Get the depth of a file path (number of directory components)"""
         return filepath.count("/")
+
+    def start_summary_generation(self, force_refresh: bool = False) -> None:
+        """
+        Start generating repository summaries in a background thread.
+
+        Emits signals:
+        - summary_progress(current, total, filepath) during generation
+        - summary_finished(count) on completion
+        - summary_error(message) on error
+
+        The summaries_ready signal is also emitted with the full dict on completion.
+        """
+        from forge.ui.chat_workers import SummaryWorker
+
+        if self._summary_thread is not None:
+            return  # Already running
+
+        self._summary_thread = QThread()
+        self._summary_worker = SummaryWorker(self, force_refresh)
+        self._summary_worker.moveToThread(self._summary_thread)
+
+        # Connect worker signals to our signals
+        self._summary_worker.progress.connect(self.summary_progress.emit)
+        self._summary_worker.finished.connect(self._on_summary_finished)
+        self._summary_worker.error.connect(self._on_summary_error)
+        self._summary_thread.started.connect(self._summary_worker.run)
+
+        self._summary_thread.start()
+
+    def _on_summary_finished(self, count: int) -> None:
+        """Handle summary generation completion."""
+        # Clean up thread
+        if self._summary_thread:
+            self._summary_thread.quit()
+            self._summary_thread.wait()
+            self._summary_thread = None
+            self._summary_worker = None
+
+        self._summaries_ready = True
+
+        # Emit signals
+        self.summary_finished.emit(count)
+        self.summaries_ready.emit(self.repo_summaries)
+
+        # Auto-add instruction files to context
+        for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
+            if self.vfs.file_exists(instructions_file):
+                self.add_active_file(instructions_file)
+
+        # Emit context stats now that summaries are ready
+        self._emit_context_stats()
+
+    def _on_summary_error(self, error_msg: str) -> None:
+        """Handle summary generation error."""
+        if self._summary_thread:
+            self._summary_thread.quit()
+            self._summary_thread.wait()
+            self._summary_thread = None
+            self._summary_worker = None
+
+        self.summary_error.emit(error_msg)
 
     def generate_repo_summaries(
         self,

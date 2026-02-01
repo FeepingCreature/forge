@@ -25,15 +25,17 @@ class SummaryWorker(QObject):
     error = Signal(str)  # Emitted on error
     progress = Signal(int, int, str)  # Emitted for progress (current, total, filepath)
 
-    def __init__(self, session_manager: "SessionManager") -> None:
+    def __init__(self, session_manager: "SessionManager", force_refresh: bool = False) -> None:
         super().__init__()
         self.session_manager = session_manager
+        self.force_refresh = force_refresh
 
     def run(self) -> None:
         """Generate summaries"""
         try:
             self.session_manager.generate_repo_summaries(
-                progress_callback=lambda cur, total, fp: self.progress.emit(cur, total, fp)
+                force_refresh=self.force_refresh,
+                progress_callback=lambda cur, total, fp: self.progress.emit(cur, total, fp),
             )
             count = len(self.session_manager.repo_summaries)
             self.finished.emit(count)

@@ -409,7 +409,9 @@ class LiveSession(QObject):
 
     # === PUBLIC API ===
 
-    def send_message(self, text: str, _trigger_only: bool = False) -> bool:
+    def send_message(
+        self, text: str, _trigger_only: bool = False, _skip_workdir_check: bool = False
+    ) -> bool:
         """
         Send a user message to the AI.
 
@@ -420,6 +422,7 @@ class LiveSession(QObject):
             text: The message text
             _trigger_only: If True, just start processing without adding a message
                           (used when message is already in loaded session.json)
+            _skip_workdir_check: If True, skip workdir state check (for internal use)
         """
         if self._state == SessionState.RUNNING:
             # Queue the message
@@ -436,6 +439,10 @@ class LiveSession(QObject):
         # Check if we're resuming from a pending wait_session call
         if self._state == SessionState.WAITING_CHILDREN and self._pending_wait_call:
             return self._resume_pending_wait(text)
+
+        # Check workdir state if on checked-out branch (unless skipped)
+        if not _skip_workdir_check and not self._check_workdir_state():
+            return False
 
         # Add message to conversation (unless just triggering)
         if not _trigger_only and text:
@@ -1040,6 +1047,47 @@ class LiveSession(QObject):
 
         self.session_manager.prompt_manager.clear_conversation()
         replay_messages_to_prompt_manager(self.messages, self.session_manager)
+
+    def _check_workdir_state(self) -> bool:
+        """
+        Check if working directory is clean when working on the checked-out branch.
+
+        If the target branch is currently checked out and has uncommitted changes
+        in the working directory, we need to warn the user - those changes would
+        be overwritten when we sync the workdir after committing.
+
+        For headless sessions (no UI attached), we refuse to proceed if workdir is dirty.
+        For UI-attached sessions, we emit a signal and let the UI handle confirmation.
+
+        Returns True if OK to proceed, False to abort.
+        """
+        repo = self.session_manager._repo
+
+        # Check if we're working on the checked-out branch
+        checked_out = repo.get_checked_out_branch()
+        if checked_out != self.branch_name:
+            # Not working on the checked-out branch, no workdir concerns
+            return True
+
+        # Check if workdir is clean
+        if repo.is_workdir_clean():
+            return True
+
+        # Workdir has uncommitted changes
+        # For headless sessions, just refuse (can't ask user)
+        if not self._attached:
+            self._emit_event(
+                ErrorEvent(
+                    f"Working directory has uncommitted changes on branch '{self.branch_name}'. "
+                    "Commit or stash changes before running AI session."
+                )
+            )
+            return False
+
+        # For attached sessions, the UI should have already handled this
+        # via the unsaved_changes_check callback. If we get here, something
+        # went wrong, so refuse to proceed.
+        return True
 
     # --- Child Session Management ---
 

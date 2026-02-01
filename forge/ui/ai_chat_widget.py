@@ -5,7 +5,7 @@ AI chat widget with markdown/LaTeX rendering
 import json
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
@@ -21,8 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from forge.constants import SESSION_FILE
-from forge.tools.invocation import InlineCommand
-from forge.tools.side_effects import SideEffect
 from forge.ui.chat_helpers import ChatBridge, ExternalLinkPage
 from forge.ui.chat_message import (
     ChatMessage,
@@ -35,7 +33,6 @@ from forge.ui.chat_streaming import (
     build_streaming_tool_calls_js,
 )
 from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
-from forge.ui.chat_workers import SummaryWorker
 from forge.ui.editor_widget import SearchBar
 from forge.ui.tool_rendering import render_markdown
 
@@ -83,11 +80,6 @@ class AIChatWidget(QWidget):
         # Tool approval tracking - initialize BEFORE any method calls
         self.pending_approvals: dict[str, dict[str, Any]] = {}  # tool_name -> tool_info
         self.handled_approvals: set[str] = set()  # Tools that have been approved/rejected
-
-        # Summary worker
-        self.summary_thread: QThread | None = None
-        self.summary_worker: SummaryWorker | None = None
-        self._summaries_ready = False  # Track if summaries have been generated
 
         # Web channel bridge for JavaScript communication
         self.bridge = ChatBridge(self)
@@ -140,13 +132,19 @@ class AIChatWidget(QWidget):
                 if self.session_manager.vfs.file_exists(instructions_file):
                     self.session_manager.add_active_file(instructions_file)
 
+        # Connect to SessionManager summary signals for UI updates
+        self.session_manager.summary_progress.connect(self._on_summaries_progress)
+        self.session_manager.summary_finished.connect(self._on_summaries_finished)
+        self.session_manager.summary_error.connect(self._on_summaries_error)
+
         # Generate repository summaries on session creation (if not already done)
         if not self.session_manager.repo_summaries:
             self._add_system_message("🔍 Generating repository summaries in background...")
-            self._start_summary_generation()
+            # Track the message index for in-place updates
+            self._summary_message_index = len(self.messages) - 1
+            self.session_manager.start_summary_generation()
         else:
             # Summaries already exist (restored session) - emit initial context stats
-            self._summaries_ready = True
             self.session_manager._emit_context_stats()
 
         self._update_chat_display()
@@ -487,24 +485,6 @@ class AIChatWidget(QWidget):
 
         layout.addLayout(input_layout)
 
-    def _start_summary_generation(self) -> None:
-        """Start generating repository summaries in background thread"""
-        self.summary_thread = QThread()
-        self.summary_worker = SummaryWorker(self.session_manager)
-        self.summary_worker.moveToThread(self.summary_thread)
-
-        # Connect signals
-        self.summary_worker.finished.connect(self._on_summaries_finished)
-        self.summary_worker.error.connect(self._on_summaries_error)
-        self.summary_worker.progress.connect(self._on_summaries_progress)
-        self.summary_thread.started.connect(self.summary_worker.run)
-
-        # Track the message index for in-place updates
-        self._summary_message_index = len(self.messages) - 1  # Index of the "Generating..." message
-
-        # Start the thread
-        self.summary_thread.start()
-
     def _on_summaries_progress(self, current: int, total: int, filepath: str) -> None:
         """Handle summary generation progress update"""
         if total == 0:
@@ -531,33 +511,7 @@ class AIChatWidget(QWidget):
             self._update_chat_display()
 
     def _on_summaries_finished(self, count: int) -> None:
-        """Handle summary generation completion"""
-        # Clean up thread
-        if self.summary_thread:
-            self.summary_thread.quit()
-            self.summary_thread.wait()
-            self.summary_thread = None
-            self.summary_worker = None
-
-        # Mark summaries as ready
-        self._summaries_ready = True
-
-        # Emit signal through SessionManager so other widgets can access summaries
-        self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)
-
-        # Set summaries in prompt manager (one-time snapshot for this session)
-        self.session_manager.prompt_manager.set_summaries(self.session_manager.repo_summaries)
-
-        # Auto-add CLAUDE.md and AGENTS.md to context if they exist
-        # These files contain important project-specific instructions for the AI
-        for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
-            if self.session_manager.vfs.file_exists(instructions_file):
-                self.session_manager.add_active_file(instructions_file)
-
-        # Emit context changed signal through SessionManager if we added any files
-        if self.session_manager.active_files:
-            self.session_manager.context_changed.emit(self.session_manager.active_files.copy())
-
+        """Handle summary generation completion (UI update only - SessionManager handles logic)"""
         # Update the progress message to show completion
         if hasattr(self, "_summary_message_index") and self._summary_message_index < len(
             self.messages
@@ -569,18 +523,8 @@ class AIChatWidget(QWidget):
         else:
             self._add_system_message(f"✅ Generated summaries for {count} files")
 
-        # Emit initial context stats now that summaries are ready
-        self.session_manager._emit_context_stats()
-
     def _on_summaries_error(self, error_msg: str) -> None:
-        """Handle summary generation error"""
-        # Clean up thread
-        if self.summary_thread:
-            self.summary_thread.quit()
-            self.summary_thread.wait()
-            self.summary_thread = None
-            self.summary_worker = None
-
+        """Handle summary generation error (UI update only)"""
         self._add_system_message(f"❌ Error generating summaries: {error_msg}")
 
     def _check_for_unapproved_tools(self) -> None:
@@ -720,44 +664,6 @@ class AIChatWidget(QWidget):
         """Get the set of files currently in AI context"""
         return self.session_manager.active_files.copy()
 
-    def _process_tool_side_effects(
-        self, result: dict[str, Any], cmd: InlineCommand | None = None
-    ) -> None:
-        """Process side effects from a tool execution result.
-
-        This handles FILES_MODIFIED, NEW_FILES_CREATED, and MID_TURN_COMMIT
-        side effects consistently across inline and API tool execution paths.
-
-        Args:
-            result: The tool execution result dict
-            cmd: Optional InlineCommand (for commit tool detection)
-        """
-        side_effects = result.get("side_effects", [])
-
-        # Handle FILES_MODIFIED - notify session manager so AI sees updated content
-        if SideEffect.FILES_MODIFIED in side_effects:
-            for filepath in result.get("modified_files", []):
-                self.session_manager.file_was_modified(filepath, None)
-
-        # Handle NEW_FILES_CREATED - track for summary generation
-        if SideEffect.NEW_FILES_CREATED in side_effects:
-            if not hasattr(self, "_newly_created_files"):
-                self._newly_created_files = set()
-            for filepath in result.get("new_files", []):
-                if filepath not in self.session_manager.repo_summaries:
-                    self._newly_created_files.add(filepath)
-
-        # Handle MID_TURN_COMMIT - emit signal and mark in session
-        # Check both the side effect declaration and inline commit tool success
-        is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (
-            cmd and cmd.tool_name == "commit" and result.get("success")
-        )
-        if is_mid_turn_commit:
-            commit_oid = result.get("commit", "")
-            if commit_oid:
-                self.mid_turn_commit.emit(commit_oid)
-            self.session_manager.mark_mid_turn_commit()
-
     def get_context_stats(self) -> dict[str, Any]:
         """Get current context statistics"""
         return self.session_manager.get_active_files_with_stats()
@@ -836,7 +742,7 @@ class AIChatWidget(QWidget):
             return
 
         # Block if summaries are still being generated
-        if not self._summaries_ready:
+        if not self.session_manager.are_summaries_ready:
             self._add_system_message(
                 "⏳ Please wait for repository summaries to finish generating..."
             )
@@ -853,7 +759,8 @@ class AIChatWidget(QWidget):
         self.input_field.clear()
 
         # Send message through runner - it handles everything
-        if not self.runner.send_message(text):
+        # Skip workdir check since we already did it above with UI
+        if not self.runner.send_message(text, _skip_workdir_check=True):
             self._add_system_message("⚠️ Cannot send message - session is busy")
             return
 
@@ -985,8 +892,6 @@ class AIChatWidget(QWidget):
             "active_files": list(self.session_manager.active_files),
         }
 
-
-
     def _on_js_console_message(
         self,
         level: QWebEnginePage.JavaScriptConsoleMessageLevel,
@@ -1037,15 +942,15 @@ class AIChatWidget(QWidget):
         """
         # Convert raw message dicts to ChatMessage objects
         chat_messages = [ChatMessage.from_dict(msg) for msg in self.messages]
-        
+
         # Build tool results lookup
         tool_results = build_tool_results_lookup(chat_messages)
-        
+
         # Group messages into turns
         turns = group_messages_into_turns(chat_messages)
-        
+
         html_parts = []
-        
+
         # Render each turn
         for turn_idx, turn_messages in enumerate(turns):
             # Check if this turn is currently streaming (last turn and we're streaming)
@@ -1078,7 +983,7 @@ class AIChatWidget(QWidget):
                 is_streaming_msg = (
                     self._is_streaming and i == len(self.messages) - 1 and msg.role == "assistant"
                 )
-                
+
                 # Render the message
                 html_parts.append(
                     msg.render_html(tool_results, self.handled_approvals, is_streaming_msg)

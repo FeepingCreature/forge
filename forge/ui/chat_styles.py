@@ -185,6 +185,28 @@ def get_chat_styles() -> str:
             background: #e3f2fd;
             border-color: #2196f3;
         }
+        /* Markdown tables */
+        table {
+            border-collapse: collapse;
+            margin: 12px 0;
+            width: 100%;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #fafafa;
+        }
+        tr:hover {
+            background: #f0f0f0;
+        }
     """
     )
 

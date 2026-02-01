@@ -77,6 +77,10 @@ class SessionManager(QObject):
         self._summary_thread: QThread | None = None
         self._summary_worker: Any = None  # SummaryWorker, but imported lazily to avoid cycles
 
+        # Auto-start summary generation (session infrastructure, not UI concern)
+        # This runs in background - UI can connect to signals for progress feedback
+        self.start_summary_generation()
+
     @property
     def are_summaries_ready(self) -> bool:
         """Check if summaries have been generated."""

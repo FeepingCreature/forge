@@ -99,11 +99,11 @@ class AIChatWidget(QWidget):
         self.session_manager.summary_finished.connect(self._on_summaries_finished)
         self.session_manager.summary_error.connect(self._on_summaries_error)
 
-        # Check if summaries need to be generated (SessionManager handles the actual generation)
-        if not self.session_manager.repo_summaries:
+        # SessionManager auto-starts summary generation in __init__
+        # We just need to show UI feedback if it's still running
+        if not self.session_manager.are_summaries_ready:
             self._add_system_message("🔍 Generating repository summaries in background...")
             self._summary_message_index = len(self.messages) - 1
-            self.session_manager.start_summary_generation()
         else:
             self.session_manager._emit_context_stats()
 

@@ -104,8 +104,8 @@ class AIChatWidget(QWidget):
         if not self.session_manager.are_summaries_ready:
             self._add_system_message("🔍 Generating repository summaries in background...")
             self._summary_message_index = len(self.messages) - 1
-        else:
-            self.session_manager._emit_context_stats()
+        # Note: SessionManager emits context_stats_updated when summaries finish,
+        # no need to manually trigger here
 
         self._update_chat_display()
         self._check_for_unapproved_tools()
@@ -258,8 +258,8 @@ class AIChatWidget(QWidget):
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
         self.ai_turn_finished.emit(commit_oid)
         self._notify_turn_complete(commit_oid)
-        # Context stats are emitted by SessionManager when files change
-        self.session_manager._emit_context_stats()
+        # Note: Context stats are emitted by SessionManager when files change,
+        # no need to manually trigger here
 
         # Generate summaries for newly created files
         if self.runner._newly_created_files:
@@ -986,7 +986,6 @@ class AIChatWidget(QWidget):
         if self.runner.rewind_to_message(message_index):
             self._add_system_message(f"⏪ Rewound conversation to message {message_index + 1}")
             self._update_chat_display()
-            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot rewind while AI is processing")
 
@@ -1005,7 +1004,6 @@ class AIChatWidget(QWidget):
         if self.runner.revert_turn(first_message_index):
             self._add_system_message("⏪ Reverted to before this turn")
             self._update_chat_display()
-            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
 
@@ -1014,7 +1012,6 @@ class AIChatWidget(QWidget):
         if self.runner.revert_to_turn(first_message_index):
             self._add_system_message("⏪ Reverted to after this turn")
             self._update_chat_display()
-            self.session_manager._emit_context_stats()
         else:
             self._add_system_message("⚠️ Cannot revert while AI is processing")
 

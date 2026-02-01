@@ -1,8 +1,9 @@
 {
   "active_files": [
     "forge/session/manager.py",
-    "forge/ui/ai_chat_widget.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/session/live_session.py",
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -661,6 +662,33 @@
       "streaming": true,
       "actual_cost": 0.094426,
       "generation_id": "gen-1769906043-lDiNu9Fzv76dvsChYBCA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769906069711.json",
+      "response_file": "/tmp/forge_debug/response_1769906069711.json",
+      "timestamp": 1769906069.7114978,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004071,
+      "generation_id": "gen-1769906069-hz6bHCpanxbhD3JATx11"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769906069710.json",
+      "response_file": "/tmp/forge_debug/response_1769906069710.json",
+      "timestamp": 1769906069.7126088,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00461,
+      "generation_id": "gen-1769906069-Pe9xSa0SJox1bONh5dND"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906117860.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906117860.json",
+      "timestamp": 1769906117.8621018,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.88025625,
+      "generation_id": "gen-1769906118-7vXmMgDngDGz7uV5Ro55"
     }
   ],
   "messages": [
@@ -2157,6 +2185,83 @@
         {
           "commit": "ff5504b4462e",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 89 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I think there was a long-running bug where summaries weren't actually regenerated on file changes until the app was restarted- that may be fixed now.\nWhat else did we have... emit_context_stats was weird, right?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 75] Yes! Looking at the code, `_emit_context_stats()` is being called from `AIChatWidget` in several places:\n\n```python\n# In _on_runner_turn_finished:\nself.session_manager._emit_context_stats()\n\n# In _handle_rewind, _handle_revert_turn, _handle_revert_to_turn:\nself.session_manager._emit_context_stats()\n```\n\nThis is backwards - the widget is telling the SessionManager to emit signals. The SessionManager should emit stats automatically when its state changes (files added/removed, summaries ready, etc.).\n\nLooking at `SessionManager`, it already emits `_emit_context_stats()` in:\n- `add_active_file()`\n- `remove_active_file()`\n- `_on_summary_finished()`\n\nSo the widget calls are redundant! They're triggering extra emissions after operations that already triggered them. Let me clean this up:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _on_runner_turn_finished(self, commit_oid: str) -> None:\n        \"\"\"Handle turn completion from runner.\"\"\"\n        self._add_system_message(f\"\u2705 Changes committed: {commit_oid[:8]}\")\n        self.ai_turn_finished.emit(commit_oid)\n        self._notify_turn_complete(commit_oid)\n        # Context stats are emitted by SessionManager when files change\n        self.session_manager._emit_context_stats()\n\n        # Generate summaries for newly created files\n        if self.runner._newly_created_files:\n            for filepath in self.runner._newly_created_files:\n                self.session_manager.generate_summary_for_file(filepath)\n            self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)\n</search>\n<replace>\n    def _on_runner_turn_finished(self, commit_oid: str) -> None:\n        \"\"\"Handle turn completion from runner.\"\"\"\n        self._add_system_message(f\"\u2705 Changes committed: {commit_oid[:8]}\")\n        self.ai_turn_finished.emit(commit_oid)\n        self._notify_turn_complete(commit_oid)\n        # Note: Context stats are emitted by SessionManager when files change,\n        # no need to manually trigger here\n\n        # Generate summaries for newly created files\n        if self.runner._newly_created_files:\n            for filepath in self.runner._newly_created_files:\n                self.session_manager.generate_summary_for_file(filepath)\n            self.session_manager.summaries_ready.emit(self.session_manager.repo_summaries)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _handle_rewind(self, message_index: int) -> None:\n        \"\"\"Handle rewind request - truncate conversation to message_index\"\"\"\n        if self.runner.rewind_to_message(message_index):\n            self._add_system_message(f\"\u23ea Rewound conversation to message {message_index + 1}\")\n            self._update_chat_display()\n            self.session_manager._emit_context_stats()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot rewind while AI is processing\")\n</search>\n<replace>\n    def _handle_rewind(self, message_index: int) -> None:\n        \"\"\"Handle rewind request - truncate conversation to message_index\"\"\"\n        if self.runner.rewind_to_message(message_index):\n            self._add_system_message(f\"\u23ea Rewound conversation to message {message_index + 1}\")\n            self._update_chat_display()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot rewind while AI is processing\")\n</replace>\n</edit>\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _handle_revert_turn(self, first_message_index: int) -> None:\n        \"\"\"Handle reverting a turn and all following turns.\"\"\"\n        if self.runner.revert_turn(first_message_index):\n            self._add_system_message(\"\u23ea Reverted to before this turn\")\n            self._update_chat_display()\n            self.session_manager._emit_context_stats()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot revert while AI is processing\")\n\n    def _handle_revert_to_turn(self, first_message_index: int) -> None:\n        \"\"\"Handle reverting TO a turn (keep this turn, undo later turns).\"\"\"\n        if self.runner.revert_to_turn(first_message_index):\n            self._add_system_message(\"\u23ea Reverted to after this turn\")\n            self._update_chat_display()\n            self.session_manager._emit_context_stats()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot revert while AI is processing\")\n</search>\n<replace>\n    def _handle_revert_turn(self, first_message_index: int) -> None:\n        \"\"\"Handle reverting a turn and all following turns.\"\"\"\n        if self.runner.revert_turn(first_message_index):\n            self._add_system_message(\"\u23ea Reverted to before this turn\")\n            self._update_chat_display()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot revert while AI is processing\")\n\n    def _handle_revert_to_turn(self, first_message_index: int) -> None:\n        \"\"\"Handle reverting TO a turn (keep this turn, undo later turns).\"\"\"\n        if self.runner.revert_to_turn(first_message_index):\n            self._add_system_message(\"\u23ea Reverted to after this turn\")\n            self._update_chat_display()\n        else:\n            self._add_system_message(\"\u26a0\ufe0f Cannot revert while AI is processing\")\n</replace>\n</edit>\n\nNow also fix the `__init__` where we manually emit stats:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n        # SessionManager auto-starts summary generation in __init__\n        # We just need to show UI feedback if it's still running\n        if not self.session_manager.are_summaries_ready:\n            self._add_system_message(\"\ud83d\udd0d Generating repository summaries in background...\")\n            self._summary_message_index = len(self.messages) - 1\n        else:\n            self.session_manager._emit_context_stats()\n</search>\n<replace>\n        # SessionManager auto-starts summary generation in __init__\n        # We just need to show UI feedback if it's still running\n        if not self.session_manager.are_summaries_ready:\n            self._add_system_message(\"\ud83d\udd0d Generating repository summaries in background...\")\n            self._summary_message_index = len(self.messages) - 1\n        # Note: SessionManager emits context_stats_updated when summaries finish,\n        # no need to manually trigger here\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Remove manual _emit_context_stats() calls from AIChatWidget\n\nSessionManager already emits context_stats_updated automatically when:\n- Files are added/removed from context\n- Summaries finish generating\n\nThe widget was redundantly triggering these emissions. Now it just\nobserves the signals without driving them.\"/>\n\nDone! Removed all the `_emit_context_stats()` calls from `AIChatWidget`. The SessionManager already emits these signals automatically when state changes, so the widget was just adding redundant emissions.\n\nThe widget is now much more of a pure view - it observes signals but doesn't drive business logic.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 89 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "c3c758563d32",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

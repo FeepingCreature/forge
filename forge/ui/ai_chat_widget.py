@@ -33,6 +33,7 @@ from forge.ui.chat_streaming import (
 )
 from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
 from forge.ui.editor_widget import SearchBar
+from forge.ui.js_cache import get_all_script_tags
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
@@ -780,8 +781,7 @@ class AIChatWidget(QWidget):
         <head>
             <style>{get_chat_styles()}</style>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+            {get_all_script_tags()}
             <script>
                 // Initialize Mermaid with settings optimized for chat
                 mermaid.initialize({{

@@ -1056,7 +1056,9 @@ def render_markdown(
             remaining = content[pos:].strip()
             if remaining:
                 result_parts.append(
-                    md.markdown(remaining, extensions=md_extensions, extension_configs=md_extension_configs)
+                    md.markdown(
+                        remaining, extensions=md_extensions, extension_configs=md_extension_configs
+                    )
                 )
             break
 
@@ -1064,7 +1066,9 @@ def render_markdown(
         text_before = content[pos : earliest_match.start()].rstrip()
         if text_before:
             result_parts.append(
-                md.markdown(text_before, extensions=md_extensions, extension_configs=md_extension_configs)
+                md.markdown(
+                    text_before, extensions=md_extensions, extension_configs=md_extension_configs
+                )
             )
 
         # Get result for this command if available

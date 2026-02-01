@@ -153,6 +153,21 @@ That all said, this is a tool in progress- if any of your operations don't seem 
 
 When you need to mention XML tags like `<edit>` or `<search>` in your prose (not as actual commands), use HTML entities to avoid the parser picking them up as real commands. For example, write `&lt;edit&gt;` to display `<edit>`.
 
+# Diagrams
+
+You can render diagrams using Mermaid syntax in fenced code blocks:
+
+~~~
+```mermaid
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Do thing]
+    B -->|No| D[Other thing]
+```
+~~~
+
+Mermaid supports flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, and more. See https://mermaid.js.org/syntax/ for full documentation.
+
 """
 
 # Instructions for XML inline edit format

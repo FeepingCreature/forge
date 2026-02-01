@@ -861,7 +861,8 @@ class LiveSession(QObject):
                     self._newly_created_files.add(filepath)
 
         if SideEffect.MID_TURN_COMMIT in side_effects:
-            self.session_manager.mark_mid_turn_commit()
+            commit_oid = result.get("commit", "")
+            self.session_manager.mark_mid_turn_commit(commit_oid)
 
         # Handle compact tool
         if result.get("compact") and result.get("success"):

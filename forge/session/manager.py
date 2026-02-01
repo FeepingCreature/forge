@@ -43,6 +43,9 @@ class SessionManager(QObject):
     summary_finished = Signal(int)  # count of files summarized
     summary_error = Signal(str)  # error message
 
+    # Signal for mid-turn commits (git graph needs to refresh)
+    mid_turn_commit = Signal(str)  # commit_oid
+
     def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
         super().__init__()
         self.branch_name = branch_name
@@ -337,9 +340,11 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Add a tool result to the prompt stream"""
         self.prompt_manager.append_tool_result(tool_call_id, result, is_ephemeral)
 
-    def mark_mid_turn_commit(self) -> None:
+    def mark_mid_turn_commit(self, commit_oid: str = "") -> None:
         """Mark that a commit happened mid-turn (affects end-of-turn commit type)"""
         self._had_mid_turn_commit = True
+        if commit_oid:
+            self.mid_turn_commit.emit(commit_oid)
 
     def compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:
         """

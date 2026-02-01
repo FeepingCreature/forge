@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from forge.constants import SESSION_FILE
 from forge.ui.chat_helpers import ChatBridge, ExternalLinkPage
 from forge.ui.chat_message import (
     ChatMessage,
@@ -55,10 +54,9 @@ class AIChatWidget(QWidget):
     - Manages UI-specific state (approvals, summaries UI)
     """
 
-    # Signals for AI turn lifecycle (UI events only - session state signals are on SessionManager)
-    ai_turn_started = Signal()  # Emitted when AI turn begins
-    ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)
-    mid_turn_commit = Signal(str)  # Emitted when commit tool runs mid-turn (commit_oid)
+    # Signals for UI events only
+    ai_turn_started = Signal()  # Emitted when AI turn begins (for status bar)
+    ai_turn_finished = Signal(str)  # Emitted when AI turn ends (for status bar, git graph refresh)
     fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)
     user_typing = Signal()  # Emitted when user types (to clear waiting indicator)
 
@@ -224,19 +222,6 @@ class AIChatWidget(QWidget):
         self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
     ) -> None:
         """Handle individual tool completion from runner."""
-        from forge.tools.side_effects import SideEffect
-
-        side_effects = result.get("side_effects", [])
-
-        # Handle MID_TURN_COMMIT - emit signal
-        if SideEffect.MID_TURN_COMMIT in side_effects:
-            commit_oid = result.get("commit", "")
-            if commit_oid:
-                self.mid_turn_commit.emit(commit_oid)
-
-        # If tool modified context, SessionManager will have already emitted signals
-        # via add_active_file/remove_active_file, so we don't need to do anything here
-
         # Display tool result (system messages for failures, etc.)
         self._display_tool_result(tool_name, tool_args, result)
 
@@ -608,49 +593,6 @@ class AIChatWidget(QWidget):
                     "Type your message... (Enter to send, Shift+Enter for new line)"
                 )
 
-    def add_file_to_context(self, filepath: str) -> None:
-        """Add a file to the AI context.
-
-        DEPRECATED: Connect directly to session_manager.add_active_file instead.
-        This method is kept for backward compatibility.
-        """
-        # Never add session.json to context - it contains the conversation history
-        # which would duplicate context and waste tokens
-        if filepath == SESSION_FILE:
-            return
-        # SessionManager now emits context_changed and context_stats_updated signals
-        self.session_manager.add_active_file(filepath)
-
-    def remove_file_from_context(self, filepath: str) -> None:
-        """Remove a file from the AI context.
-
-        DEPRECATED: Connect directly to session_manager.remove_active_file instead.
-        This method is kept for backward compatibility.
-        """
-        # SessionManager now emits context_changed and context_stats_updated signals
-        self.session_manager.remove_active_file(filepath)
-
-    def get_active_files(self) -> set[str]:
-        """Get the set of files currently in AI context"""
-        result: set[str] = self.session_manager.active_files.copy()
-        return result
-
-    def get_context_stats(self) -> dict[str, Any]:
-        """Get current context statistics"""
-        result: dict[str, Any] = self.session_manager.get_active_files_with_stats()
-        return result
-
-    def check_unsaved_changes(self) -> bool:
-        """
-        Check if there are unsaved changes that should be saved before AI turn.
-
-        Returns True if OK to proceed, False if should abort.
-        Override point for parent widgets to inject save logic.
-        """
-        # Default implementation: always proceed
-        # BranchTabWidget will connect to this
-        return True
-
     # Callback for parent to set - returns True if OK to proceed
     unsaved_changes_check: Any = None
 
@@ -731,21 +673,6 @@ class AIChatWidget(QWidget):
         if not self.runner.send_message(text, _skip_workdir_check=True):
             self._add_system_message("⚠️ Cannot send message - session is busy")
             return
-
-    def _build_prompt_messages(self) -> list[dict[str, Any]]:
-        """
-        Build the complete prompt using PromptManager.
-
-        The PromptManager maintains the prompt as an append-only stream,
-        optimized for cache reuse. File contents are ordered so that
-        recently-modified files are at the end.
-        """
-        # Sync prompt manager with current state (summaries, file contents)
-        self.session_manager.sync_prompt_manager()
-
-        # Get optimized messages from prompt manager
-        result: list[dict[str, Any]] = self.session_manager.get_prompt_messages()
-        return result
 
     def _update_streaming_tool_calls(self) -> None:
         """Update the streaming message to show tool call progress"""
@@ -853,13 +780,6 @@ class AIChatWidget(QWidget):
         }})();
         """
         self.chat_view.page().runJavaScript(js_code)
-
-    def get_session_data(self) -> dict[str, Any]:
-        """Get session data for persistence (used by SessionManager for git commits)"""
-        return {
-            "messages": self._get_conversation_messages(),
-            "active_files": list(self.session_manager.active_files),
-        }
 
     def _on_js_console_message(
         self,

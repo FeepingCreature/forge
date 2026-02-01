@@ -1,9 +1,10 @@
 {
   "active_files": [
-    "forge/session/manager.py",
-    "CLAUDE.md",
+    "forge/ui/ai_chat_widget.py",
     "forge/session/live_session.py",
-    "forge/ui/ai_chat_widget.py"
+    "forge/ui/main_window.py",
+    "forge/session/manager.py",
+    "CLAUDE.md"
   ],
   "request_log_entries": [
     {
@@ -716,6 +717,33 @@
       "streaming": true,
       "actual_cost": 0.1056815,
       "generation_id": "gen-1769906218-M6TzF4X4qGgO8hzfOZnV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906461246.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906461246.json",
+      "timestamp": 1769906461.248037,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.31090525,
+      "generation_id": "gen-1769906461-NCXOihbTUiBM45PpxGHh"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906478603.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906478603.json",
+      "timestamp": 1769906478.6051366,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.37326025,
+      "generation_id": "gen-1769906478-zqLbz08kBLizC7QHMvCI"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769906523895.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769906523895.json",
+      "timestamp": 1769906523.897379,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.107889,
+      "generation_id": "gen-1769906524-Q8hEHzoGPQ5HV3TMUQsp"
     }
   ],
   "messages": [
@@ -2396,6 +2424,87 @@
         {
           "commit": "09e2efeee409",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d1ef40ba",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks!\nmid_turn_commit should also be on the session manager, right? It's not really driven by the ui widget, or at least shouldn't be.\nGenerally, let's give ai_chat_widget another look over? My impression is it has a ton of deadish code rn- code that is dead or that should be dead."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 83] You're right! Let me analyze `ai_chat_widget.py` for dead/misplaced code:\n\n## Analysis\n\n**Dead/Misplaced Code:**\n\n1. **`mid_turn_commit` signal** - Emitted from `_on_runner_tool_finished`, but this should be a SessionManager signal since it's session state, not UI\n2. **`_display_tool_result`** (~50 lines) - Adds system messages for tool failures, but this could be simplified or moved\n3. **`_build_prompt_messages`** (~10 lines) - Just calls `session_manager.sync_prompt_manager()` and `get_prompt_messages()` - seems unused?\n4. **`add_file_to_context` / `remove_file_to_context`** - Marked DEPRECATED, just delegate to SessionManager\n5. **`get_active_files` / `get_context_stats`** - Just delegate to SessionManager\n6. **`check_unsaved_changes`** - Returns True always, unused?\n7. **`_get_conversation_messages`** - Filters out UI-only messages, but is it used?\n8. **`get_session_data`** - Used by SessionManager? Or dead?\n\nLet me check what's actually used:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"\\\\._build_prompt_messages\\\\(|\\\\.add_file_to_context\\\\(|\\\\.remove_file_from_context\\\\(|\\\\.get_active_files\\\\(|\\\\.get_context_stats\\\\(|\\\\.check_unsaved_changes\\\\(|\\\\.get_session_data\\\\(|\\\\.mid_turn_commit\\\\.\", \"include_extensions\": [\".py\"], \"max_matches\": 20}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01SMoYm4tmpznUoLwpYMaPNx",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01SMoYm4tmpznUoLwpYMaPNx",
+      "content": "{\"message\": \"Found 8 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:1132 \\u2500\\u2500\\n    1129 |         This gives the AI awareness of context size and session cost.\\n    1130 |         Includes a persistent context size label (small/moderate/large/etc).\\n    1131 |         \\\"\\\"\\\"\\n>>> 1132 |         stats = self.get_context_stats()\\n    1133 | \\n    1134 |         # Also measure the recap size\\n    1135 |         recap = self.format_conversation_recap()\\n\\n\\u2500\\u2500 forge/session/manager.py:242 \\u2500\\u2500\\n     239 |         file_was_modified() which is called when tools actually change files.\\n     240 |         This ensures only modified files move to end of prompt (cache optimization).\\n     241 |         \\\"\\\"\\\"\\n>>>  242 |         current_prompt_files = set(self.prompt_manager.get_active_files())\\n     243 | \\n     244 |         # Add files that are newly in context (not already in prompt manager)\\n     245 |         for filepath in self.active_files:\\n\\n\\u2500\\u2500 forge/session/manager.py:463 \\u2500\\u2500\\n     460 |             Commit OID as string\\n     461 |         \\\"\\\"\\\"\\n     462 |         # Build session state with messages\\n>>>  463 |         session_state = self.get_session_data(messages, session_metadata)\\n     464 | \\n     465 |         # Add session state to VFS (single file per branch)\\n     466 |         self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_state, indent=2))\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:235 \\u2500\\u2500\\n     232 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n     233 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n     234 |             if commit_oid:\\n>>>  235 |                 self.mid_turn_commit.emit(commit_oid)\\n     236 | \\n     237 |         # If tool modified context, SessionManager will have already emitted signals\\n     238 |         # via add_active_file/remove_active_file, so we don't need to do anything here\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:136 \\u2500\\u2500\\n     133 |         if hasattr(chat_widget, \\\"ai_turn_finished\\\"):\\n     134 |             chat_widget.ai_turn_finished.connect(self._on_ai_turn_finished)\\n     135 |         if hasattr(chat_widget, \\\"mid_turn_commit\\\"):\\n>>>  136 |             chat_widget.mid_turn_commit.connect(self._on_mid_turn_commit)\\n     137 | \\n     138 |         # Connect summaries_ready from SessionManager to AskWidget\\n     139 |         if self._side_panel:\\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:412 \\u2500\\u2500\\n     409 |         pm.append_file_content(\\\"b.py\\\", \\\"content b\\\")\\n     410 |         pm.remove_file_content(\\\"a.py\\\")\\n     411 |         \\n>>>  412 |         files = pm.get_active_files()\\n     413 |         assert files == [\\\"b.py\\\"]\\n     414 | \\n     415 |     def test_file_relocation_preserves_order(self):\\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:425 \\u2500\\u2500\\n     422 |         # Update a.py - b and c should be relocated after it\\n     423 |         pm.append_file_content(\\\"a.py\\\", \\\"a_updated\\\")\\n     424 |         \\n>>>  425 |         files = pm.get_active_files()\\n     426 |         # Order should be: b, c, a (a was updated last)\\n     427 |         assert files == [\\\"b.py\\\", \\\"c.py\\\", \\\"a.py\\\"]\\n     428 | \\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:604 \\u2500\\u2500\\n     601 |         pm.append_user_message(\\\"Hello\\\")\\n     602 |         pm.append_assistant_message(\\\"Hi there\\\")\\n     603 |         \\n>>>  604 |         stats = pm.get_context_stats()\\n     605 |         \\n     606 |         assert stats[\\\"system_tokens\\\"] > 0\\n     607 |         assert stats[\\\"summaries_tokens\\\"] > 0\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 8}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"max_matches\": 20,\n  \"pattern\": \"\\\\._build_prompt_messages\\\\(|\\\\.add_file_to_context\\\\(|\\\\.remove_file_from_context\\\\(|\\\\.get_active_files\\\\(|\\\\.get_context_stats\\\\(|\\\\.check_unsaved_changes\\\\(|\\\\.get_session_data\\\\(|\\\\.mid_turn_commit\\\\.\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 8 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:1132 \\u2500\\u2500\\n    1129 |         This gives the AI awareness of context size and session cost.\\n    1130 |         Includes a persistent context size label (small/moderate/large/etc).\\n    1131 |         \\\"\\\"\\\"\\n>>> 1132 |         stats = self.get_context_stats()\\n    1133 | \\n    1134 |         # Also measure the recap size\\n    1135 |         recap = self.format_conversation_recap()\\n\\n\\u2500\\u2500 forge/session/manager.py:242 \\u2500\\u2500\\n     239 |         file_was_modified() which is called when tools actually change files.\\n     240 |         This ensures only modified files move to end of prompt (cache optimization).\\n     241 |         \\\"\\\"\\\"\\n>>>  242 |         current_prompt_files = set(self.prompt_manager.get_active_files())\\n     243 | \\n     244 |         # Add files that are newly in context (not already in prompt manager)\\n     245 |         for filepath in self.active_files:\\n\\n\\u2500\\u2500 forge/session/manager.py:463 \\u2500\\u2500\\n     460 |             Commit OID as string\\n     461 |         \\\"\\\"\\\"\\n     462 |         # Build session state with messages\\n>>>  463 |         session_state = self.get_session_data(messages, session_metadata)\\n     464 | \\n     465 |         # Add session state to VFS (single file per branch)\\n     466 |         self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_state, indent=2))\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:235 \\u2500\\u2500\\n     232 |         if SideEffect.MID_TURN_COMMIT in side_effects:\\n     233 |             commit_oid = result.get(\\\"commit\\\", \\\"\\\")\\n     234 |             if commit_oid:\\n>>>  235 |                 self.mid_turn_commit.emit(commit_oid)\\n     236 | \\n     237 |         # If tool modified context, SessionManager will have already emitted signals\\n     238 |         # via add_active_file/remove_active_file, so we don't need to do anything here\\n\\n\\u2500\\u2500 forge/ui/branch_tab_widget.py:136 \\u2500\\u2500\\n     133 |         if hasattr(chat_widget, \\\"ai_turn_finished\\\"):\\n     134 |             chat_widget.ai_turn_finished.connect(self._on_ai_turn_finished)\\n     135 |         if hasattr(chat_widget, \\\"mid_turn_commit\\\"):\\n>>>  136 |             chat_widget.mid_turn_commit.connect(self._on_mid_turn_commit)\\n     137 | \\n     138 |         # Connect summaries_ready from SessionManager to AskWidget\\n     139 |         if self._side_panel:\\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:412 \\u2500\\u2500\\n     409 |         pm.append_file_content(\\\"b.py\\\", \\\"content b\\\")\\n     410 |         pm.remove_file_content(\\\"a.py\\\")\\n     411 |         \\n>>>  412 |         files = pm.get_active_files()\\n     413 |         assert files == [\\\"b.py\\\"]\\n     414 | \\n     415 |     def test_file_relocation_preserves_order(self):\\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:425 \\u2500\\u2500\\n     422 |         # Update a.py - b and c should be relocated after it\\n     423 |         pm.append_file_content(\\\"a.py\\\", \\\"a_updated\\\")\\n     424 |         \\n>>>  425 |         files = pm.get_active_files()\\n     426 |         # Order should be: b, c, a (a was updated last)\\n     427 |         assert files == [\\\"b.py\\\", \\\"c.py\\\", \\\"a.py\\\"]\\n     428 | \\n\\n\\u2500\\u2500 tests/test_prompt_manager.py:604 \\u2500\\u2500\\n     601 |         pm.append_user_message(\\\"Hello\\\")\\n     602 |         pm.append_assistant_message(\\\"Hi there\\\")\\n     603 |         \\n>>>  604 |         stats = pm.get_context_stats()\\n     605 |         \\n     606 |         assert stats[\\\"system_tokens\\\"] > 0\\n     607 |         assert stats[\\\"summaries_tokens\\\"] > 0\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 8\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 84] Good analysis! Based on the grep results:\n\n**Dead/should-be-moved code:**\n\n1. **`mid_turn_commit` signal** - Used by `branch_tab_widget._on_mid_turn_commit`, but should be emitted by SessionManager/LiveSession, not the chat widget\n2. **`_build_prompt_messages()`** - Only called internally by PromptManager, NOT by AIChatWidget - so it's dead code in the widget\n3. **`add_file_to_context` / `remove_file_from_context`** - Marked DEPRECATED, just delegates\n4. **`get_active_files` / `get_context_stats`** - Just delegates, used externally?\n5. **`check_unsaved_changes`** - Returns True always, looks unused\n6. **`get_session_data`** - SessionManager has its own `get_session_data`, this might be dead\n\nLet me clean this up:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    # Signals for AI turn lifecycle (UI events only - session state signals are on SessionManager)\n    ai_turn_started = Signal()  # Emitted when AI turn begins\n    ai_turn_finished = Signal(str)  # Emitted when AI turn ends (commit_oid or empty string)\n    mid_turn_commit = Signal(str)  # Emitted when commit tool runs mid-turn (commit_oid)\n    fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)\n    user_typing = Signal()  # Emitted when user types (to clear waiting indicator)\n</search>\n<replace>\n    # Signals for UI events only\n    ai_turn_started = Signal()  # Emitted when AI turn begins (for status bar)\n    ai_turn_finished = Signal(str)  # Emitted when AI turn ends (for status bar, git graph refresh)\n    fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)\n    user_typing = Signal()  # Emitted when user types (to clear waiting indicator)\n</replace>\n</edit>\n\nNow move `mid_turn_commit` to SessionManager and have branch_tab_widget connect there. First, add the signal to SessionManager:\n\n<edit file=\"forge/session/manager.py\">\n<search>\n    # Signals for summary generation progress\n    summary_progress = Signal(int, int, str)  # current, total, filepath\n    summary_finished = Signal(int)  # count of files summarized\n    summary_error = Signal(str)  # error message\n</search>\n<replace>\n    # Signals for summary generation progress\n    summary_progress = Signal(int, int, str)  # current, total, filepath\n    summary_finished = Signal(int)  # count of files summarized\n    summary_error = Signal(str)  # error message\n\n    # Signal for mid-turn commits (git graph needs to refresh)\n    mid_turn_commit = Signal(str)  # commit_oid\n</replace>\n</edit>\n\nUpdate `mark_mid_turn_commit` to emit the signal:\n\n<edit file=\"forge/session/manager.py\">\n<search>\n    def mark_mid_turn_commit(self) -> None:\n        \"\"\"Mark that a commit happened mid-turn (affects end-of-turn commit type)\"\"\"\n        self._had_mid_turn_commit = True\n</search>\n<replace>\n    def mark_mid_turn_commit(self, commit_oid: str = \"\") -> None:\n        \"\"\"Mark that a commit happened mid-turn (affects end-of-turn commit type)\"\"\"\n        self._had_mid_turn_commit = True\n        if commit_oid:\n            self.mid_turn_commit.emit(commit_oid)\n</replace>\n</edit>\n\nNow remove the `mid_turn_commit` emit from AIChatWidget:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _on_runner_tool_finished(\n        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]\n    ) -> None:\n        \"\"\"Handle individual tool completion from runner.\"\"\"\n        from forge.tools.side_effects import SideEffect\n\n        side_effects = result.get(\"side_effects\", [])\n\n        # Handle MID_TURN_COMMIT - emit signal\n        if SideEffect.MID_TURN_COMMIT in side_effects:\n            commit_oid = result.get(\"commit\", \"\")\n            if commit_oid:\n                self.mid_turn_commit.emit(commit_oid)\n\n        # If tool modified context, SessionManager will have already emitted signals\n        # via add_active_file/remove_active_file, so we don't need to do anything here\n\n        # Display tool result (system messages for failures, etc.)\n        self._display_tool_result(tool_name, tool_args, result)\n</search>\n<replace>\n    def _on_runner_tool_finished(\n        self, tool_call_id: str, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]\n    ) -> None:\n        \"\"\"Handle individual tool completion from runner.\"\"\"\n        # Display tool result (system messages for failures, etc.)\n        self._display_tool_result(tool_name, tool_args, result)\n</replace>\n</edit>\n\nUpdate branch_tab_widget to connect to SessionManager instead:\n\n<edit file=\"forge/ui/branch_tab_widget.py\">\n<search>\n        if hasattr(chat_widget, \"mid_turn_commit\"):\n            chat_widget.mid_turn_commit.connect(self._on_mid_turn_commit)\n</search>\n<replace>\n        # Connect mid_turn_commit from SessionManager (not chat widget)\n        self.workspace.session_manager.mid_turn_commit.connect(self._on_mid_turn_commit)\n</replace>\n</edit>\n\nNow update LiveSession to pass commit_oid to mark_mid_turn_commit:\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n        if SideEffect.MID_TURN_COMMIT in side_effects:\n            self.session_manager.mark_mid_turn_commit()\n</search>\n<replace>\n        if SideEffect.MID_TURN_COMMIT in side_effects:\n            commit_oid = result.get(\"commit\", \"\")\n            self.session_manager.mark_mid_turn_commit(commit_oid)\n</replace>\n</edit>\n\nNow remove the dead/deprecated methods from AIChatWidget:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def add_file_to_context(self, filepath: str) -> None:\n        \"\"\"Add a file to the AI context.\n\n        DEPRECATED: Connect directly to session_manager.add_active_file instead.\n        This method is kept for backward compatibility.\n        \"\"\"\n        # Never add session.json to context - it contains the conversation history\n        # which would duplicate context and waste tokens\n        if filepath == SESSION_FILE:\n            return\n        # SessionManager now emits context_changed and context_stats_updated signals\n        self.session_manager.add_active_file(filepath)\n\n    def remove_file_from_context(self, filepath: str) -> None:\n        \"\"\"Remove a file from the AI context.\n\n        DEPRECATED: Connect directly to session_manager.remove_active_file instead.\n        This method is kept for backward compatibility.\n        \"\"\"\n        # SessionManager now emits context_changed and context_stats_updated signals\n        self.session_manager.remove_active_file(filepath)\n\n    def get_active_files(self) -> set[str]:\n        \"\"\"Get the set of files currently in AI context\"\"\"\n        result: set[str] = self.session_manager.active_files.copy()\n        return result\n\n    def get_context_stats(self) -> dict[str, Any]:\n        \"\"\"Get current context statistics\"\"\"\n        result: dict[str, Any] = self.session_manager.get_active_files_with_stats()\n        return result\n\n    def check_unsaved_changes(self) -> bool:\n        \"\"\"\n        Check if there are unsaved changes that should be saved before AI turn.\n\n        Returns True if OK to proceed, False if should abort.\n        Override point for parent widgets to inject save logic.\n        \"\"\"\n        # Default implementation: always proceed\n        # BranchTabWidget will connect to this\n        return True\n</search>\n<replace>\n</replace>\n</edit>\n\nRemove the dead `_build_prompt_messages` method:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def _build_prompt_messages(self) -> list[dict[str, Any]]:\n        \"\"\"\n        Build the complete prompt using PromptManager.\n\n        The PromptManager maintains the prompt as an append-only stream,\n        optimized for cache reuse. File contents are ordered so that\n        recently-modified files are at the end.\n        \"\"\"\n        # Sync prompt manager with current state (summaries, file contents)\n        self.session_manager.sync_prompt_manager()\n\n        # Get optimized messages from prompt manager\n        result: list[dict[str, Any]] = self.session_manager.get_prompt_messages()\n        return result\n\n</search>\n<replace>\n</replace>\n</edit>\n\nRemove the dead `get_session_data` method (SessionManager has this):\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n    def get_session_data(self) -> dict[str, Any]:\n        \"\"\"Get session data for persistence (used by SessionManager for git commits)\"\"\"\n        return {\n            \"messages\": self._get_conversation_messages(),\n            \"active_files\": list(self.session_manager.active_files),\n        }\n\n</search>\n<replace>\n</replace>\n</edit>\n\n<check/>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `check` failed:\n\nruff check forge/ main.py\nF401 [*] `forge.constants.SESSION_FILE` imported but unused\n  --> forge/ui/ai_chat_widget.py:23:29\n   |\n21 | )\n22 |\n23 | from forge.constants import SESSION_FILE\n   |                             ^^^^^^^^^^^^\n24 | from forge.ui.chat_helpers import ChatBridge, ExternalLinkPage\n25 | from forge.ui.chat_message import (\n   |\nhelp: Remove unused import: `forge.constants.SESSION_FILE`\n\nFound 1 error.\n[*] 1 fixable with the `--fix` option.\nmake: *** [Makefile:13: lint-check] Error 1\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 86] <edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\nfrom forge.constants import SESSION_FILE\nfrom forge.ui.chat_helpers import ChatBridge, ExternalLinkPage\n</search>\n<replace>\nfrom forge.ui.chat_helpers import ChatBridge, ExternalLinkPage\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Remove dead code from AIChatWidget\n\n- Move mid_turn_commit signal to SessionManager (session state, not UI)\n- Remove deprecated add/remove_file_to_context methods (use SessionManager directly)\n- Remove dead get_active_files, get_context_stats, check_unsaved_changes methods\n- Remove dead _build_prompt_messages method (PromptManager has this)\n- Remove dead get_session_data method (SessionManager has this)\n- Update branch_tab_widget to connect mid_turn_commit from SessionManager\n- Update LiveSession to pass commit_oid to mark_mid_turn_commit\"/>\n\nDone! Removed significant dead code from `AIChatWidget`:\n\n- **`mid_turn_commit` signal** \u2192 Moved to SessionManager (it's session state)\n- **`add_file_to_context` / `remove_file_from_context`** \u2192 Removed (deprecated, use SessionManager)\n- **`get_active_files` / `get_context_stats`** \u2192 Removed (just delegated to SessionManager)\n- **`check_unsaved_changes`** \u2192 Removed (always returned True, unused)\n- **`_build_prompt_messages`** \u2192 Removed (dead code, PromptManager handles this)\n- **`get_session_data`** \u2192 Removed (SessionManager has its own version)\n\nThe widget is getting cleaner - now focused on actual UI concerns!",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 89 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "33313de5ad45",
+          "message": "Committed: 4 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

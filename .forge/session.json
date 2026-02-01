@@ -563,6 +563,15 @@
       "streaming": true,
       "actual_cost": 0.1228025,
       "generation_id": "gen-1769905348-NVDGx5eeBqXIyOgWfcKe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769905640748.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769905640748.json",
+      "timestamp": 1769905640.7499917,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.1026715,
+      "generation_id": "gen-1769905641-RQxA5uAOouueoQqf1kOl"
     }
   ],
   "messages": [
@@ -1908,6 +1917,39 @@
         {
           "commit": "9ccfa3105987",
           "message": "Committed: 3 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 54c09346",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! I still think I'm not expressing myself well. The session manager owns the repo privately. Generally speaking, we should think \"who are we asking about this, and why?\" In this case, we ask the session manager to give us the repo so that we can check for dirty files. Dirty files are a property of the on-disk repository. we need this as a going UI concern so that we can avoid colliding with dirty files/existing changes. We should ask \"is someone else better positioned to tell us what we need to know?\" It's basically \"chain of command\" type logic. We want to be able to understand each file while having to look at the minimum of other files. In particular, if we decide we own a state, we want to minimize the amount of messing around with it that other code does. Private fields are a way to signal that we have authority over an object; we should not hand out this object easily. *Generally speaking*, we should prefer passing objects by construction to passing objects by accessors. Every accessor should be a question that we can answer because of the data and objects that we own. What's the question here? \"Hey, hand over the repository.\" If you're supposed to have it, why didn't you have it in the first place?\n\nI don't know how to formulate this as guidance, lol."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 69] I think I understand what you're getting at! It's about ownership and \"need to know\" - if you need something, you should have been given it at construction time, not reach through objects to grab it. Let me try to capture this:\n\n<edit file=\"CLAUDE.md\">\n<search>\n# Don't violate encapsulation for small conveniences\n\nIf you need to access a private field (`obj._field`), that's a sign the API is incomplete.\n**Fix the API** instead of working around it. Add the method/property where it belongs.\n\nDon't commit architectural sins for petty reasons. If you need `session_manager._repo`,\nadd a `session_manager.repo` property or a method that does what you actually need.\nThe extra 2 minutes to do it right saves hours of confusion later.\n\nIf you genuinely must violate encapsulation (rare), leave a comment explaining:\n- Why the proper fix isn't feasible right now\n- What invariant you're relying on\n- A TODO to fix it properly\n</search>\n<replace>\n# Ownership and \"need to know\"\n\nWhen you need data, ask: **\"Who should I be asking, and why do they know?\"**\n\nIf you find yourself reaching through an object to get something (`obj.manager._repo`),\nthat's a sign of confused ownership. Either:\n1. You should have been given that thing at construction time (dependency injection)\n2. The object you're asking should answer the question for you (encapsulation)\n3. You're asking the wrong object entirely\n\n**Prefer construction over accessors.** If `AIChatWidget` needs the repo, pass it in\n`__init__`, don't reach through `session_manager._repo`. If you weren't given it,\nmaybe you're not supposed to have it.\n\n**Accessors should answer questions, not hand out objects.** Instead of:\n```python\nrepo = session_manager._repo  # Bad: \"give me your repo\"\nif repo.is_workdir_clean(): ...\n```\n\nDo:\n```python\nif session_manager.is_workdir_clean(): ...  # Good: \"is the workdir clean?\"\n```\n\nThe session manager *owns* the repo, so it can answer questions about it.\nWe don't need to know the repo exists. This keeps coupling low and makes\neach file understandable on its own.\n</replace>\n</edit>\n\n<commit message=\"Update CLAUDE.md: ownership and 'need to know' guidance\n\nBetter articulates the principle: ask who should answer the question,\nprefer construction over accessors, accessors should answer questions\nnot hand out objects.\"/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in CLAUDE.md",
+          "modified_files": [
+            "CLAUDE.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "874fde2cda2c",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

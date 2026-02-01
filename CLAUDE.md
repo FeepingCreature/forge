@@ -44,16 +44,31 @@ Once you have the data, you can fix it properly.
 
 Guessing wastes time and context. Prints give you certainty.
 
-# Don't violate encapsulation for small conveniences
+# Ownership and "need to know"
 
-If you need to access a private field (`obj._field`), that's a sign the API is incomplete.
-**Fix the API** instead of working around it. Add the method/property where it belongs.
+When you need data, ask: **"Who should I be asking, and why do they know?"**
 
-Don't commit architectural sins for petty reasons. If you need `session_manager._repo`,
-add a `session_manager.repo` property or a method that does what you actually need.
-The extra 2 minutes to do it right saves hours of confusion later.
+If you find yourself reaching through an object to get something (`obj.manager._repo`),
+that's a sign of confused ownership. Either:
+1. You should have been given that thing at construction time (dependency injection)
+2. The object you're asking should answer the question for you (encapsulation)
+3. You're asking the wrong object entirely
 
-If you genuinely must violate encapsulation (rare), leave a comment explaining:
-- Why the proper fix isn't feasible right now
-- What invariant you're relying on
-- A TODO to fix it properly
+**Prefer construction over accessors.** If `AIChatWidget` needs the repo, pass it in
+`__init__`, don't reach through `session_manager._repo`. If you weren't given it,
+maybe you're not supposed to have it.
+
+**Accessors should answer questions, not hand out objects.** Instead of:
+```python
+repo = session_manager._repo  # Bad: "give me your repo"
+if repo.is_workdir_clean(): ...
+```
+
+Do:
+```python
+if session_manager.is_workdir_clean(): ...  # Good: "is the workdir clean?"
+```
+
+The session manager *owns* the repo, so it can answer questions about it.
+We don't need to know the repo exists. This keeps coupling low and makes
+each file understandable on its own.

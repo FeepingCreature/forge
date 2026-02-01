@@ -1,9 +1,10 @@
 {
   "active_files": [
-    "forge/ui/ai_chat_widget.py",
+    "forge/ui/chat_message.py",
     "forge/ui/chat_styles.py",
     "forge/ui/tool_rendering.py",
-    "CLAUDE.md"
+    "CLAUDE.md",
+    "forge/ui/ai_chat_widget.py"
   ],
   "request_log_entries": [
     {
@@ -149,6 +150,51 @@
       "streaming": true,
       "actual_cost": 0.068817,
       "generation_id": "gen-1769907559-4XfzfVoZSjarnSkcnPMi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907634081.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907634081.json",
+      "timestamp": 1769907634.0827897,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.370975,
+      "generation_id": "gen-1769907634-XeAX30t10rPHqtey2v1x"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907665987.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907665987.json",
+      "timestamp": 1769907665.9884052,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.04022725,
+      "generation_id": "gen-1769907666-b3pC1vW5vZuwArkGSOWg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907672666.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907672666.json",
+      "timestamp": 1769907672.6676872,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.0435035,
+      "generation_id": "gen-1769907672-PXf2yCzkEdv3uCE92Erb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907678237.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907678237.json",
+      "timestamp": 1769907678.2385027,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.054525,
+      "generation_id": "gen-1769907678-aXrNf2JjtsLaNCessNhk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907687916.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907687916.json",
+      "timestamp": 1769907687.9176366,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.06053925,
+      "generation_id": "gen-1769907688-GMQNX5w1fSeyzfqT7Hra"
     }
   ],
   "messages": [
@@ -553,6 +599,114 @@
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 84 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "[JS DEBUG] [Mermaid]   Block 1 class: \"\"\nand it still shows up as a plain mono code block.\nCan I look anything up for you?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 19] The `extension_configs` approach isn't working either. Let me just quickly test what the Python markdown library actually outputs. Could you run this in Python for me?\n\n```python\nimport markdown as md\ntest = \"```mermaid\\ngraph TD\\n    A --> B\\n```\"\nresult = md.markdown(test, extensions=[\"fenced_code\", \"tables\"], extension_configs={\"fenced_code\": {\"lang_prefix\": \"language-\"}})\nprint(result)\n```\n\nThis will show us exactly what HTML the markdown library produces. My suspicion is that the `lang_prefix` config key isn't being respected, or the markdown library version doesn't support it.\n\nAlternatively, we could check if there's a different issue - maybe the fenced code extension outputs a different HTML structure entirely (like wrapping in a `<div>` instead of just `<pre><code>`)."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: e9d11216",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "<pre><code class=\"language-mermaid\">graph TD \n   A --&gt; B \n</code></pre>"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 21] The markdown library IS outputting `class=\"language-mermaid\"` correctly. So the issue must be somewhere else - the HTML is being modified or escaped between markdown rendering and the browser.\n\nLet me check the streaming/escaping code path. The `render_markdown` output goes through `escape_for_js` before being injected:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"escape_for_js|escaped_html\", \"file\": \"forge/ui/ai_chat_widget.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01SpqtBELun4D6D5GNK93hSU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01SpqtBELun4D6D5GNK93hSU",
+      "content": "{\"message\": \"Found 5 matches\", \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:731 \\u2500\\u2500\\n     728 |             return\\n     729 | \\n     730 |         # Convert markdown to HTML, preserving <edit> blocks as diff views\\n>>>  731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n     733 |         content_html = render_markdown(self.runner.streaming_content)\\n     734 |         escaped_html = escape_for_js(content_html)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:734 \\u2500\\u2500\\n     731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n     733 |         content_html = render_markdown(self.runner.streaming_content)\\n>>>  734 |         escaped_html = escape_for_js(content_html)\\n     735 | \\n     736 |         # Replace streaming content with rendered markdown\\n     737 |         js_code = f\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:743 \\u2500\\u2500\\n     740 |             if (streamingMsg) {{\\n     741 |                 var content = streamingMsg.querySelector('.content');\\n     742 |                 if (content) {{\\n>>>  743 |                     content.innerHTML = `{escaped_html}`;\\n     744 |                     delete content.dataset.rawText;\\n     745 |                 }}\\n     746 |             }}\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:993 \\u2500\\u2500\\n     990 |         messages_html = self._build_messages_html()\\n     991 | \\n     992 |         # Escape for JavaScript string\\n>>>  993 |         escaped_html = messages_html.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\").replace(\\\"`\\\", \\\"\\\\\\\\`\\\").replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n     994 | \\n     995 |         scroll_js = \\\"true\\\" if scroll_to_bottom else \\\"false\\\"\\n     996 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:998 \\u2500\\u2500\\n     995 |         scroll_js = \\\"true\\\" if scroll_to_bottom else \\\"false\\\"\\n     996 | \\n     997 |         # Inject content via JavaScript - scroll position preserved automatically\\n>>>  998 |         self.chat_view.page().runJavaScript(f\\\"updateMessages(`{escaped_html}`, {scroll_js});\\\")\\n     999 | \\n    1000 |     # -------------------------------------------------------------------------\\n    1001 |     # Search functionality\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 5}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/ui/ai_chat_widget.py\",\n  \"pattern\": \"escape_for_js|escaped_html\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 5 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:731 \\u2500\\u2500\\n     728 |             return\\n     729 | \\n     730 |         # Convert markdown to HTML, preserving <edit> blocks as diff views\\n>>>  731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n     733 |         content_html = render_markdown(self.runner.streaming_content)\\n     734 |         escaped_html = escape_for_js(content_html)\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:734 \\u2500\\u2500\\n     731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n     733 |         content_html = render_markdown(self.runner.streaming_content)\\n>>>  734 |         escaped_html = escape_for_js(content_html)\\n     735 | \\n     736 |         # Replace streaming content with rendered markdown\\n     737 |         js_code = f\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:743 \\u2500\\u2500\\n     740 |             if (streamingMsg) {{\\n     741 |                 var content = streamingMsg.querySelector('.content');\\n     742 |                 if (content) {{\\n>>>  743 |                     content.innerHTML = `{escaped_html}`;\\n     744 |                     delete content.dataset.rawText;\\n     745 |                 }}\\n     746 |             }}\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:993 \\u2500\\u2500\\n     990 |         messages_html = self._build_messages_html()\\n     991 | \\n     992 |         # Escape for JavaScript string\\n>>>  993 |         escaped_html = messages_html.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\").replace(\\\"`\\\", \\\"\\\\\\\\`\\\").replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n     994 | \\n     995 |         scroll_js = \\\"true\\\" if scroll_to_bottom else \\\"false\\\"\\n     996 | \\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:998 \\u2500\\u2500\\n     995 |         scroll_js = \\\"true\\\" if scroll_to_bottom else \\\"false\\\"\\n     996 | \\n     997 |         # Inject content via JavaScript - scroll position preserved automatically\\n>>>  998 |         self.chat_view.page().runJavaScript(f\\\"updateMessages(`{escaped_html}`, {scroll_js});\\\")\\n     999 | \\n    1000 |     # -------------------------------------------------------------------------\\n    1001 |     # Search functionality\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 5\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 22] I see! The markdown library outputs the right HTML, but the issue is in how messages are rendered. Let me check `chat_message.py` - the `render_html` method might be using a different code path:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/chat_message.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_017h9Aa3Fj5Luh6PhYmQmhEs",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_017h9Aa3Fj5Luh6PhYmQmhEs",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/chat_message.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 23] I see the issue now. The `chat_message.py` correctly calls `render_markdown()`, but the markdown output with `class=\"language-mermaid\"` is there. The problem must be that the HTML is getting double-escaped or the class attribute is being stripped somewhere.\n\nWait - looking at the debug output again: `Block 1 class: \"\"`. The class is empty in the browser. But we just confirmed markdown outputs `class=\"language-mermaid\"`. \n\nLet me check the escaping in `_update_chat_display`:\n\n```python\nescaped_html = messages_html.replace(\"\\\\\", \"\\\\\\\\\").replace(\"`\", \"\\\\`\").replace(\"$\", \"\\\\$\")\n```\n\nThat looks fine - it's just escaping for JS template literals, not touching HTML attributes.\n\nLet me check `chat_streaming.py` to see what `escape_for_js` does - maybe there's something there:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def escape_for_js\", \"file\": \"forge/ui/chat_streaming.py\", \"context_before\": 2, \"context_after\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01KbagjUWhv6HZs8dKYVXdA7",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KbagjUWhv6HZs8dKYVXdA7",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/ui/chat_streaming.py:13 \\u2500\\u2500\\n      11 | \\n      12 | \\n>>>   13 | def escape_for_js(text: str) -> str:\\n      14 |     \\\"\\\"\\\"Escape text for safe inclusion in JavaScript string literals.\\\"\\\"\\\"\\n      15 |     return (\\n      16 |         text.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\")\\n      17 |         .replace(\\\"`\\\", \\\"\\\\\\\\`\\\")\\n      18 |         .replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n      19 |         .replace(\\\"\\\\n\\\", \\\"\\\\\\\\n\\\")\\n      20 |         .replace(\\\"\\\\r\\\", \\\"\\\\\\\\r\\\")\\n      21 |     )\\n      22 | \\n      23 | \\n      24 | def build_streaming_chunk_js(streaming_content: str) -> str:\\n      25 |     \\\"\\\"\\\"Build JavaScript to update the streaming message with new content.\\n      26 | \\n      27 |     Args:\\n      28 |         streaming_content: The accumulated streaming content so far\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 15,\n  \"context_before\": 2,\n  \"file\": \"forge/ui/chat_streaming.py\",\n  \"pattern\": \"def escape_for_js\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/chat_streaming.py:13 \\u2500\\u2500\\n      11 | \\n      12 | \\n>>>   13 | def escape_for_js(text: str) -> str:\\n      14 |     \\\"\\\"\\\"Escape text for safe inclusion in JavaScript string literals.\\\"\\\"\\\"\\n      15 |     return (\\n      16 |         text.replace(\\\"\\\\\\\\\\\", \\\"\\\\\\\\\\\\\\\\\\\")\\n      17 |         .replace(\\\"`\\\", \\\"\\\\\\\\`\\\")\\n      18 |         .replace(\\\"$\\\", \\\"\\\\\\\\$\\\")\\n      19 |         .replace(\\\"\\\\n\\\", \\\"\\\\\\\\n\\\")\\n      20 |         .replace(\\\"\\\\r\\\", \\\"\\\\\\\\r\\\")\\n      21 |     )\\n      22 | \\n      23 | \\n      24 | def build_streaming_chunk_js(streaming_content: str) -> str:\\n      25 |     \\\"\\\"\\\"Build JavaScript to update the streaming message with new content.\\n      26 | \\n      27 |     Args:\\n      28 |         streaming_content: The accumulated streaming content so far\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 24] The escaping looks fine. Let me think about this differently - the markdown IS generating the right class, but by the time it reaches the browser it's empty. \n\nLet me add a debug print to see what HTML is actually being generated by `render_markdown`:\n\n<edit file=\"forge/ui/chat_message.py\">\n<search>\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(content_md, inline_results=self.inline_results)\n\n        return f\"\"\"\n</search>\n<replace>\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(content_md, inline_results=self.inline_results)\n        \n        # Debug: check if mermaid class is present\n        if \"mermaid\" in content_md.lower():\n            print(f\"[DEBUG] Mermaid in content_md: {content_md[:200]}\")\n            print(f\"[DEBUG] Rendered content contains language-mermaid: {'language-mermaid' in content}\")\n            print(f\"[DEBUG] Rendered content snippet: {content[:500]}\")\n\n        return f\"\"\"\n</replace>\n</edit>\n\nNow reload and send a message with a mermaid block - we'll see in the terminal whether `render_markdown` is actually producing `language-mermaid` or if something is stripping it. This will pinpoint exactly where the class is getting lost.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/chat_message.py",
+          "modified_files": [
+            "forge/ui/chat_message.py"
+          ],
+          "side_effects": [
+            "files_modified"
           ],
           "success": true
         }

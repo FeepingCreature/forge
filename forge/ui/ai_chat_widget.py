@@ -365,16 +365,6 @@ class AIChatWidget(QWidget):
         return self.runner.branch_name
 
     @property
-    def repo(self) -> Any:
-        """Access repo through the session manager.
-        
-        Note: Accessing _repo directly because SessionManager doesn't expose
-        a public property for it. Used for workdir state checks in _check_workdir_state().
-        Consider adding a public `repo` property to SessionManager.
-        """
-        return self.session_manager._repo
-
-    @property
     def settings(self) -> Any:
         """Access settings through the session manager."""
         return self.session_manager.settings
@@ -681,21 +671,17 @@ class AIChatWidget(QWidget):
         """
         from PySide6.QtWidgets import QMessageBox
 
-        # repo is guaranteed non-None by __init__ assertion
-        assert self.repo is not None
-
         # Check if we're working on the checked-out branch
-        checked_out = self.repo.get_checked_out_branch()
-        if checked_out != self.branch_name:
+        if not self.session_manager.is_on_checked_out_branch():
             # Not working on the checked-out branch, no workdir concerns
             return True
 
         # Check if workdir is clean
-        if self.repo.is_workdir_clean():
+        if self.session_manager.is_workdir_clean():
             return True
 
         # Workdir has uncommitted changes - warn user
-        changes = self.repo.get_workdir_changes()
+        changes = self.session_manager.get_workdir_changes()
         change_count = len(changes)
 
         reply = QMessageBox.warning(

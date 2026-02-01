@@ -44,16 +44,16 @@ Once you have the data, you can fix it properly.
 
 Guessing wastes time and context. Prints give you certainty.
 
-# Comment on encapsulation violations
+# Don't violate encapsulation for small conveniences
 
-When accessing private fields (like `obj._field`) or violating normal encapsulation/ownership patterns, leave a comment explaining WHY. Future readers (including AI) need to understand:
-- Why the normal public API doesn't work here
+If you need to access a private field (`obj._field`), that's a sign the API is incomplete.
+**Fix the API** instead of working around it. Add the method/property where it belongs.
+
+Don't commit architectural sins for petty reasons. If you need `session_manager._repo`,
+add a `session_manager.repo` property or a method that does what you actually need.
+The extra 2 minutes to do it right saves hours of confusion later.
+
+If you genuinely must violate encapsulation (rare), leave a comment explaining:
+- Why the proper fix isn't feasible right now
 - What invariant you're relying on
-- Whether this is a temporary hack or intentional design
-
-Example:
-```python
-# Access _repo directly because SessionManager owns the repo reference
-# and we need it for workdir checks. Consider adding a public property.
-repo = self.session_manager._repo
-```
+- A TODO to fix it properly

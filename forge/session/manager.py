@@ -82,6 +82,19 @@ class SessionManager(QObject):
         """Check if summaries have been generated."""
         return self._summaries_ready
 
+    def is_on_checked_out_branch(self) -> bool:
+        """Check if this session's branch is currently checked out in the working directory."""
+        checked_out = self._repo.get_checked_out_branch()
+        return checked_out == self.branch_name
+
+    def is_workdir_clean(self) -> bool:
+        """Check if the working directory is clean (no uncommitted changes)."""
+        return self._repo.is_workdir_clean()
+
+    def get_workdir_changes(self) -> dict[str, int]:
+        """Get uncommitted working directory changes."""
+        return self._repo.get_workdir_changes()
+
     def _get_cache_dir(self) -> Path:
         """Get XDG cache directory for repository summaries"""
         xdg_cache = Path.home() / ".cache"

@@ -2,6 +2,7 @@
 Session manager for coordinating AI turns and git commits
 """
 
+import fnmatch
 import hashlib
 import json
 import re
@@ -206,14 +207,68 @@ Think about what category this file is, then put ONLY the final bullets or "—"
     }
 
     def _should_summarize(self, filepath: str) -> bool:
-        """Check if a file should be summarized (not binary, not forge metadata)"""
+        """Check if a file should be summarized (not binary, not forge metadata, not excluded)"""
         # Skip forge metadata
         if filepath.startswith(".forge/"):
             return False
 
         # Skip binary files by extension
         suffix = Path(filepath).suffix.lower()
-        return suffix not in self._SKIP_EXTENSIONS
+        if suffix in self._SKIP_EXTENSIONS:
+            return False
+
+        # Check user-defined exclusion patterns
+        if self._matches_exclusion_pattern(filepath):
+            return False
+
+        return True
+
+    def _load_exclusion_patterns(self) -> list[str]:
+        """Load exclusion patterns from repo config."""
+        from forge.ui.summary_exclusions_dialog import load_summary_exclusions
+
+        return load_summary_exclusions(self.vfs)
+
+    def _matches_exclusion_pattern(self, filepath: str) -> bool:
+        """Check if a filepath matches any exclusion pattern.
+
+        Patterns can be:
+        - folder/ → matches folder/**/* (entire directory)
+        - *.ext → matches **/*.ext (extension anywhere)
+        - folder/*.ext → matches folder/*.ext (specific folder + extension)
+        - exact/path.py → matches exact path
+        """
+        patterns = self._load_exclusion_patterns()
+
+        for pattern in patterns:
+            if not pattern:
+                continue
+
+            # Directory pattern: "folder/" matches everything under folder
+            if pattern.endswith("/"):
+                dir_prefix = pattern  # e.g., "node_modules/"
+                if filepath.startswith(dir_prefix) or filepath + "/" == dir_prefix:
+                    return True
+                continue
+
+            # Extension pattern without path: "*.ext" matches anywhere
+            if pattern.startswith("*.") and "/" not in pattern:
+                ext_pattern = pattern[1:]  # e.g., ".min.js"
+                if filepath.endswith(ext_pattern):
+                    return True
+                continue
+
+            # General glob pattern: use fnmatch
+            # For patterns like "folder/*.ext" or "**/*.snap"
+            if fnmatch.fnmatch(filepath, pattern):
+                return True
+
+            # Also try with ** prefix for patterns that should match anywhere
+            if "*" in pattern and not pattern.startswith("*"):
+                if fnmatch.fnmatch(filepath, "**/" + pattern):
+                    return True
+
+        return False
 
     def build_context(self) -> dict[str, Any]:
         """Build context for LLM with summaries and active files (legacy method)"""

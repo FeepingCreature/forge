@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QGuiApplication
 from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
     QMenu,
+    QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -81,6 +84,28 @@ class FileExplorerWidget(QWidget):
         """Setup the tree widget"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+
+        # Header with settings button
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(4, 2, 4, 2)
+
+        header_label = QLabel("Files")
+        header_label.setStyleSheet("font-weight: bold; font-size: 11px;")
+        header_layout.addWidget(header_label)
+
+        header_layout.addStretch()
+
+        self.settings_btn = QPushButton("⚙")
+        self.settings_btn.setFixedSize(22, 22)
+        self.settings_btn.setToolTip("Configure summary exclusions")
+        self.settings_btn.setStyleSheet(
+            "QPushButton { border: none; font-size: 14px; } "
+            "QPushButton:hover { background-color: #e0e0e0; border-radius: 3px; }"
+        )
+        self.settings_btn.clicked.connect(self._show_exclusions_dialog)
+        header_layout.addWidget(self.settings_btn)
+
+        layout.addLayout(header_layout)
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(2)
@@ -497,3 +522,10 @@ class FileExplorerWidget(QWidget):
         self.workspace.commit(f"Delete {filepath}")
         self.file_deleted.emit(filepath)
         self.refresh()
+
+    def _show_exclusions_dialog(self) -> None:
+        """Show the summary exclusions configuration dialog."""
+        from forge.ui.summary_exclusions_dialog import SummaryExclusionsDialog
+
+        dialog = SummaryExclusionsDialog(self.workspace, self)
+        dialog.exec()

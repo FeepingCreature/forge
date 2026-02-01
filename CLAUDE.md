@@ -48,27 +48,29 @@ Guessing wastes time and context. Prints give you certainty.
 
 When you need data, ask: **"Who should I be asking, and why do they know?"**
 
-If you find yourself reaching through an object to get something (`obj.manager._repo`),
-that's a sign of confused ownership. Either:
-1. You should have been given that thing at construction time (dependency injection)
-2. The object you're asking should answer the question for you (encapsulation)
-3. You're asking the wrong object entirely
+Think of it as roleplay - each object has a role and knows certain things:
+- "Is it safe to proceed?" → Ask the session manager (it knows about workdir state)
+- "What files are in context?" → Ask the session manager (it tracks that)
+- "Render this message" → That's your job, chat widget
 
-**Prefer construction over accessors.** If `AIChatWidget` needs the repo, pass it in
-`__init__`, don't reach through `session_manager._repo`. If you weren't given it,
-maybe you're not supposed to have it.
+If you find yourself asking "hand me that object so I can ask it something", 
+stop. Ask the owner to answer the question instead. They know their internals,
+you don't need to.
 
-**Accessors should answer questions, not hand out objects.** Instead of:
+**If you weren't given it at construction, you probably don't need it.**
+Needing to reach through objects (`obj.manager._repo`) suggests confused ownership.
+Either you should have been given it in `__init__`, or you should be asking
+a different question.
+
+**Accessors answer questions, they don't hand out objects.**
 ```python
-repo = session_manager._repo  # Bad: "give me your repo"
+# Bad: "give me your repo so I can check something"
+repo = session_manager._repo
 if repo.is_workdir_clean(): ...
+
+# Good: "is the workdir clean?"
+if session_manager.is_workdir_clean(): ...
 ```
 
-Do:
-```python
-if session_manager.is_workdir_clean(): ...  # Good: "is the workdir clean?"
-```
-
-The session manager *owns* the repo, so it can answer questions about it.
-We don't need to know the repo exists. This keeps coupling low and makes
-each file understandable on its own.
+The session manager owns the repo, so it answers questions about repo state.
+The chat widget doesn't even need to know repos exist.

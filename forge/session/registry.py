@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
     from forge.session.live_session import LiveSession
+    from forge.session.manager import SessionManager
 
 
 class SessionRegistry(QObject):
@@ -70,6 +71,7 @@ class SessionRegistry(QObject):
         branch_name: str,
         repo: ForgeRepository | None = None,
         settings: Settings | None = None,
+        session_manager: SessionManager | None = None,
     ) -> LiveSession | None:
         """
         Load a session from disk, creating a LiveSession.
@@ -81,6 +83,7 @@ class SessionRegistry(QObject):
             branch_name: Branch to load session from
             repo: Repository (uses cached if not provided)
             settings: Application settings (required if not already loaded)
+            session_manager: Optional existing SessionManager to use (avoids creating duplicate)
 
         Returns:
             LiveSession if session exists, None otherwise
@@ -94,7 +97,7 @@ class SessionRegistry(QObject):
             return None
 
         # Load from disk
-        session = self._load_from_disk(branch_name, repo, settings)
+        session = self._load_from_disk(branch_name, repo, settings, session_manager)
         if session:
             self._sessions[branch_name] = session
             # Connect to state changes
@@ -110,8 +113,18 @@ class SessionRegistry(QObject):
         branch_name: str,
         repo: ForgeRepository,
         settings: Settings,
+        existing_session_manager: SessionManager | None = None,
     ) -> LiveSession | None:
-        """Load a session from disk and create a LiveSession."""
+        """Load a session from disk and create a LiveSession.
+
+        Args:
+            branch_name: Branch to load from
+            repo: Repository
+            settings: Application settings
+            existing_session_manager: If provided, use this instead of creating a new one.
+                                      This avoids duplicate SessionManagers when loading
+                                      from UI code that already has a workspace.
+        """
         import contextlib
 
         from forge.constants import SESSION_FILE
@@ -128,13 +141,14 @@ class SessionRegistry(QObject):
 
         messages = session_data.get("messages", [])
 
-        # Create SessionManager for this branch
-        session_manager = SessionManager(repo, branch_name, settings)
+        # Use existing SessionManager or create new one
+        session_manager = existing_session_manager or SessionManager(repo, branch_name, settings)
 
-        # Restore active files
-        for filepath in session_data.get("active_files", []):
-            with contextlib.suppress(Exception):
-                session_manager.add_active_file(filepath)
+        # Restore active files (skip if using existing manager - it may already have them)
+        if not existing_session_manager:
+            for filepath in session_data.get("active_files", []):
+                with contextlib.suppress(Exception):
+                    session_manager.add_active_file(filepath)
 
         # Create LiveSession
         session = LiveSession(session_manager, messages)

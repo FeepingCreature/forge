@@ -93,44 +93,37 @@ class AIChatWidget(QWidget):
         # that need UI elements (send_button, chat_view, etc.)
         self._setup_ui()
 
-        # Get or create LiveSession - check registry first to avoid duplicates
-        # This is important for child sessions spawned by spawn_session tool,
-        # which already have a session loaded
-        from forge.session.live_session import LiveSession
+        # Get or load the LiveSession from registry
+        # Pass our existing SessionManager to avoid creating duplicates
         from forge.session.registry import SESSION_REGISTRY
 
         existing_session = SESSION_REGISTRY.get(self.branch_name)
         if existing_session:
-            # Reuse existing session (e.g., from spawn_session)
+            # Reuse existing session (e.g., from spawn_session or already loaded)
             self.runner = existing_session
         else:
-            # Create new session
-            initial_messages = session_data.get("messages", []) if session_data else []
-            self.runner = LiveSession(self.session_manager, initial_messages)
-            # Register with global registry
-            SESSION_REGISTRY.register(self.branch_name, self.runner)
+            # Try to load from disk (registry handles replay, state restoration, etc.)
+            # Pass our SessionManager so it doesn't create a duplicate
+            loaded = SESSION_REGISTRY.load(
+                self.branch_name,
+                self.repo,
+                self.settings,
+                session_manager=self.session_manager,
+            )
+            if loaded:
+                self.runner = loaded
+                # Restore request log (UI concern, not session logic)
+                if session_data:
+                    self.session_manager.restore_request_log(session_data)
+            else:
+                # New session (no session.json) - create fresh LiveSession
+                from forge.session.live_session import LiveSession
+
+                self.runner = LiveSession(self.session_manager, [])
+                SESSION_REGISTRY.register(self.branch_name, self.runner)
 
         # Attach to the runner (we're the UI now)
         self._attach_to_runner()
-
-        # Load existing session messages and restore prompt manager state
-        if session_data:
-            # Restore messages to prompt manager (runner already has them)
-            from forge.session.startup import replay_messages_to_prompt_manager
-
-            replay_messages_to_prompt_manager(
-                self.runner.messages, self.session_manager, replay_compaction=True
-            )
-            # Note: active_files are restored by MainWindow opening file tabs
-            # The file_opened signals will sync them to SessionManager
-
-            # Restore request log from saved file paths
-            self.session_manager.restore_request_log(session_data)
-
-            # Ensure CLAUDE.md and AGENTS.md are always in context for restored sessions
-            for instructions_file in ["CLAUDE.md", "AGENTS.md"]:
-                if self.session_manager.vfs.file_exists(instructions_file):
-                    self.session_manager.add_active_file(instructions_file)
 
         # Connect to SessionManager summary signals for UI updates
         self.session_manager.summary_progress.connect(self._on_summaries_progress)

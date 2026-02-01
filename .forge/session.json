@@ -1,8 +1,9 @@
 {
   "active_files": [
-    "CLAUDE.md",
+    "forge/ui/chat_styles.py",
     "forge/ui/ai_chat_widget.py",
-    "forge/ui/chat_styles.py"
+    "CLAUDE.md",
+    "forge/ui/tool_rendering.py"
   ],
   "request_log_entries": [
     {
@@ -31,6 +32,69 @@
       "streaming": true,
       "actual_cost": 0.1345205,
       "generation_id": "gen-1769907236-wDBVfIfY6Bs0jewwwQoe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769907300954.json",
+      "response_file": "/tmp/forge_debug/response_1769907300954.json",
+      "timestamp": 1769907300.954739,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00357,
+      "generation_id": "gen-1769907301-dTz7RbE7wnlamxMJR8kU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769907300954.json",
+      "response_file": "/tmp/forge_debug/response_1769907300954.json",
+      "timestamp": 1769907300.9583604,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003228,
+      "generation_id": "gen-1769907301-ybPY94KoWfpkH7qqA9GR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907321097.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907321097.json",
+      "timestamp": 1769907321.0984538,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.21978375,
+      "generation_id": "gen-1769907321-xnH8VzBSKI6Fuv2d9Fhl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907327356.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907327356.json",
+      "timestamp": 1769907327.356842,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03085625,
+      "generation_id": "gen-1769907327-yvTjNdVN0jMVH3IPMOCy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907332698.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907332698.json",
+      "timestamp": 1769907332.6986084,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.03382475,
+      "generation_id": "gen-1769907332-KtwyJ62Yo8nySkLX2KxZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907338312.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907338312.json",
+      "timestamp": 1769907338.3128488,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.034889,
+      "generation_id": "gen-1769907338-wcbW3YvcKTbtFXfzMVhQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907345194.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907345194.json",
+      "timestamp": 1769907345.1948984,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.114295,
+      "generation_id": "gen-1769907345-IjLtYYQrCRxuzZ3RyXT7"
     }
   ],
   "messages": [
@@ -127,6 +191,156 @@
         {
           "commit": "79422a48ac9d",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm I reloaded and the block doesn't seem to render."
+    },
+    {
+      "role": "assistant",
+      "content": "Let me investigate. The issue is likely that the markdown renderer needs to output the mermaid code blocks with the right class. Let me check how markdown is being rendered:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"language-mermaid|render_markdown\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01CaGhigqnqWwNehybKRYSLm",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01CaGhigqnqWwNehybKRYSLm",
+      "content": "{\"message\": \"Found 7 matches\", \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:36 \\u2500\\u2500\\n      33 | )\\n      34 | from forge.ui.chat_styles import get_chat_scripts, get_chat_styles\\n      35 | from forge.ui.editor_widget import SearchBar\\n>>>   36 | from forge.ui.tool_rendering import render_markdown\\n      37 | \\n      38 | if TYPE_CHECKING:\\n      39 |     from forge.session.live_session import LiveSession, SessionEvent\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:733 \\u2500\\u2500\\n     730 |         # Convert markdown to HTML, preserving <edit> blocks as diff views\\n     731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n>>>  733 |         content_html = render_markdown(self.runner.streaming_content)\\n     734 |         escaped_html = escape_for_js(content_html)\\n     735 | \\n     736 |         # Replace streaming content with rendered markdown\\n\\n\\u2500\\u2500 forge/ui/chat_message.py:14 \\u2500\\u2500\\n      11 | \\n      12 | from forge.ui.tool_rendering import (\\n      13 |     render_completed_tool_html,\\n>>>   14 |     render_markdown,\\n      15 | )\\n      16 | \\n      17 | \\n\\n\\u2500\\u2500 forge/ui/chat_message.py:100 \\u2500\\u2500\\n      97 |             tool_calls_html = self._render_tool_calls(tool_results)\\n      98 | \\n      99 |         # Render content with markdown, handling any <edit> blocks as diffs\\n>>>  100 |         content = render_markdown(content_md, inline_results=self.inline_results)\\n     101 | \\n     102 |         return f\\\"\\\"\\\"\\n     103 |         <div class=\\\"message {self.role}\\\" {msg_id}>\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:346 \\u2500\\u2500\\n     343 |             }\\n     344 |         }\\n     345 | \\n>>>  346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:352 \\u2500\\u2500\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n>>>  352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n     355 |                 // Skip if already processed\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1002 \\u2500\\u2500\\n     999 | REPLACE_END_PATTERN = re.compile(r\\\"\\\\n?</replace>\\\", re.DOTALL)\\n    1000 | \\n    1001 | \\n>>> 1002 | def render_markdown(\\n    1003 |     content: str,\\n    1004 |     inline_results: list[dict[str, object]] | None = None,\\n    1005 | ) -> str:\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 7}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"language-mermaid|render_markdown\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 7 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:36 \\u2500\\u2500\\n      33 | )\\n      34 | from forge.ui.chat_styles import get_chat_scripts, get_chat_styles\\n      35 | from forge.ui.editor_widget import SearchBar\\n>>>   36 | from forge.ui.tool_rendering import render_markdown\\n      37 | \\n      38 | if TYPE_CHECKING:\\n      39 |     from forge.session.live_session import LiveSession, SessionEvent\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:733 \\u2500\\u2500\\n     730 |         # Convert markdown to HTML, preserving <edit> blocks as diff views\\n     731 |         from forge.ui.chat_streaming import escape_for_js\\n     732 | \\n>>>  733 |         content_html = render_markdown(self.runner.streaming_content)\\n     734 |         escaped_html = escape_for_js(content_html)\\n     735 | \\n     736 |         # Replace streaming content with rendered markdown\\n\\n\\u2500\\u2500 forge/ui/chat_message.py:14 \\u2500\\u2500\\n      11 | \\n      12 | from forge.ui.tool_rendering import (\\n      13 |     render_completed_tool_html,\\n>>>   14 |     render_markdown,\\n      15 | )\\n      16 | \\n      17 | \\n\\n\\u2500\\u2500 forge/ui/chat_message.py:100 \\u2500\\u2500\\n      97 |             tool_calls_html = self._render_tool_calls(tool_results)\\n      98 | \\n      99 |         # Render content with markdown, handling any <edit> blocks as diffs\\n>>>  100 |         content = render_markdown(content_md, inline_results=self.inline_results)\\n     101 | \\n     102 |         return f\\\"\\\"\\\"\\n     103 |         <div class=\\\"message {self.role}\\\" {msg_id}>\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:346 \\u2500\\u2500\\n     343 |             }\\n     344 |         }\\n     345 | \\n>>>  346 |         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\\n     347 |         // and converts them to rendered SVG diagrams\\n     348 |         function renderMermaidDiagrams() {\\n     349 |             if (typeof mermaid === 'undefined') return;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:352 \\u2500\\u2500\\n     349 |             if (typeof mermaid === 'undefined') return;\\n     350 | \\n     351 |             // Find all mermaid code blocks that haven't been rendered yet\\n>>>  352 |             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\\n     353 |             codeBlocks.forEach(function(codeBlock, index) {\\n     354 |                 var pre = codeBlock.parentElement;\\n     355 |                 // Skip if already processed\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1002 \\u2500\\u2500\\n     999 | REPLACE_END_PATTERN = re.compile(r\\\"\\\\n?</replace>\\\", re.DOTALL)\\n    1000 | \\n    1001 | \\n>>> 1002 | def render_markdown(\\n    1003 |     content: str,\\n    1004 |     inline_results: list[dict[str, object]] | None = None,\\n    1005 | ) -> str:\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 7\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 8] The `render_markdown` function is in `tool_rendering.py`. Let me check how it handles code blocks - it probably uses a markdown library that needs to add the right class for fenced code blocks:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/tool_rendering.py\", \"line\": 1002, \"context\": 40}",
+            "name": "get_lines"
+          },
+          "id": "toolu_01CpkNbZsuicGSipjWub186w",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01CpkNbZsuicGSipjWub186w",
+      "content": "{\"content\": \"     962 | \\n     963 |     # Add unique ID if provided (for in-place updates of inline tools)\\n     964 |     id_attr = f'id=\\\"{widget_id}\\\"' if widget_id else \\\"\\\"\\n     965 | \\n     966 |     return f\\\"\\\"\\\"\\n     967 |     <div class=\\\"tool-card{streaming_class}\\\" {id_attr}>\\n     968 |         <div class=\\\"tool-card-header\\\">\\n     969 |             <span class=\\\"tool-icon\\\">\\ud83e\\uddea</span>\\n     970 |             <span class=\\\"tool-name\\\">run_tests</span>\\n     971 |         </div>\\n     972 |         <div class=\\\"tool-card-body\\\">\\n     973 |             {args_info}\\n     974 |             {status}\\n     975 |             {output_html}\\n     976 |         </div>\\n     977 |     </div>\\n     978 |     \\\"\\\"\\\"\\n     979 | \\n     980 | \\n     981 | # =============================================================================\\n     982 | # Inline <edit> block rendering for flow-text edits\\n     983 | # =============================================================================\\n     984 | \\n     985 | # Regex patterns for parsing edit blocks in streaming content\\n     986 | EDIT_BLOCK_PATTERN = re.compile(\\n     987 |     r'<edit\\\\s+file=\\\"([^\\\"]+)\\\">\\\\s*'\\n     988 |     r\\\"<search>\\\\n?(.*?)\\\\n?</search>\\\\s*\\\"\\n     989 |     r\\\"<replace>\\\\n?(.*?)\\\\n?</replace>\\\\s*\\\"\\n     990 |     r\\\"</edit>\\\",\\n     991 |     re.DOTALL,\\n     992 | )\\n     993 | \\n     994 | # Partial patterns for streaming detection\\n     995 | EDIT_START_PATTERN = re.compile(r'<edit\\\\s+file=\\\"([^\\\"]*)\\\"?', re.DOTALL)\\n     996 | SEARCH_START_PATTERN = re.compile(r\\\"<search>\\\\n?\\\", re.DOTALL)\\n     997 | SEARCH_END_PATTERN = re.compile(r\\\"\\\\n?</search>\\\", re.DOTALL)\\n     998 | REPLACE_START_PATTERN = re.compile(r\\\"<replace>\\\\n?\\\", re.DOTALL)\\n     999 | REPLACE_END_PATTERN = re.compile(r\\\"\\\\n?</replace>\\\", re.DOTALL)\\n    1000 | \\n    1001 | \\n>>> 1002 | def render_markdown(\\n    1003 |     content: str,\\n    1004 |     inline_results: list[dict[str, object]] | None = None,\\n    1005 | ) -> str:\\n    1006 |     \\\"\\\"\\\"\\n    1007 |     Render markdown content to HTML, handling inline commands as tool cards.\\n    1008 | \\n    1009 |     This is the canonical markdown renderer for assistant messages.\\n    1010 |     It handles both regular markdown and inline commands (<edit>, <commit/>, etc.).\\n    1011 | \\n    1012 |     Uses front-to-back parsing to avoid matching commands inside code blocks.\\n    1013 | \\n    1014 |     Args:\\n    1015 |         content: Markdown text that may contain inline commands\\n    1016 |         inline_results: Optional list of execution results for inline commands,\\n    1017 |                        indexed by command order in the content\\n    1018 | \\n    1019 |     Returns:\\n    1020 |         HTML string with markdown rendered and inline commands as tool cards\\n    1021 |     \\\"\\\"\\\"\\n    1022 |     import markdown as md\\n    1023 | \\n    1024 |     from forge.tools.invocation import discover_inline_tools\\n    1025 | \\n    1026 |     inline_tools = discover_inline_tools()\\n    1027 |     result_parts = []\\n    1028 |     pos = 0\\n    1029 |     command_index = 0\\n    1030 | \\n    1031 |     while pos < len(content):\\n    1032 |         # Find the earliest matching inline command from current position\\n    1033 |         earliest_match = None\\n    1034 |         earliest_tool = None\\n    1035 |         earliest_module = None\\n    1036 | \\n    1037 |         for tool_name, module in inline_tools.items():\\n    1038 |             pattern = module.get_inline_pattern()\\n    1039 |             match = pattern.search(content, pos)\\n    1040 |             if match and (earliest_match is None or match.start() < earliest_match.start()):\\n    1041 |                 earliest_match = match\\n    1042 |                 earliest_tool = tool_name\", \"filepath\": \"forge/ui/tool_rendering.py\", \"range\": \"962-1042\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"target_line\": 1002, \"total_lines\": 1386}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the issue. The `render_markdown` function uses the Python `markdown` library, but I need to check how it's configured for fenced code blocks - it needs to add language classes like `language-mermaid` for the JavaScript to find them.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/tool_rendering.py\", \"line\": 1080, \"context\": 30}",
+            "name": "get_lines"
+          },
+          "id": "toolu_01WLjdbnDueBysBudJ6pZfYx",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01WLjdbnDueBysBudJ6pZfYx",
+      "content": "{\"content\": \"    1050 |                     md.markdown(remaining, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\", \\\"tables\\\"])\\n    1051 |                 )\\n    1052 |             break\\n    1053 | \\n    1054 |         # Render markdown text before this command\\n    1055 |         text_before = content[pos : earliest_match.start()].rstrip()\\n    1056 |         if text_before:\\n    1057 |             result_parts.append(\\n    1058 |                 md.markdown(text_before, extensions=[\\\"fenced_code\\\", \\\"codehilite\\\", \\\"tables\\\"])\\n    1059 |             )\\n    1060 | \\n    1061 |         # Get result for this command if available\\n    1062 |         result = None\\n    1063 |         if inline_results and command_index < len(inline_results):\\n    1064 |             result = inline_results[command_index]\\n    1065 | \\n    1066 |         # Render the inline command with its index and result\\n    1067 |         args = earliest_module.parse_inline_match(earliest_match)\\n    1068 |         tool_html = _render_inline_command_html(\\n    1069 |             earliest_tool, args, is_streaming=False, command_index=command_index, result=result\\n    1070 |         )\\n    1071 |         result_parts.append(tool_html)\\n    1072 | \\n    1073 |         # Continue after this command\\n    1074 |         pos = earliest_match.end()\\n    1075 |         command_index += 1\\n    1076 | \\n    1077 |     return \\\"\\\".join(result_parts)\\n    1078 | \\n    1079 | \\n>>> 1080 | def _render_inline_command_html(\\n    1081 |     tool_name: str,\\n    1082 |     args: dict[str, object],\\n    1083 |     is_streaming: bool = False,\\n    1084 |     command_index: int | None = None,\\n    1085 |     result: dict[str, object] | None = None,\\n    1086 | ) -> str:\\n    1087 |     \\\"\\\"\\\"Render an inline command as HTML based on tool type.\\n    1088 | \\n    1089 |     Args:\\n    1090 |         tool_name: Name of the tool\\n    1091 |         args: Tool arguments\\n    1092 |         is_streaming: Whether still streaming\\n    1093 |         command_index: Index of this command (for generating widget IDs)\\n    1094 |         result: Execution result (for updating widget after execution)\\n    1095 |     \\\"\\\"\\\"\\n    1096 |     # Generate widget ID for tools that support in-place updates\\n    1097 |     widget_id = f\\\"inline-tool-{command_index}\\\" if command_index is not None else None\\n    1098 | \\n    1099 |     if tool_name == \\\"edit\\\":\\n    1100 |         return render_diff_html(\\n    1101 |             filepath=str(args.get(\\\"filepath\\\", \\\"\\\")),\\n    1102 |             search=str(args.get(\\\"search\\\", \\\"\\\")),\\n    1103 |             replace=str(args.get(\\\"replace\\\", \\\"\\\")),\\n    1104 |             is_streaming=is_streaming,\\n    1105 |             streaming_phase=\\\"replace\\\",\\n    1106 |         )\\n    1107 |     elif tool_name == \\\"delete_file\\\":\\n    1108 |         return render_delete_file_html(args, is_streaming=is_streaming)\\n    1109 |     elif tool_name == \\\"commit\\\":\\n    1110 |         return render_commit_html(\", \"filepath\": \"forge/ui/tool_rendering.py\", \"range\": \"1050-1110\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"target_line\": 1080, \"total_lines\": 1386}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 10] I found the issue! The `markdown` library uses `fenced_code` and `codehilite` extensions, but by default `codehilite` uses `class=\"codehilite\"` rather than `class=\"language-X\"`. \n\nLooking at line 1050/1058, I can see it's using `codehilite` which adds different CSS classes. The fix is to either:\n1. Configure `codehilite` to use standard classes, or\n2. Use `fenced_code` with the `attr_list` extension to get `language-X` classes\n\nLet me check what HTML is actually being generated and fix it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_018dR2bDwhc5Mvz9LsfA1N5y",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_018dR2bDwhc5Mvz9LsfA1N5y",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 11] Now I can see the issue clearly. The `markdown` library with `codehilite` extension generates HTML like:\n\n```html\n<div class=\"codehilite\"><pre><code>...</code></pre></div>\n```\n\nBut my JavaScript is looking for `pre > code.language-mermaid`. The fix is to configure the `fenced_code` extension to use the standard `language-X` class format instead of `codehilite`.\n\nThe solution is to use `fenced_code` with `attr_list` extension and configure it properly, or simply not use `codehilite` for code blocks and let `fenced_code` handle it with the right CSS classes.\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\n    import markdown as md\n\n    from forge.tools.invocation import discover_inline_tools\n\n    inline_tools = discover_inline_tools()\n    result_parts = []\n    pos = 0\n    command_index = 0\n</search>\n<replace>\n    import markdown as md\n    from markdown.extensions.fenced_code import FencedCodeExtension\n\n    from forge.tools.invocation import discover_inline_tools\n\n    # Configure fenced_code to use language-X class format (needed for Mermaid.js)\n    fenced_code_ext = FencedCodeExtension(lang_prefix=\"language-\")\n\n    inline_tools = discover_inline_tools()\n    result_parts = []\n    pos = 0\n    command_index = 0\n</replace>\n</edit>\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\n            remaining = content[pos:].strip()\n            if remaining:\n                result_parts.append(\n                    md.markdown(remaining, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n                )\n            break\n\n        # Render markdown text before this command\n        text_before = content[pos : earliest_match.start()].rstrip()\n        if text_before:\n            result_parts.append(\n                md.markdown(text_before, extensions=[\"fenced_code\", \"codehilite\", \"tables\"])\n            )\n</search>\n<replace>\n            remaining = content[pos:].strip()\n            if remaining:\n                result_parts.append(\n                    md.markdown(remaining, extensions=[fenced_code_ext, \"tables\"])\n                )\n            break\n\n        # Render markdown text before this command\n        text_before = content[pos : earliest_match.start()].rstrip()\n        if text_before:\n            result_parts.append(\n                md.markdown(text_before, extensions=[fenced_code_ext, \"tables\"])\n            )\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Fix Mermaid diagram rendering by using language-X class prefix\n\nThe markdown library's fenced_code extension was not adding the\nlanguage-mermaid class that the JavaScript renderMermaidDiagrams()\nfunction looks for. Configure FencedCodeExtension with lang_prefix\nto output class='language-mermaid' instead of relying on codehilite.\"/>\n\nDone! The fix was in the markdown rendering configuration. The `fenced_code` extension needed to be configured with `lang_prefix=\"language-\"` so it outputs `<code class=\"language-mermaid\">` which is what the JavaScript `renderMermaidDiagrams()` function looks for via `querySelectorAll('pre > code.language-mermaid')`.\n\nI also removed the `codehilite` extension since it was interfering - `codehilite` wraps code blocks in a different structure that doesn't match our selector.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "Formatted 1 files: forge/ui/tool_rendering.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {
+            "forge/ui/tool_rendering.py": "--- before+++ after@@ -1050,17 +1050,13 @@             # No more commands - render remaining as markdown\n             remaining = content[pos:].strip()\n             if remaining:\n-                result_parts.append(\n-                    md.markdown(remaining, extensions=[fenced_code_ext, \"tables\"])\n-                )\n+                result_parts.append(md.markdown(remaining, extensions=[fenced_code_ext, \"tables\"]))\n             break\n \n         # Render markdown text before this command\n         text_before = content[pos : earliest_match.start()].rstrip()\n         if text_before:\n-            result_parts.append(\n-                md.markdown(text_before, extensions=[fenced_code_ext, \"tables\"])\n-            )\n+            result_parts.append(md.markdown(text_before, extensions=[fenced_code_ext, \"tables\"]))\n \n         # Get result for this command if available\n         result = None\n"
+          },
+          "formatted_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "has_display_output",
+            "files_modified"
+          ],
+          "success": true,
+          "summary": "Formatted 1 files: forge/ui/tool_rendering.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 89 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "cebe97573bf4",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

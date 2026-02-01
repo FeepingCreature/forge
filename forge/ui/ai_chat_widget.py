@@ -366,7 +366,12 @@ class AIChatWidget(QWidget):
 
     @property
     def repo(self) -> Any:
-        """Access repo through the session manager."""
+        """Access repo through the session manager.
+        
+        Note: Accessing _repo directly because SessionManager doesn't expose
+        a public property for it. Used for workdir state checks in _check_workdir_state().
+        Consider adding a public `repo` property to SessionManager.
+        """
         return self.session_manager._repo
 
     @property

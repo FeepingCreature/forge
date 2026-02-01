@@ -43,3 +43,17 @@ Print variable values, execution flow, state - whatever you need to understand t
 Once you have the data, you can fix it properly.
 
 Guessing wastes time and context. Prints give you certainty.
+
+# Comment on encapsulation violations
+
+When accessing private fields (like `obj._field`) or violating normal encapsulation/ownership patterns, leave a comment explaining WHY. Future readers (including AI) need to understand:
+- Why the normal public API doesn't work here
+- What invariant you're relying on
+- Whether this is a temporary hack or intentional design
+
+Example:
+```python
+# Access _repo directly because SessionManager owns the repo reference
+# and we need it for workdir checks. Consider adding a public property.
+repo = self.session_manager._repo
+```

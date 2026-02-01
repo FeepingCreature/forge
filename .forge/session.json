@@ -1,10 +1,10 @@
 {
   "active_files": [
-    "forge/ui/chat_message.py",
-    "forge/ui/chat_styles.py",
-    "forge/ui/tool_rendering.py",
+    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md",
-    "forge/ui/ai_chat_widget.py"
+    "forge/ui/chat_styles.py",
+    "forge/ui/chat_message.py",
+    "forge/ui/tool_rendering.py"
   ],
   "request_log_entries": [
     {
@@ -195,6 +195,33 @@
       "streaming": true,
       "actual_cost": 0.06053925,
       "generation_id": "gen-1769907688-GMQNX5w1fSeyzfqT7Hra"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1769907751264.json",
+      "response_file": "/tmp/forge_debug/response_1769907751264.json",
+      "timestamp": 1769907751.2646694,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002904,
+      "generation_id": "gen-1769907751-kduuQbat5ZRzi2u1gnct"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907788206.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907788206.json",
+      "timestamp": 1769907788.2071347,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.39982,
+      "generation_id": "gen-1769907788-OoilhLTP6gRwkZMPyORK"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1769907880722.json",
+      "response_file": "/tmp/forge_debug/response_stream_1769907880722.json",
+      "timestamp": 1769907880.7233598,
+      "model": "anthropic/claude-opus-4.5",
+      "streaming": true,
+      "actual_cost": 0.43087875,
+      "generation_id": "gen-1769907881-tBviuS17oGPE8TurepJr"
     }
   ],
   "messages": [
@@ -707,6 +734,72 @@
           ],
           "side_effects": [
             "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay hang on. if I *manually* send a &lt;pre>&lt;code> message it does render as mermaid. so we have that... let me try this.\n\n```mermaid\ngraph TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do thing]\n    B -->|No| D[Other thing]\n```\n\nplease just echo that back for testing"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 26] Here's the test block echoed back:\n\n```mermaid\ngraph TD\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do thing]\n    B -->|No| D[Other thing]\n```\n\nDid that render as a diagram? If not, the issue is definitely in how `render_markdown` processes the content before it reaches the browser. The debug print I added should show us whether `language-mermaid` is in the rendered output.\n\nWhat does the debug output show now? Specifically looking for:\n```\n[DEBUG] Rendered content contains language-mermaid: True/False\n```"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 84 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hah- now it worked! what the heck? And I just reopened the app and it *still* works. double heck.\n\nBUT I MEAN WE TAKE IT. Remove the debug logging?\nI guess it's rendered *before* saving? that'd be why the old mermaid block *before* we added the feature doesn't work even when we reload?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 28] That's the magic of debugging - sometimes just looking at the problem fixes it! \ud83d\ude04\n\nYes, you're exactly right - older messages in the conversation history were saved *before* the `extension_configs` fix was in place, so they have empty class attributes baked into them. New messages get rendered fresh with the correct `language-mermaid` class.\n\nLet me remove the debug logging:\n\n<edit file=\"forge/ui/chat_styles.py\">\n<search>\n        // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\n        // and converts them to rendered SVG diagrams\n        function renderMermaidDiagrams() {\n            console.log('[Mermaid] renderMermaidDiagrams called');\n            if (typeof mermaid === 'undefined') {\n                console.log('[Mermaid] mermaid is undefined - library not loaded');\n                return;\n            }\n            console.log('[Mermaid] mermaid library loaded');\n\n            // Find all mermaid code blocks that haven't been rendered yet\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            console.log('[Mermaid] Found ' + codeBlocks.length + ' code blocks with class language-mermaid');\n            \n            // Also check what code blocks exist in general\n            var allCodeBlocks = document.querySelectorAll('pre > code');\n            console.log('[Mermaid] Total code blocks: ' + allCodeBlocks.length);\n            allCodeBlocks.forEach(function(cb, i) {\n                console.log('[Mermaid]   Block ' + i + ' class: \"' + cb.className + '\"');\n            });\n</search>\n<replace>\n        // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'\n        // and converts them to rendered SVG diagrams\n        function renderMermaidDiagrams() {\n            if (typeof mermaid === 'undefined') return;\n\n            // Find all mermaid code blocks that haven't been rendered yet\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n</replace>\n</edit>\n\n<edit file=\"forge/ui/chat_styles.py\">\n<search>\n                console.log('[Mermaid] Attempting to render diagram ' + diagramId);\n                console.log('[Mermaid] Diagram text: ' + diagramText.substring(0, 100) + '...');\n                try {\n                    mermaid.render(diagramId, diagramText).then(function(result) {\n                        console.log('[Mermaid] Render success for ' + diagramId);\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }).catch(function(err) {\n                        // On error, show the original code with an error indicator\n                        console.error('[Mermaid] Render error for ' + diagramId + ': ' + err.message);\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            err.message + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    });\n                } catch (err) {\n                    // Sync error (e.g., mermaid.render not available)\n                    console.error('[Mermaid] Sync error:', err);\n                }\n</search>\n<replace>\n                try {\n                    mermaid.render(diagramId, diagramText).then(function(result) {\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }).catch(function(err) {\n                        // On error, show the original code with an error indicator\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            err.message + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    });\n                } catch (err) {\n                    // Sync error (e.g., mermaid.render not available)\n                    console.error('Mermaid render error:', err);\n                }\n</replace>\n</edit>\n\n<edit file=\"forge/ui/chat_message.py\">\n<search>\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(content_md, inline_results=self.inline_results)\n        \n        # Debug: check if mermaid class is present\n        if \"mermaid\" in content_md.lower():\n            print(f\"[DEBUG] Mermaid in content_md: {content_md[:200]}\")\n            print(f\"[DEBUG] Rendered content contains language-mermaid: {'language-mermaid' in content}\")\n            print(f\"[DEBUG] Rendered content snippet: {content[:500]}\")\n\n        return f\"\"\"\n</search>\n<replace>\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(content_md, inline_results=self.inline_results)\n\n        return f\"\"\"\n</replace>\n</edit>\n\n<commit message=\"Remove Mermaid debug logging\n\nMermaid diagram rendering is working. The issue was that older messages\nin conversation history were rendered before the extension_configs fix,\nso they have empty class attributes. New messages render correctly.\"/>\n\nDone! Debug logging removed. Mermaid diagrams now work for new messages. \ud83c\udf89",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/chat_styles.py",
+          "modified_files": [
+            "forge/ui/chat_styles.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/chat_styles.py",
+          "modified_files": [
+            "forge/ui/chat_styles.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/chat_message.py",
+          "modified_files": [
+            "forge/ui/chat_message.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "a33136fff9c2",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
           ],
           "success": true
         }

@@ -98,12 +98,6 @@ class ChatMessage:
 
         # Render content with markdown, handling any <edit> blocks as diffs
         content = render_markdown(content_md, inline_results=self.inline_results)
-        
-        # Debug: check if mermaid class is present
-        if "mermaid" in content_md.lower():
-            print(f"[DEBUG] Mermaid in content_md: {content_md[:200]}")
-            print(f"[DEBUG] Rendered content contains language-mermaid: {'language-mermaid' in content}")
-            print(f"[DEBUG] Rendered content snippet: {content[:500]}")
 
         return f"""
         <div class="message {self.role}" {msg_id}>

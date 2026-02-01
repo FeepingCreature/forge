@@ -346,23 +346,10 @@ def get_chat_scripts() -> str:
         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'
         // and converts them to rendered SVG diagrams
         function renderMermaidDiagrams() {
-            console.log('[Mermaid] renderMermaidDiagrams called');
-            if (typeof mermaid === 'undefined') {
-                console.log('[Mermaid] mermaid is undefined - library not loaded');
-                return;
-            }
-            console.log('[Mermaid] mermaid library loaded');
+            if (typeof mermaid === 'undefined') return;
 
             // Find all mermaid code blocks that haven't been rendered yet
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
-            console.log('[Mermaid] Found ' + codeBlocks.length + ' code blocks with class language-mermaid');
-            
-            // Also check what code blocks exist in general
-            var allCodeBlocks = document.querySelectorAll('pre > code');
-            console.log('[Mermaid] Total code blocks: ' + allCodeBlocks.length);
-            allCodeBlocks.forEach(function(cb, i) {
-                console.log('[Mermaid]   Block ' + i + ' class: "' + cb.className + '"');
-            });
             codeBlocks.forEach(function(codeBlock, index) {
                 var pre = codeBlock.parentElement;
                 // Skip if already processed
@@ -376,16 +363,12 @@ def get_chat_scripts() -> str:
                 var container = document.createElement('div');
                 container.className = 'mermaid-container';
 
-                console.log('[Mermaid] Attempting to render diagram ' + diagramId);
-                console.log('[Mermaid] Diagram text: ' + diagramText.substring(0, 100) + '...');
                 try {
                     mermaid.render(diagramId, diagramText).then(function(result) {
-                        console.log('[Mermaid] Render success for ' + diagramId);
                         container.innerHTML = result.svg;
                         pre.replaceWith(container);
                     }).catch(function(err) {
                         // On error, show the original code with an error indicator
-                        console.error('[Mermaid] Render error for ' + diagramId + ': ' + err.message);
                         container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
                             err.message + '</div>';
                         container.appendChild(pre.cloneNode(true));
@@ -393,7 +376,7 @@ def get_chat_scripts() -> str:
                     });
                 } catch (err) {
                     // Sync error (e.g., mermaid.render not available)
-                    console.error('[Mermaid] Sync error:', err);
+                    console.error('Mermaid render error:', err);
                 }
             });
         }

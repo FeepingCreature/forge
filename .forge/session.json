@@ -1,10 +1,12 @@
 {
   "active_files": [
-    "forge/session/live_session.py",
-    "REVIEW.md",
-    "CLAUDE.md",
     "forge/session/startup.py",
-    "forge/session/registry.py"
+    "forge/tools/builtin/grep_context.py",
+    "CLAUDE.md",
+    "forge/session/live_session.py",
+    "forge/tools/builtin/grep_open.py",
+    "forge/session/registry.py",
+    "forge/tools/builtin/grep_utils.py"
   ],
   "request_log_entries": [
     {
@@ -537,6 +539,33 @@
       "streaming": true,
       "actual_cost": 0.08641525,
       "generation_id": "gen-1770321003-8DY2PaYThRu1lTXry5ja"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770321049546.json",
+      "response_file": "/tmp/forge_debug/response_1770321049546.json",
+      "timestamp": 1770321049.5477905,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002626,
+      "generation_id": "gen-1770321050-ZJI5UcBPQpITu33pJ8SF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770321073826.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770321073826.json",
+      "timestamp": 1770321073.8289533,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.37603,
+      "generation_id": "gen-1770321076-htjZr6a0k8Dbs44KLncS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770321082849.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770321082849.json",
+      "timestamp": 1770321082.8522668,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.3771575,
+      "generation_id": "gen-1770321085-gwcYUbXvEFWXUOTPIgqF"
     }
   ],
   "messages": [
@@ -1678,6 +1707,104 @@
         },
         {
           "commit": "40a6beb63ae9",
+          "message": "Committed: 3 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "thanks! while we're at it, grep_context should probably never match in session.json."
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood catch. `session.json` contains the full conversation history, so grep matching inside it produces noisy, irrelevant results. Let me add it to the default exclusions.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\", \"forge/tools/builtin/grep_utils.py\"], \"remove\": [\"REVIEW.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01WDHdxdXBCFHfxp3AtrTHBG",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01WDHdxdXBCFHfxp3AtrTHBG",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/grep_context.py\", \"forge/tools/builtin/grep_open.py\", \"forge/tools/builtin/grep_utils.py\"], \"message\": \"Added 3 files, removed 1 files from context\", \"remove\": [\"REVIEW.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "The right place is `grep_utils.py` \u2014 the shared `should_exclude_file` function is used by both grep tools. I'll add `.forge` to the default exclude dirs, which covers `session.json` and any other forge metadata:\n\n<edit file=\"forge/tools/builtin/grep_utils.py\">\n<search>\n# Default directories to exclude from grep\nDEFAULT_EXCLUDE_DIRS = [\".git\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"]\n</search>\n<replace>\n# Default directories to exclude from grep\nDEFAULT_EXCLUDE_DIRS = [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"]\n</replace>\n</edit>\n\nAnd update the schema defaults in both tools to match:\n\n<edit file=\"forge/tools/builtin/grep_context.py\">\n<search>\n                    \"exclude_dirs\": {\n                        \"type\": \"array\",\n                        \"items\": {\"type\": \"string\"},\n                        \"description\": \"Directory names to exclude\",\n                        \"default\": [\".git\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n                    },\n</search>\n<replace>\n                    \"exclude_dirs\": {\n                        \"type\": \"array\",\n                        \"items\": {\"type\": \"string\"},\n                        \"description\": \"Directory names to exclude\",\n                        \"default\": [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n                    },\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/grep_open.py\">\n<search>\n                    \"exclude_dirs\": {\n                        \"type\": \"array\",\n                        \"items\": {\"type\": \"string\"},\n                        \"description\": \"Directory names to exclude (e.g., ['node_modules', '.git'])\",\n                        \"default\": [\".git\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n                    },\n</search>\n<replace>\n                    \"exclude_dirs\": {\n                        \"type\": \"array\",\n                        \"items\": {\"type\": \"string\"},\n                        \"description\": \"Directory names to exclude (e.g., ['node_modules', '.git'])\",\n                        \"default\": [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n                    },\n</replace>\n</edit>\n\n<check/>\n<commit message=\"Exclude .forge from grep search defaults\n\nsession.json contains the full conversation history, so grep matching\ninside it produces noisy, irrelevant results. Excluding .forge/ covers\nsession.json and any other forge metadata files.\"/>\n\nAdded `.forge` to `DEFAULT_EXCLUDE_DIRS` in `grep_utils.py` and updated the schema defaults in both `grep_context.py` and `grep_open.py` to match. This prevents all grep tools from matching inside the conversation log and other forge metadata.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/grep_utils.py",
+          "modified_files": [
+            "forge/tools/builtin/grep_utils.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/grep_context.py",
+          "modified_files": [
+            "forge/tools/builtin/grep_context.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/grep_open.py",
+          "modified_files": [
+            "forge/tools/builtin/grep_open.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "Formatted 2 files: forge/tools/builtin/grep_open.py, forge/tools/builtin/grep_context.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {
+            "forge/tools/builtin/grep_context.py": "--- before+++ after@@ -71,7 +71,14 @@                         \"type\": \"array\",\n                         \"items\": {\"type\": \"string\"},\n                         \"description\": \"Directory names to exclude\",\n-                        \"default\": [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n+                        \"default\": [\n+                            \".git\",\n+                            \".forge\",\n+                            \"__pycache__\",\n+                            \"node_modules\",\n+                            \".venv\",\n+                            \"venv\",\n+                        ],\n                     },\n                 },\n                 \"required\": [\"pattern\"],\n",
+            "forge/tools/builtin/grep_open.py": "--- before+++ after@@ -49,7 +49,14 @@                         \"type\": \"array\",\n                         \"items\": {\"type\": \"string\"},\n                         \"description\": \"Directory names to exclude (e.g., ['node_modules', '.git'])\",\n-                        \"default\": [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\"],\n+                        \"default\": [\n+                            \".git\",\n+                            \".forge\",\n+                            \"__pycache__\",\n+                            \"node_modules\",\n+                            \".venv\",\n+                            \"venv\",\n+                        ],\n                     },\n                 },\n                 \"required\": [\"pattern\"],\n"
+          },
+          "formatted_files": [
+            "forge/tools/builtin/grep_open.py",
+            "forge/tools/builtin/grep_context.py"
+          ],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "modified_files": [
+            "forge/tools/builtin/grep_open.py",
+            "forge/tools/builtin/grep_context.py"
+          ],
+          "side_effects": [
+            "has_display_output",
+            "files_modified"
+          ],
+          "success": true,
+          "summary": "Formatted 2 files: forge/tools/builtin/grep_open.py, forge/tools/builtin/grep_context.py\n\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 92 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "7f2ba87948fd",
           "message": "Committed: 3 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

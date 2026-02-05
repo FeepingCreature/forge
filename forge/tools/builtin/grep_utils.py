@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from forge.vfs.base import VFS
 
 # Default directories to exclude from grep
-DEFAULT_EXCLUDE_DIRS = [".git", "__pycache__", "node_modules", ".venv", "venv"]
+DEFAULT_EXCLUDE_DIRS = [".git", ".forge", "__pycache__", "node_modules", ".venv", "venv"]
 
 
 def compile_pattern(pattern: str) -> re.Pattern[str] | dict[str, Any]:

@@ -106,6 +106,7 @@ class MoodBar(QWidget):
         # Draw triangular tick marks at 10k token intervals
         if self._total_tokens >= self._tick_interval:
             tri_size = 5  # Triangle size in pixels
+            alpha = 0.7  # Blend factor (0=segment color, 1=black)
 
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             painter.setPen(Qt.PenStyle.NoPen)
@@ -114,13 +115,27 @@ class MoodBar(QWidget):
             while tick_tokens < self._total_tokens:
                 tick_x = float(width * tick_tokens / self._total_tokens)
 
+                # Find the segment color under this tick to blend against
+                bg = self._empty_color
+                for seg_rect, seg in self._segment_rects:
+                    if seg_rect.left() <= int(tick_x) < seg_rect.right():
+                        bg = QColor(MOOD_COLORS.get(seg.get("type", "empty"), MOOD_COLORS["empty"]))
+                        break
+
+                # Pre-blend: mix black into the background color (works without compositor)
+                blended = QColor(
+                    int(bg.red() * (1 - alpha)),
+                    int(bg.green() * (1 - alpha)),
+                    int(bg.blue() * (1 - alpha)),
+                )
+
                 # Top triangle pointing down
                 path = QPainterPath()
                 path.moveTo(tick_x - tri_size, 0)
                 path.lineTo(tick_x + tri_size, 0)
                 path.lineTo(tick_x, tri_size)
                 path.closeSubpath()
-                painter.fillPath(path, self._tick_color)
+                painter.fillPath(path, blended)
 
                 # Bottom triangle pointing up
                 path = QPainterPath()
@@ -128,7 +143,7 @@ class MoodBar(QWidget):
                 path.lineTo(tick_x + tri_size, height)
                 path.lineTo(tick_x, height - tri_size)
                 path.closeSubpath()
-                painter.fillPath(path, self._tick_color)
+                painter.fillPath(path, blended)
 
                 tick_tokens += self._tick_interval
 

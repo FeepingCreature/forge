@@ -1,9 +1,10 @@
 {
   "active_files": [
     "forge/ui/mood_bar.py",
-    "CLAUDE.md",
+    "forge/session/manager.py",
+    "forge/ui/main_window.py",
     "REVIEW.md",
-    "forge/ui/main_window.py"
+    "CLAUDE.md"
   ],
   "request_log_entries": [
     {
@@ -761,6 +762,78 @@
       "streaming": true,
       "actual_cost": 0.48134,
       "generation_id": "gen-1770321870-sFUj1ZQZDgi6gSd7eC5e"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770321905973.json",
+      "response_file": "/tmp/forge_debug/response_1770321905973.json",
+      "timestamp": 1770321905.97421,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003124,
+      "generation_id": "gen-1770321912-LU7xAAUAcEnlZ7P22XpG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770321948067.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770321948067.json",
+      "timestamp": 1770321948.0705512,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.479555,
+      "generation_id": "gen-1770321949-sfFyVelhrKS07n9qdTfM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770321965329.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770321965329.json",
+      "timestamp": 1770321965.3313456,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.2594025,
+      "generation_id": "gen-1770321966-NkNo9n6dyjDTXqKec3Vn"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770321997577.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770321997577.json",
+      "timestamp": 1770321997.57865,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.03149525,
+      "generation_id": "gen-1770321998-EO5MNepmoTzQcsC2X84K"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770322008931.json",
+      "response_file": "/tmp/forge_debug/response_1770322008931.json",
+      "timestamp": 1770322008.931658,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.013481,
+      "generation_id": "gen-1770322009-nCqQVOzYsYlNnIupzRek"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770322017881.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770322017881.json",
+      "timestamp": 1770322017.8827457,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.03449775,
+      "generation_id": "gen-1770322019-iVuptDeLebPXbtKAyjey"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770322026244.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770322026244.json",
+      "timestamp": 1770322026.247688,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.0299485,
+      "generation_id": "gen-1770322027-XuiEeSy2x0hD6dktT6y3"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770322033311.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770322033311.json",
+      "timestamp": 1770322033.3134298,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.0788505,
+      "generation_id": "gen-1770322034-jn2PNObKsUe2VeBdnaTK"
     }
   ],
   "messages": [
@@ -2578,6 +2651,142 @@
         },
         {
           "commit": "a22f5c640231",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "YEAH that was it! they look good now, thank you! Try to compact the convo now to check if that works even without restarting?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGreat, let me compact the conversation to test the fix!",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"1\", \"to_id\": \"86\", \"summary\": \"Complete session work:\\n\\n1. **REVIEW.md**: Created full codebase review with architecture analysis and Mermaid dependency graph.\\n\\n2. **Markdown Preview Feature** (committed):\\n   - New `forge/ui/markdown_preview.py`: MarkdownPreviewWidget with Edit/Preview toggle\\n   - Modified `forge/ui/branch_tab_widget.py`: .md files auto-wrapped\\n   - Modified `forge/ui/js_cache.py`: simplified get_all_script_tags()\\n\\n3. **Compaction persistence bug** (committed):\\n   - Fixed `replay_messages_to_prompt_manager()` to always replay compaction (removed `replay_compaction` flag entirely from startup.py)\\n   - Fixed both call sites in registry.py and live_session.py\\n   - Removed `_compact_raw_messages()` from LiveSession \u2014 raw messages stay uncompacted (they're the user log), compaction is purely PromptManager's job\\n\\n4. **Grep excludes .forge** (committed):\\n   - Added `.forge` to DEFAULT_EXCLUDE_DIRS in grep_utils.py\\n   - Updated schema defaults in grep_context.py and grep_open.py\\n\\n5. **Mood bar tick marks** (committed):\\n   - Added triangular tick marks at 10k token intervals in mood_bar.py\\n   - Bar stays full-width auto-scaled (no capacity concept)\\n   - Triangles use pre-blended colors (alpha doesn't work on X11 without compositor)\\n   - QPainterPath.fillPath approach with manual color blending at 35% toward black\\n   - Unused `_tick_color` field still in __init__ (cosmetic, not used in painting)\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01LPFqPwDQaWb5YKw7wftgJk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01LPFqPwDQaWb5YKw7wftgJk",
+      "content": "{\"compact\": true, \"from_id\": \"1\", \"success\": true, \"summary\": \"Complete session work:\\n\\n1. **REVIEW.md**: Created full codebase review with architecture analysis and Mermaid dependency graph.\\n\\n2. **Markdown Preview Feature** (committed):\\n   - New `forge/ui/markdown_preview.py`: MarkdownPreviewWidget with Edit/Preview toggle\\n   - Modified `forge/ui/branch_tab_widget.py`: .md files auto-wrapped\\n   - Modified `forge/ui/js_cache.py`: simplified get_all_script_tags()\\n\\n3. **Compaction persistence bug** (committed):\\n   - Fixed `replay_messages_to_prompt_manager()` to always replay compaction (removed `replay_compaction` flag entirely from startup.py)\\n   - Fixed both call sites in registry.py and live_session.py\\n   - Removed `_compact_raw_messages()` from LiveSession \\u2014 raw messages stay uncompacted (they're the user log), compaction is purely PromptManager's job\\n\\n4. **Grep excludes .forge** (committed):\\n   - Added `.forge` to DEFAULT_EXCLUDE_DIRS in grep_utils.py\\n   - Updated schema defaults in grep_context.py and grep_open.py\\n\\n5. **Mood bar tick marks** (committed):\\n   - Added triangular tick marks at 10k token intervals in mood_bar.py\\n   - Bar stays full-width auto-scaled (no capacity concept)\\n   - Triangles use pre-blended colors (alpha doesn't work on X11 without compositor)\\n   - QPainterPath.fillPath approach with manual color blending at 35% toward black\\n   - Unused `_tick_color` field still in __init__ (cosmetic, not used in painting)\", \"to_id\": \"86\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Compact worked! The conversation went from 99+ messages down to a clean summary, and here we are still chatting without a restart. That confirms the compaction persistence fix is working correctly \u2014 the PromptManager properly replays compaction from the raw messages.\n\nWhat would you like to work on next?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 80f25dae",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm. I'll believe you that it worked, but I think maybe the mood bar hasn't updated with the compaction?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood catch! The mood bar updates are triggered by `_on_context_stats_updated` in `MainWindow`, which calls `_update_mood_bar`. But that signal comes from `SessionManager` \u2014 it fires when `build_context()` or `sync_prompt_manager()` runs. After a compaction, the PromptManager's internal blocks change (the compacted messages get replaced), but nothing triggers a mood bar refresh.\n\nLet me trace the flow to find the right place to trigger an update. The compact tool executes in `compact.py`, and it calls `prompt_manager.compact_messages()`. After that completes, we need to signal that the context stats changed.\n\nLet me look at how the compact tool works and where the signal should fire.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"question\": \"How does the compact tool work? What does it call, and does it trigger any signal that would cause the mood bar to refresh? Look at the execute function and trace what happens after compaction.\", \"files\": [\"forge/tools/builtin/compact.py\", \"forge/session/manager.py\"]}",
+            "name": "scout"
+          },
+          "id": "toolu_01HsaUmFWJfukiNzNm9C4bm3",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01HsaUmFWJfukiNzNm9C4bm3",
+      "content": "{\"answer\": \"# How the Compact Tool Works\\n\\n## Execution Flow\\n\\nThe compact tool's `execute` function (in `forge/tools/builtin/compact.py`, lines 48-70) does the following:\\n\\n1. **Validates inputs** - Checks that `from_id`, `to_id`, and `summary` are all provided\\n2. **Returns a special result** - Returns a dict with `\\\"compact\\\": True` flag along with the three parameters:\\n```python\\nreturn {\\n    \\\"success\\\": True,\\n    \\\"compact\\\": True,\\n    \\\"from_id\\\": from_id,\\n    \\\"to_id\\\": to_id,\\n    \\\"summary\\\": summary,\\n}\\n```\\n\\n## What Gets Called\\n\\nBased on the code, this special return value signals to the **session manager** to perform the actual compaction. In `forge/session/manager.py` (lines 399-410), there's a `compact_messages` method that does the actual work:\\n\\n```python\\ndef compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:\\n    \\\"\\\"\\\"\\n    Compact conversation messages by replacing them with a summary.\\n    ...\\n    \\\"\\\"\\\"\\n    return self.prompt_manager.compact_messages(from_id, to_id, summary)\\n```\\n\\nThis delegates to the **PromptManager's `compact_messages` method** (not shown in provided files, but referenced in `forge/prompts/manager.py`).\\n\\n## Signal Emission for Mood Bar Refresh\\n\\n**No, the compact tool does NOT trigger any signal that would cause the mood bar to refresh.**\\n\\nHere's why:\\n\\n1. The `compact_messages` method in `SessionManager` does not emit any signals\\n2. The only signal-emitting methods in `SessionManager` related to context are:\\n   - `context_changed` - emitted by `add_active_file()` and `remove_active_file()`\\n   - `context_stats_updated` - emitted by `_emit_context_stats()` which is called by those same add/remove methods\\n   - `mid_turn_commit` - emitted by `mark_mid_turn_commit()`\\n\\n3. The mood bar uses `get_mood_bar_segments()` (line 467) which calls `self.prompt_manager.get_mood_bar_segments()`, but this is only called on-demand by the UI, not triggered by compaction\\n\\n**Conclusion**: The compaction happens silently in the prompt manager without notifying the UI to refresh the mood bar visualization. The UI would need to explicitly request the mood bar segments again if it wanted to display updated token counts after compaction.\", \"files_examined\": 2, \"model\": \"anthropic/claude-haiku-4.5\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `scout`\n```json\n{\n  \"files\": [\n    \"forge/tools/builtin/compact.py\",\n    \"forge/session/manager.py\"\n  ],\n  \"question\": \"How does the compact tool work? What does it call, and does it trigger any signal that would cause the mood bar to refresh? Look at the execute function and trace what happens after compaction.\"\n}\n```\n**Result:**\n```json\n{\n  \"answer\": \"# How the Compact Tool Works\\n\\n## Execution Flow\\n\\nThe compact tool's `execute` function (in `forge/tools/builtin/compact.py`, lines 48-70) does the following:\\n\\n1. **Validates inputs** - Checks that `from_id`, `to_id`, and `summary` are all provided\\n2. **Returns a special result** - Returns a dict with `\\\"compact\\\": True` flag along with the three parameters:\\n```python\\nreturn {\\n    \\\"success\\\": True,\\n    \\\"compact\\\": True,\\n    \\\"from_id\\\": from_id,\\n    \\\"to_id\\\": to_id,\\n    \\\"summary\\\": summary,\\n}\\n```\\n\\n## What Gets Called\\n\\nBased on the code, this special return value signals to the **session manager** to perform the actual compaction. In `forge/session/manager.py` (lines 399-410), there's a `compact_messages` method that does the actual work:\\n\\n```python\\ndef compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:\\n    \\\"\\\"\\\"\\n    Compact conversation messages by replacing them with a summary.\\n    ...\\n    \\\"\\\"\\\"\\n    return self.prompt_manager.compact_messages(from_id, to_id, summary)\\n```\\n\\nThis delegates to the **PromptManager's `compact_messages` method** (not shown in provided files, but referenced in `forge/prompts/manager.py`).\\n\\n## Signal Emission for Mood Bar Refresh\\n\\n**No, the compact tool does NOT trigger any signal that would cause the mood bar to refresh.**\\n\\nHere's why:\\n\\n1. The `compact_messages` method in `SessionManager` does not emit any signals\\n2. The only signal-emitting methods in `SessionManager` related to context are:\\n   - `context_changed` - emitted by `add_active_file()` and `remove_active_file()`\\n   - `context_stats_updated` - emitted by `_emit_context_stats()` which is called by those same add/remove methods\\n   - `mid_turn_commit` - emitted by `mark_mid_turn_commit()`\\n\\n3. The mood bar uses `get_mood_bar_segments()` (line 467) which calls `self.prompt_manager.get_mood_bar_segments()`, but this is only called on-demand by the UI, not triggered by compaction\\n\\n**Conclusion**: The compaction happens silently in the prompt manager without notifying the UI to refresh the mood bar visualization. The UI would need to explicitly request the mood bar segments again if it wanted to display updated token counts after compaction.\",\n  \"files_examined\": 2,\n  \"model\": \"anthropic/claude-haiku-4.5\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "Right, so the compact tool returns a special `{\"compact\": True}` result, and `SessionManager.compact_messages()` delegates to `PromptManager` but doesn't emit `context_stats_updated`. The fix is simple: emit the stats signal after compaction so the mood bar refreshes.\n\nLet me look at the exact code:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def compact_messages\", \"file\": \"forge/session/manager.py\", \"context_after\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01EqM5dTF6Zimeicu3bhRj7Z",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EqM5dTF6Zimeicu3bhRj7Z",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:366 \\u2500\\u2500\\n     363 |         if commit_oid:\\n     364 |             self.mid_turn_commit.emit(commit_oid)\\n     365 | \\n>>>  366 |     def compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:\\n     367 |         \\\"\\\"\\\"\\n     368 |         Compact conversation messages by replacing them with a summary.\\n     369 | \\n     370 |         Args:\\n     371 |             from_id: First message_id to compact (inclusive)\\n     372 |             to_id: Last message_id to compact (inclusive)\\n     373 |             summary: Summary text to replace the content with\\n     374 | \\n     375 |         Returns:\\n     376 |             Tuple of (number of blocks compacted, error message or None)\\n     377 |         \\\"\\\"\\\"\\n     378 |         return self.prompt_manager.compact_messages(from_id, to_id, summary)\\n     379 | \\n     380 |     def compact_think_call(self, tool_call_id: str) -> bool:\\n     381 |         \\\"\\\"\\\"\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 15,\n  \"file\": \"forge/session/manager.py\",\n  \"pattern\": \"def compact_messages\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:366 \\u2500\\u2500\\n     363 |         if commit_oid:\\n     364 |             self.mid_turn_commit.emit(commit_oid)\\n     365 | \\n>>>  366 |     def compact_messages(self, from_id: str, to_id: str, summary: str) -> tuple[int, str | None]:\\n     367 |         \\\"\\\"\\\"\\n     368 |         Compact conversation messages by replacing them with a summary.\\n     369 | \\n     370 |         Args:\\n     371 |             from_id: First message_id to compact (inclusive)\\n     372 |             to_id: Last message_id to compact (inclusive)\\n     373 |             summary: Summary text to replace the content with\\n     374 | \\n     375 |         Returns:\\n     376 |             Tuple of (number of blocks compacted, error message or None)\\n     377 |         \\\"\\\"\\\"\\n     378 |         return self.prompt_manager.compact_messages(from_id, to_id, summary)\\n     379 | \\n     380 |     def compact_think_call(self, tool_call_id: str) -> bool:\\n     381 |         \\\"\\\"\\\"\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nSimple fix \u2014 emit `context_stats_updated` after compaction so the mood bar refreshes:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/session/manager.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_01UjrL9bcDd5uAMtFdd32Spz",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UjrL9bcDd5uAMtFdd32Spz",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/session/manager.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I can see the code. The fix is simple \u2014 emit `_emit_context_stats()` after compaction:\n\n<edit file=\"forge/session/manager.py\">\n<search>\n        return self.prompt_manager.compact_messages(from_id, to_id, summary)\n</search>\n<replace>\n        result = self.prompt_manager.compact_messages(from_id, to_id, summary)\n        # Refresh mood bar / context stats after compaction changes token counts\n        self._emit_context_stats()\n        return result\n</replace>\n</edit>\n\n<commit message=\"fix: refresh mood bar after compaction\">\n\nThe mood bar wasn't updating after `compact()` because `compact_messages()` in `SessionManager` delegated to `PromptManager` but never emitted `context_stats_updated`. Now it does, so the mood bar visually reflects the reduced token counts after compaction.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "77ec36846df7",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

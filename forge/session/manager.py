@@ -375,7 +375,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         Returns:
             Tuple of (number of blocks compacted, error message or None)
         """
-        return self.prompt_manager.compact_messages(from_id, to_id, summary)
+        result = self.prompt_manager.compact_messages(from_id, to_id, summary)
+        # Refresh mood bar / context stats after compaction changes token counts
+        self._emit_context_stats()
+        return result
 
     def compact_think_call(self, tool_call_id: str) -> bool:
         """

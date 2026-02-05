@@ -128,6 +128,7 @@ class MoodBar(QWidget):
                     int(bg.green() * (1 - alpha)),
                     int(bg.blue() * (1 - alpha)),
                 )
+                print(f"TICK {tick_tokens}: bg=({bg.red()},{bg.green()},{bg.blue()}) blended=({blended.red()},{blended.green()},{blended.blue()}) alpha={blended.alpha()}")
 
                 # Top triangle pointing down
                 path = QPainterPath()

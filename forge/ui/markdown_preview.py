@@ -372,8 +372,16 @@ def _build_preview_html(markdown_text: str) -> str:
                 console.log('[Mermaid] mermaid not defined, skipping');
                 return;
             }}
+            var allPre = document.querySelectorAll('pre');
+            console.log('[Mermaid] Total <pre> elements:', allPre.length);
+            allPre.forEach(function(pre, i) {{
+                var code = pre.querySelector('code');
+                if (code) {{
+                    console.log('[Mermaid]   pre[' + i + '] code class="' + code.className + '" textLength=' + code.textContent.length);
+                }}
+            }});
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
-            console.log('[Mermaid] Found', codeBlocks.length, 'code blocks');
+            console.log('[Mermaid] Found', codeBlocks.length, 'mermaid code blocks');
             codeBlocks.forEach(function(codeBlock, index) {{
                 var pre = codeBlock.parentElement;
                 if (pre.dataset.mermaidProcessed) return;

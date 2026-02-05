@@ -1,12 +1,12 @@
 {
   "active_files": [
-    "forge/ui/js_cache.py",
     "forge/ui/markdown_preview.py",
-    "forge/ui/chat_styles.py",
-    "CLAUDE.md",
-    "forge/ui/branch_tab_widget.py",
+    "forge/ui/js_cache.py",
+    "forge/ui/editor_widget.py",
     "REVIEW.md",
-    "forge/ui/editor_widget.py"
+    "CLAUDE.md",
+    "forge/ui/chat_styles.py",
+    "forge/ui/branch_tab_widget.py"
   ],
   "request_log_entries": [
     {
@@ -278,6 +278,24 @@
       "streaming": true,
       "actual_cost": 0.5456125,
       "generation_id": "gen-1770320171-PzHHXkMQ16BH94HaxI18"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770320194674.json",
+      "response_file": "/tmp/forge_debug/response_1770320194674.json",
+      "timestamp": 1770320194.6769574,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003988,
+      "generation_id": "gen-1770320195-smpZDauZPym8p214Bloq"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320219367.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320219367.json",
+      "timestamp": 1770320219.3704302,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.5525675,
+      "generation_id": "gen-1770320221-Fjz3fIrmwiaNuPFXCfhS"
     }
   ],
   "messages": [
@@ -795,6 +813,39 @@
         },
         {
           "commit": "9758bab9cc6a",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "[MD Preview] Found mermaid code block in generated HTML \n[MD Preview JS ???] [Mermaid] onload fired, typeof mermaid: object (line 103) \n[MD Preview JS ???] [Mermaid] Found 0 code blocks (line 116)\n\nthe mystery deepens"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nSo the Python side confirms `language-mermaid` IS in the generated HTML, but the JS selector `pre > code.language-mermaid` finds 0 elements. This is a classic timing issue \u2014 **the `onload` fires when the mermaid script finishes loading, but the DOM might not be fully parsed yet** when loading via `setUrl()`.\n\nActually wait \u2014 that can't be it, `onload` on a script at the end of `<head>` fires after the script loads but the `<body>` should already be parsed by then since scripts block parsing.\n\nThe real issue is more subtle: **`_ExternalLinkPage.acceptNavigationRequest` is intercepting the `setUrl()` navigation itself!** When we call `setUrl()`, it generates a navigation of type... let me check. `setUrl()` should be `NavigationTypeTyped` which IS allowed. But what about subsequent page loads when the page reloads to the same file? It could be another type.\n\nActually, the simplest explanation: let me just look at what HTML is actually in the DOM. The `_ExternalLinkPage` returns `True` for non-link-click, non-typed navigations too \u2014 that's fine. But the issue could be that `document.querySelectorAll` is running before the body is rendered. Let me add a log that dumps what's actually in the DOM:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') {{\n                console.log('[Mermaid] mermaid not defined, skipping');\n                return;\n            }}\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            console.log('[Mermaid] Found', codeBlocks.length, 'code blocks');\n</search>\n<replace>\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') {{\n                console.log('[Mermaid] mermaid not defined, skipping');\n                return;\n            }}\n            var allPre = document.querySelectorAll('pre');\n            console.log('[Mermaid] Total <pre> elements:', allPre.length);\n            allPre.forEach(function(pre, i) {{\n                var code = pre.querySelector('code');\n                if (code) {{\n                    console.log('[Mermaid]   pre[' + i + '] code class=\"' + code.className + '\" textLength=' + code.textContent.length);\n                }}\n            }});\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            console.log('[Mermaid] Found', codeBlocks.length, 'mermaid code blocks');\n</replace>\n</edit>\n\n<commit message=\"debug: log all pre/code elements in DOM to diagnose mermaid selector miss\"/>\n\nTry toggling the preview again \u2014 we should now see every `<pre>` element and its code class. That'll tell us if the HTML is actually in the DOM and what class name the mermaid code block has.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "22869b2399ee",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

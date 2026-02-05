@@ -19,19 +19,18 @@ if TYPE_CHECKING:
 def replay_messages_to_prompt_manager(
     messages: list[dict[str, Any]],
     session_manager: "SessionManager",
-    replay_compaction: bool = False,
 ) -> None:
     """
     Replay messages into the prompt manager so the LLM sees them.
 
-    LiveSession.messages is for UI display, but PromptManager builds the actual
-    LLM request. When loading a session from disk or attaching to an existing session,
-    we need to replay messages so they're in the prompt.
+    LiveSession.messages is the uncompacted source of truth (for UI display and
+    persistence). PromptManager builds the actual LLM request. When loading a
+    session from disk, we replay messages into the prompt and re-apply any
+    compaction so the LLM sees the compacted version.
 
     Args:
         messages: List of message dicts from session.json or session.messages
         session_manager: The SessionManager whose prompt_manager to populate
-        replay_compaction: If True, replay compact tool calls to re-apply compaction
     """
     import json
 
@@ -49,23 +48,22 @@ def replay_messages_to_prompt_manager(
             if tool_calls:
                 session_manager.append_tool_call(tool_calls, content)
 
-                # Replay compact tool calls if requested
-                if replay_compaction:
-                    for tc in tool_calls:
-                        func = tc.get("function", {})
-                        if func.get("name") == "compact":
-                            try:
-                                args = json.loads(func.get("arguments", "{}"))
-                                from_id = args.get("from_id", "")
-                                to_id = args.get("to_id", "")
-                                summary = args.get("summary", "")
-                                if from_id and to_id:
-                                    compacted, _ = session_manager.compact_messages(
-                                        from_id, to_id, summary
-                                    )
-                                    print(f"📦 Replayed compaction: {compacted} message(s)")
-                            except (json.JSONDecodeError, TypeError):
-                                pass  # Malformed args, skip
+                # Re-apply compaction from compact tool calls
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    if func.get("name") == "compact":
+                        try:
+                            args = json.loads(func.get("arguments", "{}"))
+                            from_id = args.get("from_id", "")
+                            to_id = args.get("to_id", "")
+                            summary = args.get("summary", "")
+                            if from_id and to_id:
+                                compacted, _ = session_manager.compact_messages(
+                                    from_id, to_id, summary
+                                )
+                                print(f"📦 Replayed compaction: {compacted} message(s)")
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Malformed args, skip
             elif content:
                 session_manager.append_assistant_message(content)
         elif role == "tool":

@@ -1047,9 +1047,7 @@ class LiveSession(QObject):
         from forge.session.startup import replay_messages_to_prompt_manager
 
         self.session_manager.prompt_manager.clear_conversation()
-        replay_messages_to_prompt_manager(
-            self.messages, self.session_manager, replay_compaction=True
-        )
+        replay_messages_to_prompt_manager(self.messages, self.session_manager)
 
     def _check_workdir_state(self) -> bool:
         """

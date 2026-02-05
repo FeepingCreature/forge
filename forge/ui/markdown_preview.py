@@ -237,8 +237,8 @@ def _build_preview_html(markdown_text: str) -> str:
     """Build a complete HTML page for markdown preview."""
     body_html = _markdown_to_html(markdown_text)
 
-    mermaid_tag = get_script_tag("mermaid", onload="initMermaid()")
-    mathjax_tag = get_script_tag("mathjax")
+    mermaid_tag = get_script_tag("mermaid", onload="initMermaid();", inline=True)
+    mathjax_tag = get_script_tag("mathjax", inline=True)
 
     return f"""<!DOCTYPE html>
 <html>

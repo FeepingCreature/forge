@@ -1,10 +1,12 @@
 {
   "active_files": [
     "forge/ui/editor_widget.py",
-    "forge/ui/js_cache.py",
-    "forge/ui/branch_tab_widget.py",
+    "CLAUDE.md",
     "forge/ui/chat_styles.py",
-    "REVIEW.md"
+    "forge/ui/branch_tab_widget.py",
+    "forge/ui/js_cache.py",
+    "REVIEW.md",
+    "forge/ui/markdown_preview.py"
   ],
   "request_log_entries": [
     {
@@ -132,6 +134,69 @@
       "streaming": false,
       "actual_cost": 0.004016,
       "generation_id": "gen-1770319822-0hHs2mukVBxzjwfZOPwY"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770319829054.json",
+      "response_file": "/tmp/forge_debug/response_1770319829054.json",
+      "timestamp": 1770319829.0590177,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002873,
+      "generation_id": "gen-1770319830-SP9Oigm8thqhKRGiiWBF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770319829058.json",
+      "response_file": "/tmp/forge_debug/response_1770319829058.json",
+      "timestamp": 1770319829.0614629,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004106,
+      "generation_id": "gen-1770319830-6ts09P9Smkplfs2gMgub"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770319829056.json",
+      "response_file": "/tmp/forge_debug/response_1770319829056.json",
+      "timestamp": 1770319829.0615356,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004758,
+      "generation_id": "gen-1770319830-a05Bd8DbMCdMTwcQ8DG9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770319882625.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770319882625.json",
+      "timestamp": 1770319882.627222,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.4566025,
+      "generation_id": "gen-1770319884-vbO5Wvccb54WxVCkLZu5"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770319898213.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770319898213.json",
+      "timestamp": 1770319898.2144313,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.2582675,
+      "generation_id": "gen-1770319899-Yz9SPuDbI1PBxcUw7Jx0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770319905478.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770319905478.json",
+      "timestamp": 1770319905.4808488,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.0546345,
+      "generation_id": "gen-1770319906-hCHXlGcNIL3TkC1JK9OO"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770319911791.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770319911791.json",
+      "timestamp": 1770319911.7930374,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.097263,
+      "generation_id": "gen-1770319913-r5DcKxzgRGsKMtN31N8r"
     }
   ],
   "messages": [
@@ -372,6 +437,114 @@
         },
         {
           "commit": "13df03a70226",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 94 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "ooh this is slick! but the mermaid graph doesn't render atm?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood catch! The mermaid script loads asynchronously, but the `initMermaid()` callback in the `onload` attribute needs to actually be defined *before* the script loads. Let me also check \u2014 the issue might be that `file:///` base URL blocks loading of `file://` script tags due to security restrictions in QWebEngine. Let me look at how the chat widget handles this.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"1\", \"to_id\": \"13\", \"summary\": \"Created REVIEW.md with full codebase review and module dependency graph (mermaid). Then added markdown preview feature:\\n\\n1. **New file `forge/ui/markdown_preview.py`**: `MarkdownPreviewWidget` wraps an `EditorWidget` with Edit/Preview toggle buttons. Has `_markdown_to_html()` converter, `_build_preview_html()` that generates full HTML page with mermaid/mathjax script tags via `js_cache.get_script_tag()`. Uses `_ExternalLinkPage` for link handling. Ctrl+Shift+P shortcut toggles views. Preview is lazy (only re-renders when dirty).\\n\\n2. **Modified `forge/ui/branch_tab_widget.py`**: `.md` files wrapped in `MarkdownPreviewWidget`. Added `_find_tab_index()` helper. Updated `open_file`, `close_file`, `save_current_file`, `_on_tab_close_requested`, `_update_tab_title`, `update_file_tab_tooltip`, `refresh_file` to handle wrapper widgets.\\n\\nCurrent issue: Mermaid diagrams don't render in the preview. Need to debug why.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01B316zuP7PTz8XE3EpMkQwt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01B316zuP7PTz8XE3EpMkQwt",
+      "content": "{\"compact\": true, \"from_id\": \"1\", \"success\": true, \"summary\": \"Created REVIEW.md with full codebase review and module dependency graph (mermaid). Then added markdown preview feature:\\n\\n1. **New file `forge/ui/markdown_preview.py`**: `MarkdownPreviewWidget` wraps an `EditorWidget` with Edit/Preview toggle buttons. Has `_markdown_to_html()` converter, `_build_preview_html()` that generates full HTML page with mermaid/mathjax script tags via `js_cache.get_script_tag()`. Uses `_ExternalLinkPage` for link handling. Ctrl+Shift+P shortcut toggles views. Preview is lazy (only re-renders when dirty).\\n\\n2. **Modified `forge/ui/branch_tab_widget.py`**: `.md` files wrapped in `MarkdownPreviewWidget`. Added `_find_tab_index()` helper. Updated `open_file`, `close_file`, `save_current_file`, `_on_tab_close_requested`, `_update_tab_title`, `update_file_tab_tooltip`, `refresh_file` to handle wrapper widgets.\\n\\nCurrent issue: Mermaid diagrams don't render in the preview. Need to debug why.\", \"to_id\": \"13\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nLet me look at the current markdown_preview.py to understand how mermaid is being loaded:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/markdown_preview.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_019SK344DU9dVS74werBMkuH",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_019SK344DU9dVS74werBMkuH",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/markdown_preview.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nNow I can see the issue. Let me look at how the chat widget loads mermaid successfully to compare:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"setHtml|baseUrl|setUrl|file://\", \"file\": \"forge/ui/ai_chat_widget.py\", \"max_matches\": 5}",
+            "name": "grep_context"
+          },
+          "id": "toolu_01E6WdBxXY61T7mnbkBmvj67",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01E6WdBxXY61T7mnbkBmvj67",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:804 \\u2500\\u2500\\n     801 |         </body>\\n     802 |         </html>\\n     803 |         \\\"\\\"\\\"\\n>>>  804 |         self.chat_view.setHtml(html)\\n     805 | \\n     806 |     def _build_messages_html(self) -> str:\\n     807 |         \\\"\\\"\\\"Build HTML for all messages, grouped by turn.\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/ui/ai_chat_widget.py\",\n  \"max_matches\": 5,\n  \"pattern\": \"setHtml|baseUrl|setUrl|file://\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:804 \\u2500\\u2500\\n     801 |         </body>\\n     802 |         </html>\\n     803 |         \\\"\\\"\\\"\\n>>>  804 |         self.chat_view.setHtml(html)\\n     805 | \\n     806 |     def _build_messages_html(self) -> str:\\n     807 |         \\\"\\\"\\\"Build HTML for all messages, grouped by turn.\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nI see the problem clearly now. There are **two issues**:\n\n1. **QWebEngine's `file:///` security restrictions**: When you call `setHtml(html, QUrl(\"file:///\"))`, QWebEngine applies strict security policies. Loading local `file://` script sources from `setHtml` content is often blocked because the content doesn't have a real file origin. The chat widget calls `setHtml(html)` with **no base URL at all**, which means it relies on CDN URLs as fallback.\n\n2. **The `initMermaid()` function definition timing**: The `onload=\"initMermaid()\"` attribute on the mermaid script tag works correctly here since `initMermaid` is defined in a `<script>` block before the mermaid tag. So this part is fine.\n\nThe fix is to **not use `file://` URLs for the script sources** when loading via `setHtml`. Instead, we should either:\n- Read the cached JS file content and inline it as a `<script>` tag body, OR  \n- Use the CDN URL directly (simplest, and what the chat widget effectively does)\n\nLet me go with inlining the cached script content \u2014 this way it works offline too and avoids the security issue entirely:\n\n<edit file=\"forge/ui/js_cache.py\">\n<search>\ndef get_script_tag(name: str, onload: str | None = None) -> str:\n    \"\"\"Get HTML script tag for a cached script.\n\n    Returns a file:// URL if cached, otherwise falls back to CDN URL.\n    Downloads and caches on first access.\n\n    Args:\n        name: Script name (e.g., 'mathjax', 'mermaid')\n        onload: Optional JavaScript to run when script loads\n\n    Returns:\n        HTML <script> tag string\n    \"\"\"\n    if name not in EXTERNAL_SCRIPTS:\n        raise ValueError(f\"Unknown script: {name}\")\n\n    url = EXTERNAL_SCRIPTS[name]\n    cache_path = _get_cache_path(name, url)\n\n    # Build onload attribute if provided\n    onload_attr = f' onload=\"{onload}\"' if onload else \"\"\n\n    # Try to use cached version\n    if cache_path.exists():\n        return f'<script src=\"file://{cache_path}\"{onload_attr}></script>'\n\n    # Try to download and cache\n    if _download_script(url, cache_path):\n        return f'<script src=\"file://{cache_path}\"{onload_attr}></script>'\n\n    # Fall back to CDN\n    return f'<script src=\"{url}\"{onload_attr}></script>'\n</search>\n<replace>\ndef get_script_tag(name: str, onload: str | None = None, inline: bool = False) -> str:\n    \"\"\"Get HTML script tag for a cached script.\n\n    Returns a file:// URL if cached, otherwise falls back to CDN URL.\n    Downloads and caches on first access.\n\n    Args:\n        name: Script name (e.g., 'mathjax', 'mermaid')\n        onload: Optional JavaScript to run when script loads\n        inline: If True, inline the script content directly in the tag.\n                Use this for setHtml() contexts where file:// URLs are blocked.\n\n    Returns:\n        HTML <script> tag string\n    \"\"\"\n    if name not in EXTERNAL_SCRIPTS:\n        raise ValueError(f\"Unknown script: {name}\")\n\n    url = EXTERNAL_SCRIPTS[name]\n    cache_path = _get_cache_path(name, url)\n\n    # Build onload attribute if provided\n    onload_attr = f' onload=\"{onload}\"' if onload else \"\"\n\n    # Ensure script is cached\n    if not cache_path.exists():\n        _download_script(url, cache_path)\n\n    # Inline mode: embed script content directly (avoids file:// security blocks)\n    if inline and cache_path.exists():\n        content = cache_path.read_text(encoding=\"utf-8\", errors=\"replace\")\n        # For inline scripts, onload doesn't work as an attribute \u2014\n        # append the callback as code after the script body\n        if onload:\n            return f\"<script>{content}\\n{onload}</script>\"\n        return f\"<script>{content}</script>\"\n\n    # Try to use cached version\n    if cache_path.exists():\n        return f'<script src=\"file://{cache_path}\"{onload_attr}></script>'\n\n    # Fall back to CDN\n    return f'<script src=\"{url}\"{onload_attr}></script>'\n</replace>\n</edit>\n\nNow update the markdown preview to use inline mode:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid()\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n</search>\n<replace>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\", inline=True)\n    mathjax_tag = get_script_tag(\"mathjax\", inline=True)\n</replace>\n</edit>\n\n<commit message=\"fix: inline cached JS in markdown preview to avoid file:// security blocks\n\nQWebEngine blocks file:// script sources when content is loaded via\nsetHtml(). Fix by adding inline=True mode to js_cache.get_script_tag()\nthat embeds the script content directly in the HTML, bypassing the\nsecurity restriction while still working offline from cache.\"/>\n\nThe problem was that **QWebEngine's security model blocks `file://` script sources** when the page content is loaded via `setHtml()` (even with a `file:///` base URL). The chat widget happened to work because it doesn't use the mermaid preview in the same way.\n\nThe fix adds an `inline=True` parameter to `get_script_tag()` that reads the cached JS file and embeds the content directly as a `<script>...</script>` body instead of a `<script src=\"file://...\">` reference. This:\n\n1. **Bypasses the security restriction** \u2014 inline scripts always execute\n2. **Still works offline** \u2014 content comes from the local cache\n3. **Is backward compatible** \u2014 the default `inline=False` keeps existing behavior for the chat widget",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/js_cache.py",
+          "modified_files": [
+            "forge/ui/js_cache.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "8395de026f3b",
           "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

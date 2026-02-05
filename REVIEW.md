@@ -190,6 +190,255 @@ There's a mysterious `path` file at the repo root containing just `forge/\n`. It
 
 ---
 
+## Module Dependency Graph
+
+```mermaid
+graph LR
+    subgraph constants["forge/constants"]
+        constants_mod[constants]
+    end
+
+    subgraph config["forge/config"]
+        settings[settings]
+    end
+
+    subgraph git_backend["forge/git_backend"]
+        commit_types[commit_types]
+        repository[repository]
+        actions[actions]
+    end
+
+    subgraph llm["forge/llm"]
+        client[client]
+        cost_tracker[cost_tracker]
+        request_log[request_log]
+    end
+
+    subgraph prompts["forge/prompts"]
+        prompt_system[system]
+        prompt_manager[manager]
+    end
+
+    subgraph vfs["forge/vfs"]
+        vfs_base[base]
+        vfs_binary[binary]
+        vfs_git_commit[git_commit]
+        vfs_wip[work_in_progress]
+    end
+
+    subgraph session["forge/session"]
+        live_session[live_session]
+        sess_manager[manager]
+        registry[registry]
+        startup[startup]
+    end
+
+    subgraph tools["forge/tools"]
+        tool_context[context]
+        tool_invocation[invocation]
+        tool_manager[manager]
+        side_effects[side_effects]
+        subgraph builtin["tools/builtin"]
+            edit_tool[edit]
+            commit_tool[commit]
+            scout_tool[scout]
+            get_skill_tool[get_skill]
+            session_tool[session]
+            grep_tools[grep_*]
+            other_tools[other builtins]
+        end
+    end
+
+    subgraph ui["forge/ui"]
+        main_window[main_window]
+        ai_chat[ai_chat_widget]
+        branch_tab[branch_tab_widget]
+        branch_ws[branch_workspace]
+        chat_msg[chat_message]
+        chat_stream[chat_streaming]
+        chat_styles[chat_styles]
+        chat_helpers[chat_helpers]
+        tool_render[tool_rendering]
+        editor[editor_widget]
+        file_explorer[file_explorer]
+        side_panel[side_panel]
+        cmd_palette[command_palette]
+        ask_widget[ask_widget]
+        settings_dlg[settings_dialog]
+        welcome[welcome_widget]
+        git_graph_w[git_graph/*]
+        other_ui[other ui]
+    end
+
+    %% ── Runtime imports (solid) ──
+
+    %% constants → nothing (leaf)
+    settings --> constants_mod
+    repository --> constants_mod
+    repository --> commit_types
+    actions --> repository
+    client --> cost_tracker
+    client --> request_log
+    prompt_manager --> cost_tracker
+    prompt_manager --> prompt_system
+
+    vfs_wip --> commit_types
+    vfs_wip --> vfs_base
+    vfs_wip --> vfs_git_commit
+
+    sess_manager --> constants_mod
+    sess_manager --> commit_types
+    sess_manager --> repository
+    sess_manager --> client
+    sess_manager --> request_log
+    sess_manager --> prompt_manager
+    sess_manager --> tool_manager
+
+    tool_manager --> constants_mod
+    tool_manager --> commit_types
+    side_effects -.-> |leaf| side_effects
+
+    commit_tool --> commit_types
+    commit_tool --> side_effects
+    scout_tool --> settings
+    scout_tool --> client
+    get_skill_tool --> settings
+    get_skill_tool --> client
+    grep_tools --> side_effects
+    edit_tool --> side_effects
+    session_tool --> constants_mod
+    session_tool --> side_effects
+    other_tools --> side_effects
+
+    main_window --> settings
+    main_window --> constants_mod
+    main_window --> commit_types
+    main_window --> repository
+    main_window --> cost_tracker
+    main_window --> ai_chat
+    main_window --> branch_tab
+    main_window --> branch_ws
+    main_window --> git_graph_w
+    main_window --> other_ui
+
+    ai_chat --> chat_helpers
+    ai_chat --> chat_msg
+    ai_chat --> chat_stream
+    ai_chat --> chat_styles
+    ai_chat --> editor
+    ai_chat --> tool_render
+    chat_msg --> tool_render
+    chat_stream --> tool_render
+    chat_styles --> tool_render
+    branch_tab --> branch_ws
+    branch_tab --> editor
+    branch_ws --> constants_mod
+    file_explorer --> vfs_binary
+    ask_widget --> client
+    ask_widget --> vfs_base
+    settings_dlg --> constants_mod
+    settings_dlg --> client
+    welcome --> constants_mod
+    welcome --> repository
+    git_graph_w --> repository
+    cmd_palette --> |actions| cmd_palette
+    side_panel --> file_explorer
+
+    %% ── TYPE_CHECKING imports (dashed = not runtime) ──
+
+    live_session -.-> sess_manager
+    sess_manager -.-> settings
+    sess_manager -.-> vfs_wip
+    registry -.-> settings
+    registry -.-> repository
+    registry -.-> live_session
+    registry -.-> sess_manager
+    startup -.-> settings
+    startup -.-> repository
+    startup -.-> live_session
+    startup -.-> sess_manager
+    tool_context -.-> repository
+    tool_context -.-> sess_manager
+    tool_context -.-> registry
+    tool_context -.-> vfs_wip
+    tool_invocation -.-> vfs_base
+    tool_manager -.-> repository
+    ai_chat -.-> live_session
+
+    %% Builtin tools TYPE_CHECKING
+    commit_tool -.-> vfs_wip
+    edit_tool -.-> vfs_base
+    grep_tools -.-> vfs_base
+    scout_tool -.-> vfs_base
+    other_tools -.-> vfs_base
+    other_tools -.-> vfs_wip
+    session_tool -.-> tool_context
+    get_skill_tool -.-> tool_context
+
+    %% Styling
+    classDef leaf fill:#e8f5e9,stroke:#4caf50
+    classDef god fill:#fff3e0,stroke:#ff9800
+    classDef cycle fill:#fce4ec,stroke:#e91e63
+
+    class constants_mod,commit_types,cost_tracker,request_log,prompt_system,vfs_base,vfs_binary,side_effects leaf
+    class sess_manager,live_session,main_window,ai_chat god
+    class tool_context,registry cycle
+```
+
+### Reading the Graph
+
+| Style | Meaning |
+|-------|---------|
+| **Solid arrow** `→` | Runtime `import` — real dependency |
+| **Dashed arrow** `-.->` | `TYPE_CHECKING` import — type-only, not runtime |
+| 🟢 Green nodes | **Leaf modules** — no forge dependencies, safe foundations |
+| 🟠 Orange nodes | **God objects** — high fan-in/fan-out, refactoring candidates |
+| 🔴 Pink nodes | **Cycle participants** — involved in TYPE_CHECKING cycles |
+
+### Circular Dependency Analysis
+
+There are **no runtime cycles** — the codebase is clean at import time. All cycles are broken via `TYPE_CHECKING` guards. However, the *conceptual* cycles reveal tight coupling:
+
+#### Cycle 1: `session` ↔ `session` (internal)
+```
+live_session -.-> sess_manager -.-> (nothing back, but...)
+registry -.-> live_session AND sess_manager
+startup -.-> live_session AND sess_manager
+```
+The session package has a 4-way internal tangle: `live_session`, `manager`, `registry`, and `startup` all reference each other through type annotations. This makes it hard to understand any one file in isolation.
+
+#### Cycle 2: `tools` ↔ `session` (cross-package)
+```
+sess_manager → tool_manager        (runtime!)
+tool_context -.-> sess_manager     (type-only)
+tool_context -.-> registry         (type-only)
+```
+`SessionManager` creates and owns `ToolManager` at runtime, but `ToolContext` needs references back to `SessionManager` and `SessionRegistry` for tools like `session` and `compact`. This is the most architecturally concerning cycle — it means tools can reach back into session state.
+
+#### Cycle 3: `ui` ↔ `session` (cross-layer)
+```
+main_window → (creates sessions)
+ai_chat -.-> live_session          (type-only)
+```
+The UI layer references session types, which is expected for a desktop app, but `AIChatWidget` directly handles `LiveSession` events rather than going through an intermediary.
+
+### Leaf Module Health ✅
+
+The good news: the **foundation layer is completely acyclic**:
+```
+constants ← settings
+           ← commit_types ← repository ← actions
+cost_tracker ← client
+request_log  ← client
+vfs_base ← vfs_git_commit ← vfs_wip
+prompt_system ← prompt_manager
+side_effects ← (all builtin tools)
+```
+
+This is a clean dependency tree. The complexity only emerges in the `session` and `tools` packages where orchestration happens.
+
+---
+
 ## Summary
 
 Forge is an unusually well-architected project for its stage of development. The core abstractions (VFS, prompt caching, tool security) are genuinely novel and well-executed. The main technical debt is organic growth of god objects, which the team has already identified and partially addressed. The design documents and `CLAUDE.md` instructions show a mature engineering culture focused on making the right tradeoffs.

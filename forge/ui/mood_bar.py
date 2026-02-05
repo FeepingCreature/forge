@@ -106,7 +106,7 @@ class MoodBar(QWidget):
         # Draw triangular tick marks at 10k token intervals
         if self._total_tokens >= self._tick_interval:
             tri_size = 5  # Triangle size in pixels
-            alpha = 0.7  # Blend factor (0=segment color, 1=black)
+            alpha = 0.35  # Blend factor (0=segment color, 1=black)
 
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             painter.setPen(Qt.PenStyle.NoPen)
@@ -128,7 +128,6 @@ class MoodBar(QWidget):
                     int(bg.green() * (1 - alpha)),
                     int(bg.blue() * (1 - alpha)),
                 )
-                print(f"TICK {tick_tokens}: bg=({bg.red()},{bg.green()},{bg.blue()}) blended=({blended.red()},{blended.green()},{blended.blue()}) alpha={blended.alpha()}")
 
                 # Top triangle pointing down
                 path = QPainterPath()

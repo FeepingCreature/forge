@@ -38,7 +38,7 @@ class MoodBar(QWidget):
 
         # Tick mark settings
         self._tick_interval = 10_000  # Tokens between big marks
-        self._tick_color = QColor(0, 0, 0, 200)  # Near-black triangles
+        self._tick_color = QColor(0, 0, 0, 178)  # 70% opacity black triangles
 
         # Enable mouse tracking for tooltips
         self.setMouseTracking(True)

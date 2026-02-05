@@ -347,6 +347,7 @@ def _build_preview_html(markdown_text: str) -> str:
     {mathjax_tag}
     <script>
         function initMermaid() {{
+            console.log('[Mermaid] onload fired, typeof mermaid:', typeof mermaid);
             if (typeof mermaid !== 'undefined') {{
                 mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
                 renderMermaidDiagrams();
@@ -354,28 +355,35 @@ def _build_preview_html(markdown_text: str) -> str:
         }}
 
         function renderMermaidDiagrams() {{
-            if (typeof mermaid === 'undefined') return;
+            if (typeof mermaid === 'undefined') {{
+                console.log('[Mermaid] mermaid not defined, skipping');
+                return;
+            }}
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
+            console.log('[Mermaid] Found', codeBlocks.length, 'code blocks');
             codeBlocks.forEach(function(codeBlock, index) {{
                 var pre = codeBlock.parentElement;
                 if (pre.dataset.mermaidProcessed) return;
                 pre.dataset.mermaidProcessed = 'true';
                 var diagramText = codeBlock.textContent;
+                console.log('[Mermaid] Rendering diagram', index, '- length:', diagramText.length);
                 var diagramId = 'mermaid-' + Date.now() + '-' + index;
                 var container = document.createElement('div');
                 container.className = 'mermaid-container';
                 try {{
                     mermaid.render(diagramId, diagramText).then(function(result) {{
+                        console.log('[Mermaid] Diagram', index, 'rendered OK');
                         container.innerHTML = result.svg;
                         pre.replaceWith(container);
                     }}).catch(function(err) {{
-                        container.innerHTML = '<div class="mermaid-error">⚠️ ' +
-                            err.message + '</div>';
+                        console.error('[Mermaid] Render error for diagram', index, ':', err);
+                        container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
+                            (err.message || String(err)) + '</div>';
                         container.appendChild(pre.cloneNode(true));
                         pre.replaceWith(container);
                     }});
                 }} catch (err) {{
-                    console.error('Mermaid error:', err);
+                    console.error('[Mermaid] Sync error:', err);
                 }}
             }});
         }}
@@ -451,6 +459,7 @@ class MarkdownPreviewWidget(QWidget):
         # Preview web view
         self._web_view = QWebEngineView()
         self._web_page = _ExternalLinkPage(self._web_view)
+        self._web_page.javaScriptConsoleMessage = self._on_js_console  # type: ignore[assignment]
         self._web_view.setPage(self._web_page)
         self._stack.addWidget(self._web_view)
 
@@ -530,6 +539,13 @@ class MarkdownPreviewWidget(QWidget):
         preview_file = _PREVIEW_DIR / "preview.html"
         preview_file.write_text(html_content, encoding="utf-8")
         self._web_view.setUrl(QUrl.fromLocalFile(str(preview_file)))
+
+    @staticmethod
+    def _on_js_console(level: int, message: str, line: int, source: str) -> None:
+        """Log JS console messages to terminal for debugging."""
+        labels = {0: "LOG", 1: "WARN", 2: "ERR"}
+        label = labels.get(level, "???")
+        print(f"[MD Preview JS {label}] {message} (line {line})")
 
     def is_preview_visible(self) -> bool:
         return self._stack.currentIndex() == 1

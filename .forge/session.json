@@ -1,12 +1,12 @@
 {
   "active_files": [
-    "forge/ui/branch_tab_widget.py",
-    "forge/ui/chat_styles.py",
-    "CLAUDE.md",
+    "forge/ui/js_cache.py",
     "forge/ui/markdown_preview.py",
-    "forge/ui/editor_widget.py",
     "REVIEW.md",
-    "forge/ui/js_cache.py"
+    "forge/ui/editor_widget.py",
+    "CLAUDE.md",
+    "forge/ui/chat_styles.py",
+    "forge/ui/branch_tab_widget.py"
   ],
   "request_log_entries": [
     {
@@ -233,6 +233,33 @@
       "streaming": true,
       "actual_cost": 0.388305,
       "generation_id": "gen-1770320025-FQ0aoPl6SPZE9xAdwllA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770320060974.json",
+      "response_file": "/tmp/forge_debug/response_1770320060974.json",
+      "timestamp": 1770320060.977083,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001646,
+      "generation_id": "gen-1770320062-dc7DCtjtvji4w4xjnyEw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770320060976.json",
+      "response_file": "/tmp/forge_debug/response_1770320060976.json",
+      "timestamp": 1770320060.9775221,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003934,
+      "generation_id": "gen-1770320062-Yap0cyCED8BZczxaSd89"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320114278.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320114278.json",
+      "timestamp": 1770320114.2810996,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.563315,
+      "generation_id": "gen-1770320115-J94bgAA1Af2ix0FgUNVN"
     }
   ],
   "messages": [
@@ -665,6 +692,59 @@
         {
           "commit": "4c40998f5254",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Okay the markdown works again but the dependency graph doesn't render as mermaid. No errors in the log... are webview errors being logged on the console?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nLooking at this, I think the issue is that the `_ExternalLinkPage` is blocking the mermaid script load. When loading via `setUrl()`, the page navigates with `NavigationTypeLinkClicked` or other navigation types. But actually \u2014 the real issue is likely simpler: the `acceptNavigationRequest` is filtering out the initial page load.\n\nWait, let me re-examine. With `setUrl()`, the initial navigation type is `NavigationTypeTyped` which IS allowed. The script loads should just work as sub-resource loads (not navigation requests at all).\n\nThe actual problem is likely that **the JS console errors from QWebEngine aren't being logged anywhere**. The chat widget has a `javaScriptConsoleMessage` handler, but the markdown preview doesn't. Let me add console logging first, and also check if the mermaid `onload` callback is even firing. Looking more carefully at the HTML generation:\n\n```python\nmermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n```\n\nThis generates: `<script src=\"file://...\" onload=\"initMermaid();\"></script>`\n\nBut `initMermaid()` calls `mermaid.initialize()` then `renderMermaidDiagrams()`. The issue could be that **mermaid isn't defined as a global** when loaded from a local file \u2014 some bundled versions use ESM modules. Let me check what version we're using... The URL is `mermaid@10/dist/mermaid.min.js` which is the UMD build, so `mermaid` should be global.\n\nActually, I bet the issue is simpler: **the `onload` fires, but `mermaid.initialize` returns before `mermaid` is fully ready**, or `mermaid.render()` is failing silently because the Promise rejection isn't caught properly. Let me add proper error logging and also try the `mermaid.run()` API which is the recommended approach for mermaid v10:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    <script>\n        function initMermaid() {{\n            if (typeof mermaid !== 'undefined') {{\n                mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n                renderMermaidDiagrams();\n            }}\n        }}\n\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') return;\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                try {{\n                    mermaid.render(diagramId, diagramText).then(function(result) {{\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }}).catch(function(err) {{\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f ' +\n                            err.message + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('Mermaid error:', err);\n                }}\n            }});\n        }}\n    </script>\n    {mermaid_tag}\n</search>\n<replace>\n    <script>\n        function initMermaid() {{\n            console.log('[Mermaid] onload fired, typeof mermaid:', typeof mermaid);\n            if (typeof mermaid !== 'undefined') {{\n                mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n                renderMermaidDiagrams();\n            }}\n        }}\n\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') {{\n                console.log('[Mermaid] mermaid not defined, skipping');\n                return;\n            }}\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            console.log('[Mermaid] Found', codeBlocks.length, 'code blocks');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                console.log('[Mermaid] Rendering diagram', index, '- length:', diagramText.length);\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                try {{\n                    mermaid.render(diagramId, diagramText).then(function(result) {{\n                        console.log('[Mermaid] Diagram', index, 'rendered OK');\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }}).catch(function(err) {{\n                        console.error('[Mermaid] Render error for diagram', index, ':', err);\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            (err.message || String(err)) + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('[Mermaid] Sync error:', err);\n                }}\n            }});\n        }}\n    </script>\n    {mermaid_tag}\n</replace>\n</edit>\n\nNow add JS console message logging to the preview widget \u2014 pipe it to Python's print so it shows in the terminal:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n        # Preview web view\n        self._web_view = QWebEngineView()\n        self._web_page = _ExternalLinkPage(self._web_view)\n        self._web_view.setPage(self._web_page)\n        self._stack.addWidget(self._web_view)\n</search>\n<replace>\n        # Preview web view\n        self._web_view = QWebEngineView()\n        self._web_page = _ExternalLinkPage(self._web_view)\n        self._web_page.javaScriptConsoleMessage = self._on_js_console  # type: ignore[assignment]\n        self._web_view.setPage(self._web_page)\n        self._stack.addWidget(self._web_view)\n</replace>\n</edit>\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    def is_preview_visible(self) -> bool:\n        return self._stack.currentIndex() == 1\n</search>\n<replace>\n    @staticmethod\n    def _on_js_console(level: int, message: str, line: int, source: str) -> None:\n        \"\"\"Log JS console messages to terminal for debugging.\"\"\"\n        labels = {0: \"LOG\", 1: \"WARN\", 2: \"ERR\"}\n        label = labels.get(level, \"???\")\n        print(f\"[MD Preview JS {label}] {message} (line {line})\")\n\n    def is_preview_visible(self) -> bool:\n        return self._stack.currentIndex() == 1\n</replace>\n</edit>\n\n<commit message=\"debug: add JS console logging to markdown preview for mermaid troubleshooting\n\nPipe QWebEngine JS console messages to Python's print() so mermaid\nerrors are visible in the terminal. Added detailed console.log\nthroughout the mermaid init/render pipeline.\"/>\n\nAlright \u2014 can you switch to the Preview view on REVIEW.md again and check the terminal output? We should now see `[MD Preview JS ...]` lines telling us exactly what's happening \u2014 whether the mermaid script loaded, how many code blocks it found, and any render errors. That'll tell us the real issue.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "a7f8f7a91e0e",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

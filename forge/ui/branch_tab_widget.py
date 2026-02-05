@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
+from forge.ui.markdown_preview import MarkdownPreviewWidget
 from forge.ui.open_files_cache import get_open_files, save_open_files
 from forge.ui.quick_open import QuickOpenWidget
 from forge.ui.side_panel import SidePanelWidget
@@ -104,6 +105,20 @@ class BranchTabWidget(QWidget):
 
         # Note: Ctrl+E is handled by ActionRegistry in main_window
 
+    def _find_tab_index(self, filepath: str) -> int:
+        """Find the tab index for a filepath, returns -1 if not found."""
+        if filepath not in self._editors:
+            return -1
+        editor = self._editors[filepath]
+        for i in range(self.file_tabs.count()):
+            widget = self.file_tabs.widget(i)
+            # Tab widget is either the editor directly, or a MarkdownPreviewWidget wrapping it
+            if widget is editor:
+                return i
+            if isinstance(widget, MarkdownPreviewWidget) and widget.editor_widget is editor:
+                return i
+        return -1
+
     def get_ai_chat_widget(self) -> QWidget | None:
         """Get the AI chat widget, if one is attached.
 
@@ -191,11 +206,10 @@ class BranchTabWidget(QWidget):
         """
         # Check if already open
         if filepath in self._editors:
-            # Find and focus the tab
-            for i in range(self.file_tabs.count()):
-                if self.file_tabs.widget(i) == self._editors[filepath]:
-                    self.file_tabs.setCurrentIndex(i)
-                    return i
+            idx = self._find_tab_index(filepath)
+            if idx >= 0:
+                self.file_tabs.setCurrentIndex(idx)
+                return idx
 
         # Create new editor
         editor = EditorWidget(filepath=filepath, settings=self.settings)
@@ -211,12 +225,19 @@ class BranchTabWidget(QWidget):
         # Connect text changed signal to track modifications
         editor.editor.textChanged.connect(lambda fp=filepath: self._on_file_modified(fp))
 
-        # Add to tabs
+        # Wrap markdown files with preview toggle
         filename = Path(filepath).name
-        index = self.file_tabs.addTab(editor, f"📄 {filename}")
+        if filepath.endswith(".md"):
+            wrapper = MarkdownPreviewWidget(editor)
+            tab_widget: QWidget = wrapper
+        else:
+            tab_widget = editor
+
+        # Add to tabs
+        index = self.file_tabs.addTab(tab_widget, f"📄 {filename}")
         self.file_tabs.setCurrentIndex(index)
 
-        # Track editor
+        # Track editor (always the EditorWidget, not the wrapper)
         self._editors[filepath] = editor
         self.workspace.open_file(filepath)
 
@@ -234,18 +255,15 @@ class BranchTabWidget(QWidget):
         if filepath not in self._editors:
             return False
 
-        editor = self._editors[filepath]
-
         # Find tab index
-        for i in range(self.file_tabs.count()):
-            if self.file_tabs.widget(i) == editor:
-                # Check for unsaved changes
-                if filepath in self._modified_files:
-                    # TODO: Prompt user to save
-                    pass
+        idx = self._find_tab_index(filepath)
+        if idx >= 0:
+            # Check for unsaved changes
+            if filepath in self._modified_files:
+                # TODO: Prompt user to save
+                pass
 
-                self.file_tabs.removeTab(i)
-                break
+            self.file_tabs.removeTab(idx)
 
         # Clean up
         del self._editors[filepath]
@@ -265,10 +283,16 @@ class BranchTabWidget(QWidget):
         """
         current_widget = self.file_tabs.currentWidget()
 
-        # Find which file this is
+        # Find which file this is (widget may be editor or MarkdownPreviewWidget wrapper)
         filepath = None
         for fp, editor in self._editors.items():
-            if editor == current_widget:
+            if current_widget is editor:
+                filepath = fp
+                break
+            if (
+                isinstance(current_widget, MarkdownPreviewWidget)
+                and current_widget.editor_widget is editor
+            ):
                 filepath = fp
                 break
 
@@ -357,6 +381,13 @@ class BranchTabWidget(QWidget):
         finally:
             editor.editor.blockSignals(False)
 
+        # Mark markdown preview as dirty so it re-renders on next view
+        idx = self._find_tab_index(filepath)
+        if idx >= 0:
+            widget = self.file_tabs.widget(idx)
+            if isinstance(widget, MarkdownPreviewWidget):
+                widget._preview_dirty = True
+
         # Clear modified state (content is now from VFS)
         self._modified_files.discard(filepath)
         self._update_tab_title(filepath)
@@ -403,26 +434,25 @@ class BranchTabWidget(QWidget):
         if filepath not in self._editors:
             return
 
-        editor = self._editors[filepath]
         filename = Path(filepath).name
-
-        # Find tab and update title
-        for i in range(self.file_tabs.count()):
-            if self.file_tabs.widget(i) == editor:
-                if filepath in self._modified_files:
-                    self.file_tabs.setTabText(i, f"📄 {filename} •")
-                else:
-                    self.file_tabs.setTabText(i, f"📄 {filename}")
-                break
+        idx = self._find_tab_index(filepath)
+        if idx >= 0:
+            if filepath in self._modified_files:
+                self.file_tabs.setTabText(idx, f"📄 {filename} •")
+            else:
+                self.file_tabs.setTabText(idx, f"📄 {filename}")
 
     def _on_tab_close_requested(self, index: int) -> None:
         """Handle tab close request"""
         widget = self.file_tabs.widget(index)
 
-        # Find which file this is
+        # Find which file this is (widget may be editor or MarkdownPreviewWidget wrapper)
         filepath = None
         for fp, editor in self._editors.items():
-            if editor == widget:
+            if widget is editor:
+                filepath = fp
+                break
+            if isinstance(widget, MarkdownPreviewWidget) and widget.editor_widget is editor:
                 filepath = fp
                 break
 
@@ -475,11 +505,9 @@ class BranchTabWidget(QWidget):
         if filepath not in self._editors:
             return
 
-        editor = self._editors[filepath]
-        for i in range(self.file_tabs.count()):
-            if self.file_tabs.widget(i) == editor:
-                self.file_tabs.setTabToolTip(i, f"{filepath}\n~{tokens:,} tokens in context")
-                break
+        idx = self._find_tab_index(filepath)
+        if idx >= 0:
+            self.file_tabs.setTabToolTip(idx, f"{filepath}\n~{tokens:,} tokens in context")
 
     def show_quick_open(self) -> None:
         """Show the quick open popup (Ctrl+E)"""

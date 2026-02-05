@@ -2,8 +2,8 @@
 Mood bar widget for visualizing prompt token usage with color-coded segments.
 """
 
-from PySide6.QtCore import QEvent, QPointF, QRect, Qt
-from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent, QPen, QPolygonF
+from PySide6.QtCore import QEvent, QRect, Qt
+from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPainterPath, QPaintEvent
 from PySide6.QtWidgets import QToolTip, QWidget
 
 # Color scheme for different message/block types
@@ -107,32 +107,28 @@ class MoodBar(QWidget):
         if self._total_tokens >= self._tick_interval:
             tri_size = 5  # Triangle size in pixels
 
-            painter.setPen(QPen(Qt.PenStyle.NoPen))
-            painter.setBrush(self._tick_color)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setPen(Qt.PenStyle.NoPen)
 
             tick_tokens = self._tick_interval
             while tick_tokens < self._total_tokens:
                 tick_x = float(width * tick_tokens / self._total_tokens)
 
                 # Top triangle pointing down
-                top_tri = QPolygonF(
-                    [
-                        QPointF(tick_x - tri_size, 0),
-                        QPointF(tick_x + tri_size, 0),
-                        QPointF(tick_x, tri_size),
-                    ]
-                )
-                painter.drawPolygon(top_tri)
+                path = QPainterPath()
+                path.moveTo(tick_x - tri_size, 0)
+                path.lineTo(tick_x + tri_size, 0)
+                path.lineTo(tick_x, tri_size)
+                path.closeSubpath()
+                painter.fillPath(path, self._tick_color)
 
                 # Bottom triangle pointing up
-                bot_tri = QPolygonF(
-                    [
-                        QPointF(tick_x - tri_size, height),
-                        QPointF(tick_x + tri_size, height),
-                        QPointF(tick_x, height - tri_size),
-                    ]
-                )
-                painter.drawPolygon(bot_tri)
+                path = QPainterPath()
+                path.moveTo(tick_x - tri_size, height)
+                path.lineTo(tick_x + tri_size, height)
+                path.lineTo(tick_x, height - tri_size)
+                path.closeSubpath()
+                painter.fillPath(path, self._tick_color)
 
                 tick_tokens += self._tick_interval
 

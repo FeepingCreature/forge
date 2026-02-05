@@ -2,8 +2,8 @@
 Mood bar widget for visualizing prompt token usage with color-coded segments.
 """
 
-from PySide6.QtCore import QEvent, QPoint, QRect
-from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtCore import QEvent, QPointF, QRect, Qt
+from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent, QPen, QPolygonF
 from PySide6.QtWidgets import QToolTip, QWidget
 
 # Color scheme for different message/block types
@@ -104,24 +104,36 @@ class MoodBar(QWidget):
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
 
-        # Draw tick marks at 10k token intervals overlaid on the segments
+        # Draw triangular tick marks at 10k token intervals
         if self._total_tokens >= self._tick_interval:
-            font = painter.font()
-            font.setPixelSize(9)
-            painter.setFont(font)
+            tri_size = 5  # Triangle size in pixels
+
+            painter.setPen(QPen(Qt.PenStyle.NoPen))
+            painter.setBrush(self._tick_color)
 
             tick_tokens = self._tick_interval
             while tick_tokens < self._total_tokens:
-                tick_x = int(width * tick_tokens / self._total_tokens)
+                tick_x = float(width * tick_tokens / self._total_tokens)
 
-                # Full height line
-                painter.setPen(QPen(self._tick_color))
-                painter.drawLine(tick_x, 0, tick_x, height)
+                # Top triangle pointing down
+                top_tri = QPolygonF(
+                    [
+                        QPointF(tick_x - tri_size, 0),
+                        QPointF(tick_x + tri_size, 0),
+                        QPointF(tick_x, tri_size),
+                    ]
+                )
+                painter.drawPolygon(top_tri)
 
-                # Label
-                label = f"{tick_tokens // 1000}k"
-                painter.setPen(QPen(self._tick_label_color))
-                painter.drawText(QPoint(tick_x + 2, height - 3), label)
+                # Bottom triangle pointing up
+                bot_tri = QPolygonF(
+                    [
+                        QPointF(tick_x - tri_size, height),
+                        QPointF(tick_x + tri_size, height),
+                        QPointF(tick_x, height - tri_size),
+                    ]
+                )
+                painter.drawPolygon(bot_tri)
 
                 tick_tokens += self._tick_interval
 

@@ -2,8 +2,8 @@
 Mood bar widget for visualizing prompt token usage with color-coded segments.
 """
 
-from PySide6.QtCore import QEvent, QRect
-from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent
+from PySide6.QtCore import QEvent, QPoint, QRect
+from PySide6.QtGui import QColor, QHelpEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QToolTip, QWidget
 
 # Color scheme for different message/block types
@@ -31,10 +31,16 @@ class MoodBar(QWidget):
         super().__init__(parent)
         self._segments: list[dict] = []
         self._total_tokens: int = 0
+        self._capacity: int = 0  # Context window capacity in tokens
         self._segment_rects: list[tuple[QRect, dict]] = []  # For hit testing
 
         # Empty/unused color
         self._empty_color = QColor(MOOD_COLORS["empty"])
+
+        # Tick mark settings
+        self._tick_interval = 10_000  # Tokens between big marks
+        self._tick_color = QColor(255, 255, 255, 80)  # Semi-transparent white
+        self._tick_label_color = QColor(255, 255, 255, 140)
 
         # Enable mouse tracking for tooltips
         self.setMouseTracking(True)
@@ -56,9 +62,20 @@ class MoodBar(QWidget):
         self._segment_rects = []  # Will be recalculated on paint
         self.update()
 
+    def set_capacity(self, capacity: int) -> None:
+        """Set the context window capacity in tokens.
+
+        This determines the scale for the bar — segments fill proportionally
+        relative to the full capacity, and tick marks are drawn at intervals.
+        """
+        if capacity != self._capacity:
+            self._capacity = capacity
+            self.update()
+
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
-        """Draw the colored segments."""
+        """Draw the colored segments and tick marks."""
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
 
         rect = self.rect()
         width = rect.width()
@@ -67,41 +84,64 @@ class MoodBar(QWidget):
         # Clear segment rects for hit testing
         self._segment_rects = []
 
-        if self._total_tokens == 0:
+        # The denominator is the capacity if known, otherwise total tokens
+        scale = self._capacity if self._capacity > 0 else self._total_tokens
+
+        if scale == 0:
             # Draw empty bar
             painter.fillRect(rect, self._empty_color)
             return
 
-        x = 0.0  # Use float for precise positioning
+        # Draw colored segments
+        x = 0.0
         for segment in self._segments:
             tokens = segment.get("tokens", 0)
             if tokens == 0:
                 continue
 
-            # Calculate proportional width (use float for precision)
-            proportion = tokens / self._total_tokens
+            proportion = tokens / scale
             segment_width = width * proportion
 
-            # Ensure at least 1px for non-zero segments
             if segment_width < 1 and tokens > 0:
                 segment_width = 1
 
-            # Get color based on segment type
             seg_type = segment.get("type", "empty")
             color = QColor(MOOD_COLORS.get(seg_type, MOOD_COLORS["empty"]))
 
-            # Draw segment
             segment_rect = QRect(int(x), 0, max(1, int(segment_width)), height)
             painter.fillRect(segment_rect, color)
-
-            # Store for hit testing
             self._segment_rects.append((segment_rect, segment))
 
             x += segment_width
 
-        # Fill any remaining space with empty color
+        # Fill remaining space with empty color
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
+
+        # Draw tick marks at regular intervals
+        if scale >= self._tick_interval:
+            pen = QPen(self._tick_color)
+            pen.setWidth(1)
+            painter.setPen(pen)
+
+            font = painter.font()
+            font.setPixelSize(9)
+            painter.setFont(font)
+
+            tick_tokens = self._tick_interval
+            while tick_tokens < scale:
+                tick_x = int(width * tick_tokens / scale)
+
+                # Big tick — full height line
+                painter.setPen(QPen(self._tick_color))
+                painter.drawLine(tick_x, 0, tick_x, height)
+
+                # Label every 10k
+                label = f"{tick_tokens // 1000}k"
+                painter.setPen(QPen(self._tick_label_color))
+                painter.drawText(QPoint(tick_x + 2, height - 3), label)
+
+                tick_tokens += self._tick_interval
 
     def mouseMoveEvent(self, event: QEvent) -> None:  # noqa: N802
         """Show tooltip immediately on mouse move (no delay)."""

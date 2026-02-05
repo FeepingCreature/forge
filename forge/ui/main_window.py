@@ -1014,6 +1014,12 @@ class MainWindow(QMainWindow):
         if not isinstance(chat_widget, AIChatWidget):
             return
 
+        # Set capacity from model context limit
+        model = self.settings.get("llm.model", DEFAULT_MODEL)
+        context_limit = self._get_model_context_limit(model)
+        if context_limit:
+            self._mood_bar.set_capacity(context_limit)
+
         # Get segments directly from prompt manager (not stats dict)
         segments = chat_widget.runner.session_manager.get_mood_bar_segments()
         self._mood_bar.set_segments(segments)

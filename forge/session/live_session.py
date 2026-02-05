@@ -870,6 +870,8 @@ class LiveSession(QObject):
             to_id = result.get("to_id", "")
             summary = result.get("summary", "")
             self.session_manager.compact_messages(from_id, to_id, summary)
+            # Also compact the raw messages list (source of truth for persistence)
+            self._compact_raw_messages(from_id, to_id, summary)
 
         self._emit_event(ToolFinishedEvent(tool_call_id, tool_name, tool_args, result))
 
@@ -986,6 +988,77 @@ class LiveSession(QObject):
         """Continue LLM conversation after tool execution."""
         self._process_llm_request()
 
+    def _compact_raw_messages(self, from_id: str, to_id: str, summary: str) -> None:
+        """
+        Compact raw messages in self.messages to match PromptManager compaction.
+
+        This ensures session.json is saved with compacted content, so reloading
+        doesn't bloat the context back up.
+
+        Message IDs in raw messages are tracked by PromptManager, not stored
+        directly. We replay the same ID assignment logic to find which messages
+        to compact.
+        """
+        try:
+            from_int = int(from_id)
+            to_int = int(to_id)
+        except ValueError:
+            return
+
+        # Assign message IDs the same way PromptManager does:
+        # Sequential IDs for user messages, assistant messages, and tool_call messages.
+        # Tool results don't get message IDs (they have user_id instead).
+        msg_id = 0
+        first_compacted = True
+        compacted_tool_call_ids: set[str] = set()
+
+        for msg in self.messages:
+            if msg.get("_ui_only"):
+                continue
+
+            role = msg.get("role")
+            if role in ("user", "assistant"):
+                msg_id += 1
+            elif role == "tool":
+                # Tool results don't get a message_id, but we compact them
+                # if their tool_call_id matches a compacted tool call
+                tool_call_id = msg.get("tool_call_id", "")
+                if tool_call_id in compacted_tool_call_ids:
+                    msg["content"] = "[COMPACTED - see above]"
+                continue
+
+            if msg_id < from_int or msg_id > to_int:
+                continue
+
+            # This message is in range — compact it
+            if first_compacted:
+                if role == "assistant" and "tool_calls" in msg:
+                    msg["content"] = f"[COMPACTED] {summary}"
+                    for tc in msg.get("tool_calls", []):
+                        tc_id = tc.get("id")
+                        if tc_id:
+                            compacted_tool_call_ids.add(tc_id)
+                        tc["function"] = {
+                            "name": tc.get("function", {}).get("name", "?"),
+                            "arguments": '{"_compacted": true}',
+                        }
+                else:
+                    msg["content"] = f"[COMPACTED] {summary}"
+                first_compacted = False
+            else:
+                if role == "assistant" and "tool_calls" in msg:
+                    msg["content"] = "[COMPACTED - see above]"
+                    for tc in msg.get("tool_calls", []):
+                        tc_id = tc.get("id")
+                        if tc_id:
+                            compacted_tool_call_ids.add(tc_id)
+                        tc["function"] = {
+                            "name": tc.get("function", {}).get("name", "?"),
+                            "arguments": '{"_compacted": true}',
+                        }
+                else:
+                    msg["content"] = "[COMPACTED - see above]"
+
     # === REWIND/TRUNCATE OPERATIONS ===
 
     def rewind_to_message(self, message_index: int) -> bool:
@@ -1047,7 +1120,9 @@ class LiveSession(QObject):
         from forge.session.startup import replay_messages_to_prompt_manager
 
         self.session_manager.prompt_manager.clear_conversation()
-        replay_messages_to_prompt_manager(self.messages, self.session_manager)
+        replay_messages_to_prompt_manager(
+            self.messages, self.session_manager, replay_compaction=True
+        )
 
     def _check_workdir_state(self) -> bool:
         """

@@ -154,7 +154,8 @@ class SessionRegistry(QObject):
         session = LiveSession(session_manager, messages)
 
         # Replay messages into prompt manager so LLM sees them
-        replay_messages_to_prompt_manager(messages, session_manager)
+        # replay_compaction=True re-applies any compact() calls from previous turns
+        replay_messages_to_prompt_manager(messages, session_manager, replay_compaction=True)
 
         # Restore parent/child relationships
         if session_data.get("parent_session"):

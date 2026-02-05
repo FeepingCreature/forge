@@ -1,12 +1,12 @@
 {
   "active_files": [
-    "forge/ui/markdown_preview.py",
-    "forge/ui/js_cache.py",
-    "forge/ui/editor_widget.py",
-    "REVIEW.md",
     "CLAUDE.md",
-    "forge/ui/chat_styles.py",
-    "forge/ui/branch_tab_widget.py"
+    "REVIEW.md",
+    "forge/ui/branch_tab_widget.py",
+    "forge/ui/markdown_preview.py",
+    "forge/ui/editor_widget.py",
+    "forge/ui/js_cache.py",
+    "forge/ui/chat_styles.py"
   ],
   "request_log_entries": [
     {
@@ -296,6 +296,42 @@
       "streaming": true,
       "actual_cost": 0.5525675,
       "generation_id": "gen-1770320221-Fjz3fIrmwiaNuPFXCfhS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770320242907.json",
+      "response_file": "/tmp/forge_debug/response_1770320242907.json",
+      "timestamp": 1770320242.9084306,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004063,
+      "generation_id": "gen-1770320245-MwMzy5GuP8m3uZRJOfLj"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320261582.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320261582.json",
+      "timestamp": 1770320261.584898,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.5522975,
+      "generation_id": "gen-1770320262-xJT6nf3RYOw3fw2mqHgS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320280928.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320280928.json",
+      "timestamp": 1770320280.9299362,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.41165,
+      "generation_id": "gen-1770320282-iei0xxML2DmjFFf6CwSt"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320325422.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320325422.json",
+      "timestamp": 1770320325.4238765,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.1018175,
+      "generation_id": "gen-1770320328-c4nKXVeYIaqQPhWTdpxZ"
     }
   ],
   "messages": [
@@ -847,6 +883,98 @@
         {
           "commit": "22869b2399ee",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "o.o\n\n[MD Preview] Found mermaid code block in generated HTML \n[MD Preview JS ???] [Mermaid] onload fired, typeof mermaid: object (line 103) \n[MD Preview JS ???] [Mermaid] Total <pre> elements: 0 (line 116) \n[MD Preview JS ???] [Mermaid] Found 0 mermaid code blocks (line 124)"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\n**Total `<pre>` elements: 0!** The `<body>` is completely empty when the mermaid `onload` fires. This confirms it's a timing issue \u2014 the mermaid script is in `<head>` and its `onload` fires before the browser has parsed `<body>`. This happens because mermaid.min.js is large (~1MB), so when loading from a local file, it loads and fires `onload` synchronously before the parser continues to `<body>`.\n\nThe fix is simple: **don't use `onload` on the script tag**. Instead, run mermaid initialization after DOM is ready.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"5\", \"to_id\": \"27\", \"summary\": \"Debugging mermaid rendering in markdown preview. Root cause found: mermaid script is in `<head>` with `onload=\\\"initMermaid();\\\"`, but the onload fires before `<body>` is parsed (0 `<pre>` elements in DOM). The Python side confirms `language-mermaid` IS in the generated HTML. Fix: move mermaid initialization to run after DOMContentLoaded instead of on script onload.\\n\\nFiles currently modified and committed:\\n- `forge/ui/markdown_preview.py`: New file with MarkdownPreviewWidget, _markdown_to_html(), _build_preview_html(). Uses temp file + setUrl() approach. Has debug logging for JS console and mermaid status.\\n- `forge/ui/branch_tab_widget.py`: .md files wrapped in MarkdownPreviewWidget. Added _find_tab_index() helper. Updated all tab-lookup methods.\\n- `forge/ui/js_cache.py`: Reverted inline param addition (not needed with setUrl approach).\"}",
+            "name": "compact"
+          },
+          "id": "toolu_01KagZREXAMNaHfPpHX3w4om",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KagZREXAMNaHfPpHX3w4om",
+      "content": "{\"compact\": true, \"from_id\": \"5\", \"success\": true, \"summary\": \"Debugging mermaid rendering in markdown preview. Root cause found: mermaid script is in `<head>` with `onload=\\\"initMermaid();\\\"`, but the onload fires before `<body>` is parsed (0 `<pre>` elements in DOM). The Python side confirms `language-mermaid` IS in the generated HTML. Fix: move mermaid initialization to run after DOMContentLoaded instead of on script onload.\\n\\nFiles currently modified and committed:\\n- `forge/ui/markdown_preview.py`: New file with MarkdownPreviewWidget, _markdown_to_html(), _build_preview_html(). Uses temp file + setUrl() approach. Has debug logging for JS console and mermaid status.\\n- `forge/ui/branch_tab_widget.py`: .md files wrapped in MarkdownPreviewWidget. Added _find_tab_index() helper. Updated all tab-lookup methods.\\n- `forge/ui/js_cache.py`: Reverted inline param addition (not needed with setUrl approach).\", \"to_id\": \"27\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nNow I'll fix it. The solution: remove `onload` from the mermaid script tag, and instead use `DOMContentLoaded` to trigger initialization. I also need to handle the case where the script loads *after* DOMContentLoaded (race in the other direction), so I'll use a two-pronged approach.\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n\n    # Debug: check if mermaid code blocks were generated\n    if \"language-mermaid\" in body_html:\n        print(f\"[MD Preview] Found mermaid code block in generated HTML\")\n    else:\n        print(f\"[MD Preview] No mermaid code block in generated HTML\")\n        # Check if 'mermaid' appears at all\n        if \"mermaid\" in markdown_text.lower():\n            print(f\"[MD Preview] But 'mermaid' IS in the source markdown\")\n            # Find the mermaid fence\n            for i, line in enumerate(markdown_text.split(\"\\n\")):\n                if \"mermaid\" in line.lower() and \"```\" in line:\n                    print(f\"[MD Preview]   Line {i}: {line!r}\")\n</search>\n<replace>\n    mermaid_tag = get_script_tag(\"mermaid\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n</replace>\n</edit>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nSearch text not found in forge/ui/markdown_preview.py.\n\n**VERY CLOSE MATCH - check the diff carefully for:\n  \u2022 Trailing whitespace or newlines\n  \u2022 Small typos\n  \u2022 Indentation differences**\n\nFound 99.6% similar text at line 245 (edit distance: 3):\n\n```\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n\n    ...\n                if \"mermaid\" in line.lower() and \"```\" in line:\n                    print(f\"[MD Preview]   Line {i}: {line!r}\")\n```\n\nDiff (--- your search vs +++ actual file):\n```diff\n--- expected\n+++ actual\n@@ -5,7 +5,7 @@\n     if \"language-mermaid\" in body_html:\n         print(f\"[MD Preview] Found mermaid code block in generated HTML\")\n     else:\n-        print(f\"[MD Preview] No mermaid code block in generated HTML\")\n+        print(f\"[MD Preview] No mermaid code block found in generated HTML\")\n         # Check if 'mermaid' appears at all\n         if \"mermaid\" in markdown_text.lower():\n             print(f\"[MD Preview] But 'mermaid' IS in the source markdown\")\n\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nThe diff shows \"found\" vs my \"\". Let me fix with the exact text. I'll also make two changes: (1) remove the `onload` from the mermaid tag and remove the debug prints, (2) change the JS to use `DOMContentLoaded` + script onload two-pronged approach by moving the mermaid `<script>` tag to the end of `<body>`.\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n\n    # Debug: check if mermaid code blocks were generated\n    if \"language-mermaid\" in body_html:\n        print(f\"[MD Preview] Found mermaid code block in generated HTML\")\n    else:\n        print(f\"[MD Preview] No mermaid code block found in generated HTML\")\n        # Check if 'mermaid' appears at all\n        if \"mermaid\" in markdown_text.lower():\n            print(f\"[MD Preview] But 'mermaid' IS in the source markdown\")\n            # Find the mermaid fence\n            for i, line in enumerate(markdown_text.split(\"\\n\")):\n                if \"mermaid\" in line.lower() and \"```\" in line:\n                    print(f\"[MD Preview]   Line {i}: {line!r}\")\n\n    return f\"\"\"<!DOCTYPE html>\n</search>\n<replace>\n    mermaid_tag = get_script_tag(\"mermaid\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n\n    return f\"\"\"<!DOCTYPE html>\n</replace>\n</edit>\n\nNow update the JS to use `DOMContentLoaded` instead of relying on `onload`, and move the mermaid script to end of body so the DOM is parsed first:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    {mathjax_tag}\n    <script>\n        function initMermaid() {{\n            console.log('[Mermaid] onload fired, typeof mermaid:', typeof mermaid);\n            if (typeof mermaid !== 'undefined') {{\n                mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n                renderMermaidDiagrams();\n            }}\n        }}\n\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') {{\n                console.log('[Mermaid] mermaid not defined, skipping');\n                return;\n            }}\n            var allPre = document.querySelectorAll('pre');\n            console.log('[Mermaid] Total <pre> elements:', allPre.length);\n            allPre.forEach(function(pre, i) {{\n                var code = pre.querySelector('code');\n                if (code) {{\n                    console.log('[Mermaid]   pre[' + i + '] code class=\"' + code.className + '\" textLength=' + code.textContent.length);\n                }}\n            }});\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            console.log('[Mermaid] Found', codeBlocks.length, 'mermaid code blocks');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                console.log('[Mermaid] Rendering diagram', index, '- length:', diagramText.length);\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                try {{\n                    mermaid.render(diagramId, diagramText).then(function(result) {{\n                        console.log('[Mermaid] Diagram', index, 'rendered OK');\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }}).catch(function(err) {{\n                        console.error('[Mermaid] Render error for diagram', index, ':', err);\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            (err.message || String(err)) + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('[Mermaid] Sync error:', err);\n                }}\n            }});\n        }}\n    </script>\n    {mermaid_tag}\n</head>\n<body>\n{body_html}\n</body>\n</html>\"\"\"\n</search>\n<replace>\n    {mathjax_tag}\n    <script>\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') return;\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                try {{\n                    mermaid.render(diagramId, diagramText).then(function(result) {{\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }}).catch(function(err) {{\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            (err.message || String(err)) + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('Mermaid render error:', err);\n                }}\n            }});\n        }}\n    </script>\n</head>\n<body>\n{body_html}\n{mermaid_tag}\n<script>\n    // Initialize after both DOM is ready and mermaid has loaded.\n    // Mermaid script is at end of body so DOM is already parsed.\n    if (typeof mermaid !== 'undefined') {{\n        mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n        renderMermaidDiagrams();\n    }} else {{\n        // Script hasn't loaded yet (e.g. CDN fallback) \u2014 wait for it\n        document.querySelector('script[src*=\"mermaid\"]').addEventListener('load', function() {{\n            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n            renderMermaidDiagrams();\n        }});\n    }}\n</script>\n</body>\n</html>\"\"\"\n</replace>\n</edit>\n\nAlso clean up the now-unused `onload` parameter from `js_cache.py`'s `get_all_script_tags`:\n\n<edit file=\"forge/ui/js_cache.py\">\n<search>\ndef get_all_script_tags() -> str:\n    \"\"\"Get script tags for all external scripts, with appropriate onload handlers.\"\"\"\n    tags = []\n    for name in EXTERNAL_SCRIPTS:\n        if name == \"mermaid\":\n            # Initialize mermaid when it loads\n            tags.append(get_script_tag(name, onload=\"initMermaid()\"))\n        else:\n            tags.append(get_script_tag(name))\n    return \"\\n            \".join(tags)\n</search>\n<replace>\ndef get_all_script_tags() -> str:\n    \"\"\"Get script tags for all external scripts.\"\"\"\n    tags = []\n    for name in EXTERNAL_SCRIPTS:\n        tags.append(get_script_tag(name))\n    return \"\\n            \".join(tags)\n</replace>\n</edit>\n\nAlso remove the debug JS console handler override \u2014 let's keep it but strip the debug prefix:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    @staticmethod\n    def _on_js_console(level: int, message: str, line: int, source: str) -> None:\n        \"\"\"Log JS console messages to terminal for debugging.\"\"\"\n        labels = {0: \"LOG\", 1: \"WARN\", 2: \"ERR\"}\n        label = labels.get(level, \"???\")\n        print(f\"[MD Preview JS {label}] {message} (line {line})\")\n</search>\n<replace>\n    @staticmethod\n    def _on_js_console(level: int, message: str, line: int, source: str) -> None:\n        \"\"\"Log JS console messages for debugging (only errors).\"\"\"\n        if level >= 2:  # Only log errors\n            print(f\"[MD Preview] JS error: {message} (line {line})\")\n</replace>\n</edit>\n\n<commit message=\"Fix mermaid rendering: move script to end of body so DOM is parsed before init\n\nThe mermaid script was in <head> with an onload handler, but onload\nfired before <body> was parsed, finding 0 <pre> elements. Fix by:\n1. Moving mermaid <script> tag to end of <body>\n2. Initializing inline after the tag (DOM already parsed at that point)\n3. Fallback listener for async/CDN loading case\n4. Remove debug logging, only log JS errors\" />\n\nDone! The fix moves the mermaid `<script>` tag from `<head>` to the end of `<body>`. This way, when the script loads and we call `renderMermaidDiagrams()`, the DOM is already fully parsed and all `<pre>` elements are present. The inline `<script>` after the mermaid tag handles two cases:\n- **Script already loaded** (local file, synchronous): `typeof mermaid !== 'undefined'` \u2192 init immediately\n- **Script still loading** (CDN fallback): attach a `load` event listener on the script element",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/js_cache.py",
+          "modified_files": [
+            "forge/ui/js_cache.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "df789a90877b",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

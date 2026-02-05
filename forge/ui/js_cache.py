@@ -73,14 +73,10 @@ def get_script_tag(name: str, onload: str | None = None) -> str:
 
 
 def get_all_script_tags() -> str:
-    """Get script tags for all external scripts, with appropriate onload handlers."""
+    """Get script tags for all external scripts."""
     tags = []
     for name in EXTERNAL_SCRIPTS:
-        if name == "mermaid":
-            # Initialize mermaid when it loads
-            tags.append(get_script_tag(name, onload="initMermaid()"))
-        else:
-            tags.append(get_script_tag(name))
+        tags.append(get_script_tag(name))
     return "\n            ".join(tags)
 
 

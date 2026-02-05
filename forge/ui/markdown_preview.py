@@ -242,21 +242,8 @@ def _build_preview_html(markdown_text: str) -> str:
     """Build a complete HTML page for markdown preview."""
     body_html = _markdown_to_html(markdown_text)
 
-    mermaid_tag = get_script_tag("mermaid", onload="initMermaid();")
+    mermaid_tag = get_script_tag("mermaid")
     mathjax_tag = get_script_tag("mathjax")
-
-    # Debug: check if mermaid code blocks were generated
-    if "language-mermaid" in body_html:
-        print(f"[MD Preview] Found mermaid code block in generated HTML")
-    else:
-        print(f"[MD Preview] No mermaid code block found in generated HTML")
-        # Check if 'mermaid' appears at all
-        if "mermaid" in markdown_text.lower():
-            print(f"[MD Preview] But 'mermaid' IS in the source markdown")
-            # Find the mermaid fence
-            for i, line in enumerate(markdown_text.split("\n")):
-                if "mermaid" in line.lower() and "```" in line:
-                    print(f"[MD Preview]   Line {i}: {line!r}")
 
     return f"""<!DOCTYPE html>
 <html>
@@ -359,60 +346,51 @@ def _build_preview_html(markdown_text: str) -> str:
     </style>
     {mathjax_tag}
     <script>
-        function initMermaid() {{
-            console.log('[Mermaid] onload fired, typeof mermaid:', typeof mermaid);
-            if (typeof mermaid !== 'undefined') {{
-                mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
-                renderMermaidDiagrams();
-            }}
-        }}
-
         function renderMermaidDiagrams() {{
-            if (typeof mermaid === 'undefined') {{
-                console.log('[Mermaid] mermaid not defined, skipping');
-                return;
-            }}
-            var allPre = document.querySelectorAll('pre');
-            console.log('[Mermaid] Total <pre> elements:', allPre.length);
-            allPre.forEach(function(pre, i) {{
-                var code = pre.querySelector('code');
-                if (code) {{
-                    console.log('[Mermaid]   pre[' + i + '] code class="' + code.className + '" textLength=' + code.textContent.length);
-                }}
-            }});
+            if (typeof mermaid === 'undefined') return;
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
-            console.log('[Mermaid] Found', codeBlocks.length, 'mermaid code blocks');
             codeBlocks.forEach(function(codeBlock, index) {{
                 var pre = codeBlock.parentElement;
                 if (pre.dataset.mermaidProcessed) return;
                 pre.dataset.mermaidProcessed = 'true';
                 var diagramText = codeBlock.textContent;
-                console.log('[Mermaid] Rendering diagram', index, '- length:', diagramText.length);
                 var diagramId = 'mermaid-' + Date.now() + '-' + index;
                 var container = document.createElement('div');
                 container.className = 'mermaid-container';
                 try {{
                     mermaid.render(diagramId, diagramText).then(function(result) {{
-                        console.log('[Mermaid] Diagram', index, 'rendered OK');
                         container.innerHTML = result.svg;
                         pre.replaceWith(container);
                     }}).catch(function(err) {{
-                        console.error('[Mermaid] Render error for diagram', index, ':', err);
                         container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
                             (err.message || String(err)) + '</div>';
                         container.appendChild(pre.cloneNode(true));
                         pre.replaceWith(container);
                     }});
                 }} catch (err) {{
-                    console.error('[Mermaid] Sync error:', err);
+                    console.error('Mermaid render error:', err);
                 }}
             }});
         }}
     </script>
-    {mermaid_tag}
 </head>
 <body>
 {body_html}
+{mermaid_tag}
+<script>
+    // Initialize after both DOM is ready and mermaid has loaded.
+    // Mermaid script is at end of body so DOM is already parsed.
+    if (typeof mermaid !== 'undefined') {{
+        mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
+        renderMermaidDiagrams();
+    }} else {{
+        // Script hasn't loaded yet (e.g. CDN fallback) — wait for it
+        document.querySelector('script[src*="mermaid"]').addEventListener('load', function() {{
+            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
+            renderMermaidDiagrams();
+        }});
+    }}
+</script>
 </body>
 </html>"""
 
@@ -563,10 +541,9 @@ class MarkdownPreviewWidget(QWidget):
 
     @staticmethod
     def _on_js_console(level: int, message: str, line: int, source: str) -> None:
-        """Log JS console messages to terminal for debugging."""
-        labels = {0: "LOG", 1: "WARN", 2: "ERR"}
-        label = labels.get(level, "???")
-        print(f"[MD Preview JS {label}] {message} (line {line})")
+        """Log JS console messages for debugging (only errors)."""
+        if level >= 2:  # Only log errors
+            print(f"[MD Preview] JS error: {message} (line {line})")
 
     def is_preview_visible(self) -> bool:
         return self._stack.currentIndex() == 1

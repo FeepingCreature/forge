@@ -7,6 +7,8 @@ reusing the chat's Mermaid/MathJax/markdown rendering infrastructure.
 
 import html
 import re
+import tempfile
+from pathlib import Path
 
 from PySide6.QtCore import QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
@@ -21,6 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from forge.ui.js_cache import get_script_tag
+
+# Persistent temp directory for preview HTML files (survives within process lifetime)
+_PREVIEW_DIR = Path(tempfile.mkdtemp(prefix="forge_preview_"))
 
 
 class _ExternalLinkPage(QWebEnginePage):
@@ -237,8 +242,8 @@ def _build_preview_html(markdown_text: str) -> str:
     """Build a complete HTML page for markdown preview."""
     body_html = _markdown_to_html(markdown_text)
 
-    mermaid_tag = get_script_tag("mermaid", onload="initMermaid();", inline=True)
-    mathjax_tag = get_script_tag("mathjax", inline=True)
+    mermaid_tag = get_script_tag("mermaid", onload="initMermaid();")
+    mathjax_tag = get_script_tag("mathjax")
 
     return f"""<!DOCTYPE html>
 <html>
@@ -520,7 +525,11 @@ class MarkdownPreviewWidget(QWidget):
         text = self.editor_widget.get_text() if isinstance(self.editor_widget, EditorWidget) else ""
 
         html_content = _build_preview_html(text)
-        self._web_view.setHtml(html_content, QUrl("file:///"))
+
+        # Write to temp file and load via setUrl() — avoids QWebEngine's ~2MB setHtml() limit
+        preview_file = _PREVIEW_DIR / "preview.html"
+        preview_file.write_text(html_content, encoding="utf-8")
+        self._web_view.setUrl(QUrl.fromLocalFile(str(preview_file)))
 
     def is_preview_visible(self) -> bool:
         return self._stack.currentIndex() == 1

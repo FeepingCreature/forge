@@ -38,7 +38,7 @@ def _download_script(url: str, cache_path: Path) -> bool:
         return False
 
 
-def get_script_tag(name: str, onload: str | None = None, inline: bool = False) -> str:
+def get_script_tag(name: str, onload: str | None = None) -> str:
     """Get HTML script tag for a cached script.
 
     Returns a file:// URL if cached, otherwise falls back to CDN URL.
@@ -47,8 +47,6 @@ def get_script_tag(name: str, onload: str | None = None, inline: bool = False) -
     Args:
         name: Script name (e.g., 'mathjax', 'mermaid')
         onload: Optional JavaScript to run when script loads
-        inline: If True, inline the script content directly in the tag.
-                Use this for setHtml() contexts where file:// URLs are blocked.
 
     Returns:
         HTML <script> tag string
@@ -65,15 +63,6 @@ def get_script_tag(name: str, onload: str | None = None, inline: bool = False) -
     # Ensure script is cached
     if not cache_path.exists():
         _download_script(url, cache_path)
-
-    # Inline mode: embed script content directly (avoids file:// security blocks)
-    if inline and cache_path.exists():
-        content = cache_path.read_text(encoding="utf-8", errors="replace")
-        # For inline scripts, onload doesn't work as an attribute —
-        # append the callback as code after the script body
-        if onload:
-            return f"<script>{content}\n{onload}</script>"
-        return f"<script>{content}</script>"
 
     # Try to use cached version
     if cache_path.exists():

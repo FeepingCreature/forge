@@ -31,7 +31,6 @@ class MoodBar(QWidget):
         super().__init__(parent)
         self._segments: list[dict] = []
         self._total_tokens: int = 0
-        self._capacity: int = 0  # Context window capacity in tokens
         self._segment_rects: list[tuple[QRect, dict]] = []  # For hit testing
 
         # Empty/unused color
@@ -62,16 +61,6 @@ class MoodBar(QWidget):
         self._segment_rects = []  # Will be recalculated on paint
         self.update()
 
-    def set_capacity(self, capacity: int) -> None:
-        """Set the context window capacity in tokens.
-
-        This determines the scale for the bar — segments fill proportionally
-        relative to the full capacity, and tick marks are drawn at intervals.
-        """
-        if capacity != self._capacity:
-            self._capacity = capacity
-            self.update()
-
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         """Draw the colored segments and tick marks."""
         painter = QPainter(self)
@@ -84,22 +73,19 @@ class MoodBar(QWidget):
         # Clear segment rects for hit testing
         self._segment_rects = []
 
-        # The denominator is the capacity if known, otherwise total tokens
-        scale = self._capacity if self._capacity > 0 else self._total_tokens
-
-        if scale == 0:
+        if self._total_tokens == 0:
             # Draw empty bar
             painter.fillRect(rect, self._empty_color)
             return
 
-        # Draw colored segments
+        # Draw colored segments — always fill full width
         x = 0.0
         for segment in self._segments:
             tokens = segment.get("tokens", 0)
             if tokens == 0:
                 continue
 
-            proportion = tokens / scale
+            proportion = tokens / self._total_tokens
             segment_width = width * proportion
 
             if segment_width < 1 and tokens > 0:
@@ -114,29 +100,25 @@ class MoodBar(QWidget):
 
             x += segment_width
 
-        # Fill remaining space with empty color
+        # Fill any rounding remainder
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
 
-        # Draw tick marks at regular intervals
-        if scale >= self._tick_interval:
-            pen = QPen(self._tick_color)
-            pen.setWidth(1)
-            painter.setPen(pen)
-
+        # Draw tick marks at 10k token intervals overlaid on the segments
+        if self._total_tokens >= self._tick_interval:
             font = painter.font()
             font.setPixelSize(9)
             painter.setFont(font)
 
             tick_tokens = self._tick_interval
-            while tick_tokens < scale:
-                tick_x = int(width * tick_tokens / scale)
+            while tick_tokens < self._total_tokens:
+                tick_x = int(width * tick_tokens / self._total_tokens)
 
-                # Big tick — full height line
+                # Full height line
                 painter.setPen(QPen(self._tick_color))
                 painter.drawLine(tick_x, 0, tick_x, height)
 
-                # Label every 10k
+                # Label
                 label = f"{tick_tokens // 1000}k"
                 painter.setPen(QPen(self._tick_label_color))
                 painter.drawText(QPoint(tick_x + 2, height - 3), label)

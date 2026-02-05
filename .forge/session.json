@@ -2,11 +2,11 @@
   "active_files": [
     "forge/ui/js_cache.py",
     "forge/ui/markdown_preview.py",
-    "REVIEW.md",
-    "forge/ui/editor_widget.py",
-    "CLAUDE.md",
     "forge/ui/chat_styles.py",
-    "forge/ui/branch_tab_widget.py"
+    "CLAUDE.md",
+    "forge/ui/branch_tab_widget.py",
+    "REVIEW.md",
+    "forge/ui/editor_widget.py"
   ],
   "request_log_entries": [
     {
@@ -260,6 +260,24 @@
       "streaming": true,
       "actual_cost": 0.563315,
       "generation_id": "gen-1770320115-J94bgAA1Af2ix0FgUNVN"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770320156000.json",
+      "response_file": "/tmp/forge_debug/response_1770320156000.json",
+      "timestamp": 1770320156.003083,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.004044,
+      "generation_id": "gen-1770320157-VrWOYwgteOAwZMj7Sbvi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770320169702.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770320169702.json",
+      "timestamp": 1770320169.7050335,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.5456125,
+      "generation_id": "gen-1770320171-PzHHXkMQ16BH94HaxI18"
     }
   ],
   "messages": [
@@ -744,6 +762,39 @@
         },
         {
           "commit": "a7f8f7a91e0e",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 91 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Ah here we go!\n\n[MD Preview JS ???] [Mermaid] onload fired, typeof mermaid: object (line 103) \n[MD Preview JS ???] [Mermaid] Found 0 code blocks (line 116)"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nThe mystery is solved! Mermaid loads fine, but **it finds 0 code blocks**. The selector is `pre > code.language-mermaid` but my `_markdown_to_html()` function generates the code blocks correctly with that class... let me check what's actually being generated.\n\nThe issue is in the markdown parser. When it hits a fenced code block like ` ```mermaid `, it generates `<pre><code class=\"language-mermaid\">...</code></pre>`. But looking more carefully at the REVIEW.md content \u2014 the mermaid block is inside a larger markdown structure with subgraphs, `%%` comments, and pipe characters (`|`). \n\nThe pipe characters `|` are being matched as **table rows** by the table parser before the code block fence is reached! The `|` in lines like `side_effects -.-> |leaf| side_effects` inside the fenced block are getting intercepted.\n\nWait no \u2014 the code block fence should be detected first since we check for ` ``` ` before checking tables. Let me look again...\n\nActually, I think I see it. The `line.strip().startswith(\"```\")` check works, but there's an edge case: the closing ` ``` ` after the mermaid content. Let me look at the actual markdown \u2014 the mermaid block has content with lines starting with whitespace (indented subgraphs). The closing ` ``` ` should still be caught.\n\nLet me just add a debug print to see what HTML is actually generated for the mermaid block:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n</search>\n<replace>\n    mermaid_tag = get_script_tag(\"mermaid\", onload=\"initMermaid();\")\n    mathjax_tag = get_script_tag(\"mathjax\")\n\n    # Debug: check if mermaid code blocks were generated\n    if \"language-mermaid\" in body_html:\n        print(f\"[MD Preview] Found mermaid code block in generated HTML\")\n    else:\n        print(f\"[MD Preview] No mermaid code block found in generated HTML\")\n        # Check if 'mermaid' appears at all\n        if \"mermaid\" in markdown_text.lower():\n            print(f\"[MD Preview] But 'mermaid' IS in the source markdown\")\n            # Find the mermaid fence\n            for i, line in enumerate(markdown_text.split(\"\\n\")):\n                if \"mermaid\" in line.lower() and \"```\" in line:\n                    print(f\"[MD Preview]   Line {i}: {line!r}\")\n</replace>\n</edit>\n\n<commit message=\"debug: add mermaid HTML generation diagnostics to markdown preview\"/>\n\nCan you toggle to Preview again and share what the terminal says? I want to see whether the markdown-to-HTML conversion is losing the mermaid block, or whether the HTML is fine but the JS selector isn't matching.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "9758bab9cc6a",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

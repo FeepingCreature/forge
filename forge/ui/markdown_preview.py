@@ -245,6 +245,19 @@ def _build_preview_html(markdown_text: str) -> str:
     mermaid_tag = get_script_tag("mermaid", onload="initMermaid();")
     mathjax_tag = get_script_tag("mathjax")
 
+    # Debug: check if mermaid code blocks were generated
+    if "language-mermaid" in body_html:
+        print(f"[MD Preview] Found mermaid code block in generated HTML")
+    else:
+        print(f"[MD Preview] No mermaid code block found in generated HTML")
+        # Check if 'mermaid' appears at all
+        if "mermaid" in markdown_text.lower():
+            print(f"[MD Preview] But 'mermaid' IS in the source markdown")
+            # Find the mermaid fence
+            for i, line in enumerate(markdown_text.split("\n")):
+                if "mermaid" in line.lower() and "```" in line:
+                    print(f"[MD Preview]   Line {i}: {line!r}")
+
     return f"""<!DOCTYPE html>
 <html>
 <head>

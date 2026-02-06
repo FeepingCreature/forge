@@ -795,6 +795,7 @@ class AIChatWidget(QWidget):
                         startOnLoad: false,
                         theme: 'default',
                         securityLevel: 'loose',
+                        suppressErrorRendering: true,
                         flowchart: {{ htmlLabels: true, curve: 'basis' }},
                         sequence: {{ mirrorActors: false }}
                     }});

@@ -1,13 +1,13 @@
 {
   "active_files": [
-    "forge/ui/js_cache.py",
-    "forge/ui/chat_styles.py",
-    "CLAUDE.md",
-    "forge/ui/ai_chat_widget.py",
+    "forge/ui/markdown_preview.py",
     "REVIEW.md",
     "forge/ui/chat_message.py",
+    "forge/ui/chat_styles.py",
+    "forge/ui/ai_chat_widget.py",
     "forge/ui/chat_streaming.py",
-    "forge/ui/markdown_preview.py"
+    "CLAUDE.md",
+    "forge/ui/js_cache.py"
   ],
   "request_log_entries": [
     {
@@ -279,6 +279,15 @@
       "streaming": true,
       "actual_cost": 0.40984625,
       "generation_id": "gen-1770383672-OkXU5E1evIiqINjGfC5Z"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770383997328.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770383997328.json",
+      "timestamp": 1770383997.3307407,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1770383997-ndZVJ9EGhkMcGMKo0nF0"
     }
   ],
   "messages": [
@@ -1077,6 +1086,49 @@
         {
           "commit": "bfa5d0a3f361",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 90 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Alright, I've rebased and ditched some commits... can you just suppress the errors with suppressErrorRendering now? that should work"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood call \u2014 `suppressErrorRendering: true` in the mermaid config will prevent mermaid from injecting error SVGs into the DOM for parse failures on incomplete diagrams, which is exactly what we want during streaming. Let me add that and also simplify the JS error handling since we won't need to clean up error artifacts.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n</search>\n<replace>\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        suppressErrorRendering: true,\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n</replace>\n</edit>\n\nNow do the same for the markdown preview widget's mermaid init:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n</search>\n<replace>\n            mermaid.initialize({{ startOnLoad: false, theme: 'default', suppressErrorRendering: true }});\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_mermaid_repair.py\" />\n\n<commit message=\"Enable suppressErrorRendering in mermaid config\n\nAdds suppressErrorRendering: true to mermaid.initialize() in both\nai_chat_widget.py and markdown_preview.py. This prevents mermaid from\ninjecting error SVGs into the DOM when diagrams fail to parse, which\nis especially useful during streaming when partial diagrams are expected\nto have syntax errors.\" />\n\nDone! Added `suppressErrorRendering: true` to the mermaid config in both widgets:\n\n1. **`ai_chat_widget.py`** \u2014 the main chat view's mermaid initialization\n2. **`markdown_preview.py`** \u2014 the markdown preview's mermaid initialization\n\nThis means when mermaid encounters a parse error (common during streaming with partial diagrams), it won't inject an error SVG into the DOM. The `.catch()` handler in `renderStreamingMermaid()` still shows the \"\u23f3 Building diagram...\" placeholder, but now there's no stray error element to clean up.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "a590d885d335",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

@@ -381,7 +381,7 @@ def _build_preview_html(markdown_text: str) -> str:
         var script = document.createElement('script');
         script.src = '{get_script_src("mermaid")}';
         script.onload = function() {{
-            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
+            mermaid.initialize({{ startOnLoad: false, theme: 'default', suppressErrorRendering: true }});
             renderMermaidDiagrams();
         }};
         document.head.appendChild(script);

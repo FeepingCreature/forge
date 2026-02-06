@@ -33,7 +33,7 @@ from forge.ui.chat_streaming import (
 )
 from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
 from forge.ui.editor_widget import SearchBar
-from forge.ui.js_cache import get_script_tag
+from forge.ui.js_cache import JS_CACHE_DIR, get_script_tag
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
@@ -805,7 +805,12 @@ class AIChatWidget(QWidget):
         </body>
         </html>
         """
-        self.chat_view.setHtml(html)
+        # Must pass a file:// baseUrl so the browser engine allows loading
+        # file:// script sources (mermaid, mathjax) from the JS cache.
+        from PySide6.QtCore import QUrl
+
+        base_url = QUrl.fromLocalFile(str(JS_CACHE_DIR) + "/")
+        self.chat_view.setHtml(html, base_url)
 
     def _build_messages_html(self) -> str:
         """Build HTML for all messages, grouped by turn.

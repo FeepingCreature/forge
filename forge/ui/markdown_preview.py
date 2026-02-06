@@ -345,6 +345,19 @@ def _build_preview_html(markdown_text: str) -> str:
     </style>
     {mathjax_tag}
     <script>
+        // Hidden sandbox for mermaid rendering (prevents error nodes in visible DOM)
+        var _mermaidSandbox = null;
+        function _getMermaidSandbox() {{
+            if (!_mermaidSandbox) {{
+                _mermaidSandbox = document.createElement('div');
+                _mermaidSandbox.id = 'mermaid-sandbox';
+                _mermaidSandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+                document.body.appendChild(_mermaidSandbox);
+            }}
+            _mermaidSandbox.innerHTML = '';
+            return _mermaidSandbox;
+        }}
+
         function renderMermaidDiagrams() {{
             if (typeof mermaid === 'undefined') return;
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');
@@ -356,11 +369,14 @@ def _build_preview_html(markdown_text: str) -> str:
                 var diagramId = 'mermaid-' + Date.now() + '-' + index;
                 var container = document.createElement('div');
                 container.className = 'mermaid-container';
+                var sandbox = _getMermaidSandbox();
                 try {{
-                    mermaid.render(diagramId, diagramText).then(function(result) {{
+                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {{
                         container.innerHTML = result.svg;
                         pre.replaceWith(container);
+                        sandbox.innerHTML = '';
                     }}).catch(function(err) {{
+                        sandbox.innerHTML = '';
                         container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
                             (err.message || String(err)) + '</div>';
                         container.appendChild(pre.cloneNode(true));
@@ -368,6 +384,7 @@ def _build_preview_html(markdown_text: str) -> str:
                     }});
                 }} catch (err) {{
                     console.error('Mermaid render error:', err);
+                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';
                 }}
             }});
         }}

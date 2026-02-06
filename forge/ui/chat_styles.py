@@ -372,11 +372,15 @@ def get_chat_scripts() -> str:
                 var container = document.createElement('div');
                 container.className = 'mermaid-container';
 
+                // Render into offscreen sandbox to prevent error node leaks
+                var sandbox = _getMermaidSandbox();
                 try {
-                    mermaid.render(diagramId, diagramText).then(function(result) {
+                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {
                         container.innerHTML = result.svg;
                         pre.replaceWith(container);
+                        sandbox.innerHTML = '';
                     }).catch(function(err) {
+                        sandbox.innerHTML = '';
                         // On error, show the original code with an error indicator
                         container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
                             err.message + '</div>';
@@ -386,6 +390,7 @@ def get_chat_scripts() -> str:
                 } catch (err) {
                     // Sync error (e.g., mermaid.render not available)
                     console.error('Mermaid render error:', err);
+                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';
                 }
             });
         }
@@ -394,7 +399,25 @@ def get_chat_scripts() -> str:
         // Uses content hashing to avoid re-rendering unchanged diagrams,
         // and renders into a sibling container to prevent flicker.
         // A counter on the hidden render div ensures unique mermaid IDs.
+        //
+        // Mermaid v10 renders into a detached div that we provide via the
+        // container option. By keeping that div offscreen we prevent
+        // "Syntax error in text" nodes from flashing in the visible DOM.
         window._mermaidStreamCounter = 0;
+        // Hidden container for mermaid to render into (offscreen)
+        var _mermaidSandbox = null;
+        function _getMermaidSandbox() {
+            if (!_mermaidSandbox) {
+                _mermaidSandbox = document.createElement('div');
+                _mermaidSandbox.id = 'mermaid-sandbox';
+                _mermaidSandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+                document.body.appendChild(_mermaidSandbox);
+            }
+            // Clear any leftover error nodes from previous renders
+            _mermaidSandbox.innerHTML = '';
+            return _mermaidSandbox;
+        }
+
         function renderStreamingMermaid() {
             if (typeof mermaid === 'undefined' || !window._mermaidReady) return;
 
@@ -437,16 +460,22 @@ def get_chat_scripts() -> str:
                 // Hide the raw code block while rendered version is shown
                 pre.style.display = 'none';
 
-                // Render asynchronously
+                // Render into the offscreen sandbox so mermaid error nodes
+                // never appear in the visible document.
+                var sandbox = _getMermaidSandbox();
                 window._mermaidStreamCounter++;
                 var diagramId = 'mermaid-stream-' + window._mermaidStreamCounter;
                 try {
-                    mermaid.render(diagramId, diagramText).then(function(result) {
+                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {
                         newContainer.innerHTML = result.svg;
                         if (isStreaming) {
                             newContainer.innerHTML += '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>';
                         }
+                        // Clean sandbox after success
+                        sandbox.innerHTML = '';
                     }).catch(function(err) {
+                        // Clean sandbox after failure — removes "Syntax error" nodes
+                        sandbox.innerHTML = '';
                         // During streaming, parse errors are expected for incomplete diagrams
                         if (isStreaming) {
                             newContainer.innerHTML = '<div style="color:#999;font-size:12px;">⏳ Building diagram...</div>';
@@ -458,6 +487,7 @@ def get_chat_scripts() -> str:
                     });
                 } catch(err) {
                     console.error('Mermaid streaming render error:', err);
+                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';
                     pre.style.display = '';
                 }
             });

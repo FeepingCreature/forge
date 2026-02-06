@@ -1,13 +1,13 @@
 {
   "active_files": [
-    "forge/ui/markdown_preview.py",
-    "REVIEW.md",
     "forge/ui/chat_message.py",
     "forge/ui/chat_styles.py",
+    "REVIEW.md",
     "forge/ui/ai_chat_widget.py",
-    "forge/ui/chat_streaming.py",
+    "forge/ui/js_cache.py",
+    "forge/ui/markdown_preview.py",
     "CLAUDE.md",
-    "forge/ui/js_cache.py"
+    "forge/ui/chat_streaming.py"
   ],
   "request_log_entries": [
     {
@@ -288,6 +288,33 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1770383997-ndZVJ9EGhkMcGMKo0nF0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770384051716.json",
+      "response_file": "/tmp/forge_debug/response_1770384051716.json",
+      "timestamp": 1770384051.7164452,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.00404,
+      "generation_id": "gen-1770384051-W0CejtIW6HH4tXX0AKwZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1770384051714.json",
+      "response_file": "/tmp/forge_debug/response_1770384051714.json",
+      "timestamp": 1770384051.7168324,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003786,
+      "generation_id": "gen-1770384051-unUSTMB5wXB0ekIM7X87"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770384059229.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770384059229.json",
+      "timestamp": 1770384059.232252,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1770384059-psjE5bsh60NwuqXfj6zt"
     }
   ],
   "messages": [
@@ -1128,6 +1155,59 @@
         },
         {
           "commit": "a590d885d335",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 94 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Hm, I still get \"syntax error in text\" injected during streaming. Ideas?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nThe `suppressErrorRendering` config option only suppresses mermaid's *own* error SVG rendering, but mermaid still throws errors that get caught by our `.catch()` handler. The issue is that mermaid v10 sometimes injects error text directly into the DOM *before* the promise rejects \u2014 it creates a temporary element for rendering and if parsing fails, it may leave error artifacts.\n\nLet me look at what's happening more carefully. The \"syntax error in text\" message is likely coming from mermaid's parser inserting error nodes into the DOM during the `mermaid.render()` call itself (before the promise resolves/rejects). We need to:\n\n1. Render into a detached/offscreen element so errors don't appear in the visible DOM\n2. Clean up any error artifacts after render attempts\n\n<edit file=\"forge/ui/chat_styles.py\">\n<search>\n        // Render mermaid diagrams in the streaming message.\n        // Uses content hashing to avoid re-rendering unchanged diagrams,\n        // and renders into a sibling container to prevent flicker.\n        // A counter on the hidden render div ensures unique mermaid IDs.\n        window._mermaidStreamCounter = 0;\n        function renderStreamingMermaid() {\n            if (typeof mermaid === 'undefined' || !window._mermaidReady) return;\n\n            var streamingMsg = document.getElementById('streaming-message');\n            if (!streamingMsg) return;\n\n            var codeBlocks = streamingMsg.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock) {\n                var pre = codeBlock.parentElement;\n                var diagramText = codeBlock.textContent.trim();\n                if (!diagramText) return;\n\n                // Use a simple hash of the content to detect changes\n                var contentHash = diagramText.length + ':' + diagramText.slice(-80);\n\n                // Check if we already have a rendered container for this pre\n                var container = pre.nextElementSibling;\n                if (container && container.classList.contains('mermaid-container')\n                    && container.dataset.contentHash === contentHash) {\n                    // Content unchanged - keep existing render\n                    return;\n                }\n\n                // Content changed or new \u2014 render into a new container\n                var isStreaming = pre.dataset.streaming === 'true';\n                var newContainer = document.createElement('div');\n                newContainer.className = 'mermaid-container';\n                newContainer.dataset.contentHash = contentHash;\n                if (isStreaming) {\n                    newContainer.innerHTML = '<div style=\"color:#999;font-size:12px;\">\u23f3 Rendering diagram...</div>';\n                }\n\n                // Insert container after pre (or replace existing)\n                if (container && container.classList.contains('mermaid-container')) {\n                    container.replaceWith(newContainer);\n                } else {\n                    pre.after(newContainer);\n                }\n\n                // Hide the raw code block while rendered version is shown\n                pre.style.display = 'none';\n\n                // Render asynchronously\n                window._mermaidStreamCounter++;\n                var diagramId = 'mermaid-stream-' + window._mermaidStreamCounter;\n                try {\n                    mermaid.render(diagramId, diagramText).then(function(result) {\n                        newContainer.innerHTML = result.svg;\n                        if (isStreaming) {\n                            newContainer.innerHTML += '<div style=\"color:#999;font-size:11px;margin-top:4px;\">\u258b streaming...</div>';\n                        }\n                    }).catch(function(err) {\n                        // During streaming, parse errors are expected for incomplete diagrams\n                        if (isStreaming) {\n                            newContainer.innerHTML = '<div style=\"color:#999;font-size:12px;\">\u23f3 Building diagram...</div>';\n                        } else {\n                            newContainer.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f ' +\n                                (err.message || String(err)) + '</div>';\n                            pre.style.display = '';\n                        }\n                    });\n                } catch(err) {\n                    console.error('Mermaid streaming render error:', err);\n                    pre.style.display = '';\n                }\n            });\n        }\n</search>\n<replace>\n        // Render mermaid diagrams in the streaming message.\n        // Uses content hashing to avoid re-rendering unchanged diagrams,\n        // and renders into a sibling container to prevent flicker.\n        // A counter on the hidden render div ensures unique mermaid IDs.\n        //\n        // Mermaid v10 renders into a detached div that we provide via the\n        // container option. By keeping that div offscreen we prevent\n        // \"Syntax error in text\" nodes from flashing in the visible DOM.\n        window._mermaidStreamCounter = 0;\n        // Hidden container for mermaid to render into (offscreen)\n        var _mermaidSandbox = null;\n        function _getMermaidSandbox() {\n            if (!_mermaidSandbox) {\n                _mermaidSandbox = document.createElement('div');\n                _mermaidSandbox.id = 'mermaid-sandbox';\n                _mermaidSandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';\n                document.body.appendChild(_mermaidSandbox);\n            }\n            // Clear any leftover error nodes from previous renders\n            _mermaidSandbox.innerHTML = '';\n            return _mermaidSandbox;\n        }\n\n        function renderStreamingMermaid() {\n            if (typeof mermaid === 'undefined' || !window._mermaidReady) return;\n\n            var streamingMsg = document.getElementById('streaming-message');\n            if (!streamingMsg) return;\n\n            var codeBlocks = streamingMsg.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock) {\n                var pre = codeBlock.parentElement;\n                var diagramText = codeBlock.textContent.trim();\n                if (!diagramText) return;\n\n                // Use a simple hash of the content to detect changes\n                var contentHash = diagramText.length + ':' + diagramText.slice(-80);\n\n                // Check if we already have a rendered container for this pre\n                var container = pre.nextElementSibling;\n                if (container && container.classList.contains('mermaid-container')\n                    && container.dataset.contentHash === contentHash) {\n                    // Content unchanged - keep existing render\n                    return;\n                }\n\n                // Content changed or new \u2014 render into a new container\n                var isStreaming = pre.dataset.streaming === 'true';\n                var newContainer = document.createElement('div');\n                newContainer.className = 'mermaid-container';\n                newContainer.dataset.contentHash = contentHash;\n                if (isStreaming) {\n                    newContainer.innerHTML = '<div style=\"color:#999;font-size:12px;\">\u23f3 Rendering diagram...</div>';\n                }\n\n                // Insert container after pre (or replace existing)\n                if (container && container.classList.contains('mermaid-container')) {\n                    container.replaceWith(newContainer);\n                } else {\n                    pre.after(newContainer);\n                }\n\n                // Hide the raw code block while rendered version is shown\n                pre.style.display = 'none';\n\n                // Render into the offscreen sandbox so mermaid error nodes\n                // never appear in the visible document.\n                var sandbox = _getMermaidSandbox();\n                window._mermaidStreamCounter++;\n                var diagramId = 'mermaid-stream-' + window._mermaidStreamCounter;\n                try {\n                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {\n                        newContainer.innerHTML = result.svg;\n                        if (isStreaming) {\n                            newContainer.innerHTML += '<div style=\"color:#999;font-size:11px;margin-top:4px;\">\u258b streaming...</div>';\n                        }\n                        // Clean sandbox after success\n                        sandbox.innerHTML = '';\n                    }).catch(function(err) {\n                        // Clean sandbox after failure \u2014 removes \"Syntax error\" nodes\n                        sandbox.innerHTML = '';\n                        // During streaming, parse errors are expected for incomplete diagrams\n                        if (isStreaming) {\n                            newContainer.innerHTML = '<div style=\"color:#999;font-size:12px;\">\u23f3 Building diagram...</div>';\n                        } else {\n                            newContainer.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f ' +\n                                (err.message || String(err)) + '</div>';\n                            pre.style.display = '';\n                        }\n                    });\n                } catch(err) {\n                    console.error('Mermaid streaming render error:', err);\n                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';\n                    pre.style.display = '';\n                }\n            });\n        }\n</replace>\n</edit>\n\nNow do the same for `renderMermaidDiagrams` (the non-streaming version) \u2014 it also calls `mermaid.render()` and could leak error nodes:\n\n<edit file=\"forge/ui/chat_styles.py\">\n<search>\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-diagram-' + Date.now() + '-' + index;\n\n                // Create container for the rendered diagram\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n\n                try {\n                    mermaid.render(diagramId, diagramText).then(function(result) {\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }).catch(function(err) {\n                        // On error, show the original code with an error indicator\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            err.message + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    });\n                } catch (err) {\n                    // Sync error (e.g., mermaid.render not available)\n                    console.error('Mermaid render error:', err);\n                }\n</search>\n<replace>\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-diagram-' + Date.now() + '-' + index;\n\n                // Create container for the rendered diagram\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n\n                // Render into offscreen sandbox to prevent error node leaks\n                var sandbox = _getMermaidSandbox();\n                try {\n                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                        sandbox.innerHTML = '';\n                    }).catch(function(err) {\n                        sandbox.innerHTML = '';\n                        // On error, show the original code with an error indicator\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            err.message + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    });\n                } catch (err) {\n                    // Sync error (e.g., mermaid.render not available)\n                    console.error('Mermaid render error:', err);\n                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';\n                }\n</replace>\n</edit>\n\nAnd the same for markdown_preview.py:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') return;\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                try {{\n                    mermaid.render(diagramId, diagramText).then(function(result) {{\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                    }}).catch(function(err) {{\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            (err.message || String(err)) + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('Mermaid render error:', err);\n                }}\n            }});\n        }}\n</search>\n<replace>\n        // Hidden sandbox for mermaid rendering (prevents error nodes in visible DOM)\n        var _mermaidSandbox = null;\n        function _getMermaidSandbox() {{\n            if (!_mermaidSandbox) {{\n                _mermaidSandbox = document.createElement('div');\n                _mermaidSandbox.id = 'mermaid-sandbox';\n                _mermaidSandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';\n                document.body.appendChild(_mermaidSandbox);\n            }}\n            _mermaidSandbox.innerHTML = '';\n            return _mermaidSandbox;\n        }}\n\n        function renderMermaidDiagrams() {{\n            if (typeof mermaid === 'undefined') return;\n            var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');\n            codeBlocks.forEach(function(codeBlock, index) {{\n                var pre = codeBlock.parentElement;\n                if (pre.dataset.mermaidProcessed) return;\n                pre.dataset.mermaidProcessed = 'true';\n                var diagramText = codeBlock.textContent;\n                var diagramId = 'mermaid-' + Date.now() + '-' + index;\n                var container = document.createElement('div');\n                container.className = 'mermaid-container';\n                var sandbox = _getMermaidSandbox();\n                try {{\n                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {{\n                        container.innerHTML = result.svg;\n                        pre.replaceWith(container);\n                        sandbox.innerHTML = '';\n                    }}).catch(function(err) {{\n                        sandbox.innerHTML = '';\n                        container.innerHTML = '<div class=\"mermaid-error\">\u26a0\ufe0f Diagram error: ' +\n                            (err.message || String(err)) + '</div>';\n                        container.appendChild(pre.cloneNode(true));\n                        pre.replaceWith(container);\n                    }});\n                }} catch (err) {{\n                    console.error('Mermaid render error:', err);\n                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';\n                }}\n            }});\n        }}\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_mermaid_repair.py\" />\n\n<commit message=\"Render mermaid into offscreen sandbox to prevent error node leaks\n\nMermaid v10 injects 'Syntax error in text' nodes directly into the DOM\nduring mermaid.render(), before the promise rejects. suppressErrorRendering\nonly suppresses mermaid's own error SVG, not these parse error artifacts.\n\nFix: pass an offscreen sandbox div (positioned at -9999px) as the third\nargument to mermaid.render(). This contains all DOM side effects within\nan invisible element. The sandbox is cleared after each render attempt.\n\nApplied to both renderMermaidDiagrams() (final render) and\nrenderStreamingMermaid() (streaming render) in chat_styles.py,\nand to markdown_preview.py.\" />\n\nThe key insight: `suppressErrorRendering: true` only tells mermaid not to render its *own* styled error diagram SVG. But mermaid v10's parser still injects raw \"Syntax error in text\" nodes into the DOM as a side effect of the `mermaid.render()` call \u2014 these appear *before* the promise rejects.\n\nThe fix is to pass an **offscreen sandbox `<div>`** as the third argument to `mermaid.render(id, text, container)`. Mermaid uses this container for its temporary rendering work, so any error artifacts end up in an invisible element at `position: fixed; left: -9999px`. After each render (success or failure), we clear the sandbox with `innerHTML = ''`.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/chat_styles.py",
+          "modified_files": [
+            "forge/ui/chat_styles.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/chat_styles.py",
+          "modified_files": [
+            "forge/ui/chat_styles.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/markdown_preview.py",
+          "modified_files": [
+            "forge/ui/markdown_preview.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "33d8d7dcd7e2",
           "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

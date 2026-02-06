@@ -22,6 +22,92 @@ def escape_for_js(text: str) -> str:
     )
 
 
+def _repair_partial_mermaid(content: str) -> str:
+    """Best-effort repair of a partial/incomplete mermaid diagram.
+
+    During streaming, the mermaid content may be cut off mid-syntax.
+    This attempts to close unclosed brackets, subgraphs, etc. so that
+    mermaid.render() has a better chance of producing output.
+
+    The strategy is conservative: trim the last line if it looks incomplete,
+    then close any unclosed structural elements.
+    """
+    if not content.strip():
+        return content
+
+    lines = content.split("\n")
+
+    # --- Step 1: Trim trailing incomplete line ---
+    # If the last line looks like it's mid-token (doesn't end with a
+    # recognizable complete construct), remove it.
+    if lines:
+        last = lines[-1].rstrip()
+        # Keep the line if it's empty, a keyword, or ends with a "complete" char
+        # Complete endings: ], }, ), >, |, ;, end, a closing quote, or just a word
+        complete_endings = ("]", "}", ")", ">", "|", ";", '"', "'", "end")
+        # Lines that are just a diagram type declaration are complete
+        type_decls = (
+            "graph", "flowchart", "sequenceDiagram", "classDiagram",
+            "stateDiagram", "stateDiagram-v2", "erDiagram", "gantt",
+            "pie", "gitGraph", "mindmap", "timeline", "journey",
+        )
+        is_type_decl = any(last.strip().startswith(t) for t in type_decls)
+        is_complete = (
+            not last  # empty line
+            or is_type_decl
+            or last.endswith(complete_endings)
+            or last.strip() == "end"
+            or re.match(r"^\s*%%", last)  # comment line
+            # Arrow lines like A --> B are complete
+            or re.search(r"--[>|]|-->|==>|-.->|\.\->", last)
+            # Sequence diagram messages: A->>B: text
+            or re.search(r"->>|-->>|-\)", last)
+            # Simple node references (just a word/id)
+            or re.match(r"^\s*\w+\s*$", last)
+            # Lines with style classes: A[Start]:::highlight or A:::class
+            or re.search(r":::\w+\s*$", last)
+        )
+        if not is_complete:
+            lines = lines[:-1]
+
+    if not lines:
+        return content  # Nothing left, return original
+
+    # --- Step 2: Close unclosed brackets in node definitions ---
+    # Track bracket pairs across all remaining lines
+    rejoined = "\n".join(lines)
+
+    # Close unclosed square brackets: A[text  →  A[text]
+    open_sq = rejoined.count("[") - rejoined.count("]")
+    if open_sq > 0:
+        rejoined += "]" * open_sq
+
+    # Close unclosed parens: A(text  →  A(text)
+    open_paren = rejoined.count("(") - rejoined.count(")")
+    if open_paren > 0:
+        rejoined += ")" * open_paren
+
+    # Close unclosed curly braces: A{text  →  A{text}
+    open_curly = rejoined.count("{") - rejoined.count("}")
+    if open_curly > 0:
+        rejoined += "}" * open_curly
+
+    # Close unclosed double quotes
+    quote_count = rejoined.count('"')
+    if quote_count % 2 != 0:
+        rejoined += '"'
+
+    # --- Step 3: Close unclosed subgraphs ---
+    # subgraph ... end  pairs
+    subgraph_opens = len(re.findall(r"^\s*subgraph\b", rejoined, re.MULTILINE))
+    subgraph_closes = len(re.findall(r"^\s*end\s*$", rejoined, re.MULTILINE))
+    unclosed_subgraphs = subgraph_opens - subgraph_closes
+    if unclosed_subgraphs > 0:
+        rejoined += "\n" + ("end\n" * unclosed_subgraphs)
+
+    return rejoined
+
+
 def _detect_mermaid_blocks(text: str) -> list[dict]:
     """Detect mermaid fenced code blocks in streaming text.
 
@@ -84,7 +170,11 @@ def _render_streaming_mermaid_html(segments: list[dict]) -> str:
             parts.append(f'<span class="streaming-text">{escaped}</span>')
         else:
             # Mermaid block — render as code block for JS to process
-            escaped_content = html.escape(seg["content"])
+            mermaid_content = seg["content"]
+            if not seg["complete"]:
+                # Best-effort repair so partial diagrams can render
+                mermaid_content = _repair_partial_mermaid(mermaid_content)
+            escaped_content = html.escape(mermaid_content)
             indicator = "" if seg["complete"] else ' data-streaming="true"'
             parts.append(
                 f'<pre{indicator}><code class="language-mermaid">{escaped_content}</code></pre>'

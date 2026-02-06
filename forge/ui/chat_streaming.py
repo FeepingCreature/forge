@@ -5,6 +5,7 @@ These functions generate JavaScript to update the streaming message display
 without requiring a full page re-render.
 """
 
+import html
 import re
 
 from forge.ui.tool_rendering import render_streaming_edits, render_streaming_tool_html
@@ -19,6 +20,76 @@ def escape_for_js(text: str) -> str:
         .replace("\n", "\\n")
         .replace("\r", "\\r")
     )
+
+
+def _detect_mermaid_blocks(text: str) -> list[dict]:
+    """Detect mermaid fenced code blocks in streaming text.
+
+    Returns a list of segments: either plain text or mermaid blocks.
+    Handles incomplete (still-streaming) mermaid blocks by auto-closing them.
+
+    Each segment is a dict with:
+        - type: "text" or "mermaid"
+        - content: the text content
+        - complete: bool (for mermaid blocks, whether the closing ``` was found)
+    """
+    segments: list[dict] = []
+    # Match ```mermaid with optional leading whitespace
+    pattern = re.compile(r"^[ \t]*```mermaid\s*$", re.MULTILINE)
+
+    pos = 0
+    for match in pattern.finditer(text):
+        # Add text before this mermaid block
+        if match.start() > pos:
+            segments.append({"type": "text", "content": text[pos : match.start()]})
+
+        # Find the closing ```
+        block_content_start = match.end()
+        # Look for closing ``` on its own line
+        close_pattern = re.compile(r"^[ \t]*```\s*$", re.MULTILINE)
+        close_match = close_pattern.search(text, block_content_start)
+
+        if close_match:
+            # Complete block
+            mermaid_content = text[block_content_start : close_match.start()].strip()
+            segments.append({"type": "mermaid", "content": mermaid_content, "complete": True})
+            pos = close_match.end()
+        else:
+            # Incomplete block (still streaming) — auto-close it
+            mermaid_content = text[block_content_start:].strip()
+            if mermaid_content:
+                segments.append({"type": "mermaid", "content": mermaid_content, "complete": False})
+            pos = len(text)
+
+    # Add remaining text after last mermaid block
+    if pos < len(text):
+        segments.append({"type": "text", "content": text[pos:]})
+
+    return segments
+
+
+def _render_streaming_mermaid_html(segments: list[dict]) -> str:
+    """Render streaming content that contains mermaid blocks.
+
+    Text segments are HTML-escaped and wrapped in <span> tags.
+    Mermaid segments become <pre><code class="language-mermaid"> blocks
+    so renderStreamingMermaid() can pick them up.
+
+    Incomplete mermaid blocks get a streaming indicator.
+    """
+    parts: list[str] = []
+    for seg in segments:
+        if seg["type"] == "text":
+            escaped = html.escape(seg["content"])
+            parts.append(f'<span class="streaming-text">{escaped}</span>')
+        else:
+            # Mermaid block — render as code block for JS to process
+            escaped_content = html.escape(seg["content"])
+            indicator = "" if seg["complete"] else ' data-streaming="true"'
+            parts.append(
+                f'<pre{indicator}><code class="language-mermaid">{escaped_content}</code></pre>'
+            )
+    return "".join(parts)
 
 
 def build_streaming_chunk_js(streaming_content: str) -> str:
@@ -59,8 +130,38 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
             }}
         }})();
         """
+
+    # Check for mermaid code blocks (```mermaid)
+    mermaid_segments = _detect_mermaid_blocks(display_content)
+    has_mermaid = any(seg["type"] == "mermaid" for seg in mermaid_segments)
+
+    if has_mermaid:
+        rendered_html = _render_streaming_mermaid_html(mermaid_segments)
+        escaped_html = escape_for_js(rendered_html)
+
+        return f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                var content = streamingMsg.querySelector('.content');
+                if (content) {{
+                    content.innerHTML = `{escaped_html}`;
+                    content.style.whiteSpace = 'pre-wrap';
+                }}
+
+                renderStreamingMermaid();
+
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
+            }}
+        }})();
+        """
     else:
-        # No edit blocks - replace entire content with stripped version
+        # No edit blocks or mermaid - replace entire content with stripped version
         escaped_content = escape_for_js(display_content)
 
         return f"""

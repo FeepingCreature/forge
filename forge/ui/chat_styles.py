@@ -229,6 +229,13 @@ def get_chat_styles() -> str:
             background: #ffebee;
             border-radius: 4px;
         }
+        /* Streaming mermaid: hide raw code when rendered SVG is shown */
+        #streaming-message pre[style*="display: none"] + .mermaid-container {
+            margin: 12px 0;
+        }
+        .streaming-text {
+            white-space: pre-wrap;
+        }
     """
     )
 
@@ -354,6 +361,8 @@ def get_chat_scripts() -> str:
                 var pre = codeBlock.parentElement;
                 // Skip if already processed
                 if (pre.dataset.mermaidProcessed) return;
+                // Skip streaming blocks (handled by renderStreamingMermaid)
+                if (pre.dataset.streaming) return;
                 pre.dataset.mermaidProcessed = 'true';
 
                 var diagramText = codeBlock.textContent;
@@ -377,6 +386,79 @@ def get_chat_scripts() -> str:
                 } catch (err) {
                     // Sync error (e.g., mermaid.render not available)
                     console.error('Mermaid render error:', err);
+                }
+            });
+        }
+
+        // Render mermaid diagrams in the streaming message.
+        // Uses content hashing to avoid re-rendering unchanged diagrams,
+        // and renders into a sibling container to prevent flicker.
+        // A counter on the hidden render div ensures unique mermaid IDs.
+        window._mermaidStreamCounter = 0;
+        function renderStreamingMermaid() {
+            if (typeof mermaid === 'undefined' || !window._mermaidReady) return;
+
+            var streamingMsg = document.getElementById('streaming-message');
+            if (!streamingMsg) return;
+
+            var codeBlocks = streamingMsg.querySelectorAll('pre > code.language-mermaid');
+            codeBlocks.forEach(function(codeBlock) {
+                var pre = codeBlock.parentElement;
+                var diagramText = codeBlock.textContent.trim();
+                if (!diagramText) return;
+
+                // Use a simple hash of the content to detect changes
+                var contentHash = diagramText.length + ':' + diagramText.slice(-80);
+
+                // Check if we already have a rendered container for this pre
+                var container = pre.nextElementSibling;
+                if (container && container.classList.contains('mermaid-container')
+                    && container.dataset.contentHash === contentHash) {
+                    // Content unchanged - keep existing render
+                    return;
+                }
+
+                // Content changed or new — render into a new container
+                var isStreaming = pre.dataset.streaming === 'true';
+                var newContainer = document.createElement('div');
+                newContainer.className = 'mermaid-container';
+                newContainer.dataset.contentHash = contentHash;
+                if (isStreaming) {
+                    newContainer.innerHTML = '<div style="color:#999;font-size:12px;">⏳ Rendering diagram...</div>';
+                }
+
+                // Insert container after pre (or replace existing)
+                if (container && container.classList.contains('mermaid-container')) {
+                    container.replaceWith(newContainer);
+                } else {
+                    pre.after(newContainer);
+                }
+
+                // Hide the raw code block while rendered version is shown
+                pre.style.display = 'none';
+
+                // Render asynchronously
+                window._mermaidStreamCounter++;
+                var diagramId = 'mermaid-stream-' + window._mermaidStreamCounter;
+                try {
+                    mermaid.render(diagramId, diagramText).then(function(result) {
+                        newContainer.innerHTML = result.svg;
+                        if (isStreaming) {
+                            newContainer.innerHTML += '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>';
+                        }
+                    }).catch(function(err) {
+                        // During streaming, parse errors are expected for incomplete diagrams
+                        if (isStreaming) {
+                            newContainer.innerHTML = '<div style="color:#999;font-size:12px;">⏳ Building diagram...</div>';
+                        } else {
+                            newContainer.innerHTML = '<div class="mermaid-error">⚠️ ' +
+                                (err.message || String(err)) + '</div>';
+                            pre.style.display = '';
+                        }
+                    });
+                } catch(err) {
+                    console.error('Mermaid streaming render error:', err);
+                    pre.style.display = '';
                 }
             });
         }

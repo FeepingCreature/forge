@@ -784,6 +784,11 @@ class AIChatWidget(QWidget):
             {get_script_tag("mathjax")}
             <script>
                 // Define initMermaid BEFORE the mermaid script loads
+                // Also stub renderMermaidDiagrams in case mermaid's onload fires
+                // before the chat scripts block defines the real version.
+                if (typeof renderMermaidDiagrams === 'undefined') {{
+                    window.renderMermaidDiagrams = function() {{}};
+                }}
                 function initMermaid() {{
                     mermaid.initialize({{
                         startOnLoad: false,

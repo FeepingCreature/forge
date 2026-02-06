@@ -124,6 +124,15 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1770382635-DrXbWTFtD9hRAipRGmEV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770382958339.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770382958339.json",
+      "timestamp": 1770382958.341421,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.05781325,
+      "generation_id": "gen-1770382958-jbj3jEY4nBzHnmVrA4R0"
     }
   ],
   "messages": [
@@ -472,6 +481,53 @@
           "success": true
         }
       ]
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 75171262",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Thanks! Hm, on start I get [JS WARNING] Uncaught ReferenceError: renderMermaidDiagrams is not defined (line 485, file:///home/feep/.cache/forge/js/)\n\nnot sure it actually does any harm.."
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nThe warning is because the mermaid script's `onload` calls `initMermaid()` which calls `renderMermaidDiagrams()`, but the script defining that function (in `get_chat_scripts()`) loads *after* mermaid in the HTML. The mermaid script loads from cache (basically instant), so `onload` fires before the chat scripts `<script>` block has been parsed.\n\nThe fix is simple: define `renderMermaidDiagrams` as a no-op stub inside `initMermaid`, so if it's called before the real definition loads, it doesn't error. The real definition will overwrite it moments later.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            <script>\n                // Define initMermaid BEFORE the mermaid script loads\n                function initMermaid() {{\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n                    window._mermaidReady = true;\n                    // Render any diagrams that were added before mermaid loaded\n                    renderMermaidDiagrams();\n                }}\n            </script>\n</search>\n<replace>\n            <script>\n                // Define initMermaid BEFORE the mermaid script loads\n                // Also stub renderMermaidDiagrams in case mermaid's onload fires\n                // before the chat scripts block defines the real version.\n                if (typeof renderMermaidDiagrams === 'undefined') {{\n                    window.renderMermaidDiagrams = function() {{}};\n                }}\n                function initMermaid() {{\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n                    window._mermaidReady = true;\n                    // Render any diagrams that were added before mermaid loaded\n                    renderMermaidDiagrams();\n                }}\n            </script>\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Fix renderMermaidDiagrams not defined warning on startup\n\nStub renderMermaidDiagrams before the mermaid script loads so that if\nmermaid's onload fires before the chat scripts block defines the real\nfunction, it's a harmless no-op instead of a ReferenceError.\"/>\n\nThe issue was a race condition: the mermaid JS file loads from local cache (near-instant), so its `onload` \u2192 `initMermaid()` \u2192 `renderMermaidDiagrams()` fires before the `<script>` block containing the real `renderMermaidDiagrams` definition has been parsed. The stub ensures it's always defined, and the real implementation overwrites it moments later.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 92 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "cb888cff6fb3",
     }
   ],
   "parent_session": null,

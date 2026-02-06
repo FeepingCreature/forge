@@ -33,7 +33,7 @@ from forge.ui.chat_streaming import (
 )
 from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
 from forge.ui.editor_widget import SearchBar
-from forge.ui.js_cache import JS_CACHE_DIR, get_script_tag
+from forge.ui.js_cache import JS_CACHE_DIR, get_script_src, get_script_tag
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
@@ -783,13 +783,14 @@ class AIChatWidget(QWidget):
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
             {get_script_tag("mathjax")}
             <script>
-                // Define initMermaid BEFORE the mermaid script loads
-                // Also stub renderMermaidDiagrams in case mermaid's onload fires
-                // before the chat scripts block defines the real version.
-                if (typeof renderMermaidDiagrams === 'undefined') {{
-                    window.renderMermaidDiagrams = function() {{}};
-                }}
-                function initMermaid() {{
+            // === All app JS in one block, strictly ordered ===
+            {get_chat_scripts()}
+
+            // Load mermaid dynamically AFTER all functions are defined
+            (function() {{
+                var script = document.createElement('script');
+                script.src = '{get_script_src("mermaid")}';
+                script.onload = function() {{
                     mermaid.initialize({{
                         startOnLoad: false,
                         theme: 'default',
@@ -798,12 +799,11 @@ class AIChatWidget(QWidget):
                         sequence: {{ mirrorActors: false }}
                     }});
                     window._mermaidReady = true;
-                    // Render any diagrams that were added before mermaid loaded
                     renderMermaidDiagrams();
-                }}
+                }};
+                document.head.appendChild(script);
+            }})();
             </script>
-            {get_script_tag("mermaid", onload="initMermaid()")}
-            <script>{get_chat_scripts()}</script>
         </head>
         <body>
             <div id="messages-container"></div>

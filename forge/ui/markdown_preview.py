@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from forge.ui.js_cache import get_script_tag
+from forge.ui.js_cache import get_script_src, get_script_tag
 
 # Persistent temp directory for preview HTML files (survives within process lifetime)
 _PREVIEW_DIR = Path(tempfile.mkdtemp(prefix="forge_preview_"))
@@ -376,12 +376,17 @@ def _build_preview_html(markdown_text: str) -> str:
 <body>
 {body_html}
 <script>
-    function onMermaidReady() {{
-        mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
-        renderMermaidDiagrams();
-    }}
+    // Load mermaid dynamically after all functions are defined
+    (function() {{
+        var script = document.createElement('script');
+        script.src = '{get_script_src("mermaid")}';
+        script.onload = function() {{
+            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
+            renderMermaidDiagrams();
+        }};
+        document.head.appendChild(script);
+    }})();
 </script>
-{get_script_tag("mermaid", onload="onMermaidReady()")}
 </body>
 </html>"""
 

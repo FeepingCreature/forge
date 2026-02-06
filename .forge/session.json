@@ -133,6 +133,24 @@
       "streaming": true,
       "actual_cost": 0.05781325,
       "generation_id": "gen-1770382958-jbj3jEY4nBzHnmVrA4R0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770383003307.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770383003307.json",
+      "timestamp": 1770383003.3094187,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.082184,
+      "generation_id": "gen-1770383003-YNOvn1w3J3Fko9aIuLsI"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1770383044374.json",
+      "response_file": "/tmp/forge_debug/response_stream_1770383044374.json",
+      "timestamp": 1770383044.375967,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.05872175,
+      "generation_id": "gen-1770383044-Mm8VJjP4VGNj2w5xoOLw"
     }
   ],
   "messages": [
@@ -528,6 +546,62 @@
         },
         {
           "commit": "cb888cff6fb3",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f91b82de",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "This is all weird... fundamentally, is there any way to chain all this js in a strictly defined order?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nYes, absolutely. The current approach is fragile \u2014 we're fighting script load ordering with stubs and `onload` callbacks. The clean solution is to just put everything in one `<script>` block with a single entry point, and load mermaid dynamically after all our functions are defined.\n\nLet me redesign this:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n            <script src=\"qrc:///qtwebchannel/qwebchannel.js\"></script>\n            {get_script_tag(\"mathjax\")}\n            <script>\n                // Define initMermaid BEFORE the mermaid script loads\n                // Also stub renderMermaidDiagrams in case mermaid's onload fires\n                // before the chat scripts block defines the real version.\n                if (typeof renderMermaidDiagrams === 'undefined') {{\n                    window.renderMermaidDiagrams = function() {{}};\n                }}\n                function initMermaid() {{\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n                    window._mermaidReady = true;\n                    // Render any diagrams that were added before mermaid loaded\n                    renderMermaidDiagrams();\n                }}\n            </script>\n            {get_script_tag(\"mermaid\", onload=\"initMermaid()\")}\n            <script>{get_chat_scripts()}</script>\n</search>\n<replace>\n            <script src=\"qrc:///qtwebchannel/qwebchannel.js\"></script>\n            {get_script_tag(\"mathjax\")}\n            <script>\n            // === All app JS in one block, strictly ordered ===\n            {get_chat_scripts()}\n\n            // Load mermaid dynamically AFTER all functions are defined\n            (function() {{\n                var script = document.createElement('script');\n                script.src = '{_get_mermaid_src()}';\n                script.onload = function() {{\n                    mermaid.initialize({{\n                        startOnLoad: false,\n                        theme: 'default',\n                        securityLevel: 'loose',\n                        flowchart: {{ htmlLabels: true, curve: 'basis' }},\n                        sequence: {{ mirrorActors: false }}\n                    }});\n                    window._mermaidReady = true;\n                    renderMermaidDiagrams();\n                }};\n                document.head.appendChild(script);\n            }})();\n            </script>\n</replace>\n</edit>\n\nNow I need to add the `_get_mermaid_src()` helper. It should return just the URL (file:// or CDN), not a full `<script>` tag:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\nfrom forge.ui.js_cache import JS_CACHE_DIR, get_script_tag\n</search>\n<replace>\nfrom forge.ui.js_cache import JS_CACHE_DIR, get_script_tag, get_script_src\n</replace>\n</edit>\n\n<edit file=\"forge/ui/js_cache.py\">\n<search>\ndef get_script_tag(name: str, onload: str | None = None) -> str:\n</search>\n<replace>\ndef get_script_src(name: str) -> str:\n    \"\"\"Get the URL for a cached script (file:// if cached, CDN fallback).\n\n    Args:\n        name: Script name (e.g., 'mathjax', 'mermaid')\n\n    Returns:\n        URL string suitable for use in a <script src=\"...\"> tag\n    \"\"\"\n    if name not in EXTERNAL_SCRIPTS:\n        raise ValueError(f\"Unknown script: {name}\")\n\n    url = EXTERNAL_SCRIPTS[name]\n    cache_path = _get_cache_path(name, url)\n\n    # Ensure script is cached\n    if not cache_path.exists():\n        _download_script(url, cache_path)\n\n    # Try cached version\n    if cache_path.exists():\n        return f\"file://{cache_path}\"\n\n    # Fall back to CDN\n    return url\n\n\ndef get_script_tag(name: str, onload: str | None = None) -> str:\n</replace>\n</edit>\n\nNow update `_init_chat_shell` to use `get_script_src` instead of the removed `_get_mermaid_src`:\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n                script.src = '{_get_mermaid_src()}';\n</search>\n<replace>\n                script.src = '{get_script_src(\"mermaid\")}';\n</replace>\n</edit>\n\nNow do the same cleanup in `markdown_preview.py` for consistency \u2014 it has the same pattern:\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\nfrom forge.ui.js_cache import get_script_tag\n</search>\n<replace>\nfrom forge.ui.js_cache import get_script_src, get_script_tag\n</replace>\n</edit>\n\n<edit file=\"forge/ui/markdown_preview.py\">\n<search>\n<script>\n    function onMermaidReady() {{\n        mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n        renderMermaidDiagrams();\n    }}\n</script>\n{get_script_tag(\"mermaid\", onload=\"onMermaidReady()\")}\n</search>\n<replace>\n<script>\n    // Load mermaid dynamically after all functions are defined\n    (function() {{\n        var script = document.createElement('script');\n        script.src = '{get_script_src(\"mermaid\")}';\n        script.onload = function() {{\n            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});\n            renderMermaidDiagrams();\n        }};\n        document.head.appendChild(script);\n    }})();\n</script>\n</replace>\n</edit>\n\n<check/>"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `check` failed:\n\nruff check forge/ main.py\nI001 [*] Import block is un-sorted or un-formatted\n  --> forge/ui/ai_chat_widget.py:5:1\n   |\n 3 |   \"\"\"\n 4 |\n 5 | / import json\n 6 | | from typing import TYPE_CHECKING, Any\n 7 | |\n 8 | | from PySide6.QtCore import QEvent, QObject, Qt, Signal\n 9 | | from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut\n10 | | from PySide6.QtWebChannel import QWebChannel\n11 | | from PySide6.QtWebEngineCore import QWebEnginePage\n12 | | from PySide6.QtWebEngineWidgets import QWebEngineView\n13 | | from PySide6.QtWidgets import (\n14 | |     QApplication,\n15 | |     QHBoxLayout,\n16 | |     QPushButton,\n17 | |     QSystemTrayIcon,\n18 | |     QTextEdit,\n19 | |     QVBoxLayout,\n20 | |     QWidget,\n21 | | )\n22 | |\n23 | | from forge.ui.chat_helpers import ChatBridge, ExternalLinkPage\n24 | | from forge.ui.chat_message import (\n25 | |     ChatMessage,\n26 | |     build_tool_results_lookup,\n27 | |     group_messages_into_turns,\n28 | | )\n29 | | from forge.ui.chat_streaming import (\n30 | |     build_queued_message_js,\n31 | |     build_streaming_chunk_js,\n32 | |     build_streaming_tool_calls_js,\n33 | | )\n34 | | from forge.ui.chat_styles import get_chat_scripts, get_chat_styles\n35 | | from forge.ui.editor_widget import SearchBar\n36 | | from forge.ui.js_cache import JS_CACHE_DIR, get_script_tag, get_script_src\n37 | | from forge.ui.tool_rendering import render_markdown\n   | |___________________________________________________^\n38 |\n39 |   if TYPE_CHECKING:\n   |\nhelp: Organize imports\n\nFound 1 error.\n[*] 1 fixable with the `--fix` option.\nmake: *** [Makefile:13: lint-check] Error 1\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nImport sorting issue \u2014 `get_script_src` needs to come before `get_script_tag` alphabetically.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\nfrom forge.ui.js_cache import JS_CACHE_DIR, get_script_tag, get_script_src\n</search>\n<replace>\nfrom forge.ui.js_cache import JS_CACHE_DIR, get_script_src, get_script_tag\n</replace>\n</edit>\n\n<check/>\n\n<commit message=\"Consolidate JS loading into strict sequential order\n\nInstead of fighting script load ordering with stubs and onload callbacks,\nput all app JS in one <script> block and load mermaid dynamically after\nall functions are defined. This guarantees renderMermaidDiagrams() etc.\nexist before mermaid's onload fires.\n\n- js_cache.py: Add get_script_src() to return just the URL\n- ai_chat_widget.py: Single <script> block with chat scripts + dynamic\n  mermaid loader\n- markdown_preview.py: Same pattern for consistency\"/>\n\nDone! Now the JS load order is deterministic:\n\n1. `qwebchannel.js` \u2014 static `<script>` tag\n2. MathJax \u2014 static `<script>` tag  \n3. **Single `<script>` block** containing:\n   - All chat functions (`renderMermaidDiagrams`, `renderStreamingMermaid`, `updateMessages`, etc.)\n   - Dynamic mermaid loader that creates a `<script>` element and appends it to `<head>`, with `onload` calling `mermaid.initialize()` + `renderMermaidDiagrams()`\n\nSince all our functions are defined synchronously in step 3 before the dynamic script element is even created, there's zero chance of a race condition.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "\u2713 Type check passed\n\u2713 Lint passed",
+          "format_diffs": {},
+          "formatted_files": [],
+          "lint_output": "ruff check forge/ main.py\nAll checks passed!\n",
+          "lint_passed": true,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Type check passed\n\u2713 Lint passed",
+          "typecheck_output": "mypy --explicit-package-bases forge/ main.py\nSuccess: no issues found in 92 source files\n",
+          "typecheck_passed": true
+        },
+        {
+          "commit": "ecc38addd79a",
+          "message": "Committed: 3 file(s) modified/created",
     }
   ],
   "parent_session": null,

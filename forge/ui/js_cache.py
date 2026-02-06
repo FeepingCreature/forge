@@ -38,6 +38,33 @@ def _download_script(url: str, cache_path: Path) -> bool:
         return False
 
 
+def get_script_src(name: str) -> str:
+    """Get the URL for a cached script (file:// if cached, CDN fallback).
+
+    Args:
+        name: Script name (e.g., 'mathjax', 'mermaid')
+
+    Returns:
+        URL string suitable for use in a <script src="..."> tag
+    """
+    if name not in EXTERNAL_SCRIPTS:
+        raise ValueError(f"Unknown script: {name}")
+
+    url = EXTERNAL_SCRIPTS[name]
+    cache_path = _get_cache_path(name, url)
+
+    # Ensure script is cached
+    if not cache_path.exists():
+        _download_script(url, cache_path)
+
+    # Try cached version
+    if cache_path.exists():
+        return f"file://{cache_path}"
+
+    # Fall back to CDN
+    return url
+
+
 def get_script_tag(name: str, onload: str | None = None) -> str:
     """Get HTML script tag for a cached script.
 

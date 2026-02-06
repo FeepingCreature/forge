@@ -346,7 +346,7 @@ def get_chat_scripts() -> str:
         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'
         // and converts them to rendered SVG diagrams
         function renderMermaidDiagrams() {
-            if (typeof mermaid === 'undefined') return;
+            if (typeof mermaid === 'undefined' || !window._mermaidReady) return;
 
             // Find all mermaid code blocks that haven't been rendered yet
             var codeBlocks = document.querySelectorAll('pre > code.language-mermaid');

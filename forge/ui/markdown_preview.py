@@ -242,7 +242,6 @@ def _build_preview_html(markdown_text: str) -> str:
     """Build a complete HTML page for markdown preview."""
     body_html = _markdown_to_html(markdown_text)
 
-    mermaid_tag = get_script_tag("mermaid")
     mathjax_tag = get_script_tag("mathjax")
 
     return f"""<!DOCTYPE html>
@@ -376,21 +375,13 @@ def _build_preview_html(markdown_text: str) -> str:
 </head>
 <body>
 {body_html}
-{mermaid_tag}
 <script>
-    // Initialize after both DOM is ready and mermaid has loaded.
-    // Mermaid script is at end of body so DOM is already parsed.
-    if (typeof mermaid !== 'undefined') {{
+    function onMermaidReady() {{
         mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
         renderMermaidDiagrams();
-    }} else {{
-        // Script hasn't loaded yet (e.g. CDN fallback) — wait for it
-        document.querySelector('script[src*="mermaid"]').addEventListener('load', function() {{
-            mermaid.initialize({{ startOnLoad: false, theme: 'default' }});
-            renderMermaidDiagrams();
-        }});
     }}
 </script>
+{get_script_tag("mermaid", onload="onMermaidReady()")}
 </body>
 </html>"""
 

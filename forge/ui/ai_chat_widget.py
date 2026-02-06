@@ -33,7 +33,7 @@ from forge.ui.chat_streaming import (
 )
 from forge.ui.chat_styles import get_chat_scripts, get_chat_styles
 from forge.ui.editor_widget import SearchBar
-from forge.ui.js_cache import get_all_script_tags
+from forge.ui.js_cache import get_script_tag
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
@@ -781,9 +781,9 @@ class AIChatWidget(QWidget):
         <head>
             <style>{get_chat_styles()}</style>
             <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-            {get_all_script_tags()}
+            {get_script_tag("mathjax")}
             <script>
-                // Called by mermaid script's onload handler
+                // Define initMermaid BEFORE the mermaid script loads
                 function initMermaid() {{
                     mermaid.initialize({{
                         startOnLoad: false,
@@ -792,8 +792,12 @@ class AIChatWidget(QWidget):
                         flowchart: {{ htmlLabels: true, curve: 'basis' }},
                         sequence: {{ mirrorActors: false }}
                     }});
+                    window._mermaidReady = true;
+                    // Render any diagrams that were added before mermaid loaded
+                    renderMermaidDiagrams();
                 }}
             </script>
+            {get_script_tag("mermaid", onload="initMermaid()")}
             <script>{get_chat_scripts()}</script>
         </head>
         <body>

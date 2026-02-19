@@ -351,7 +351,12 @@ def get_chat_scripts() -> str:
         }
 
         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'
-        // and converts them to rendered SVG diagrams
+        // and converts them to rendered SVG diagrams.
+        // Renders are serialized (one at a time) to prevent mermaid from
+        // tripping over concurrent DOM manipulation.
+        var _mermaidRenderQueue = [];
+        var _mermaidRendering = false;
+
         function renderMermaidDiagrams() {
             if (typeof mermaid === 'undefined' || !window._mermaidReady) return;
 
@@ -365,57 +370,71 @@ def get_chat_scripts() -> str:
                 if (pre.dataset.streaming) return;
                 pre.dataset.mermaidProcessed = 'true';
 
-                var diagramText = codeBlock.textContent;
-                var diagramId = 'mermaid-diagram-' + Date.now() + '-' + index;
-
-                // Create container for the rendered diagram
-                var container = document.createElement('div');
-                container.className = 'mermaid-container';
-
-                // Render into offscreen sandbox to prevent error node leaks
-                var sandbox = _getMermaidSandbox();
-                try {
-                    mermaid.render(diagramId, diagramText, sandbox).then(function(result) {
-                        container.innerHTML = result.svg;
-                        pre.replaceWith(container);
-                        sandbox.innerHTML = '';
-                    }).catch(function(err) {
-                        sandbox.innerHTML = '';
-                        // On error, show the original code with an error indicator
-                        container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
-                            err.message + '</div>';
-                        container.appendChild(pre.cloneNode(true));
-                        pre.replaceWith(container);
-                    });
-                } catch (err) {
-                    // Sync error (e.g., mermaid.render not available)
-                    console.error('Mermaid render error:', err);
-                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';
-                }
+                _mermaidRenderQueue.push({
+                    pre: pre,
+                    text: codeBlock.textContent,
+                    id: 'mermaid-diagram-' + Date.now() + '-' + index
+                });
             });
+
+            _processMermaidQueue();
+        }
+
+        function _processMermaidQueue() {
+            if (_mermaidRendering || _mermaidRenderQueue.length === 0) return;
+            _mermaidRendering = true;
+
+            var item = _mermaidRenderQueue.shift();
+            var pre = item.pre;
+            var container = document.createElement('div');
+            container.className = 'mermaid-container';
+
+            // Each render gets its own sandbox element so concurrent
+            // cleanup can't null-out nodes mermaid is still using.
+            var sandbox = document.createElement('div');
+            sandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+            document.body.appendChild(sandbox);
+
+            try {
+                mermaid.render(item.id, item.text, sandbox).then(function(result) {
+                    container.innerHTML = result.svg;
+                    if (pre.parentNode) pre.replaceWith(container);
+                    sandbox.remove();
+                    _mermaidRendering = false;
+                    _processMermaidQueue();
+                }).catch(function(err) {
+                    sandbox.remove();
+                    // On error, show the original code with an error indicator
+                    container.innerHTML = '<div class="mermaid-error">⚠️ Diagram error: ' +
+                        (err.message || String(err)) + '</div>';
+                    container.appendChild(pre.cloneNode(true));
+                    if (pre.parentNode) pre.replaceWith(container);
+                    _mermaidRendering = false;
+                    _processMermaidQueue();
+                });
+            } catch (err) {
+                // Sync error (e.g., mermaid.render not available)
+                console.error('Mermaid render error:', err);
+                sandbox.remove();
+                _mermaidRendering = false;
+                _processMermaidQueue();
+            }
         }
 
         // Render mermaid diagrams in the streaming message.
         // Uses content hashing to avoid re-rendering unchanged diagrams,
         // and renders into a sibling container to prevent flicker.
-        // A counter on the hidden render div ensures unique mermaid IDs.
         //
-        // Mermaid v10 renders into a detached div that we provide via the
-        // container option. By keeping that div offscreen we prevent
-        // "Syntax error in text" nodes from flashing in the visible DOM.
+        // Each render gets its own offscreen sandbox element so that
+        // concurrent renders (or sandbox cleanup) can't null-out DOM nodes
+        // that mermaid is still working with.
         window._mermaidStreamCounter = 0;
-        // Hidden container for mermaid to render into (offscreen)
-        var _mermaidSandbox = null;
-        function _getMermaidSandbox() {
-            if (!_mermaidSandbox) {
-                _mermaidSandbox = document.createElement('div');
-                _mermaidSandbox.id = 'mermaid-sandbox';
-                _mermaidSandbox.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
-                document.body.appendChild(_mermaidSandbox);
-            }
-            // Clear any leftover error nodes from previous renders
-            _mermaidSandbox.innerHTML = '';
-            return _mermaidSandbox;
+
+        function _createSandbox() {
+            var sb = document.createElement('div');
+            sb.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;';
+            document.body.appendChild(sb);
+            return sb;
         }
 
         function renderStreamingMermaid() {
@@ -460,9 +479,9 @@ def get_chat_scripts() -> str:
                 // Hide the raw code block while rendered version is shown
                 pre.style.display = 'none';
 
-                // Render into the offscreen sandbox so mermaid error nodes
-                // never appear in the visible document.
-                var sandbox = _getMermaidSandbox();
+                // Each render gets its own sandbox so concurrent renders
+                // don't interfere with each other's DOM nodes.
+                var sandbox = _createSandbox();
                 window._mermaidStreamCounter++;
                 var diagramId = 'mermaid-stream-' + window._mermaidStreamCounter;
                 try {
@@ -471,11 +490,9 @@ def get_chat_scripts() -> str:
                         if (isStreaming) {
                             newContainer.innerHTML += '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>';
                         }
-                        // Clean sandbox after success
-                        sandbox.innerHTML = '';
+                        sandbox.remove();
                     }).catch(function(err) {
-                        // Clean sandbox after failure — removes "Syntax error" nodes
-                        sandbox.innerHTML = '';
+                        sandbox.remove();
                         // During streaming, parse errors are expected for incomplete diagrams
                         if (isStreaming) {
                             newContainer.innerHTML = '<div style="color:#999;font-size:12px;">⏳ Building diagram...</div>';
@@ -487,7 +504,7 @@ def get_chat_scripts() -> str:
                     });
                 } catch(err) {
                     console.error('Mermaid streaming render error:', err);
-                    if (_mermaidSandbox) _mermaidSandbox.innerHTML = '';
+                    sandbox.remove();
                     pre.style.display = '';
                 }
             });

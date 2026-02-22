@@ -223,9 +223,12 @@ class LLMClient:
                         continue
 
         # Fetch cost info after streaming completes and log response
+        print(f"💰 Stream complete, generation_id={generation_id}")
         actual_cost = None
         if generation_id:
             actual_cost = self._fetch_and_record_cost(generation_id)
+        else:
+            print("💰 WARNING: No generation_id captured from stream!")
 
         # Log the accumulated response
         REQUEST_LOG.log_response(
@@ -244,17 +247,22 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
+        print(f"💰 Fetching cost for generation_id={generation_id}")
+
         # Try a few times with short delays
-        for _attempt in range(3):
+        for attempt in range(3):
             try:
                 response = requests.get(
                     f"{self.base_url}/generation?id={generation_id}",
                     headers=headers,
                     timeout=5,
                 )
+                print(f"💰 Attempt {attempt+1}: status={response.status_code}")
                 if response.ok:
-                    data = response.json().get("data", {})
+                    raw = response.json()
+                    data = raw.get("data", {})
                     total_cost = data.get("total_cost")
+                    print(f"💰 Response data keys: {list(data.keys()) if isinstance(data, dict) else type(data)}, total_cost={total_cost}")
                     if total_cost is not None:
                         cost = float(total_cost)
                         COST_TRACKER.add_cost(cost)
@@ -262,9 +270,12 @@ class LLMClient:
                             f"💰 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})"
                         )
                         return cost
+                else:
+                    print(f"💰 Non-OK response: {response.status_code} {response.text[:200]}")
                 # Cost not ready yet, wait and retry
                 time.sleep(0.5)
             except Exception as e:
                 print(f"⚠️ Failed to fetch cost: {e}")
                 break
+        print(f"💰 Failed to get cost after all attempts for {generation_id}")
         return None

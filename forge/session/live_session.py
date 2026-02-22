@@ -997,6 +997,37 @@ class LiveSession(QObject):
         """Continue LLM conversation after tool execution."""
         self._process_llm_request()
 
+    # === CLEAR SESSION ===
+
+    def clear_session(self) -> None:
+        """Clear all messages and reset session state.
+
+        Preserves the session branch and summaries but starts conversation fresh.
+        """
+        if self._state == SessionState.RUNNING:
+            return
+
+        # Clear all messages
+        self.messages.clear()
+        self._emit_event(MessagesTruncatedEvent(0))
+
+        # Reset prompt manager conversation (keeps system prompt, summaries, files)
+        self.session_manager.prompt_manager.clear_conversation()
+
+        # Reset session state
+        self._queued_message = None
+        self._pending_wait_call = None
+        self._yield_message = None
+        self._turn_executed_tool_ids = set()
+        self._newly_created_files = set()
+        self._pending_file_updates = []
+        self.state = SessionState.IDLE
+
+        # Commit the cleared state
+        self.session_manager.commit_ai_turn(
+            self.messages, session_metadata=self.get_session_metadata()
+        )
+
     # === REWIND/TRUNCATE OPERATIONS ===
 
     def rewind_to_message(self, message_index: int) -> bool:

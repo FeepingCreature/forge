@@ -223,6 +223,11 @@ class MainWindow(QMainWindow):
             lambda msg_idx, bn=branch_name: self._fork_from_turn(bn, msg_idx)
         )
 
+        # Connect clear session request
+        chat_widget.clear_session_requested.connect(
+            lambda r=runner: r.clear_session()
+        )
+
         # Connect file explorer context changes directly to SessionManager
         branch_widget.context_file_added.connect(session_manager.add_active_file)
         branch_widget.context_file_removed.connect(session_manager.remove_active_file)

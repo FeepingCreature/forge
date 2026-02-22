@@ -35,6 +35,16 @@ Use past tense and be explicit: "Fixed X by changing Y" not "Need to fix X".
 The compacted summary is often all I have to know what happened. If edits were made,
 say which files were edited and what changed. If something was created, say what.
 
+# When you need external information you can't get, stop and ask
+
+If you need to check external documentation (API docs, library docs, etc.) and
+there's no tool available to do that — **stop and tell the user**. Don't try to
+reverse-engineer the answer by grepping the codebase or making speculative
+scout calls. That wastes context and time without producing certainty.
+
+Say: "I need to check [X docs] but I don't have a web search tool. Can you
+look up [specific question] or paste the relevant docs?"
+
 # When uncertain, add prints
 
 When you're uncertain about what's happening in the code, don't guess.

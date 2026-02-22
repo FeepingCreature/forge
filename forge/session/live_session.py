@@ -778,6 +778,17 @@ class LiveSession(QObject):
                 self.session_manager.generate_summary_for_file(filepath)
             self._newly_created_files.clear()
 
+        # Check for queued message before finishing the turn.
+        # Without this, text-only responses (no tool calls) would commit
+        # and finish without ever injecting the queued user message.
+        if self._queued_message:
+            queued = self._queued_message
+            self._queued_message = None
+            self.add_message({"role": "user", "content": queued, "_mid_turn": True})
+            self.session_manager.append_user_message(queued)
+            self._continue_after_tools()
+            return
+
         # Set state to IDLE before committing so it's persisted correctly
         self.state = SessionState.IDLE
 

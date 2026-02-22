@@ -999,6 +999,30 @@ REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
 REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 
+def _escape_raw_html(text: str) -> str:
+    """Escape raw HTML tags in markdown text, preserving code blocks and inline code.
+
+    This prevents HTML tags in prose/diff content from being rendered as actual
+    HTML elements in the WebEngine view. Code blocks (``` ... ```) and inline
+    code (` ... `) are left untouched since the markdown renderer handles their
+    escaping.
+    """
+    # Split into code blocks vs prose segments
+    parts = re.split(r"(```[\s\S]*?```|`[^`\n]+`)", text)
+    result = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Inside code block or inline code - leave as-is
+            result.append(part)
+        else:
+            # Prose - escape < and > that look like HTML tags
+            # This catches <div>, <span>, </p>, <br/>, etc.
+            # but preserves markdown-valid uses (comparisons like a < b are rare
+            # in prose and get escaped harmlessly)
+            result.append(re.sub(r"<(/?\w[^>]*)>", r"&lt;\1&gt;", part))
+    return "".join(result)
+
+
 def render_markdown(
     content: str,
     inline_results: list[dict[str, object]] | None = None,
@@ -1057,7 +1081,9 @@ def render_markdown(
             if remaining:
                 result_parts.append(
                     md.markdown(
-                        remaining, extensions=md_extensions, extension_configs=md_extension_configs
+                        _escape_raw_html(remaining),
+                        extensions=md_extensions,
+                        extension_configs=md_extension_configs,
                     )
                 )
             break
@@ -1067,7 +1093,9 @@ def render_markdown(
         if text_before:
             result_parts.append(
                 md.markdown(
-                    text_before, extensions=md_extensions, extension_configs=md_extension_configs
+                    _escape_raw_html(text_before),
+                    extensions=md_extensions,
+                    extension_configs=md_extension_configs,
                 )
             )
 

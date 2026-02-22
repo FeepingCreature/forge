@@ -60,6 +60,7 @@ class AIChatWidget(QWidget):
     ai_turn_finished = Signal(str)  # Emitted when AI turn ends (for status bar, git graph refresh)
     fork_requested = Signal(int)  # Emitted when user clicks Fork button (message_index)
     user_typing = Signal()  # Emitted when user types (to clear waiting indicator)
+    clear_session_requested = Signal()  # Emitted when user clicks Clear Session button
 
     def __init__(
         self,
@@ -341,6 +342,36 @@ class AIChatWidget(QWidget):
     def _setup_ui(self) -> None:
         """Setup the chat UI"""
         layout = QVBoxLayout(self)
+
+        # Header bar with clear session button
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addStretch()
+
+        self.clear_session_button = QPushButton("🗑 Clear Session")
+        self.clear_session_button.setToolTip("Clear all messages and start fresh")
+        self.clear_session_button.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 12px;
+                color: #666;
+            }
+            QPushButton:hover {
+                background: #fee;
+                border-color: #e77;
+                color: #c33;
+            }
+            QPushButton:pressed {
+                background: #fcc;
+            }
+        """)
+        self.clear_session_button.clicked.connect(self._on_clear_session_clicked)
+        header_layout.addWidget(self.clear_session_button)
+
+        layout.addLayout(header_layout)
 
         # Chat display area (using QWebEngineView for markdown/LaTeX)
         self.chat_view = QWebEngineView()
@@ -1013,6 +1044,32 @@ class AIChatWidget(QWidget):
 
         # Inject content via JavaScript - scroll position preserved automatically
         self.chat_view.page().runJavaScript(f"updateMessages(`{escaped_html}`, {scroll_js});")
+
+    # -------------------------------------------------------------------------
+    # Clear session
+    # -------------------------------------------------------------------------
+
+    def _on_clear_session_clicked(self) -> None:
+        """Handle clear session button click."""
+        from PySide6.QtWidgets import QMessageBox
+
+        if self.runner.is_running:
+            self._add_system_message("⚠️ Cannot clear session while AI is processing")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Clear Session",
+            "This will clear all messages in the current session.\n\n"
+            "The git history is preserved — you can always go back.\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.clear_session_requested.emit()
 
     # -------------------------------------------------------------------------
     # Search functionality

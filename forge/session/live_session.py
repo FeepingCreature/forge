@@ -1002,17 +1002,29 @@ class LiveSession(QObject):
     def clear_session(self) -> None:
         """Clear all messages and reset session state.
 
-        Preserves the session branch and summaries but starts conversation fresh.
+        Effectively creates a fresh session: clears messages, resets prompt
+        manager from scratch, clears active files. Summaries are preserved.
+        Commits the empty state to git so it persists.
         """
         if self._state == SessionState.RUNNING:
             return
 
         # Clear all messages
         self.messages.clear()
-        self._emit_event(MessagesTruncatedEvent(0))
 
-        # Reset prompt manager conversation (keeps system prompt, summaries, files)
-        self.session_manager.prompt_manager.clear_conversation()
+        # Reset prompt manager completely (fresh, like a new session)
+        sm = self.session_manager
+        tool_schemas = sm.tool_manager.discover_tools()
+        from forge.prompts.manager import PromptManager
+
+        sm.prompt_manager = PromptManager(tool_schemas=tool_schemas)
+
+        # Re-apply summaries (they're still valid)
+        if sm.repo_summaries:
+            sm.prompt_manager.set_summaries(sm.repo_summaries)
+
+        # Clear active files
+        sm.active_files.clear()
 
         # Reset session state
         self._queued_message = None
@@ -1023,10 +1035,13 @@ class LiveSession(QObject):
         self._pending_file_updates = []
         self.state = SessionState.IDLE
 
-        # Commit the cleared state
-        self.session_manager.commit_ai_turn(
+        # Commit the cleared state (writes empty session.json, commits, refreshes VFS)
+        sm.commit_ai_turn(
             self.messages, session_metadata=self.get_session_metadata()
         )
+
+        # Notify UI
+        self._emit_event(MessagesTruncatedEvent(0))
 
     # === REWIND/TRUNCATE OPERATIONS ===
 

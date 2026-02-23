@@ -159,6 +159,10 @@ class WorkInProgressVFS(VFS):
         if is_checked_out_branch and workdir_is_clean:
             self.repo.checkout_branch_head(self.branch_name)
 
+        # Advance base_vfs to the new commit so subsequent reads see committed content
+        new_commit = self.repo.get_branch_head(self.branch_name)
+        self.base_vfs = GitCommitVFS(self.repo.repo, new_commit)
+
         # Clear pending changes
         self.clear_pending_changes()
 

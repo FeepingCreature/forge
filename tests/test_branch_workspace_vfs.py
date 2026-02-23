@@ -30,12 +30,12 @@ def repo(tmp_path, monkeypatch):
 
 def test_vfs_sees_content_after_commit(repo):
     """
-    After a commit via the VFS, workspace.vfs must serve the new content.
+    After a commit via the VFS, the same VFS instance must immediately
+    serve the new content — without any refresh.
 
-    This is the regression test for the dual-VFS bug where BranchWorkspace
-    owned a separate _vfs instance from SessionManager.tool_manager.vfs.
-    After a commit refreshed the session manager's VFS, the workspace still
-    pointed at the old instance and served stale content.
+    Regression test: WorkInProgressVFS.commit() used to clear pending_changes
+    but leave base_vfs pointing at the old commit, so the committed content
+    vanished from the VFS's perspective the moment pending_changes was cleared.
     """
     from forge.config.settings import Settings
 
@@ -48,10 +48,25 @@ def test_vfs_sees_content_after_commit(repo):
     workspace.vfs.write_file("new.txt", "world")
     workspace.commit("add new.txt")
 
-    # Simulate reopening: refresh the VFS (as done after an AI turn)
+    # No refresh — the VFS must see the content immediately after commit
+    assert workspace.vfs.read_file("new.txt") == "world"
+
+
+def test_vfs_sees_content_after_refresh(repo):
+    """
+    refresh_vfs() must also produce a VFS that sees previously committed content.
+    """
+    from forge.config.settings import Settings
+
+    settings = Settings.__new__(Settings)
+    settings.config = {}
+
+    workspace = BranchWorkspace("master", repo, settings)
+
+    workspace.vfs.write_file("new.txt", "world")
+    workspace.commit("add new.txt")
     workspace.refresh_vfs()
 
-    # The refreshed VFS must see the committed content
     assert workspace.vfs.read_file("new.txt") == "world"
 
 

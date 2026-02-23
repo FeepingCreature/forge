@@ -17,6 +17,7 @@ def repo(tmp_path, monkeypatch):
     tb.insert("file.txt", blob, pygit2.GIT_FILEMODE_BLOB)
     tree = tb.write()
     raw.create_commit("refs/heads/master", sig, sig, "initial", tree, [])
+    raw.set_head("refs/heads/master")
 
     # Patch out summary generation (background thread, not needed for this test)
     monkeypatch.setattr(

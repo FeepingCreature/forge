@@ -16,8 +16,7 @@ def repo(tmp_path, monkeypatch):
     tb = raw.TreeBuilder()
     tb.insert("file.txt", blob, pygit2.GIT_FILEMODE_BLOB)
     tree = tb.write()
-    raw.create_commit("refs/heads/main", sig, sig, "initial", tree, [])
-    raw.set_head("refs/heads/main")
+    raw.create_commit("refs/heads/master", sig, sig, "initial", tree, [])
 
     # Patch out summary generation (background thread, not needed for this test)
     monkeypatch.setattr(
@@ -42,7 +41,7 @@ def test_vfs_sees_content_after_commit(repo):
     settings = Settings.__new__(Settings)
     settings.config = {}
 
-    workspace = BranchWorkspace("main", repo, settings)
+    workspace = BranchWorkspace("master", repo, settings)
 
     # Write a file and commit it through the VFS
     workspace.vfs.write_file("new.txt", "world")
@@ -68,6 +67,6 @@ def test_workspace_vfs_is_session_manager_vfs(repo):
     settings = Settings.__new__(Settings)
     settings.config = {}
 
-    workspace = BranchWorkspace("main", repo, settings)
+    workspace = BranchWorkspace("master", repo, settings)
 
     assert workspace.vfs is workspace.session_manager.tool_manager.vfs

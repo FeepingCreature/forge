@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
     from forge.session.manager import SessionManager
-    from forge.vfs.work_in_progress import WorkInProgressVFS
+    from forge.vfs.work_in_progress import WorkInProgressVFS  # for return-type annotation on vfs property
 
 
 class BranchWorkspace:
@@ -38,20 +38,8 @@ class BranchWorkspace:
         # AI chat state (messages loaded from .forge/session.json)
         self.ai_messages: list[dict[str, Any]] = []
 
-        # VFS instance - created lazily, THE source of truth for file content
-        self._vfs: WorkInProgressVFS | None = None
-
-        # Session manager - created lazily, owns summaries and prompt state
+        # Session manager - created lazily, owns the VFS and all session state
         self._session_manager: SessionManager | None = None
-
-    @property
-    def vfs(self) -> "WorkInProgressVFS":
-        """Get or create the VFS for this branch - THE source of truth for file content"""
-        if self._vfs is None:
-            from forge.vfs.work_in_progress import WorkInProgressVFS
-
-            self._vfs = WorkInProgressVFS(self._repo, self.branch_name)
-        return self._vfs
 
     @property
     def session_manager(self) -> "SessionManager":
@@ -61,6 +49,11 @@ class BranchWorkspace:
 
             self._session_manager = SessionManager(self._repo, self.branch_name, self._settings)
         return self._session_manager
+
+    @property
+    def vfs(self) -> "WorkInProgressVFS":
+        """VFS for this branch - delegated to session_manager, which is the single source of truth"""
+        return self.session_manager.vfs
 
     @property
     def has_session(self) -> bool:
@@ -97,9 +90,8 @@ class BranchWorkspace:
 
     def has_unsaved_changes(self) -> bool:
         """Check if there are uncommitted changes in the VFS"""
-        if self._vfs is None:
-            return False
-        return bool(self._vfs.pending_changes) or bool(self._vfs.deleted_files)
+        vfs = self.session_manager.vfs
+        return bool(vfs.pending_changes) or bool(vfs.deleted_files)
 
     def get_file_content(self, filepath: str) -> str:
         """Read file content through VFS"""
@@ -123,10 +115,9 @@ class BranchWorkspace:
 
         Call this after external changes (e.g., AI made commits).
         """
-        # Clear and recreate VFS to pick up new HEAD
         from forge.vfs.work_in_progress import WorkInProgressVFS
 
-        self._vfs = WorkInProgressVFS(self._repo, self.branch_name)
+        self.session_manager.tool_manager.vfs = WorkInProgressVFS(self._repo, self.branch_name)
 
     def load_session_data(self) -> dict[str, Any] | None:
         """Load session data from .forge/session.json in this branch"""

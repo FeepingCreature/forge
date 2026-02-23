@@ -7,7 +7,7 @@
 
 Git operations must NEVER operate on the working directory or `repo.index`.
 All file operations go through the VFS, and all git operations use in-memory trees.
- 
+foo
 The working directory is the user's space. We only touch it to fast-forward after commits
 when the user's branch is checked out (so they see our changes).
 

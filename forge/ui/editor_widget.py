@@ -373,6 +373,7 @@ class EditorWidget(QWidget):
         self._settings = settings
         self._match_positions: list[int] = []
         self._current_match_index = -1
+        self._last_search_text: str = ""
         self._completion_manager: CompletionManager | None = None
         self._setup_ui()
         self._setup_completion()
@@ -400,6 +401,14 @@ class EditorWidget(QWidget):
         self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
         self._find_shortcut.activated.connect(self._show_search)
 
+        self._find_next_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F3), self)
+        self._find_next_shortcut.activated.connect(self._repeat_find_next)
+
+        self._find_prev_shortcut = QShortcut(
+            QKeySequence(Qt.KeyboardModifier.ShiftModifier | Qt.Key.Key_F3), self
+        )
+        self._find_prev_shortcut.activated.connect(self._repeat_find_prev)
+
     def _show_search(self) -> None:
         """Show the search bar"""
         self.search_bar.show()
@@ -418,6 +427,8 @@ class EditorWidget(QWidget):
 
     def _on_search_changed(self, text: str) -> None:
         """Handle search text changes - update matches but stay on current if valid"""
+        if text:
+            self._last_search_text = text
         if not text:
             self._clear_search_highlights()
             self.search_bar.set_match_info(0, 0)
@@ -466,11 +477,41 @@ class EditorWidget(QWidget):
 
     def _find_next(self, text: str) -> None:
         """Find and highlight the next occurrence"""
+        if text:
+            self._last_search_text = text
         self._do_find(text, forward=True)
 
     def _find_prev(self, text: str) -> None:
         """Find and highlight the previous occurrence"""
+        if text:
+            self._last_search_text = text
         self._do_find(text, forward=False)
+
+    def _repeat_find_next(self) -> None:
+        """Repeat last search forward (F3), showing search bar if needed"""
+        if not self._last_search_text:
+            self._show_search()
+            return
+        if not self.search_bar.isVisible():
+            self.search_bar.show()
+            self.search_bar.search_input.setText(self._last_search_text)
+        self._do_find(self._last_search_text, forward=True)
+        self.search_bar.set_match_info(
+            self._current_match_index + 1, len(self._match_positions)
+        )
+
+    def _repeat_find_prev(self) -> None:
+        """Repeat last search backward (Shift+F3), showing search bar if needed"""
+        if not self._last_search_text:
+            self._show_search()
+            return
+        if not self.search_bar.isVisible():
+            self.search_bar.show()
+            self.search_bar.search_input.setText(self._last_search_text)
+        self._do_find(self._last_search_text, forward=False)
+        self.search_bar.set_match_info(
+            self._current_match_index + 1, len(self._match_positions)
+        )
 
     def _update_match_positions(self, text: str) -> None:
         """Update the list of match positions"""

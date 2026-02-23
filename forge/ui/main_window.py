@@ -549,8 +549,8 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menubar.addMenu("&File")
         # Note: File → Open removed - use the file explorer sidebar instead
-        file_menu.addAction("&Save", self._save_current_file).setShortcut("Ctrl+S")
-        file_menu.addAction("Save &All", self._save_all_files).setShortcut("Ctrl+Shift+S")
+        file_menu.addAction("&Save", self._save_current_file)
+        file_menu.addAction("Save &All", self._save_all_files)
         file_menu.addSeparator()
         file_menu.addAction("&Settings...", self._open_settings)
         file_menu.addSeparator()

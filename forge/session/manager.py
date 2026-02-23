@@ -289,6 +289,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         except (FileNotFoundError, KeyError):
             pass  # File doesn't exist yet
 
+        # Persist immediately so the selection survives app restarts
+        self._save_active_files_to_session()
+
         # Emit signals for UI updates
         self.context_changed.emit(self.active_files.copy())
         self._emit_context_stats()
@@ -303,9 +306,44 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         # Also remove from prompt manager
         self.prompt_manager.remove_file_content(filepath)
 
+        # Persist immediately so the selection survives app restarts
+        self._save_active_files_to_session()
+
         # Emit signals for UI updates
         self.context_changed.emit(self.active_files.copy())
         self._emit_context_stats()
+
+    def _save_active_files_to_session(self) -> None:
+        """
+        Immediately commit session file with updated active_files list.
+
+        This is a lightweight commit that only touches SESSION_FILE so that
+        the user's context file selection survives application restarts even
+        when no AI turn has occurred.  We intentionally skip this when an AI
+        turn is in progress (the full commit_ai_turn() call handles it then).
+        """
+        try:
+            # Read current session data from the committed state so we don't
+            # overwrite any fields we don't own (messages, metadata, …).
+            try:
+                raw = self.tool_manager.vfs.read_file(SESSION_FILE)
+                session_data: dict[str, Any] = json.loads(raw)
+            except (FileNotFoundError, KeyError, json.JSONDecodeError):
+                session_data = {}
+
+            session_data["active_files"] = list(self.active_files)
+
+            # Write to VFS and commit as a PREPARE commit (invisible to normal history)
+            self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_data, indent=2))
+            self.tool_manager.vfs.commit(
+                "save active files", commit_type=CommitType.PREPARE
+            )
+
+            # Refresh VFS so the committed state is the new baseline
+            self.tool_manager.vfs = self._create_fresh_vfs()
+        except Exception:
+            # Never crash the UI over a persistence failure
+            pass
 
     def _emit_context_stats(self) -> None:
         """Emit context stats signal for UI updates"""

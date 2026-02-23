@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
 
+from PySide6.QtWidgets import QMessageBox
+
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
 from forge.ui.markdown_preview import MarkdownPreviewWidget
@@ -246,11 +248,34 @@ class BranchTabWidget(QWidget):
 
         return index
 
+    def _close_file_with_confirm(self, filepath: str) -> None:
+        """Close a file tab, prompting the user if there are unsaved changes."""
+        if filepath not in self._editors:
+            return
+
+        if filepath in self._modified_files:
+            filename = Path(filepath).name
+            reply = QMessageBox.question(
+                self,
+                "Unsaved Changes",
+                f"'{filename}' has unsaved changes. Save before closing?",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Save,
+            )
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+            elif reply == QMessageBox.StandardButton.Save:
+                self.save_file(filepath)
+
+        self.close_file(filepath)
+
     def close_file(self, filepath: str) -> bool:
         """
-        Close a file tab.
+        Close a file tab without prompting for unsaved changes.
 
-        Returns True if closed, False if cancelled (e.g., unsaved changes).
+        Returns True if closed, False if not found.
         """
         if filepath not in self._editors:
             return False
@@ -258,11 +283,6 @@ class BranchTabWidget(QWidget):
         # Find tab index
         idx = self._find_tab_index(filepath)
         if idx >= 0:
-            # Check for unsaved changes
-            if filepath in self._modified_files:
-                # TODO: Prompt user to save
-                pass
-
             self.file_tabs.removeTab(idx)
 
         # Clean up
@@ -457,7 +477,7 @@ class BranchTabWidget(QWidget):
                 break
 
         if filepath:
-            self.close_file(filepath)
+            self._close_file_with_confirm(filepath)
 
     def _on_context_toggle(self, filepath: str, add_to_context: bool) -> None:
         """Handle context toggle from file explorer"""

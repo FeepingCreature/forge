@@ -951,13 +951,6 @@ class LiveSession(QObject):
                 if branch_name not in self.child_sessions:
                     self.child_sessions.append(branch_name)
 
-        # Check for queued message
-        if self._queued_message:
-            queued = self._queued_message
-            self._queued_message = None
-            self.add_message({"role": "user", "content": queued, "_mid_turn": True})
-            self.session_manager.append_user_message(queued)
-
         self._continue_after_tools()
 
     def _start_child_session(self, branch_name: str, message: str) -> None:
@@ -1008,7 +1001,19 @@ class LiveSession(QObject):
         self._pending_file_updates = []
 
     def _continue_after_tools(self) -> None:
-        """Continue LLM conversation after tool execution."""
+        """Continue LLM conversation after tool execution.
+
+        Checks for queued user messages (typed while AI was working) and
+        injects them before the next LLM request. This is the canonical
+        place for this check — all paths that continue the conversation
+        after inline commands or API tools funnel through here.
+        """
+        if self._queued_message:
+            queued = self._queued_message
+            self._queued_message = None
+            self.add_message({"role": "user", "content": queued, "_mid_turn": True})
+            self.session_manager.append_user_message(queued)
+
         self._process_llm_request()
 
     # === CLEAR SESSION ===

@@ -125,8 +125,8 @@ class TestQueuedMessageToolCallPath:
     """Test queued message injection in the tool-call path (_on_tools_all_finished)."""
 
     def test_queued_message_injected_after_tools(self, session):
-        """When tools finish and a message is queued, the queued message
-        should be injected and continue processing."""
+        """When tools finish and a message is queued, _continue_after_tools
+        should be called which handles the queued message injection."""
         session._queued_message = "follow-up after tools"
         session._turn_executed_tool_ids = set()
         session._pending_file_updates = []
@@ -147,10 +147,13 @@ class TestQueuedMessageToolCallPath:
             "tool_calls": [{"id": "call_1", "function": {"name": "grep_open"}}],
         })
 
-        with patch.object(session, "_continue_after_tools") as mock_continue:
+        # Mock _process_llm_request to prevent actual LLM call, but let
+        # _continue_after_tools run (it's the canonical place for queued
+        # message injection now)
+        with patch.object(session, "_process_llm_request"):
             session._on_tools_all_finished(results)
 
-        # Queued message should have been consumed
+        # Queued message should have been consumed by _continue_after_tools
         assert session._queued_message is None
 
         # A mid-turn user message should have been added
@@ -160,9 +163,6 @@ class TestQueuedMessageToolCallPath:
         ]
         assert len(mid_turn_msgs) == 1
         assert mid_turn_msgs[0]["content"] == "follow-up after tools"
-
-        # Should continue processing
-        mock_continue.assert_called_once()
 
     def test_no_queued_message_continues_normally(self, session):
         """When tools finish with no queued message, should continue normally."""

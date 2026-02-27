@@ -692,6 +692,9 @@ class LiveSession(QObject):
                 if res.get("success"):
                     self._process_tool_side_effects(res, commands[i])
 
+            # Flush pending file updates so prompt has current content
+            self._flush_pending_file_updates()
+
             # Add error to conversation
             error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
             self.session_manager.append_assistant_message(truncated_content)
@@ -705,6 +708,9 @@ class LiveSession(QObject):
         # All succeeded
         for i, res in enumerate(results):
             self._process_tool_side_effects(res, commands[i])
+
+        # Flush pending file updates so prompt has current content
+        self._flush_pending_file_updates()
 
         self.update_last_assistant_message({"_inline_results": results})
 
@@ -907,9 +913,7 @@ class LiveSession(QObject):
         self.session_manager.prompt_manager.filter_tool_calls(self._turn_executed_tool_ids)
 
         # Apply pending file updates
-        for filepath, tool_call_id in self._pending_file_updates:
-            self.session_manager.file_was_modified(filepath, tool_call_id)
-        self._pending_file_updates = []
+        self._flush_pending_file_updates()
 
         # Check for special tool flags that affect control flow
         for r in results:
@@ -992,6 +996,16 @@ class LiveSession(QObject):
 
         self.state = SessionState.ERROR
         self._emit_event(ErrorEvent(f"Tool execution error: {error_msg}"))
+
+    def _flush_pending_file_updates(self) -> None:
+        """Flush pending file updates to the prompt manager.
+
+        This ensures the prompt contains current file content after tools
+        (both inline commands and API tool calls) modify files.
+        """
+        for filepath, tool_call_id in self._pending_file_updates:
+            self.session_manager.file_was_modified(filepath, tool_call_id)
+        self._pending_file_updates = []
 
     def _continue_after_tools(self) -> None:
         """Continue LLM conversation after tool execution."""

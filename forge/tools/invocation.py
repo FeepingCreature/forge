@@ -100,15 +100,26 @@ def get_inline_syntax(schema: dict[str, Any]) -> str | None:
     return f"<{name}>...</{name}>"
 
 
+# Module-level cache for inline tool discovery (avoids repeated filesystem scans)
+_inline_tools_cache: dict[str, Any] | None = None
+
+
 def discover_inline_tools(user_tools_dir: str = "./tools") -> dict[str, Any]:
     """
     Discover all inline tools from builtin and user tools directories.
+
+    Results are cached at the module level since inline tools don't change
+    during a session. Call invalidate_inline_tools_cache() if tools change.
 
     Returns dict of tool_name -> module for tools that have:
     - get_schema() returning invocation="inline"
     - get_inline_pattern() returning compiled regex
     - parse_inline_match(match) returning args dict
     """
+    global _inline_tools_cache
+    if _inline_tools_cache is not None:
+        return _inline_tools_cache
+
     import importlib
     import importlib.util
     import sys
@@ -149,7 +160,14 @@ def discover_inline_tools(user_tools_dir: str = "./tools") -> dict[str, Any]:
                 except Exception:
                     continue
 
+    _inline_tools_cache = inline_tools
     return inline_tools
+
+
+def invalidate_inline_tools_cache() -> None:
+    """Clear the inline tools cache, forcing re-discovery on next call."""
+    global _inline_tools_cache
+    _inline_tools_cache = None
 
 
 def _is_inline_tool(module: Any) -> bool:

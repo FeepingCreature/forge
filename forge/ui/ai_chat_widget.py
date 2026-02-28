@@ -500,18 +500,19 @@ class AIChatWidget(QWidget):
                     "old_code": old_code,
                 }
 
-                # Add approval request to chat with interactive buttons
+                # Add approval request to chat — buttons are rendered separately
+                # via _approval_tool metadata, so they never go through markdown
                 status = "New Tool" if is_new else "Modified Tool"
-                self.add_message(
-                    "system",
-                    f"⚠️ **{status} Requires Approval: `{tool_name}`**\n\n"
-                    f"Review this tool carefully. Once approved, it will run autonomously.\n\n"
-                    f"```python\n{current_code}\n```\n\n"
-                    f'<div class="approval-buttons">'
-                    f"<button onclick=\"approveTool('{tool_name}', this)\">✅ Approve</button>"
-                    f"<button onclick=\"rejectTool('{tool_name}', this)\">❌ Reject</button>"
-                    f"</div>",
-                )
+                msg = {
+                    "role": "system",
+                    "content": (
+                        f"⚠️ **{status} Requires Approval: `{tool_name}`**\n\n"
+                        f"Review this tool carefully. Once approved, it will run autonomously.\n\n"
+                        f"```python\n{current_code}\n```"
+                    ),
+                    "_approval_tool": tool_name,
+                }
+                self.runner.add_message(msg)
 
             self._update_blocking_state()
 

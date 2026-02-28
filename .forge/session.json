@@ -1,6 +1,8 @@
 {
   "active_files": [
+    "forge/ui/chat_message.py",
     "forge/ui/tool_rendering.py",
+    "forge/ui/ai_chat_widget.py",
     "CLAUDE.md"
   ],
   "request_log_entries": [
@@ -408,6 +410,33 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1772291393-mOpQjB0I0B7cbPqU6JhN"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1772291569730.json",
+      "response_file": "/tmp/forge_debug/response_stream_1772291569730.json",
+      "timestamp": 1772291569.7320163,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1772291570-uP6rsSxPCE4cg1PTJq1v"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1772291577160.json",
+      "response_file": "/tmp/forge_debug/response_stream_1772291577160.json",
+      "timestamp": 1772291577.1615856,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1772291577-MwpduBgszdtI6wGFHGSg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1772291584524.json",
+      "response_file": "/tmp/forge_debug/response_stream_1772291584524.json",
+      "timestamp": 1772291584.531604,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1772291584-fPjPsjtZtj4bRxVk3WwK"
     }
   ],
   "messages": [
@@ -546,6 +575,125 @@
     {
       "role": "assistant",
       "content": "Looks like the fix was already committed in the previous turn (commit 37a6eb2d). The `_escape_raw_html` function in `forge/ui/tool_rendering.py` now preserves `<div class=\"approval-buttons\">...</div>` blocks by extracting them as placeholders before escaping HTML tags, then restoring them after. This should fix the tool accept/reject buttons being filtered out.\n\nIs there anything else you'd like me to look at?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 0c1a2904",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "this is kinda an ass way to do it though, isn't it?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nYeah, you're right. The placeholder/extraction approach is fragile \u2014 every new intentional HTML block needs a new regex. The real problem is that approval buttons are HTML injected into markdown content. They shouldn't go through the markdown renderer at all.\n\nLet me look at how the approval message is created and rendered:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"approval-buttons\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_011y5wSNAwnLbP6pQbBySEjg",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_011y5wSNAwnLbP6pQbBySEjg",
+      "content": "{\"message\": \"Found 10 matches\", \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:510 \\u2500\\u2500\\n     507 |                     f\\\"\\u26a0\\ufe0f **{status} Requires Approval: `{tool_name}`**\\\\n\\\\n\\\"\\n     508 |                     f\\\"Review this tool carefully. Once approved, it will run autonomously.\\\\n\\\\n\\\"\\n     509 |                     f\\\"```python\\\\n{current_code}\\\\n```\\\\n\\\\n\\\"\\n>>>  510 |                     f'<div class=\\\"approval-buttons\\\">'\\n     511 |                     f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\">\\u2705 Approve</button>\\\"\\n     512 |                     f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\">\\u274c Reject</button>\\\"\\n     513 |                     f\\\"</div>\\\",\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:99 \\u2500\\u2500\\n      96 |             0%, 100% { opacity: 1; }\\n      97 |             50% { opacity: 0; }\\n      98 |         }\\n>>>   99 |         .approval-buttons {\\n     100 |             margin-top: 10px;\\n     101 |             display: flex;\\n     102 |             gap: 10px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:104 \\u2500\\u2500\\n     101 |             display: flex;\\n     102 |             gap: 10px;\\n     103 |         }\\n>>>  104 |         .approval-buttons button {\\n     105 |             padding: 8px 16px;\\n     106 |             border: none;\\n     107 |             border-radius: 4px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:112 \\u2500\\u2500\\n     109 |             font-size: 14px;\\n     110 |             font-weight: bold;\\n     111 |         }\\n>>>  112 |         .approval-buttons button:first-child {\\n     113 |             background: #4caf50;\\n     114 |             color: white;\\n     115 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:116 \\u2500\\u2500\\n     113 |             background: #4caf50;\\n     114 |             color: white;\\n     115 |         }\\n>>>  116 |         .approval-buttons button:first-child:hover {\\n     117 |             background: #45a049;\\n     118 |         }\\n     119 |         .approval-buttons button:last-child {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:119 \\u2500\\u2500\\n     116 |         .approval-buttons button:first-child:hover {\\n     117 |             background: #45a049;\\n     118 |         }\\n>>>  119 |         .approval-buttons button:last-child {\\n     120 |             background: #f44336;\\n     121 |             color: white;\\n     122 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:123 \\u2500\\u2500\\n     120 |             background: #f44336;\\n     121 |             color: white;\\n     122 |         }\\n>>>  123 |         .approval-buttons button:last-child:hover {\\n     124 |             background: #da190b;\\n     125 |         }\\n     126 |         .approval-buttons button:disabled {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:126 \\u2500\\u2500\\n     123 |         .approval-buttons button:last-child:hover {\\n     124 |             background: #da190b;\\n     125 |         }\\n>>>  126 |         .approval-buttons button:disabled {\\n     127 |             opacity: 0.5;\\n     128 |             cursor: not-allowed;\\n     129 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:277 \\u2500\\u2500\\n     274 | \\n     275 |         function disableToolButtons(toolName) {\\n     276 |             // Find the button that was clicked and disable both buttons in its container\\n>>>  277 |             var buttons = document.querySelectorAll('.approval-buttons button');\\n     278 |             buttons.forEach(function(btn) {\\n     279 |                 var onclick = btn.getAttribute('onclick');\\n     280 |                 if (onclick && onclick.includes(toolName)) {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:282 \\u2500\\u2500\\n     279 |                 var onclick = btn.getAttribute('onclick');\\n     280 |                 if (onclick && onclick.includes(toolName)) {\\n     281 |                     // Found a button for this tool - disable its parent container's buttons\\n>>>  282 |                     var container = btn.closest('.approval-buttons');\\n     283 |                     if (container) {\\n     284 |                         var containerButtons = container.querySelectorAll('button');\\n     285 |                         containerButtons.forEach(function(b) {\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 10}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"pattern\": \"approval-buttons\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/ai_chat_widget.py:510 \\u2500\\u2500\\n     507 |                     f\\\"\\u26a0\\ufe0f **{status} Requires Approval: `{tool_name}`**\\\\n\\\\n\\\"\\n     508 |                     f\\\"Review this tool carefully. Once approved, it will run autonomously.\\\\n\\\\n\\\"\\n     509 |                     f\\\"```python\\\\n{current_code}\\\\n```\\\\n\\\\n\\\"\\n>>>  510 |                     f'<div class=\\\"approval-buttons\\\">'\\n     511 |                     f\\\"<button onclick=\\\\\\\"approveTool('{tool_name}', this)\\\\\\\">\\u2705 Approve</button>\\\"\\n     512 |                     f\\\"<button onclick=\\\\\\\"rejectTool('{tool_name}', this)\\\\\\\">\\u274c Reject</button>\\\"\\n     513 |                     f\\\"</div>\\\",\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:99 \\u2500\\u2500\\n      96 |             0%, 100% { opacity: 1; }\\n      97 |             50% { opacity: 0; }\\n      98 |         }\\n>>>   99 |         .approval-buttons {\\n     100 |             margin-top: 10px;\\n     101 |             display: flex;\\n     102 |             gap: 10px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:104 \\u2500\\u2500\\n     101 |             display: flex;\\n     102 |             gap: 10px;\\n     103 |         }\\n>>>  104 |         .approval-buttons button {\\n     105 |             padding: 8px 16px;\\n     106 |             border: none;\\n     107 |             border-radius: 4px;\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:112 \\u2500\\u2500\\n     109 |             font-size: 14px;\\n     110 |             font-weight: bold;\\n     111 |         }\\n>>>  112 |         .approval-buttons button:first-child {\\n     113 |             background: #4caf50;\\n     114 |             color: white;\\n     115 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:116 \\u2500\\u2500\\n     113 |             background: #4caf50;\\n     114 |             color: white;\\n     115 |         }\\n>>>  116 |         .approval-buttons button:first-child:hover {\\n     117 |             background: #45a049;\\n     118 |         }\\n     119 |         .approval-buttons button:last-child {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:119 \\u2500\\u2500\\n     116 |         .approval-buttons button:first-child:hover {\\n     117 |             background: #45a049;\\n     118 |         }\\n>>>  119 |         .approval-buttons button:last-child {\\n     120 |             background: #f44336;\\n     121 |             color: white;\\n     122 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:123 \\u2500\\u2500\\n     120 |             background: #f44336;\\n     121 |             color: white;\\n     122 |         }\\n>>>  123 |         .approval-buttons button:last-child:hover {\\n     124 |             background: #da190b;\\n     125 |         }\\n     126 |         .approval-buttons button:disabled {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:126 \\u2500\\u2500\\n     123 |         .approval-buttons button:last-child:hover {\\n     124 |             background: #da190b;\\n     125 |         }\\n>>>  126 |         .approval-buttons button:disabled {\\n     127 |             opacity: 0.5;\\n     128 |             cursor: not-allowed;\\n     129 |         }\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:277 \\u2500\\u2500\\n     274 | \\n     275 |         function disableToolButtons(toolName) {\\n     276 |             // Find the button that was clicked and disable both buttons in its container\\n>>>  277 |             var buttons = document.querySelectorAll('.approval-buttons button');\\n     278 |             buttons.forEach(function(btn) {\\n     279 |                 var onclick = btn.getAttribute('onclick');\\n     280 |                 if (onclick && onclick.includes(toolName)) {\\n\\n\\u2500\\u2500 forge/ui/chat_styles.py:282 \\u2500\\u2500\\n     279 |                 var onclick = btn.getAttribute('onclick');\\n     280 |                 if (onclick && onclick.includes(toolName)) {\\n     281 |                     // Found a button for this tool - disable its parent container's buttons\\n>>>  282 |                     var container = btn.closest('.approval-buttons');\\n     283 |                     if (container) {\\n     284 |                         var containerButtons = container.querySelectorAll('button');\\n     285 |                         containerButtons.forEach(function(b) {\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 10\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nRight. The real problem is: approval buttons are HTML stuffed into a markdown string. Instead of teaching the markdown escaper about every kind of intentional HTML, the approval message should just be rendered as a tool card \u2014 same pattern we already use for everything else.\n\nLet me look at how the approval message is created and how `chat_message.py` renders it:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_message.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01DgZCQDnbVXnTCxssGCRckU",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DgZCQDnbVXnTCxssGCRckU",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_message.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nYou're right. The real fix is: don't shove HTML into a markdown string. The approval UI should be rendered as a tool card, same pattern we use for everything else. That way it never goes through `_escape_raw_html` at all.\n\nLooking at the code, here's the plan:\n\n1. In `_check_for_unapproved_tools`, store the approval message as plain markdown (no HTML buttons)\n2. Add a `render_tool_approval_html` function in `tool_rendering.py` that renders the approval card with buttons\n3. In `chat_message.py`, detect approval messages and render them with the dedicated renderer instead of going through `render_markdown`\n4. Revert the placeholder hack from `_escape_raw_html`\n\nActually, even simpler: the message can carry metadata (like `_inline_results` already does), and `render_html` in `ChatMessage` can use that metadata to append the buttons HTML *after* markdown rendering. No special detection needed.\n\nLet me look at the simplest clean approach: tag the message with `_approval_tool` metadata, and have `render_html` append the buttons HTML after the markdown-rendered content.\n\n<edit file=\"forge/ui/ai_chat_widget.py\">\n<search>\n                self.pending_approvals[tool_name] = {\n                    \"code\": current_code,\n                    \"is_new\": is_new,\n                    \"old_code\": old_code,\n                }\n\n                # Add approval request to chat with interactive buttons\n                status = \"New Tool\" if is_new else \"Modified Tool\"\n                self.add_message(\n                    \"system\",\n                    f\"\u26a0\ufe0f **{status} Requires Approval: `{tool_name}`**\\n\\n\"\n                    f\"Review this tool carefully. Once approved, it will run autonomously.\\n\\n\"\n                    f\"```python\\n{current_code}\\n```\\n\\n\"\n                    f'<div class=\"approval-buttons\">'\n                    f\"<button onclick=\\\"approveTool('{tool_name}', this)\\\">\u2705 Approve</button>\"\n                    f\"<button onclick=\\\"rejectTool('{tool_name}', this)\\\">\u274c Reject</button>\"\n                    f\"</div>\",\n                )\n</search>\n<replace>\n                self.pending_approvals[tool_name] = {\n                    \"code\": current_code,\n                    \"is_new\": is_new,\n                    \"old_code\": old_code,\n                }\n\n                # Add approval request to chat \u2014 buttons are rendered separately\n                # via _approval_tool metadata, so they never go through markdown\n                status = \"New Tool\" if is_new else \"Modified Tool\"\n                msg = {\n                    \"role\": \"system\",\n                    \"content\": (\n                        f\"\u26a0\ufe0f **{status} Requires Approval: `{tool_name}`**\\n\\n\"\n                        f\"Review this tool carefully. Once approved, it will run autonomously.\\n\\n\"\n                        f\"```python\\n{current_code}\\n```\"\n                    ),\n                    \"_approval_tool\": tool_name,\n                }\n                self.runner.add_message(msg)\n</replace>\n</edit>\n\nNow update `ChatMessage` to carry the approval tool name:\n\n<edit file=\"forge/ui/chat_message.py\">\n<search>\n    inline_results: list[dict[str, Any]] | None = None  # Results for inline commands\n\n    @classmethod\n    def from_dict(cls, msg: dict[str, Any]) -> \"ChatMessage\":\n        \"\"\"Create a ChatMessage from a raw message dict.\"\"\"\n        return cls(\n            role=msg.get(\"role\", \"\"),\n            content=msg.get(\"content\", \"\") or \"\",\n            tool_calls=msg.get(\"tool_calls\", []),\n            tool_call_id=msg.get(\"tool_call_id\"),\n            is_ui_only=msg.get(\"_ui_only\", False),\n            is_mid_turn=msg.get(\"_mid_turn\", False),\n            skip_display=msg.get(\"_skip_display\", False),\n            inline_results=msg.get(\"_inline_results\"),\n        )\n</search>\n<replace>\n    inline_results: list[dict[str, Any]] | None = None  # Results for inline commands\n    approval_tool: str | None = None  # Tool name needing approval (renders buttons)\n\n    @classmethod\n    def from_dict(cls, msg: dict[str, Any]) -> \"ChatMessage\":\n        \"\"\"Create a ChatMessage from a raw message dict.\"\"\"\n        return cls(\n            role=msg.get(\"role\", \"\"),\n            content=msg.get(\"content\", \"\") or \"\",\n            tool_calls=msg.get(\"tool_calls\", []),\n            tool_call_id=msg.get(\"tool_call_id\"),\n            is_ui_only=msg.get(\"_ui_only\", False),\n            is_mid_turn=msg.get(\"_mid_turn\", False),\n            skip_display=msg.get(\"_skip_display\", False),\n            inline_results=msg.get(\"_inline_results\"),\n            approval_tool=msg.get(\"_approval_tool\"),\n        )\n</replace>\n</edit>\n\nNow update `render_html` to append the approval buttons after markdown rendering, instead of the old approach of disabling buttons inside the markdown content:\n\n<edit file=\"forge/ui/chat_message.py\">\n<search>\n        msg_id = 'id=\"streaming-message\"' if is_streaming else \"\"\n\n        # Process content for handled approvals (disable buttons)\n        content_md = self.content\n        for tool_name in handled_approvals:\n            if (\n                f\"onclick=\\\"approveTool('{tool_name}'\" in content_md\n                or f\"onclick=\\\"rejectTool('{tool_name}'\" in content_md\n            ):\n                content_md = content_md.replace(\n                    f\"<button onclick=\\\"approveTool('{tool_name}', this)\\\">\",\n                    f\"<button onclick=\\\"approveTool('{tool_name}', this)\\\" disabled>\",\n                )\n                content_md = content_md.replace(\n                    f\"<button onclick=\\\"rejectTool('{tool_name}', this)\\\">\",\n                    f\"<button onclick=\\\"rejectTool('{tool_name}', this)\\\" disabled>\",\n                )\n\n        # Render tool calls if present\n        tool_calls_html = \"\"\n        if self.role == \"assistant\" and self.tool_calls:\n            tool_calls_html = self._render_tool_calls(tool_results)\n\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(content_md, inline_results=self.inline_results)\n\n        return f\"\"\"\n        <div class=\"message {self.role}\" {msg_id}>\n            <div class=\"role\">{self.role.capitalize()}</div>\n            <div class=\"content\">{content}</div>\n            {tool_calls_html}\n        </div>\n        \"\"\"\n</search>\n<replace>\n        msg_id = 'id=\"streaming-message\"' if is_streaming else \"\"\n\n        # Render tool calls if present\n        tool_calls_html = \"\"\n        if self.role == \"assistant\" and self.tool_calls:\n            tool_calls_html = self._render_tool_calls(tool_results)\n\n        # Render content with markdown, handling any <edit> blocks as diffs\n        content = render_markdown(self.content, inline_results=self.inline_results)\n\n        # Append approval buttons (rendered as raw HTML, outside markdown)\n        approval_html = \"\"\n        if self.approval_tool:\n            disabled = \" disabled\" if self.approval_tool in handled_approvals else \"\"\n            approval_html = (\n                f'<div class=\"approval-buttons\">'\n                f\"<button onclick=\\\"approveTool('{self.approval_tool}', this)\\\"{disabled}>\u2705 Approve</button>\"\n                f\"<button onclick=\\\"rejectTool('{self.approval_tool}', this)\\\"{disabled}>\u274c Reject</button>\"\n                f\"</div>\"\n            )\n\n        return f\"\"\"\n        <div class=\"message {self.role}\" {msg_id}>\n            <div class=\"role\">{self.role.capitalize()}</div>\n            <div class=\"content\">{content}{approval_html}</div>\n            {tool_calls_html}\n        </div>\n        \"\"\"\n</replace>\n</edit>\n\nNow revert the placeholder hack from `_escape_raw_html`:\n\n<edit file=\"forge/ui/tool_rendering.py\">\n<search>\ndef _escape_raw_html(text: str) -> str:\n    \"\"\"Escape raw HTML tags in markdown text, preserving code blocks, inline code,\n    and intentional HTML blocks (like approval buttons).\n\n    This prevents HTML tags in prose/diff content from being rendered as actual\n    HTML elements in the WebEngine view. Code blocks (``` ... ```) and inline\n    code (` ... `) are left untouched since the markdown renderer handles their\n    escaping.\n\n    Blocks wrapped in a class we control (approval-buttons) are preserved as-is\n    since we intentionally inject them.\n    \"\"\"\n    # First, extract intentional HTML blocks and replace with placeholders.\n    # These are HTML blocks we deliberately inject (e.g. approval buttons).\n    placeholders: list[str] = []\n\n    def _save_block(m: re.Match) -> str:\n        placeholders.append(m.group(0))\n        return f\"\\x00INTENTIONAL_HTML_{len(placeholders) - 1}\\x00\"\n\n    # Preserve <div class=\"approval-buttons\">...</div> blocks\n    text = re.sub(\n        r'<div\\s+class=\"approval-buttons\">.*?</div>',\n        _save_block,\n        text,\n        flags=re.DOTALL,\n    )\n\n    # Split into code blocks vs prose segments\n    parts = re.split(r\"(```[\\s\\S]*?```|`[^`\\n]+`)\", text)\n    result = []\n    for i, part in enumerate(parts):\n        if i % 2 == 1:\n            # Inside code block or inline code - leave as-is\n            result.append(part)\n        else:\n            # Prose - escape < and > that look like HTML tags\n            # This catches <div>, <span>, </p>, <br/>, etc.\n            # but preserves markdown-valid uses (comparisons like a < b are rare\n            # in prose and get escaped harmlessly)\n            result.append(re.sub(r\"<(/?\\w[^>]*)>\", r\"&lt;\\1&gt;\", part))\n    escaped = \"\".join(result)\n\n    # Restore intentional HTML blocks\n    for i, block in enumerate(placeholders):\n        escaped = escaped.replace(f\"\\x00INTENTIONAL_HTML_{i}\\x00\", block)\n\n    return escaped\n</search>\n<replace>\ndef _escape_raw_html(text: str) -> str:\n    \"\"\"Escape raw HTML tags in markdown text, preserving code blocks and inline code.\n\n    This prevents HTML tags in prose/diff content from being rendered as actual\n    HTML elements in the WebEngine view. Code blocks (``` ... ```) and inline\n    code (` ... `) are left untouched since the markdown renderer handles their\n    escaping.\n    \"\"\"\n    # Split into code blocks vs prose segments\n    parts = re.split(r\"(```[\\s\\S]*?```|`[^`\\n]+`)\", text)\n    result = []\n    for i, part in enumerate(parts):\n        if i % 2 == 1:\n            # Inside code block or inline code - leave as-is\n            result.append(part)\n        else:\n            # Prose - escape < and > that look like HTML tags\n            # This catches <div>, <span>, </p>, <br/>, etc.\n            # but preserves markdown-valid uses (comparisons like a < b are rare\n            # in prose and get escaped harmlessly)\n            result.append(re.sub(r\"<(/?\\w[^>]*)>\", r\"&lt;\\1&gt;\", part))\n    return \"\".join(result)\n</replace>\n</edit>\n\n<run_tests />\n\n<commit message=\"Fix approval buttons: render as HTML outside markdown pipeline\n\nInstead of stuffing HTML buttons into markdown content (where they get\nescaped by _escape_raw_html), carry the tool name as _approval_tool\nmetadata on the message. ChatMessage.render_html() appends the buttons\nas raw HTML after markdown rendering, so they never go through the\nescaper.\n\n- ai_chat_widget.py: Set _approval_tool metadata instead of HTML buttons\n- chat_message.py: Add approval_tool field, render buttons in render_html()\n- tool_rendering.py: Revert placeholder hack from _escape_raw_html\" />\n\nDone! The fix separates concerns properly:\n\n- **Message content** is pure markdown \u2014 no HTML mixed in\n- **Approval buttons** are rendered by `render_html()` as raw HTML *after* the markdown pipeline\n- **`_escape_raw_html`** goes back to being simple and dumb \u2014 escape all HTML tags in prose, no exceptions",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/chat_message.py",
+          "modified_files": [
+            "forge/ui/chat_message.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/chat_message.py",
+          "modified_files": [
+            "forge/ui/chat_message.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_xttgmek6\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 146 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  2%]\ntests/test_clear_session.py .................                            [ 13%]\ntests/test_inline_edit.py ................                               [ 24%]\ntests/test_mermaid_repair.py .................                           [ 36%]\ntests/test_prompt_manager.py .......................................     [ 63%]\ntests/test_queued_messages.py ...........                                [ 70%]\ntests/test_session_spawn.py .................                            [ 82%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 146 passed in 1.13s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_xttgmek6\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 146 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  2%]\ntests/test_clear_session.py .................                            [ 13%]\ntests/test_inline_edit.py ................                               [ 24%]\ntests/test_mermaid_repair.py .................                           [ 36%]\ntests/test_prompt_manager.py .......................................     [ 63%]\ntests/test_queued_messages.py ...........                                [ 70%]\ntests/test_session_spawn.py .................                            [ 82%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 146 passed in 1.13s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "58ef29d6cceb",
+          "message": "Committed: 3 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,

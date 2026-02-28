@@ -31,6 +31,7 @@ class ChatMessage:
     is_mid_turn: bool = False  # Mid-turn user interruptions
     skip_display: bool = False  # Messages to hide from display
     inline_results: list[dict[str, Any]] | None = None  # Results for inline commands
+    approval_tool: str | None = None  # Tool name needing approval (renders buttons)
 
     @classmethod
     def from_dict(cls, msg: dict[str, Any]) -> "ChatMessage":
@@ -44,6 +45,7 @@ class ChatMessage:
             is_mid_turn=msg.get("_mid_turn", False),
             skip_display=msg.get("_skip_display", False),
             inline_results=msg.get("_inline_results"),
+            approval_tool=msg.get("_approval_tool"),
         )
 
     def should_display(self) -> bool:
@@ -75,34 +77,29 @@ class ChatMessage:
         """
         msg_id = 'id="streaming-message"' if is_streaming else ""
 
-        # Process content for handled approvals (disable buttons)
-        content_md = self.content
-        for tool_name in handled_approvals:
-            if (
-                f"onclick=\"approveTool('{tool_name}'" in content_md
-                or f"onclick=\"rejectTool('{tool_name}'" in content_md
-            ):
-                content_md = content_md.replace(
-                    f"<button onclick=\"approveTool('{tool_name}', this)\">",
-                    f"<button onclick=\"approveTool('{tool_name}', this)\" disabled>",
-                )
-                content_md = content_md.replace(
-                    f"<button onclick=\"rejectTool('{tool_name}', this)\">",
-                    f"<button onclick=\"rejectTool('{tool_name}', this)\" disabled>",
-                )
-
         # Render tool calls if present
         tool_calls_html = ""
         if self.role == "assistant" and self.tool_calls:
             tool_calls_html = self._render_tool_calls(tool_results)
 
         # Render content with markdown, handling any <edit> blocks as diffs
-        content = render_markdown(content_md, inline_results=self.inline_results)
+        content = render_markdown(self.content, inline_results=self.inline_results)
+
+        # Append approval buttons (rendered as raw HTML, outside markdown)
+        approval_html = ""
+        if self.approval_tool:
+            disabled = " disabled" if self.approval_tool in handled_approvals else ""
+            approval_html = (
+                f'<div class="approval-buttons">'
+                f"<button onclick=\"approveTool('{self.approval_tool}', this)\"{disabled}>✅ Approve</button>"
+                f"<button onclick=\"rejectTool('{self.approval_tool}', this)\"{disabled}>❌ Reject</button>"
+                f"</div>"
+            )
 
         return f"""
         <div class="message {self.role}" {msg_id}>
             <div class="role">{self.role.capitalize()}</div>
-            <div class="content">{content}</div>
+            <div class="content">{content}{approval_html}</div>
             {tool_calls_html}
         </div>
         """

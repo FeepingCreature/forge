@@ -1000,13 +1000,33 @@ REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
 
 
 def _escape_raw_html(text: str) -> str:
-    """Escape raw HTML tags in markdown text, preserving code blocks and inline code.
+    """Escape raw HTML tags in markdown text, preserving code blocks, inline code,
+    and intentional HTML blocks (like approval buttons).
 
     This prevents HTML tags in prose/diff content from being rendered as actual
     HTML elements in the WebEngine view. Code blocks (``` ... ```) and inline
     code (` ... `) are left untouched since the markdown renderer handles their
     escaping.
+
+    Blocks wrapped in a class we control (approval-buttons) are preserved as-is
+    since we intentionally inject them.
     """
+    # First, extract intentional HTML blocks and replace with placeholders.
+    # These are HTML blocks we deliberately inject (e.g. approval buttons).
+    placeholders: list[str] = []
+
+    def _save_block(m: re.Match) -> str:
+        placeholders.append(m.group(0))
+        return f"\x00INTENTIONAL_HTML_{len(placeholders) - 1}\x00"
+
+    # Preserve <div class="approval-buttons">...</div> blocks
+    text = re.sub(
+        r'<div\s+class="approval-buttons">.*?</div>',
+        _save_block,
+        text,
+        flags=re.DOTALL,
+    )
+
     # Split into code blocks vs prose segments
     parts = re.split(r"(```[\s\S]*?```|`[^`\n]+`)", text)
     result = []
@@ -1020,7 +1040,13 @@ def _escape_raw_html(text: str) -> str:
             # but preserves markdown-valid uses (comparisons like a < b are rare
             # in prose and get escaped harmlessly)
             result.append(re.sub(r"<(/?\w[^>]*)>", r"&lt;\1&gt;", part))
-    return "".join(result)
+    escaped = "".join(result)
+
+    # Restore intentional HTML blocks
+    for i, block in enumerate(placeholders):
+        escaped = escaped.replace(f"\x00INTENTIONAL_HTML_{i}\x00", block)
+
+    return escaped
 
 
 def render_markdown(

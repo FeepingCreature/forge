@@ -115,8 +115,8 @@ class WorkInProgressVFS(VFS):
     def commit(
         self,
         message: str,
-        author_name: str = "Forge AI",
-        author_email: str = "ai@forge.dev",
+        author_name: str = "Forge AI (github.com/FeepingCreature/forge)",
+        author_email: str = "noreply@forge-ai.invalid",
         commit_type: CommitType = CommitType.MAJOR,
     ) -> str:
         """

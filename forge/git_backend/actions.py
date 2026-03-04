@@ -96,7 +96,7 @@ class MergeAction(GitAction):
             tree_oid = merge_result.write_tree(self.repo.repo)
 
         # Create merge commit
-        signature = pygit2.Signature("Forge AI", "ai@forge.dev")
+        signature = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
 
         # Get source branch name for message if available
         source_branch = self._find_branch_for_commit(self.source_oid)

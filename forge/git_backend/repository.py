@@ -245,8 +245,8 @@ class ForgeRepository:
         tree_oid: pygit2.Oid,
         message: str,
         branch_name: str,
-        author_name: str = "Forge AI",
-        author_email: str = "ai@forge.dev",
+        author_name: str = "Forge AI (github.com/FeepingCreature/forge)",
+        author_email: str = "noreply@forge-ai.invalid",
         commit_type: CommitType = CommitType.MAJOR,
     ) -> pygit2.Oid:
         """
@@ -383,7 +383,7 @@ class ForgeRepository:
 
         # Create signature (preserve original author, update committer)
         author = head_commit.author
-        committer = pygit2.Signature("Forge AI", "ai@forge.dev")
+        committer = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
 
         # Create new commit with same parents as original
         # Don't update ref yet - create_commit with ref expects first parent to be current tip
@@ -445,7 +445,7 @@ class ForgeRepository:
         parent_commit = current
 
         # Create signature
-        signature = pygit2.Signature("Forge AI", "ai@forge.dev")
+        signature = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
 
         # Create new major commit
         new_commit_oid = self.repo.create_commit(

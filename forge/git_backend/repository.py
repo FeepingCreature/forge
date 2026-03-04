@@ -8,7 +8,7 @@ from pathlib import Path
 import pygit2
 from PySide6.QtCore import QObject, Signal
 
-from forge.constants import SESSION_BRANCH_PREFIX
+from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME, SESSION_BRANCH_PREFIX
 from forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type
 
 
@@ -245,8 +245,8 @@ class ForgeRepository:
         tree_oid: pygit2.Oid,
         message: str,
         branch_name: str,
-        author_name: str = "Forge AI (github.com/FeepingCreature/forge)",
-        author_email: str = "noreply@forge-ai.invalid",
+        author_name: str = AI_AUTHOR_NAME,
+        author_email: str = AI_AUTHOR_EMAIL,
         commit_type: CommitType = CommitType.MAJOR,
     ) -> pygit2.Oid:
         """
@@ -383,7 +383,7 @@ class ForgeRepository:
 
         # Create signature (preserve original author, update committer)
         author = head_commit.author
-        committer = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
+        committer = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
 
         # Create new commit with same parents as original
         # Don't update ref yet - create_commit with ref expects first parent to be current tip
@@ -445,7 +445,7 @@ class ForgeRepository:
         parent_commit = current
 
         # Create signature
-        signature = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
+        signature = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
 
         # Create new major commit
         new_commit_oid = self.repo.create_commit(

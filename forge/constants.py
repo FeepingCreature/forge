@@ -16,3 +16,7 @@ APPROVED_TOOLS_FILE = ".forge/approved_tools.json"
 # Default models
 DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514"
 DEFAULT_SUMMARIZATION_MODEL = "anthropic/claude-3-haiku"
+
+# Git identity for AI commits
+AI_AUTHOR_NAME = "Forge AI (github.com/FeepingCreature/forge)"
+AI_AUTHOR_EMAIL = "noreply@forge-ai.invalid"

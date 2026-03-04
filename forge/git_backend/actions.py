@@ -11,6 +11,7 @@ from datetime import datetime
 
 import pygit2
 
+from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME
 from forge.git_backend.repository import ForgeRepository
 
 
@@ -96,7 +97,7 @@ class MergeAction(GitAction):
             tree_oid = merge_result.write_tree(self.repo.repo)
 
         # Create merge commit
-        signature = pygit2.Signature("Forge AI (github.com/FeepingCreature/forge)", "noreply@forge-ai.invalid")
+        signature = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
 
         # Get source branch name for message if available
         source_branch = self._find_branch_for_commit(self.source_oid)

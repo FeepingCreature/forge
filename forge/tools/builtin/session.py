@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygit2
 
-from forge.constants import SESSION_FILE
+from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME, SESSION_FILE
 from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
@@ -604,7 +604,7 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             del merge_index.conflicts[path]
 
                         tree = merge_index.write_tree(repo.repo)
-                        author = pygit2.Signature("Forge", "forge@local")
+                        author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
                         repo.repo.create_commit(
                             f"refs/heads/{parent_branch}",
                             author,
@@ -627,7 +627,7 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             pass
 
                     tree = merge_index.write_tree(repo.repo)
-                    author = pygit2.Signature("Forge", "forge@local")
+                    author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
                     repo.repo.create_commit(
                         f"refs/heads/{parent_branch}",
                         author,
@@ -639,7 +639,7 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                     result_msg = f"Merged child session '{branch}'"
             else:
                 tree = merge_index.write_tree(repo.repo)
-                author = pygit2.Signature("Forge", "forge@local")
+                author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
                 repo.repo.create_commit(
                     f"refs/heads/{parent_branch}",
                     author,

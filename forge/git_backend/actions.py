@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pygit2
 
-from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME
+from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME
 from forge.git_backend.repository import ForgeRepository
 
 
@@ -96,8 +96,9 @@ class MergeAction(GitAction):
             # No conflicts, write the tree
             tree_oid = merge_result.write_tree(self.repo.repo)
 
-        # Create merge commit
-        signature = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+        # Create merge commit: user is author, Forge is committer
+        author_sig = self.repo.get_user_signature()
+        committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
 
         # Get source branch name for message if available
         source_branch = self._find_branch_for_commit(self.source_oid)
@@ -105,11 +106,12 @@ class MergeAction(GitAction):
             message = f"Merge branch '{source_branch}' into {self.target_branch}"
         else:
             message = f"Merge commit {self.source_oid[:7]} into {self.target_branch}"
+        message = ForgeRepository._append_co_author(message)
 
         commit_oid = self.repo.repo.create_commit(
             f"refs/heads/{self.target_branch}",
-            signature,
-            signature,
+            author_sig,
+            committer_sig,
             message,
             tree_oid,
             [target_commit.id, source_commit.id],  # Two parents for merge

@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME
 from forge.git_backend.commit_types import CommitType
 from forge.vfs.base import VFS
 from forge.vfs.git_commit import GitCommitVFS
@@ -116,8 +115,8 @@ class WorkInProgressVFS(VFS):
     def commit(
         self,
         message: str,
-        author_name: str = AI_AUTHOR_NAME,
-        author_email: str = AI_AUTHOR_EMAIL,
+        author_name: str | None = None,
+        author_email: str | None = None,
         commit_type: CommitType = CommitType.MAJOR,
     ) -> str:
         """

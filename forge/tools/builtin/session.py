@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import pygit2
 
-from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME, SESSION_FILE
+from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME, SESSION_FILE
 from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:
@@ -604,12 +604,16 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             del merge_index.conflicts[path]
 
                         tree = merge_index.write_tree(repo.repo)
-                        author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+                        author_sig = repo.get_user_signature()
+                        committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+                        merge_msg = repo._append_co_author(
+                            f"Merge child session '{branch}' (with conflicts to resolve)"
+                        )
                         repo.repo.create_commit(
                             f"refs/heads/{parent_branch}",
-                            author,
-                            author,
-                            f"Merge child session '{branch}' (with conflicts to resolve)",
+                            author_sig,
+                            committer_sig,
+                            merge_msg,
                             tree,
                             [parent_commit.id, child_commit.id],
                         )
@@ -627,24 +631,28 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
                             pass
 
                     tree = merge_index.write_tree(repo.repo)
-                    author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+                    author_sig = repo.get_user_signature()
+                    committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+                    merge_msg = repo._append_co_author(f"Merge child session '{branch}'")
                     repo.repo.create_commit(
                         f"refs/heads/{parent_branch}",
-                        author,
-                        author,
-                        f"Merge child session '{branch}'",
+                        author_sig,
+                        committer_sig,
+                        merge_msg,
                         tree,
                         [parent_commit.id, child_commit.id],
                     )
                     result_msg = f"Merged child session '{branch}'"
             else:
                 tree = merge_index.write_tree(repo.repo)
-                author = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+                author_sig = repo.get_user_signature()
+                committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+                merge_msg = repo._append_co_author(f"Merge child session '{branch}'")
                 repo.repo.create_commit(
                     f"refs/heads/{parent_branch}",
-                    author,
-                    author,
-                    f"Merge child session '{branch}'",
+                    author_sig,
+                    committer_sig,
+                    merge_msg,
                     tree,
                     [parent_commit.id, child_commit.id],
                 )

@@ -8,7 +8,7 @@ from pathlib import Path
 import pygit2
 from PySide6.QtCore import QObject, Signal
 
-from forge.constants import AI_AUTHOR_EMAIL, AI_AUTHOR_NAME, SESSION_BRANCH_PREFIX
+from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME, SESSION_BRANCH_PREFIX
 from forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type
 
 
@@ -32,6 +32,22 @@ class ForgeRepository:
 
         self.repo = pygit2.Repository(repo_path)
         self.signals = RepositorySignals()
+
+    def get_user_signature(self) -> pygit2.Signature:
+        """Get the user's git identity from config, falling back to Forge identity."""
+        try:
+            name = str(self.repo.config["user.name"])
+            email = str(self.repo.config["user.email"])
+            return pygit2.Signature(name, email)
+        except KeyError:
+            return pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+
+    @staticmethod
+    def _append_co_author(message: str) -> str:
+        """Append the Forge Co-authored-by trailer if not already present."""
+        if CO_AUTHORED_BY_TRAILER in message:
+            return message
+        return f"{message.rstrip()}\n\n{CO_AUTHORED_BY_TRAILER}"
 
     def get_checked_out_branch(self) -> str | None:
         """Get the name of the currently checked-out branch, or None if detached HEAD."""
@@ -245,8 +261,8 @@ class ForgeRepository:
         tree_oid: pygit2.Oid,
         message: str,
         branch_name: str,
-        author_name: str = AI_AUTHOR_NAME,
-        author_email: str = AI_AUTHOR_EMAIL,
+        author_name: str | None = None,
+        author_email: str | None = None,
         commit_type: CommitType = CommitType.MAJOR,
     ) -> pygit2.Oid:
         """
@@ -315,15 +331,20 @@ class ForgeRepository:
 
         # Default: create new commit with formatted message
         formatted_message = format_commit_message(commit_type, message)
+        formatted_message = self._append_co_author(formatted_message)
 
-        # Create signature
-        signature = pygit2.Signature(author_name, author_email)
+        # Create signature: user is author, Forge is committer
+        if author_name and author_email:
+            author_sig = pygit2.Signature(author_name, author_email)
+        else:
+            author_sig = self.get_user_signature()
+        committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
 
         # Create commit
         commit_oid = self.repo.create_commit(
             f"refs/heads/{branch_name}",  # Update branch ref
-            signature,  # author
-            signature,  # committer
+            author_sig,  # author
+            committer_sig,  # committer
             formatted_message,
             tree_oid,
             [parent_commit.id],  # parents
@@ -380,10 +401,12 @@ class ForgeRepository:
 
         # Use original message if no new message provided
         message = new_message if new_message is not None else head_commit.message
+        if not message.endswith(CO_AUTHORED_BY_TRAILER):
+            message = self._append_co_author(message)
 
         # Create signature (preserve original author, update committer)
         author = head_commit.author
-        committer = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+        committer = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
 
         # Create new commit with same parents as original
         # Don't update ref yet - create_commit with ref expects first parent to be current tip
@@ -444,14 +467,16 @@ class ForgeRepository:
         # Parent is the commit before the first prepare commit
         parent_commit = current
 
-        # Create signature
-        signature = pygit2.Signature(AI_AUTHOR_NAME, AI_AUTHOR_EMAIL)
+        # Create signatures: user is author, Forge is committer
+        author_sig = self.get_user_signature()
+        committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+        major_message = self._append_co_author(major_message)
 
         # Create new major commit
         new_commit_oid = self.repo.create_commit(
             None,  # Don't update ref yet
-            signature,
-            signature,
+            author_sig,
+            committer_sig,
             major_message,  # Use major message, not prepare messages
             tree_oid,
             [parent_commit.id],

@@ -208,6 +208,14 @@ complete file content here
 
 This creates the file if it doesn't exist, or overwrites it if it does.
 
+## Deleting Files
+
+To delete a file, use `<delete>`:
+
+```
+<delete file="path/to/file.py"/>
+```
+
 ## HTML Escaping
 
 When editing files that contain XML-like syntax (e.g., `<search>` tags themselves),

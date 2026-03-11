@@ -1063,18 +1063,29 @@ def render_markdown(
     command_index = 0
 
     while pos < len(content):
-        # Find the earliest matching inline command from current position
+        # Find the earliest matching inline command that is NOT inside a code block
         earliest_match = None
         earliest_tool = None
         earliest_module = None
 
         for tool_name, module in inline_tools.items():
             pattern = module.get_inline_pattern()
-            match = pattern.search(content, pos)
-            if match and (earliest_match is None or match.start() < earliest_match.start()):
-                earliest_match = match
-                earliest_tool = tool_name
-                earliest_module = module
+            search_pos = pos
+            while True:
+                match = pattern.search(content, search_pos)
+                if match is None:
+                    break
+                # Skip matches inside code blocks
+                skip_to = _inside_code_region(match.start(), code_regions)
+                if skip_to is not None:
+                    search_pos = skip_to
+                    continue
+                # Found a valid match outside code blocks
+                if earliest_match is None or match.start() < earliest_match.start():
+                    earliest_match = match
+                    earliest_tool = tool_name
+                    earliest_module = module
+                break
 
         if earliest_match is None or earliest_tool is None or earliest_module is None:
             # No more commands - render remaining as markdown
@@ -1088,12 +1099,6 @@ def render_markdown(
                     )
                 )
             break
-
-        # Skip commands that fall inside code blocks
-        skip_to = _inside_code_region(earliest_match.start(), code_regions)
-        if skip_to is not None:
-            pos = skip_to
-            continue
 
         # Render markdown text before this command
         text_before = content[pos : earliest_match.start()].rstrip()
@@ -1279,18 +1284,27 @@ def render_streaming_edits(content: str) -> str:
     pos = 0
 
     while pos < len(content):
-        # Find the earliest matching complete inline command from current position
+        # Find the earliest matching complete inline command NOT inside a code block
         earliest_match = None
         earliest_tool = None
         earliest_module = None
 
         for tool_name, module in inline_tools.items():
             pattern = module.get_inline_pattern()
-            match = pattern.search(content, pos)
-            if match and (earliest_match is None or match.start() < earliest_match.start()):
-                earliest_match = match
-                earliest_tool = tool_name
-                earliest_module = module
+            search_pos = pos
+            while True:
+                match = pattern.search(content, search_pos)
+                if match is None:
+                    break
+                skip_to = _inside_code_region(match.start(), code_regions)
+                if skip_to is not None:
+                    search_pos = skip_to
+                    continue
+                if earliest_match is None or match.start() < earliest_match.start():
+                    earliest_match = match
+                    earliest_tool = tool_name
+                    earliest_module = module
+                break
 
         if earliest_match is None or earliest_tool is None or earliest_module is None:
             # No more complete commands - check for partial at the end
@@ -1310,12 +1324,6 @@ def render_streaming_edits(content: str) -> str:
                 else:
                     result_parts.append(html.escape(remaining.rstrip()))
             break
-
-        # Skip commands that fall inside code blocks
-        skip_to = _inside_code_region(earliest_match.start(), code_regions)
-        if skip_to is not None:
-            pos = skip_to
-            continue
 
         # Escape text before this command
         text_before = content[pos : earliest_match.start()].rstrip()

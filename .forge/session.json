@@ -222,6 +222,15 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773260166-9Y5hZw6jzgBVVxEtXT0t"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773260344822.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773260344822.json",
+      "timestamp": 1773260344.825376,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773260345-SqK43fXTLLknZraU8F1p"
     }
   ],
   "messages": [
@@ -705,6 +714,31 @@
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 1e60ac00",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm the tests pass. and it looks like the file was moved to the end. try to intentionally break one. I just wanna see how the edit order looks."
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nSure! Let me intentionally break the relocation logic so you can see what a failure looks like. I'll make `append_file_content` skip the relocation step \u2014 just delete the old block and append the new one, without relocating trailing files. That should cause the ordering tests to fail.\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        if earliest_target_idx is None:\n            # New file, no existing blocks to relocate\n            print(\"   \u21b3 New file, no existing blocks\")\n        else:\n            # Collect all file blocks from earliest_target_idx to end\n            files_to_relocate: list[ContentBlock] = []\n            for i in range(earliest_target_idx, len(self.blocks)):\n                block = self.blocks[i]\n                if block.block_type == BlockType.FILE_CONTENT and not block.deleted:\n                    files_to_relocate.append(block)\n                    block.deleted = True\n\n            print(f\"   \u21b3 Relocating {len(files_to_relocate)} file(s) for {filepath} update\")\n\n            # Re-append non-target files in original order (already in order from forward scan)\n            for block in files_to_relocate:\n                if block.metadata.get(\"filepath\") != filepath:\n                    self.blocks.append(\n                        ContentBlock(\n                            block_type=BlockType.FILE_CONTENT,\n                            content=block.content,\n                            metadata=block.metadata.copy(),\n                        )\n                    )\n                    print(f\"   \u21b3 Relocated {block.metadata.get('filepath')}\")\n</search>\n<replace>\n        if earliest_target_idx is None:\n            # New file, no existing blocks to relocate\n            print(\"   \u21b3 New file, no existing blocks\")\n        else:\n            # INTENTIONALLY BROKEN: just delete old block, don't relocate trailing files\n            for i in range(earliest_target_idx, len(self.blocks)):\n                block = self.blocks[i]\n                if (block.block_type == BlockType.FILE_CONTENT and not block.deleted\n                        and block.metadata.get(\"filepath\") == filepath):\n                    block.deleted = True\n            print(f\"   \u21b3 Deleted old {filepath} (no relocation)\")\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_prompt_manager.py\" />\n\nNow you'll see which tests catch the broken relocation. After you've seen the output, I'll revert the breakage.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
           ],
           "success": true
         }

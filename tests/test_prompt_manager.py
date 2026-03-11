@@ -774,10 +774,8 @@ class TestFileOrderingAfterEdits:
     2. Each file appears AFTER the last edit to it (so the AI sees current content)
     3. Content reflects all edits (latest version)
 
-    The relocation algorithm: when file A is updated, all file blocks from A's
-    old position forward are collected, A is deleted, the others are re-appended
-    in original order, then A is appended last. This keeps file blocks contiguous
-    at the tail of the prompt.
+    When a file is edited, only that file's old block is deleted and a new
+    version is appended at the end. Other files stay at their original positions.
     """
 
     def _get_active_file_blocks(self, pm: PromptManager) -> list[ContentBlock]:

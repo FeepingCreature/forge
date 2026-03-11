@@ -348,6 +348,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773261565-bWRCO4O7PycxKqJZpRUs"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261644060.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261644060.json",
+      "timestamp": 1773261644.064301,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261644-B0YtcOvmuqzMVRakD2IU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261653406.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261653406.json",
+      "timestamp": 1773261653.409759,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261653-wbHkb8v44g7g5H8y1yol"
     }
   ],
   "messages": [
@@ -1031,6 +1049,69 @@
         {
           "commit": "812a8d39382a",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: a6760632",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah but why do the tests always pass. try to just put an assert False in"
+    },
+    {
+      "role": "assistant",
+      "content": "Good point \u2014 let me verify the test infrastructure is actually working:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\n    def test_edit_moves_file_to_end(self):\n        \"\"\"Editing a file should move it to the end of the file block region.\"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n</search>\n<replace>\n    def test_edit_moves_file_to_end(self):\n        \"\"\"Editing a file should move it to the end of the file block region.\"\"\"\n        assert False, \"THIS SHOULD FAIL\"\n        pm = PromptManager(system_prompt=\"System\")\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_prompt_manager.py\" />"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `run_tests` failed:\n\n============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_zlb5w91h\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 53 items\n\ntests/test_prompt_manager.py ......................................F.... [ 81%]\n..........                                                               [100%]\n\n=================================== FAILURES ===================================\n____________ TestFileOrderingAfterEdits.test_edit_moves_file_to_end ____________\n\nself = <tests.test_prompt_manager.TestFileOrderingAfterEdits object at 0x7ff178c3c690>\n\n    def test_edit_moves_file_to_end(self):\n        \"\"\"Editing a file should move it to the end of the file block region.\"\"\"\n>       assert False, \"THIS SHOULD FAIL\"\nE       AssertionError: THIS SHOULD FAIL\nE       assert False\n\ntests/test_prompt_manager.py:793: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_prompt_manager.py::TestFileOrderingAfterEdits::test_edit_moves_file_to_end\n========================= 1 failed, 52 passed in 0.23s =========================\n",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "OK good \u2014 the test infrastructure works. The `assert False` fails as expected. So the earlier tests *were* passing legitimately \u2014 the old relocation code and the new simpler code produce the same observable file ordering (since ordering was naturally correct either way).\n\nLet me remove the `assert False`, then re-run to confirm everything is clean now with the simpler algorithm:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\n    def test_edit_moves_file_to_end(self):\n        \"\"\"Editing a file should move it to the end of the file block region.\"\"\"\n        assert False, \"THIS SHOULD FAIL\"\n        pm = PromptManager(system_prompt=\"System\")\n</search>\n<replace>\n    def test_edit_moves_file_to_end(self):\n        \"\"\"Editing a file should move it to the end of the file block region.\"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n</replace>\n</edit>\n\nAlso fix the class docstring which still describes the old relocation algorithm:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\nclass TestFileOrderingAfterEdits:\n    \"\"\"\n    Test that file ordering in the prompt is correct after edits.\n\n    The 3 invariants:\n    1. Each file appears exactly once (no duplicates)\n    2. Each file appears AFTER the last edit to it (so the AI sees current content)\n    3. Content reflects all edits (latest version)\n\n    The relocation algorithm: when file A is updated, all file blocks from A's\n    old position forward are collected, A is deleted, the others are re-appended\n    in original order, then A is appended last. This keeps file blocks contiguous\n    at the tail of the prompt.\n    \"\"\"\n</search>\n<replace>\nclass TestFileOrderingAfterEdits:\n    \"\"\"\n    Test that file ordering in the prompt is correct after edits.\n\n    The 3 invariants:\n    1. Each file appears exactly once (no duplicates)\n    2. Each file appears AFTER the last edit to it (so the AI sees current content)\n    3. Content reflects all edits (latest version)\n\n    When a file is edited, only that file's old block is deleted and a new\n    version is appended at the end. Other files stay at their original positions.\n    \"\"\"\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_prompt_manager.py\" />\n\n<commit message=\"fix: remove assert False from test, update docstring\n\nRemove the intentional assert False used to verify test infrastructure.\nUpdate TestFileOrderingAfterEdits docstring to match the simpler\nalgorithm (only edited file moves, no relocation of other files).\" />\n\nAll 53 tests pass. Here's the summary of what happened:\n\n1. **The old relocation algorithm was over-aggressive** \u2014 it moved ALL file blocks after the edited file, not just the edited file itself. Your feedback that files shouldn't all stick together was correct.\n\n2. **The tests always passed because ordering was naturally correct either way** \u2014 deleting old A and appending new A at the end produces `[B, C, A]` regardless of whether B and C are also relocated. The relocation was a no-op for ordering purposes.\n\n3. **The fix**: `append_file_content` now only deletes the target file's blocks and appends the new version at end. Other files stay put. The `test_unedited_files_stay_in_place` test verifies this by checking actual block positions (not just file order), confirming that conversation blocks can exist between file blocks.",
+      "_inline_results": [
+        {
+          "message": "Replaced in tests/test_prompt_manager.py",
+          "modified_files": [
+            "tests/test_prompt_manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_prompt_manager.py",
+          "modified_files": [
+            "tests/test_prompt_manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_1i57rvko\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 53 items\n\ntests/test_prompt_manager.py ........................................... [ 81%]\n..........                                                               [100%]\n\n============================== 53 passed in 0.21s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_1i57rvko\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 53 items\n\ntests/test_prompt_manager.py ........................................... [ 81%]\n..........                                                               [100%]\n\n============================== 53 passed in 0.21s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "0f9dc4ca1392",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

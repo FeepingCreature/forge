@@ -672,6 +672,11 @@ class LiveSession(QObject):
         result = getattr(self, "_pending_stream_result", {})
         content = result.get("content", "")
 
+        print(f"🔍 _on_inline_commands_finished: {len(results)} results, failed_index={failed_index}")
+        for i, res in enumerate(results):
+            cmd_name = commands[i].tool_name if i < len(commands) else "?"
+            print(f"🔍   result[{i}] ({cmd_name}): success={res.get('success')}, side_effects={res.get('side_effects', [])}, modified_files={res.get('modified_files', [])}")
+
         if failed_index is not None:
             # Handle failure - truncate and continue with error
             failed_cmd = commands[failed_index]
@@ -750,10 +755,15 @@ class LiveSession(QObject):
         from forge.tools.side_effects import SideEffect
 
         side_effects = result.get("side_effects", [])
+        cmd_name = getattr(cmd, 'tool_name', None) if cmd else None
+        print(f"🔍 _process_tool_side_effects: cmd={cmd_name}, side_effects={side_effects}")
 
         if SideEffect.FILES_MODIFIED in side_effects:
-            for filepath in result.get("modified_files", []):
+            modified = result.get("modified_files", [])
+            print(f"🔍   FILES_MODIFIED detected, files: {modified}")
+            for filepath in modified:
                 self._pending_file_updates.append((filepath, None))
+                print(f"🔍   Queued pending file update: {filepath} (total pending: {len(self._pending_file_updates)})")
 
         if SideEffect.NEW_FILES_CREATED in side_effects:
             for filepath in result.get("new_files", []):
@@ -996,9 +1006,12 @@ class LiveSession(QObject):
         This ensures the prompt contains current file content after tools
         (both inline commands and API tool calls) modify files.
         """
+        print(f"🔍 _flush_pending_file_updates: {len(self._pending_file_updates)} pending updates")
         for filepath, tool_call_id in self._pending_file_updates:
+            print(f"🔍   Flushing: {filepath} (tool_call_id={tool_call_id})")
             self.session_manager.file_was_modified(filepath, tool_call_id)
         self._pending_file_updates = []
+        print(f"🔍   Flush complete. Active files in prompt: {self.session_manager.prompt_manager.get_active_files()}")
 
     def _continue_after_tools(self) -> None:
         """Continue LLM conversation after tool execution.

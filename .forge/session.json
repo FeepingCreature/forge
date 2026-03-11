@@ -492,6 +492,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773262221-5oDqTUZKVRM4P4cFpUCg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1773262340747.json",
+      "response_file": "/tmp/forge_debug/response_1773262340747.json",
+      "timestamp": 1773262340.7474825,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1773262340-ZNh3B4pJwMfAiwB6zv0g"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262397851.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262397851.json",
+      "timestamp": 1773262397.8555052,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262398-HuBrqAcO6Y1NWLJvQQva"
     }
   ],
   "messages": [
@@ -1539,6 +1557,89 @@
     {
       "role": "assistant",
       "content": "[id 62] ## Messages I perceive in my context (last ~10):\n\n1. **[id 57]** User - \"I've reloaded the app... Try to make a trivial change\"\n2. **[id 58]** Commands executed: \u2713 edit\n3. **[id 59]** Assistant - Made trivial change (added docstring to BlockType)\n4. **[id 60]** User - \"okay so here's your debug dump...\" (full block order)\n5. **[id 61]** Assistant - grep_context for replay_messages_to_prompt_manager\n\n---\n\nOK I see `replay_messages_to_prompt_manager` now. The problem is clear:\n\n**The replay function doesn't know about file modifications.** It replays user messages, assistant messages, tool calls, and tool results \u2014 but it never calls `file_was_modified()`. Files are added to the prompt manager by `sync_prompt_manager()` which just does `add_active_file` for everything in the active set. That puts all files at whatever position they're at \u2014 which after replay means they're grouped together before the conversation.\n\nBut wait \u2014 that's the **reload** path. The dump at [id 60] shows the state after reload, and files ARE at [77-81] before [83]. That's expected for reload.\n\nThe REAL question from [id 63] was: after I made an edit (inline `<edit>` command) during a LIVE turn, why didn't the file move? Let me look at the dump more carefully...\n\nActually \u2014 the dump from [id 60] is from the turn AFTER my edit. The edit happened, got committed, app reloaded, and now we see the post-reload state. So the files at [77-81] are from `sync_prompt_manager()` during reload, not from the live edit.\n\nBut there's **another bug**: during the LIVE turn when I made the edit, `_on_inline_commands_finished` calls `_process_tool_side_effects` which queues the file update, then `_flush_pending_file_updates` calls `file_was_modified()`. This SHOULD have moved the file. But since the turn then committed and VFS refreshed, the next turn's `sync_prompt_manager()` would have found the file already present (from the edit) and skipped it \u2014 so the file stays at its live-edit position.\n\nUnless... `commit_ai_turn` replaces the VFS, and the prompt manager keeps the old blocks from the turn. Let me check: after commit, does the prompt manager persist across turns?\n\nLooking at `_process_llm_request`:\n```python\nself.session_manager.sync_prompt_manager()\nmessages = self.session_manager.get_prompt_messages()\n```\n\nThe prompt manager IS persistent across turns within a session. So `file_was_modified()` during turn N should move the file, and it should STAY moved for turn N+1 (since `sync_prompt_manager` only adds/removes, doesn't touch existing).\n\nBut the dump shows it didn't move. So either `file_was_modified()` wasn't called, or the **reload** (`replay_messages_to_prompt_manager`) reset everything.\n\nThe app was reloaded between my edit turn and the debug dump turn. That's the problem \u2014 **reload loses file positions**. `replay_messages_to_prompt_manager` + `sync_prompt_manager` puts all files in a block together, ignoring where they were during the live session.\n\nBut you said \"it's normal for the order to change on reload.\" So the REAL test is: make an edit NOW (after reload, no more reloads) and see if the file moves on the NEXT turn within the same live session.\n\nShould I make another trivial edit now so we can check the debug dump on the next turn (without any reload in between)?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 92 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay I just restarted the app again. sorry to be clear, the *previous* dump was *after* my last restart, the one before this restart. this is confusing. can you just add a ton of logging to the path from edit tool to side effect reload?"
+    },
+    {
+      "role": "assistant",
+      "content": "## Messages I perceive in my context (last ~10):\n\n**File order I see (top to bottom):**\n1. tests/test_prompt_manager.py\n2. CLAUDE.md\n3. forge/prompts/manager.py\n4. forge/session/manager.py\n5. forge/session/live_session.py\n\n**Messages:**\n1. **[id 1]** [COMPACTED] - Traced edit\u2192prompt reorder flow\n2. **[id 62]** User - \"okay I just restarted the app again... add a ton of logging to the path from edit tool to side effect reload\"\n\n---\n\nOK, let me add extensive logging to trace the full path from edit tool \u2192 side effects \u2192 file_was_modified \u2192 append_file_content. I'll add prints at every step so we can see exactly what's happening.\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n    def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:\n        \"\"\"Process side effects from tool execution.\"\"\"\n        from forge.tools.side_effects import SideEffect\n\n        side_effects = result.get(\"side_effects\", [])\n\n        if SideEffect.FILES_MODIFIED in side_effects:\n            for filepath in result.get(\"modified_files\", []):\n                self._pending_file_updates.append((filepath, None))\n</search>\n<replace>\n    def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:\n        \"\"\"Process side effects from tool execution.\"\"\"\n        from forge.tools.side_effects import SideEffect\n\n        side_effects = result.get(\"side_effects\", [])\n        cmd_name = getattr(cmd, 'tool_name', None) if cmd else None\n        print(f\"\ud83d\udd0d _process_tool_side_effects: cmd={cmd_name}, side_effects={side_effects}\")\n\n        if SideEffect.FILES_MODIFIED in side_effects:\n            modified = result.get(\"modified_files\", [])\n            print(f\"\ud83d\udd0d   FILES_MODIFIED detected, files: {modified}\")\n            for filepath in modified:\n                self._pending_file_updates.append((filepath, None))\n                print(f\"\ud83d\udd0d   Queued pending file update: {filepath} (total pending: {len(self._pending_file_updates)})\")\n</replace>\n</edit>\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n    def _flush_pending_file_updates(self) -> None:\n        \"\"\"Flush pending file updates to the prompt manager.\n\n        This ensures the prompt contains current file content after tools\n        (both inline commands and API tool calls) modify files.\n        \"\"\"\n        for filepath, tool_call_id in self._pending_file_updates:\n            self.session_manager.file_was_modified(filepath, tool_call_id)\n        self._pending_file_updates = []\n</search>\n<replace>\n    def _flush_pending_file_updates(self) -> None:\n        \"\"\"Flush pending file updates to the prompt manager.\n\n        This ensures the prompt contains current file content after tools\n        (both inline commands and API tool calls) modify files.\n        \"\"\"\n        print(f\"\ud83d\udd0d _flush_pending_file_updates: {len(self._pending_file_updates)} pending updates\")\n        for filepath, tool_call_id in self._pending_file_updates:\n            print(f\"\ud83d\udd0d   Flushing: {filepath} (tool_call_id={tool_call_id})\")\n            self.session_manager.file_was_modified(filepath, tool_call_id)\n        self._pending_file_updates = []\n        print(f\"\ud83d\udd0d   Flush complete. Active files in prompt: {self.session_manager.prompt_manager.get_active_files()}\")\n</replace>\n</edit>\n\n<edit file=\"forge/session/manager.py\">\n<search>\n    def file_was_modified(self, filepath: str, tool_call_id: str | None = None) -> None:\n        \"\"\"\n        Notify that a file was modified (by AI tool).\n\n        This moves the file content to the end of the prompt stream\n        so that cache can be reused for content before it.\n\n        If the file isn't already in active context, it gets added\n        so the AI can see its changes in subsequent tool calls.\n\n        Args:\n            filepath: Path to the modified file\n            tool_call_id: The tool call ID that modified this file (for context in prompt)\n        \"\"\"\n        # If file not in active context, add it so AI sees its own changes\n        if filepath not in self.active_files:\n            self.active_files.add(filepath)\n\n        try:\n            # Read from VFS to get the NEW content including pending changes\n            content = self.tool_manager.vfs.read_file(filepath)\n            # append_file_content handles deleting old version and adding new at end\n            self.prompt_manager.append_file_content(filepath, content, tool_call_id=tool_call_id)\n        except (FileNotFoundError, KeyError):\n            # File was deleted\n            self.prompt_manager.remove_file_content(filepath)\n</search>\n<replace>\n    def file_was_modified(self, filepath: str, tool_call_id: str | None = None) -> None:\n        \"\"\"\n        Notify that a file was modified (by AI tool).\n\n        This moves the file content to the end of the prompt stream\n        so that cache can be reused for content before it.\n\n        If the file isn't already in active context, it gets added\n        so the AI can see its changes in subsequent tool calls.\n\n        Args:\n            filepath: Path to the modified file\n            tool_call_id: The tool call ID that modified this file (for context in prompt)\n        \"\"\"\n        print(f\"\ud83d\udd0d file_was_modified: {filepath} (tool_call_id={tool_call_id})\")\n        print(f\"\ud83d\udd0d   Currently in active_files: {filepath in self.active_files}\")\n        print(f\"\ud83d\udd0d   Current file order BEFORE: {self.prompt_manager.get_active_files()}\")\n\n        # If file not in active context, add it so AI sees its own changes\n        if filepath not in self.active_files:\n            self.active_files.add(filepath)\n            print(f\"\ud83d\udd0d   Added {filepath} to active_files\")\n\n        try:\n            # Read from VFS to get the NEW content including pending changes\n            content = self.tool_manager.vfs.read_file(filepath)\n            print(f\"\ud83d\udd0d   Read {len(content)} chars from VFS for {filepath}\")\n            # append_file_content handles deleting old version and adding new at end\n            self.prompt_manager.append_file_content(filepath, content, tool_call_id=tool_call_id)\n            print(f\"\ud83d\udd0d   Current file order AFTER: {self.prompt_manager.get_active_files()}\")\n        except (FileNotFoundError, KeyError) as e:\n            print(f\"\ud83d\udd0d   File not found, removing: {e}\")\n            # File was deleted\n            self.prompt_manager.remove_file_content(filepath)\n</replace>\n</edit>\n\nAlso add logging to `sync_prompt_manager` since that runs at the start of each turn:\n\n<edit file=\"forge/session/manager.py\">\n<search>\n    def sync_prompt_manager(self) -> None:\n        \"\"\"\n        Sync the prompt manager with current state.\n\n        Call this before building messages to ensure prompt manager\n        has current file contents. Summaries are set once at session start,\n        not here.\n\n        NOTE: This only adds/removes files. File UPDATES are handled by\n        file_was_modified() which is called when tools actually change files.\n        This ensures only modified files move to end of prompt (cache optimization).\n        \"\"\"\n        current_prompt_files = set(self.prompt_manager.get_active_files())\n\n        # Add files that are newly in context (not already in prompt manager)\n        for filepath in self.active_files:\n            if filepath not in current_prompt_files:\n                try:\n                    content = self.tool_manager.vfs.read_file(filepath)\n                    self.prompt_manager.append_file_content(filepath, content)\n                except (FileNotFoundError, KeyError):\n                    pass  # File doesn't exist, skip\n\n        # Remove files that are no longer active\n        for filepath in current_prompt_files:\n            if filepath not in self.active_files:\n                self.prompt_manager.remove_file_content(filepath)\n</search>\n<replace>\n    def sync_prompt_manager(self) -> None:\n        \"\"\"\n        Sync the prompt manager with current state.\n\n        Call this before building messages to ensure prompt manager\n        has current file contents. Summaries are set once at session start,\n        not here.\n\n        NOTE: This only adds/removes files. File UPDATES are handled by\n        file_was_modified() which is called when tools actually change files.\n        This ensures only modified files move to end of prompt (cache optimization).\n        \"\"\"\n        current_prompt_files = set(self.prompt_manager.get_active_files())\n        print(f\"\ud83d\udd0d sync_prompt_manager: active_files={sorted(self.active_files)}, prompt_files={sorted(current_prompt_files)}\")\n\n        # Add files that are newly in context (not already in prompt manager)\n        for filepath in self.active_files:\n            if filepath not in current_prompt_files:\n                try:\n                    content = self.tool_manager.vfs.read_file(filepath)\n                    self.prompt_manager.append_file_content(filepath, content)\n                    print(f\"\ud83d\udd0d   sync: Added new file {filepath}\")\n                except (FileNotFoundError, KeyError):\n                    pass  # File doesn't exist, skip\n\n        # Remove files that are no longer active\n        for filepath in current_prompt_files:\n            if filepath not in self.active_files:\n                self.prompt_manager.remove_file_content(filepath)\n                print(f\"\ud83d\udd0d   sync: Removed file {filepath}\")\n\n        print(f\"\ud83d\udd0d   sync: Final file order: {self.prompt_manager.get_active_files()}\")\n</replace>\n</edit>\n\nAnd add logging to `_on_inline_commands_finished` to see the full flow for inline edits:\n\n<edit file=\"forge/session/live_session.py\">\n<search>\n    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:\n        \"\"\"Handle inline command completion.\"\"\"\n        if self._inline_thread:\n            self._inline_thread.quit()\n            self._inline_thread.wait()\n        self._inline_thread = None\n        self._inline_worker = None\n\n        commands = getattr(self, \"_pending_inline_commands\", [])\n        result = getattr(self, \"_pending_stream_result\", {})\n        content = result.get(\"content\", \"\")\n</search>\n<replace>\n    def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:\n        \"\"\"Handle inline command completion.\"\"\"\n        if self._inline_thread:\n            self._inline_thread.quit()\n            self._inline_thread.wait()\n        self._inline_thread = None\n        self._inline_worker = None\n\n        commands = getattr(self, \"_pending_inline_commands\", [])\n        result = getattr(self, \"_pending_stream_result\", {})\n        content = result.get(\"content\", \"\")\n\n        print(f\"\ud83d\udd0d _on_inline_commands_finished: {len(results)} results, failed_index={failed_index}\")\n        for i, res in enumerate(results):\n            cmd_name = commands[i].tool_name if i < len(commands) else \"?\"\n            print(f\"\ud83d\udd0d   result[{i}] ({cmd_name}): success={res.get('success')}, side_effects={res.get('side_effects', [])}, modified_files={res.get('modified_files', [])}\")\n</replace>\n</edit>\n\n<commit message=\"debug: add extensive logging to edit\u2192side_effect\u2192file_was_modified path\n\nTraces every step of the flow:\n1. _on_inline_commands_finished - what commands completed\n2. _process_tool_side_effects - what side effects were detected\n3. _flush_pending_file_updates - what files are being flushed\n4. file_was_modified - the actual file update in prompt manager\n5. sync_prompt_manager - what happens at turn start\n6. to_messages - block order dump (already added)\" />\n\nNow make a trivial edit so the logging fires:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\nclass BlockType(Enum):\n    \"\"\"Types of content blocks in the prompt stream.\"\"\"\n    SYSTEM = \"system\"\n</search>\n<replace>\nclass BlockType(Enum):\n    \"\"\"Types of content blocks in the prompt stream. (v2)\"\"\"\n    SYSTEM = \"system\"\n</replace>\n</edit>\n\nThat should trigger a wall of `\ud83d\udd0d` logging in your terminal. Paste the relevant lines and we'll see exactly where the file reordering is (or isn't) happening!",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "7f3c55617aaf",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,

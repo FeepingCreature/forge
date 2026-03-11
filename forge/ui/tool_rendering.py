@@ -1045,7 +1045,7 @@ def render_markdown(
     """
     import markdown as md
 
-    from forge.tools.invocation import discover_inline_tools
+    from forge.tools.invocation import _build_code_regions, _inside_code_region, discover_inline_tools
 
     # Configure markdown extensions for code blocks with language-X class format
     # The extension_configs dict configures fenced_code to use "language-" prefix
@@ -1057,6 +1057,7 @@ def render_markdown(
     }
 
     inline_tools = discover_inline_tools()
+    code_regions = _build_code_regions(content)
     result_parts = []
     pos = 0
     command_index = 0
@@ -1087,6 +1088,12 @@ def render_markdown(
                     )
                 )
             break
+
+        # Skip commands that fall inside code blocks
+        skip_to = _inside_code_region(earliest_match.start(), code_regions)
+        if skip_to is not None:
+            pos = skip_to
+            continue
 
         # Render markdown text before this command
         text_before = content[pos : earliest_match.start()].rstrip()
@@ -1264,9 +1271,10 @@ def render_streaming_edits(content: str) -> str:
     Returns:
         HTML with inline commands rendered as tool cards, other text escaped
     """
-    from forge.tools.invocation import discover_inline_tools
+    from forge.tools.invocation import _build_code_regions, _inside_code_region, discover_inline_tools
 
     inline_tools = discover_inline_tools()
+    code_regions = _build_code_regions(content)
     result_parts = []
     pos = 0
 
@@ -1288,10 +1296,10 @@ def render_streaming_edits(content: str) -> str:
             # No more complete commands - check for partial at the end
             remaining = content[pos:]
             if remaining:
-                partial_html = _render_partial_inline_command(remaining, inline_tools)
+                partial_html = _render_partial_inline_command(remaining, inline_tools, code_regions, pos)
                 if partial_html:
                     # Find where the partial command starts
-                    partial_start = _find_partial_command_start(remaining, inline_tools)
+                    partial_start = _find_partial_command_start(remaining, inline_tools, code_regions, pos)
                     if partial_start is not None:
                         text_before = remaining[:partial_start].rstrip()
                         if text_before:
@@ -1302,6 +1310,12 @@ def render_streaming_edits(content: str) -> str:
                 else:
                     result_parts.append(html.escape(remaining.rstrip()))
             break
+
+        # Skip commands that fall inside code blocks
+        skip_to = _inside_code_region(earliest_match.start(), code_regions)
+        if skip_to is not None:
+            pos = skip_to
+            continue
 
         # Escape text before this command
         text_before = content[pos : earliest_match.start()].rstrip()
@@ -1319,24 +1333,60 @@ def render_streaming_edits(content: str) -> str:
     return "".join(result_parts)
 
 
-def _find_partial_command_start(content: str, inline_tools: dict) -> int | None:
-    """Find the start position of a partial inline command, if any."""
+def _find_partial_command_start(
+    content: str,
+    inline_tools: dict,
+    code_regions: list[tuple[int, int]] | None = None,
+    offset: int = 0,
+) -> int | None:
+    """Find the start position of a partial inline command, if any.
+
+    Skips partial commands that fall inside code blocks.
+
+    Args:
+        content: The text to search (a suffix of the full message)
+        inline_tools: Discovered inline tools
+        code_regions: Code regions from the full message
+        offset: Position of content within the full message (for code region checks)
+    """
+    from forge.tools.invocation import _inside_code_region
+
     # For now, just check for <edit which is the most common streaming case
     edit_start = EDIT_START_PATTERN.search(content)
     if edit_start:
+        # Check if this falls inside a code block (using absolute position)
+        if code_regions is not None:
+            abs_pos = offset + edit_start.start()
+            if _inside_code_region(abs_pos, code_regions) is not None:
+                return None
         return edit_start.start()
     return None
 
 
-def _render_partial_inline_command(content: str, inline_tools: dict) -> str | None:
+def _render_partial_inline_command(
+    content: str,
+    inline_tools: dict,
+    code_regions: list[tuple[int, int]] | None = None,
+    offset: int = 0,
+) -> str | None:
     """
     Try to render a partial/incomplete inline command during streaming.
 
     Currently only handles partial <edit> blocks (most common case).
+    Skips commands that fall inside code blocks.
     Returns HTML if a partial command is detected, None otherwise.
     """
-    # Delegate to existing partial edit renderer for now
-    # Could be extended to handle other partial inline commands
+    from forge.tools.invocation import _inside_code_region
+
+    # Check if the partial edit start falls inside a code block
+    if code_regions is not None:
+        edit_match = EDIT_START_PATTERN.search(content)
+        if edit_match:
+            abs_pos = offset + edit_match.start()
+            if _inside_code_region(abs_pos, code_regions) is not None:
+                return None
+
+    # Delegate to existing partial edit renderer
     return _render_partial_edit(content)
 
 

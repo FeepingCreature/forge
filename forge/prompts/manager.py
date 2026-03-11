@@ -200,13 +200,27 @@ class PromptManager:
             # New file, no existing blocks to relocate
             print("   ↳ New file, no existing blocks")
         else:
-            # INTENTIONALLY BROKEN: just delete old block, don't relocate trailing files
+            # Collect all file blocks from earliest_target_idx to end
+            files_to_relocate: list[ContentBlock] = []
             for i in range(earliest_target_idx, len(self.blocks)):
                 block = self.blocks[i]
-                if (block.block_type == BlockType.FILE_CONTENT and not block.deleted
-                        and block.metadata.get("filepath") == filepath):
+                if block.block_type == BlockType.FILE_CONTENT and not block.deleted:
+                    files_to_relocate.append(block)
                     block.deleted = True
-            print(f"   ↳ Deleted old {filepath} (no relocation)")
+
+            print(f"   ↳ Relocating {len(files_to_relocate)} file(s) for {filepath} update")
+
+            # Re-append non-target files in original order (already in order from forward scan)
+            for block in files_to_relocate:
+                if block.metadata.get("filepath") != filepath:
+                    self.blocks.append(
+                        ContentBlock(
+                            block_type=BlockType.FILE_CONTENT,
+                            content=block.content,
+                            metadata=block.metadata.copy(),
+                        )
+                    )
+                    print(f"   ↳ Relocated {block.metadata.get('filepath')}")
 
         # Format content block with explicit annotation
         # Make it VERY clear this is informative context, not a question

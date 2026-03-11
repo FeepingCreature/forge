@@ -998,6 +998,46 @@ class TestFileOrderingAfterEdits:
             BlockType.FILE_CONTENT,  # a.py
         ]
 
+    def test_file_blocks_contiguous_after_interleaved_edit(self):
+        """
+        After editing a file mid-conversation, all file blocks should be contiguous.
+
+        This is the actual purpose of the relocation algorithm: cache optimization.
+        Without relocation, conversation blocks would split the file region, causing
+        cache invalidation from the first file block forward on every edit.
+
+        Scenario: files A,B loaded, then conversation, then A edited.
+        Without relocation: [deleted-A, B, user, tool, result, new-A] — B is separated from A
+        With relocation:    [user, tool, result, B, new-A] — files are contiguous at the tail
+        """
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a_v1")
+        pm.append_file_content("b.py", "b_v1")
+        pm.append_user_message("Edit a.py")
+        pm.append_tool_call([{"id": "c1", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
+        pm.append_tool_result("c1", '{"ok": true}')
+        # Now edit a.py — should relocate b.py to be contiguous with new a.py
+        pm.append_file_content("a.py", "a_v2")
+
+        active = [b for b in pm.blocks if not b.deleted]
+        types = [b.block_type for b in active]
+
+        # All FILE_CONTENT blocks should be at the end, with no non-file blocks between them
+        file_indices = [i for i, t in enumerate(types) if t == BlockType.FILE_CONTENT]
+        assert len(file_indices) == 2, f"Expected 2 file blocks, got {len(file_indices)}"
+
+        # Check contiguity: the file indices should be consecutive
+        assert file_indices[-1] - file_indices[0] == len(file_indices) - 1, (
+            f"File blocks are not contiguous! Indices: {file_indices}, "
+            f"block types: {[t.value for t in types]}"
+        )
+
+        # Verify they're at the tail (last blocks)
+        assert file_indices[-1] == len(types) - 1, (
+            f"File blocks should be at the tail! Last file at {file_indices[-1]}, "
+            f"total blocks: {len(types)}"
+        )
+
     def test_conversation_between_file_edits_preserved(self):
         """
         Conversation blocks between file edits should not be disturbed.

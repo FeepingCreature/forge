@@ -765,6 +765,265 @@ class TestEphemeralToolResults:
         assert "important data" not in tool_msg["content"][0]["text"]
 
 
+class TestFileOrderingAfterEdits:
+    """
+    Test that file ordering in the prompt is correct after edits.
+
+    The 3 invariants:
+    1. Each file appears exactly once (no duplicates)
+    2. Each file appears AFTER the last edit to it (so the AI sees current content)
+    3. Content reflects all edits (latest version)
+
+    The relocation algorithm: when file A is updated, all file blocks from A's
+    old position forward are collected, A is deleted, the others are re-appended
+    in original order, then A is appended last. This keeps file blocks contiguous
+    at the tail of the prompt.
+    """
+
+    def _get_active_file_blocks(self, pm: PromptManager) -> list[ContentBlock]:
+        """Get non-deleted file content blocks in order."""
+        return [b for b in pm.blocks if b.block_type == BlockType.FILE_CONTENT and not b.deleted]
+
+    def _get_file_order(self, pm: PromptManager) -> list[str]:
+        """Get the order of active files in the prompt."""
+        return [b.metadata["filepath"] for b in self._get_active_file_blocks(pm)]
+
+    def test_edit_moves_file_to_end(self):
+        """Editing a file should move it to the end of the file block region."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a_v1")
+        pm.append_file_content("b.py", "b_v1")
+        pm.append_file_content("c.py", "c_v1")
+
+        # Edit a.py — it should move to end, b and c stay in order
+        pm.append_file_content("a.py", "a_v2")
+
+        assert self._get_file_order(pm) == ["b.py", "c.py", "a.py"]
+        # Content should be updated
+        blocks = self._get_active_file_blocks(pm)
+        assert "a_v2" in blocks[2].content
+        assert "a_v1" not in blocks[2].content
+
+    def test_edit_middle_file_relocates_trailing(self):
+        """Editing a middle file relocates it and everything after it."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+        pm.append_file_content("c.py", "c")
+        pm.append_file_content("d.py", "d")
+
+        # Edit b.py — c and d should be relocated, b goes last
+        pm.append_file_content("b.py", "b_v2")
+
+        assert self._get_file_order(pm) == ["a.py", "c.py", "d.py", "b.py"]
+
+    def test_edit_last_file_no_reorder(self):
+        """Editing the last file shouldn't change order of others."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+        pm.append_file_content("c.py", "c")
+
+        pm.append_file_content("c.py", "c_v2")
+
+        assert self._get_file_order(pm) == ["a.py", "b.py", "c.py"]
+
+    def test_multiple_edits_maintain_lru_order(self):
+        """Multiple edits should produce LRU ordering (last edited = last in prompt)."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+        pm.append_file_content("c.py", "c")
+
+        pm.append_file_content("a.py", "a_v2")  # a goes to end
+        pm.append_file_content("b.py", "b_v2")  # b goes to end
+
+        assert self._get_file_order(pm) == ["c.py", "a.py", "b.py"]
+
+    def test_no_duplicate_files_after_edits(self):
+        """No file should appear more than once, regardless of edit pattern."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+        pm.append_file_content("c.py", "c")
+
+        # Edit each file multiple times
+        pm.append_file_content("b.py", "b_v2")
+        pm.append_file_content("a.py", "a_v2")
+        pm.append_file_content("b.py", "b_v3")
+        pm.append_file_content("c.py", "c_v2")
+        pm.append_file_content("a.py", "a_v3")
+
+        files = self._get_file_order(pm)
+        assert len(files) == len(set(files)), f"Duplicate files found: {files}"
+        assert set(files) == {"a.py", "b.py", "c.py"}
+
+    def test_each_file_has_latest_content(self):
+        """After multiple edits, each file block should have the latest content."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a_v1")
+        pm.append_file_content("b.py", "b_v1")
+
+        pm.append_file_content("a.py", "a_v2")
+        pm.append_file_content("b.py", "b_v2")
+        pm.append_file_content("a.py", "a_v3")
+
+        blocks = self._get_active_file_blocks(pm)
+        content_by_file = {b.metadata["filepath"]: b.content for b in blocks}
+
+        assert "a_v3" in content_by_file["a.py"]
+        assert "a_v2" not in content_by_file["a.py"]
+        assert "a_v1" not in content_by_file["a.py"]
+        assert "b_v2" in content_by_file["b.py"]
+        assert "b_v1" not in content_by_file["b.py"]
+
+    def test_files_interleaved_with_conversation(self):
+        """
+        Files edited mid-conversation should appear after the edit that changed them.
+
+        Scenario: user asks question, AI edits file A, user asks another question,
+        AI edits file B. File A should be before file B in the prompt.
+        """
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a_v1")
+        pm.append_file_content("b.py", "b_v1")
+
+        pm.append_user_message("Edit a.py please")
+        pm.append_tool_call([{"id": "c1", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
+        pm.append_tool_result("c1", '{"success": true}')
+        # Tool modifies a.py
+        pm.append_file_content("a.py", "a_v2")
+
+        pm.append_user_message("Now edit b.py")
+        pm.append_tool_call([{"id": "c2", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
+        pm.append_tool_result("c2", '{"success": true}')
+        # Tool modifies b.py
+        pm.append_file_content("b.py", "b_v2")
+
+        # Both files should have latest content
+        blocks = self._get_active_file_blocks(pm)
+        assert len(blocks) == 2
+        content_by_file = {b.metadata["filepath"]: b.content for b in blocks}
+        assert "a_v2" in content_by_file["a.py"]
+        assert "b_v2" in content_by_file["b.py"]
+
+    def test_file_after_edit_appears_in_to_messages(self):
+        """Verify the file ordering survives conversion to API message format."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a_original")
+        pm.append_file_content("b.py", "b_original")
+        pm.append_user_message("Edit a.py")
+        pm.append_tool_call([{"id": "c1", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
+        pm.append_tool_result("c1", '{"success": true}')
+        pm.append_file_content("a.py", "a_edited")
+        pm.append_assistant_message("Done editing a.py")
+
+        messages = pm.to_messages()
+
+        # Collect all text content from user messages (where file content lives)
+        all_user_text = []
+        for msg in messages:
+            if msg["role"] == "user":
+                for block in msg["content"]:
+                    all_user_text.append(block["text"])
+
+        full_text = "\n".join(all_user_text)
+
+        # a_edited should appear, a_original should NOT
+        assert "a_edited" in full_text
+        assert "a_original" not in full_text
+        # b_original should still appear (never edited)
+        assert "b_original" in full_text
+
+    def test_new_file_added_after_edit_goes_to_end(self):
+        """Adding a brand new file always goes to the end."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+
+        pm.append_file_content("a.py", "a_v2")
+        pm.append_file_content("c.py", "c_new")  # brand new file
+
+        assert self._get_file_order(pm) == ["b.py", "a.py", "c.py"]
+
+    def test_remove_then_readd_file(self):
+        """Removing and re-adding a file should work cleanly."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_file_content("b.py", "b")
+
+        pm.remove_file_content("a.py")
+        assert self._get_file_order(pm) == ["b.py"]
+
+        pm.append_file_content("a.py", "a_v2")
+        assert self._get_file_order(pm) == ["b.py", "a.py"]
+
+    def test_file_with_tool_call_id_metadata(self):
+        """File content blocks track which tool call modified them."""
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "original")
+        pm.append_file_content("a.py", "modified", tool_call_id="call_123")
+
+        blocks = self._get_active_file_blocks(pm)
+        assert len(blocks) == 1
+        assert blocks[0].metadata["tool_call_id"] == "call_123"
+        assert "call_123" in blocks[0].content  # tool_call_id appears in header
+
+    def test_edit_file_between_other_files_relocates_correctly(self):
+        """
+        Regression test for the relocation algorithm.
+
+        Setup: S Z A B C (where S=system, Z=summaries, A/B/C=files)
+        Edit A: should produce S Z B C A (B and C relocated, A at end)
+        """
+        pm = PromptManager(system_prompt="System")
+        pm.set_summaries({"a.py": "file a", "b.py": "file b", "c.py": "file c"})
+        pm.append_file_content("a.py", "a_v1")
+        pm.append_file_content("b.py", "b_v1")
+        pm.append_file_content("c.py", "c_v1")
+
+        pm.append_file_content("a.py", "a_v2")
+
+        # Verify order
+        assert self._get_file_order(pm) == ["b.py", "c.py", "a.py"]
+
+        # Verify block types in order (system, summaries, then files at end)
+        active = [b for b in pm.blocks if not b.deleted]
+        types = [b.block_type for b in active]
+        assert types == [
+            BlockType.SYSTEM,
+            BlockType.SUMMARIES,
+            BlockType.FILE_CONTENT,  # b.py
+            BlockType.FILE_CONTENT,  # c.py
+            BlockType.FILE_CONTENT,  # a.py
+        ]
+
+    def test_conversation_between_file_edits_preserved(self):
+        """
+        Conversation blocks between file edits should not be disturbed.
+
+        Only FILE_CONTENT blocks get relocated. User/assistant/tool blocks stay put.
+        """
+        pm = PromptManager(system_prompt="System")
+        pm.append_file_content("a.py", "a")
+        pm.append_user_message("Edit a")
+        pm.append_tool_call([{"id": "c1", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
+        pm.append_tool_result("c1", '{"ok": true}')
+        pm.append_file_content("b.py", "b")
+        pm.append_file_content("a.py", "a_v2")  # Update a — b gets relocated
+
+        # Conversation blocks should still be in place
+        active = [b for b in pm.blocks if not b.deleted]
+        conv_types = [b.block_type for b in active if b.block_type not in (
+            BlockType.SYSTEM, BlockType.FILE_CONTENT
+        )]
+        assert conv_types == [
+            BlockType.USER_MESSAGE,
+            BlockType.TOOL_CALL,
+            BlockType.TOOL_RESULT,
+        ]
+
+
 class TestClearConversation:
     """Test clearing conversation while preserving context"""
 

@@ -1,9 +1,9 @@
 {
   "active_files": [
-    "forge/prompts/manager.py",
-    "forge/session/manager.py",
     "tests/test_prompt_manager.py",
     "CLAUDE.md",
+    "forge/prompts/manager.py",
+    "forge/session/manager.py",
     "forge/session/live_session.py"
   ],
   "request_log_entries": [
@@ -447,6 +447,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773262077-zjYOIn737wIMVrGKEHRJ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1773262101185.json",
+      "response_file": "/tmp/forge_debug/response_1773262101185.json",
+      "timestamp": 1773262101.1857693,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1773262101-BGr51FGJDEY40oV4VEoo"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262120261.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262120261.json",
+      "timestamp": 1773262120.264504,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262120-hvIWASCSa87uifL8p1Nb"
     }
   ],
   "messages": [
@@ -1419,6 +1437,31 @@
     {
       "role": "assistant",
       "content": "[id 58] ## Messages I perceive in my context (last ~10):\n\n1. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n2. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n3. **[id 46]** Assistant - Made trivial edit to manager.py\n4. **[id 47]** User - \"okay and now?\"\n5. **[id 48]** Assistant - Everything looks good\n6. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py!\"\n7. **[id 50]** Assistant - You're right, this is the bug\n8. **[id 51]** User - \"can you check?\"\n9. **[id 52-55]** Assistant - grep_context calls tracing code path\n10. **[id 56]** User - Commands executed: \u2713 edit (on manager.py)\n11. **[id 57]** Assistant - Tried to add debug print, then undo_edit\n\n---\n\nOK, let me stop speculating and just add a debug print. The undo_edit reverted my previous attempt so manager.py is clean. Let me add a print inside `to_messages()` that dumps the block order:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        messages: list[dict[str, Any]] = []\n\n        # Filter out deleted blocks\n        active_blocks = [b for b in self.blocks if not b.deleted]\n</search>\n<replace>\n        messages: list[dict[str, Any]] = []\n\n        # DEBUG: dump block order to see what's happening\n        active_blocks_debug = [b for b in self.blocks if not b.deleted]\n        print(\"\ud83d\udd0d to_messages() block order:\")\n        for idx, b in enumerate(active_blocks_debug):\n            if b.block_type == BlockType.FILE_CONTENT:\n                print(f\"   [{idx}] {b.block_type.value}: {b.metadata.get('filepath')}\")\n            elif b.block_type in (BlockType.USER_MESSAGE, BlockType.ASSISTANT_MESSAGE):\n                preview = b.content[:60].replace('\\n', ' ')\n                print(f\"   [{idx}] {b.block_type.value}: {preview}...\")\n            else:\n                print(f\"   [{idx}] {b.block_type.value}\")\n\n        # Filter out deleted blocks\n        active_blocks = [b for b in self.blocks if not b.deleted]\n</replace>\n</edit>\n\nNow when the next request is built, the server logs will show us the exact block ordering. After you see the output, paste the relevant lines and we'll know exactly what's happening.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 92 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "I've reloaded the app so it's normal for the order to change now- the replay logic is a different code path. Try to make a trivial change. DO NOT COMPACT"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 58] ## Messages I perceive in my context (last ~10):\n\n**File order I see (top to bottom):**\n1. forge/prompts/manager.py\n2. forge/session/manager.py\n3. tests/test_prompt_manager.py\n4. CLAUDE.md\n5. forge/session/live_session.py\n\n**Messages I see:**\n1. **[id 1]** [COMPACTED] - Traced edit\u2192prompt reorder flow\n2. **[id 57]** User - \"I've reloaded the app... Try to make a trivial change. DO NOT COMPACT\"\n\n(Only 2 conversation messages visible \u2014 the rest were compacted or lost in reload)\n\n---\n\nOK, making a trivial change to `manager.py` \u2014 adding a comment:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\nclass BlockType(Enum):\n    SYSTEM = \"system\"\n</search>\n<replace>\nclass BlockType(Enum):\n    \"\"\"Types of content blocks in the prompt stream.\"\"\"\n    SYSTEM = \"system\"\n</replace>\n</edit>\n\nNow let's see \u2014 after this edit commits, on the NEXT turn, `forge/prompts/manager.py` should appear AFTER this conversation message (since it was modified during this turn). I'll report its position in my next response.",
       "_inline_results": [
         {
           "message": "Replaced in forge/prompts/manager.py",

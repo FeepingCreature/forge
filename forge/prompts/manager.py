@@ -17,6 +17,7 @@ from forge.prompts.system import get_system_prompt
 
 
 class BlockType(Enum):
+    """Types of content blocks in the prompt stream."""
     SYSTEM = "system"
     SUMMARIES = "summaries"
     FILE_CONTENT = "file_content"

@@ -182,16 +182,53 @@ def _is_inline_tool(module: Any) -> bool:
     return hasattr(module, "parse_inline_match")
 
 
+# Pattern to find code regions that should be skipped during inline command parsing.
+# Order matters: fenced blocks (``` or ~~~) must be checked before inline backticks.
+_CODE_REGION_PATTERN = re.compile(
+    r"(?:```(?:``)*|~~~).*?(?:```(?:``)*|~~~)"  # fenced code blocks (``` or ~~~)
+    r"|"
+    r"`+(?!`)(?:(?!`).)+`+",  # inline code spans (`...` or ``...``)
+    re.DOTALL,
+)
+
+
+def _build_code_regions(content: str) -> list[tuple[int, int]]:
+    """
+    Find all code regions (fenced blocks and inline backtick spans) in content.
+
+    Returns sorted list of (start, end) tuples for regions where inline
+    commands should NOT be matched.
+    """
+    regions: list[tuple[int, int]] = []
+    for m in _CODE_REGION_PATTERN.finditer(content):
+        regions.append((m.start(), m.end()))
+    return regions
+
+
+def _inside_code_region(pos: int, regions: list[tuple[int, int]]) -> int | None:
+    """
+    Check if pos falls inside any code region.
+
+    Returns the end position of the containing region (so we can skip past it),
+    or None if pos is not inside any code region.
+    """
+    for start, end in regions:
+        if start <= pos < end:
+            return end
+    return None
+
+
 def parse_inline_commands(content: str) -> list[InlineCommand]:
     """
     Parse all inline commands from assistant message content.
 
     Parses front-to-back, finding the earliest matching command at each step.
-    This prevents matching commands inside code blocks, examples, or other commands.
+    Skips commands that appear inside code blocks (fenced ``` or inline `).
 
     Returns list of InlineCommand objects in order of appearance.
     """
     inline_tools = discover_inline_tools()
+    code_regions = _build_code_regions(content)
     commands: list[InlineCommand] = []
     pos = 0
 
@@ -224,6 +261,12 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
         if earliest_match is None or earliest_tool is None or earliest_parser is None:
             # No more commands found
             break
+
+        # Skip commands that fall inside code blocks
+        skip_to = _inside_code_region(earliest_match.start(), code_regions)
+        if skip_to is not None:
+            pos = skip_to
+            continue
 
         # Parse this command
         args = earliest_parser(earliest_match)

@@ -346,18 +346,137 @@ class TestExecuteEdits:
         assert results[1]["success"] is False
 
 
+class TestCodeBlockSkipping:
+    """Test that inline commands inside code blocks are NOT parsed."""
+
+    def test_fenced_code_block_edit_ignored(self):
+        """Edit inside a fenced ``` block should not be parsed."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = (
+            "Here's an example edit:\n\n"
+            "```\n"
+            '<edit file="test.py">\n'
+            "<search>\n"
+            "old\n"
+            "</search>\n"
+            "<replace>\n"
+            "new\n"
+            "</replace>\n"
+            "</edit>\n"
+            "```\n\n"
+            "That was just an example."
+        )
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+    def test_tilde_fenced_code_block_ignored(self):
+        """Edit inside a ~~~ fenced block should not be parsed."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = (
+            "Example:\n\n"
+            "~~~\n"
+            '<edit file="test.py">\n'
+            "<search>\n"
+            "old\n"
+            "</search>\n"
+            "<replace>\n"
+            "new\n"
+            "</replace>\n"
+            "</edit>\n"
+            "~~~\n\n"
+            "Done."
+        )
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+    def test_inline_backtick_code_ignored(self):
+        """Edit-like content inside inline backticks should not be parsed."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = 'Use `<commit message="fix"/>` to commit your changes.'
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+    def test_double_backtick_inline_code_ignored(self):
+        """Content inside double backticks should not be parsed."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = 'Use ``<commit message="fix"/>`` to commit.'
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+    def test_real_command_outside_code_block_still_works(self):
+        """Commands outside code blocks should still be parsed normally."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = (
+            "Here's an example in a code block:\n\n"
+            "```\n"
+            '<commit message="example"/>\n'
+            "```\n\n"
+            "And here's the real one:\n\n"
+            '<commit message="real fix"/>\n'
+        )
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 1
+        assert commands[0].tool_name == "commit"
+        assert commands[0].args["message"] == "real fix"
+
+    def test_fenced_block_with_language_tag_ignored(self):
+        """Fenced block with language identifier (```python) should be skipped."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = (
+            "Example:\n\n"
+            "```python\n"
+            '<edit file="test.py">\n'
+            "<search>\nold\n</search>\n"
+            "<replace>\nnew\n</replace>\n"
+            "</edit>\n"
+            "```\n"
+        )
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+    def test_multiple_code_blocks_all_skipped(self):
+        """Multiple code blocks should all be skipped."""
+        from forge.tools.invocation import parse_inline_commands
+
+        content = (
+            "First example:\n\n"
+            "```\n"
+            '<commit message="one"/>\n'
+            "```\n\n"
+            "Second example:\n\n"
+            "```\n"
+            '<commit message="two"/>\n'
+            "```\n"
+        )
+
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
+
+
 class TestInlineCommandOrdering:
     """Test that inline commands are processed before tool calls are recorded."""
 
     def test_inline_command_ordering_invariant(self):
         """
         The key invariant for inline command processing:
-        
+
         In ai_chat_widget._on_stream_finished:
         1. Process inline commands FIRST
         2. If any fail, return early (don't record tool_calls)
         3. Only record tool_calls if all inline commands succeed
-        
+
         This prevents orphaned tool calls (recorded but never executed)
         from appearing on session reload.
         """
@@ -367,12 +486,12 @@ class TestInlineCommandOrdering:
     def test_inline_commands_sorted_by_position(self):
         """Inline commands should be sorted by their position in content."""
         from forge.tools.invocation import InlineCommand
-        
+
         # Create commands with explicit positions
         cmd1 = InlineCommand("edit", {"file": "a.py"}, start_pos=10, end_pos=50)
         cmd2 = InlineCommand("commit", {"message": "test"}, start_pos=60, end_pos=90)
         cmd3 = InlineCommand("edit", {"file": "b.py"}, start_pos=100, end_pos=150)
-        
+
         # Verify ordering
         assert cmd1.start_pos < cmd2.start_pos < cmd3.start_pos
         assert cmd1.tool_name == "edit"

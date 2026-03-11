@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pygit2
 
-from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME
+from forge.constants import FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME
 from forge.git_backend.repository import ForgeRepository
 
 

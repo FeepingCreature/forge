@@ -8,7 +8,12 @@ from pathlib import Path
 import pygit2
 from PySide6.QtCore import QObject, Signal
 
-from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME, SESSION_BRANCH_PREFIX
+from forge.constants import (
+    CO_AUTHORED_BY_TRAILER,
+    FORGE_AUTHOR_EMAIL,
+    FORGE_AUTHOR_NAME,
+    SESSION_BRANCH_PREFIX,
+)
 from forge.git_backend.commit_types import CommitType, format_commit_message, parse_commit_type
 
 

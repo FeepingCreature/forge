@@ -1045,7 +1045,11 @@ def render_markdown(
     """
     import markdown as md
 
-    from forge.tools.invocation import _build_code_regions, _inside_code_region, discover_inline_tools
+    from forge.tools.invocation import (
+        _build_code_regions,
+        _inside_code_region,
+        discover_inline_tools,
+    )
 
     # Configure markdown extensions for code blocks with language-X class format
     # The extension_configs dict configures fenced_code to use "language-" prefix
@@ -1276,7 +1280,11 @@ def render_streaming_edits(content: str) -> str:
     Returns:
         HTML with inline commands rendered as tool cards, other text escaped
     """
-    from forge.tools.invocation import _build_code_regions, _inside_code_region, discover_inline_tools
+    from forge.tools.invocation import (
+        _build_code_regions,
+        _inside_code_region,
+        discover_inline_tools,
+    )
 
     inline_tools = discover_inline_tools()
     code_regions = _build_code_regions(content)

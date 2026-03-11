@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING, Any
 
 import pygit2
 
-from forge.constants import CO_AUTHORED_BY_TRAILER, FORGE_AUTHOR_EMAIL, FORGE_AUTHOR_NAME, SESSION_FILE
+from forge.constants import (
+    FORGE_AUTHOR_EMAIL,
+    FORGE_AUTHOR_NAME,
+    SESSION_FILE,
+)
 from forge.tools.side_effects import SideEffect
 
 if TYPE_CHECKING:

@@ -10,7 +10,9 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.git_backend.repository import ForgeRepository
     from forge.session.manager import SessionManager
-    from forge.vfs.work_in_progress import WorkInProgressVFS  # for return-type annotation on vfs property
+    from forge.vfs.work_in_progress import (
+        WorkInProgressVFS,  # for return-type annotation on vfs property
+    )
 
 
 class BranchWorkspace:

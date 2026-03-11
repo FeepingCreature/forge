@@ -6,9 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QSplitter, QTabWidget, QVBoxLayout, QWidget
-
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QSplitter, QTabWidget, QVBoxLayout, QWidget
 
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget

@@ -19,9 +19,9 @@ if TYPE_CHECKING:
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
 
-# Pattern: <run_tests/> or <run_tests pattern="..." verbose="true"/>
+# Pattern: <run_tests/> or <run_tests file="..." pattern="..." verbose="true"/>
 _INLINE_PATTERN = re.compile(
-    r'<run_tests(?:\s+pattern="([^"]*)")?(?:\s+verbose="(true|false)")?\s*/?>',
+    r'<run_tests(?:\s+file="([^"]*)")?(?:\s+pattern="([^"]*)")?(?:\s+verbose="(true|false)")?\s*/?>',
     re.DOTALL,
 )
 
@@ -35,9 +35,11 @@ def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
     """Parse regex match into tool arguments."""
     args: dict[str, Any] = {}
     if match.group(1):
-        args["pattern"] = match.group(1)
+        args["file"] = match.group(1)
     if match.group(2):
-        args["verbose"] = match.group(2) == "true"
+        args["pattern"] = match.group(2)
+    if match.group(3):
+        args["verbose"] = match.group(3) == "true"
     return args
 
 
@@ -46,7 +48,7 @@ def get_schema() -> dict[str, Any]:
     return {
         "type": "function",
         "invocation": "inline",
-        "inline_syntax": '<run_tests/> or <run_tests pattern="test_foo" verbose="true"/>',
+        "inline_syntax": '<run_tests/> or <run_tests file="tests/test_foo.py" pattern="test_bar" verbose="true"/>',
         "function": {
             "name": "run_tests",
             "description": """Run the project's test suite on the current VFS state.
@@ -61,6 +63,10 @@ Returns test output with pass/fail summary. Use this to verify your changes work
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "file": {
+                        "type": "string",
+                        "description": "Optional: specific test file to run (e.g. tests/test_foo.py)",
+                    },
                     "pattern": {
                         "type": "string",
                         "description": "Optional: only run tests matching this pattern (passed to pytest -k or similar)",
@@ -142,6 +148,7 @@ def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
 
 def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     """Run tests and return results"""
+    file = args.get("file", "")
     pattern = args.get("pattern", "")
     verbose = args.get("verbose", False)
 
@@ -160,6 +167,15 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         # Discover test command
         cmd, cmd_desc = _discover_test_command(tmpdir)
         results["test_command"] = cmd_desc
+
+        # Add specific test file if specified
+        if file:
+            if "pytest" in cmd_desc:
+                cmd.append(file)
+            elif cmd_desc == "make test":
+                results["note"] = (
+                    "File filtering not supported with make test, running all tests"
+                )
 
         # Add pattern filter if specified
         if pattern:

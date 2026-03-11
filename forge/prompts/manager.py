@@ -763,14 +763,8 @@ class PromptManager:
         """
         segments: list[dict[str, Any]] = []
 
-        # Use same reordering as to_messages() for accurate display
-        active_blocks = [b for b in self.blocks if not b.deleted]
-        system_blocks = [b for b in active_blocks if b.block_type == BlockType.SYSTEM]
-        summary_blocks = [b for b in active_blocks if b.block_type == BlockType.SUMMARIES]
-        other_blocks = [
-            b for b in active_blocks if b.block_type not in (BlockType.SYSTEM, BlockType.SUMMARIES)
-        ]
-        ordered_blocks = system_blocks + other_blocks + summary_blocks
+        # Use same ordering as to_messages() - natural block order, no reordering
+        ordered_blocks = [b for b in self.blocks if not b.deleted]
 
         for block in ordered_blocks:
             # Estimate ~3 chars per token

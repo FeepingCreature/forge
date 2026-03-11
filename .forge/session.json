@@ -339,6 +339,15 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773261492-maW3DzcRmRY2Wr4hoTRL"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261565459.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261565459.json",
+      "timestamp": 1773261565.462067,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261565-bWRCO4O7PycxKqJZpRUs"
     }
   ],
   "messages": [
@@ -937,6 +946,90 @@
         },
         {
           "commit": "0dcec22ab44a",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 6b753184",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "sorry the file blocks are *not* supposed to be contiguous, where are you getting that? all files are *definitely* not supposed to stick together. only edited files should be moved to the tail. if it's doing that, that's bad"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nYou're right, I've been misunderstanding the algorithm! Let me re-read the actual code carefully.\n\nLooking at `append_file_content` in `manager.py`:\n\n```python\n# Find earliest existing block for this filepath\nearliest_target_idx = next((...filepath match...), None)\n\n# Collect all file blocks from earliest_target_idx to end\nfiles_to_relocate = []\nfor i in range(earliest_target_idx, len(self.blocks)):\n    if FILE_CONTENT and not deleted:\n        files_to_relocate.append(block)\n        block.deleted = True\n\n# Re-append non-target files in original order\nfor block in files_to_relocate:\n    if block.metadata.get(\"filepath\") != filepath:\n        self.blocks.append(...)\n```\n\nSo when you have `[S, A, user, tool, B, C]` and edit A, it:\n1. Finds A at index 1\n2. Collects ALL file blocks from index 1 forward: A, B, C\n3. Deletes all three\n4. Re-appends B and C (non-target files)\n5. Appends new A\n\nResult: `[S, user, tool, B, C, A]` \u2014 B and C got needlessly relocated! They were already after A, they didn't need to move. **The algorithm is too aggressive** \u2014 it relocates files that don't need relocating.\n\nThe correct behavior should be: only delete the old A block, then append new A at the end. B and C should stay where they are. Let me fix the algorithm, delete the wrong contiguity test, and write a test that catches the over-relocation:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        if earliest_target_idx is None:\n            # New file, no existing blocks to relocate\n            print(\"   \u21b3 New file, no existing blocks\")\n        else:\n            # Collect all file blocks from earliest_target_idx to end\n            files_to_relocate: list[ContentBlock] = []\n            for i in range(earliest_target_idx, len(self.blocks)):\n                block = self.blocks[i]\n                if block.block_type == BlockType.FILE_CONTENT and not block.deleted:\n                    files_to_relocate.append(block)\n                    block.deleted = True\n\n            print(f\"   \u21b3 Relocating {len(files_to_relocate)} file(s) for {filepath} update\")\n\n            # Re-append non-target files in original order (already in order from forward scan)\n            for block in files_to_relocate:\n                if block.metadata.get(\"filepath\") != filepath:\n                    self.blocks.append(\n                        ContentBlock(\n                            block_type=BlockType.FILE_CONTENT,\n                            content=block.content,\n                            metadata=block.metadata.copy(),\n                        )\n                    )\n                    print(f\"   \u21b3 Relocated {block.metadata.get('filepath')}\")\n</search>\n<replace>\n        if earliest_target_idx is None:\n            # New file, no existing blocks to relocate\n            print(\"   \u21b3 New file, no existing blocks\")\n        else:\n            # Delete only the target file's blocks \u2014 leave other files in place\n            for i in range(earliest_target_idx, len(self.blocks)):\n                block = self.blocks[i]\n                if (block.block_type == BlockType.FILE_CONTENT\n                        and not block.deleted\n                        and block.metadata.get(\"filepath\") == filepath):\n                    block.deleted = True\n\n            print(f\"   \u21b3 Deleted old {filepath}, will append new version at end\")\n</replace>\n</edit>\n\nNow update the comment block above (the cache optimization rationale is wrong too):\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        # Cache optimization: relocate all file blocks from the earliest target instance forward.\n        #\n        # Example: S Z A B C x x A x x x U -> we want S Z x x x x x B C A U\n        #\n        # Rationale: When we delete all A blocks, cache invalidates from the earliest A forward.\n        # Since B and C are already losing their cache position, we relocate them too.\n        # This keeps all file blocks contiguous at the tail, so future edits only invalidate\n        # from the file block region forward. A goes last to maintain LRU ordering.\n        #\n        # Algorithm: two passes.\n        # Pass 1: find the earliest (first in message order) target block index\n        # Pass 2: collect and delete all file blocks from that index forward\n</search>\n<replace>\n        # Cache optimization: delete old version, append new at end.\n        #\n        # When file A is edited, we delete its old block and append the new\n        # version at the end. Other files stay where they are \u2014 they don't\n        # need to move just because A was updated.\n        #\n        # Algorithm:\n        # 1. Find all existing blocks for this filepath and delete them\n        # 2. Append new content at end (done below)\n</replace>\n</edit>\n\nNow remove the contiguity test I added (wrong premise) and fix tests that assumed LRU relocation behavior:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\n    def test_file_blocks_contiguous_after_interleaved_edit(self):\n        \"\"\"\n        After editing a file mid-conversation, all file blocks should be contiguous.\n\n        This is the actual purpose of the relocation algorithm: cache optimization.\n        Without relocation, conversation blocks would split the file region, causing\n        cache invalidation from the first file block forward on every edit.\n\n        Scenario: files A,B loaded, then conversation, then A edited.\n        Without relocation: [deleted-A, B, user, tool, result, new-A] \u2014 B is separated from A\n        With relocation:    [user, tool, result, B, new-A] \u2014 files are contiguous at the tail\n        \"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.append_file_content(\"a.py\", \"a_v1\")\n        pm.append_file_content(\"b.py\", \"b_v1\")\n        pm.append_user_message(\"Edit a.py\")\n        pm.append_tool_call([{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"edit\", \"arguments\": \"{}\"}}])\n        pm.append_tool_result(\"c1\", '{\"ok\": true}')\n        # Now edit a.py \u2014 should relocate b.py to be contiguous with new a.py\n        pm.append_file_content(\"a.py\", \"a_v2\")\n\n        active = [b for b in pm.blocks if not b.deleted]\n        types = [b.block_type for b in active]\n\n        # All FILE_CONTENT blocks should be at the end, with no non-file blocks between them\n        file_indices = [i for i, t in enumerate(types) if t == BlockType.FILE_CONTENT]\n        assert len(file_indices) == 2, f\"Expected 2 file blocks, got {len(file_indices)}\"\n\n        # Check contiguity: the file indices should be consecutive\n        assert file_indices[-1] - file_indices[0] == len(file_indices) - 1, (\n            f\"File blocks are not contiguous! Indices: {file_indices}, \"\n            f\"block types: {[t.value for t in types]}\"\n        )\n\n        # Verify they're at the tail (last blocks)\n        assert file_indices[-1] == len(types) - 1, (\n            f\"File blocks should be at the tail! Last file at {file_indices[-1]}, \"\n            f\"total blocks: {len(types)}\"\n        )\n\n    def test_conversation_between_file_edits_preserved(self):\n</search>\n<replace>\n    def test_unedited_files_stay_in_place(self):\n        \"\"\"\n        When file A is edited, files B and C should NOT move.\n\n        Only the edited file gets relocated to the end. Other files\n        stay at their original positions in the block stream, even if\n        they appear after the edited file's old position.\n        \"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.append_file_content(\"a.py\", \"a_v1\")\n        pm.append_file_content(\"b.py\", \"b_v1\")\n        pm.append_user_message(\"Edit a.py\")\n        pm.append_tool_call([{\"id\": \"c1\", \"type\": \"function\", \"function\": {\"name\": \"edit\", \"arguments\": \"{}\"}}])\n        pm.append_tool_result(\"c1\", '{\"ok\": true}')\n        pm.append_file_content(\"a.py\", \"a_v2\")\n\n        active = [b for b in pm.blocks if not b.deleted]\n        types = [b.block_type for b in active]\n\n        # b.py should be at its original position (index 1, after system),\n        # NOT relocated to be contiguous with a.py\n        assert types == [\n            BlockType.SYSTEM,\n            BlockType.FILE_CONTENT,  # b.py stays at original position\n            BlockType.USER_MESSAGE,\n            BlockType.TOOL_CALL,\n            BlockType.TOOL_RESULT,\n            BlockType.FILE_CONTENT,  # a.py moved to end\n        ]\n        # Verify which files\n        file_blocks = [b for b in active if b.block_type == BlockType.FILE_CONTENT]\n        assert file_blocks[0].metadata[\"filepath\"] == \"b.py\"\n        assert file_blocks[1].metadata[\"filepath\"] == \"a.py\"\n\n    def test_conversation_between_file_edits_preserved(self):\n</replace>\n</edit>\n\nNow fix the test that checks block types after edit with summaries \u2014 B and C should stay in their original positions:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\n    def test_edit_file_between_other_files_relocates_correctly(self):\n        \"\"\"\n        Regression test for the relocation algorithm.\n\n        Setup: S Z A B C (where S=system, Z=summaries, A/B/C=files)\n        Edit A: should produce S Z B C A (B and C relocated, A at end)\n        \"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.set_summaries({\"a.py\": \"file a\", \"b.py\": \"file b\", \"c.py\": \"file c\"})\n        pm.append_file_content(\"a.py\", \"a_v1\")\n        pm.append_file_content(\"b.py\", \"b_v1\")\n        pm.append_file_content(\"c.py\", \"c_v1\")\n\n        pm.append_file_content(\"a.py\", \"a_v2\")\n\n        # Verify order\n        assert self._get_file_order(pm) == [\"b.py\", \"c.py\", \"a.py\"]\n\n        # Verify block types in order (system, summaries, then files at end)\n        active = [b for b in pm.blocks if not b.deleted]\n        types = [b.block_type for b in active]\n        assert types == [\n            BlockType.SYSTEM,\n            BlockType.SUMMARIES,\n            BlockType.FILE_CONTENT,  # b.py\n            BlockType.FILE_CONTENT,  # c.py\n            BlockType.FILE_CONTENT,  # a.py\n        ]\n</search>\n<replace>\n    def test_edit_file_between_other_files(self):\n        \"\"\"\n        When editing A in [S, Z, A, B, C], only A moves to end.\n        B and C stay at their original positions.\n\n        Result: S Z B C A (old A deleted, new A appended)\n        \"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.set_summaries({\"a.py\": \"file a\", \"b.py\": \"file b\", \"c.py\": \"file c\"})\n        pm.append_file_content(\"a.py\", \"a_v1\")\n        pm.append_file_content(\"b.py\", \"b_v1\")\n        pm.append_file_content(\"c.py\", \"c_v1\")\n\n        pm.append_file_content(\"a.py\", \"a_v2\")\n\n        # Verify order: B and C stay, A moves to end\n        assert self._get_file_order(pm) == [\"b.py\", \"c.py\", \"a.py\"]\n\n        # Verify block types \u2014 B and C stay at original positions\n        active = [b for b in pm.blocks if not b.deleted]\n        types = [b.block_type for b in active]\n        assert types == [\n            BlockType.SYSTEM,\n            BlockType.SUMMARIES,\n            BlockType.FILE_CONTENT,  # b.py (original position)\n            BlockType.FILE_CONTENT,  # c.py (original position)\n            BlockType.FILE_CONTENT,  # a.py (moved to end)\n        ]\n</replace>\n</edit>\n\nAlso need to fix the existing `test_file_relocation_preserves_order` test in TestFileContent which has a misleading docstring:\n\n<edit file=\"tests/test_prompt_manager.py\">\n<search>\n    def test_file_relocation_preserves_order(self):\n        \"\"\"When updating a file, other files after it are relocated to maintain contiguity\"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.append_file_content(\"a.py\", \"a\")\n        pm.append_file_content(\"b.py\", \"b\")\n        pm.append_file_content(\"c.py\", \"c\")\n        \n        # Update a.py - b and c should be relocated after it\n        pm.append_file_content(\"a.py\", \"a_updated\")\n        \n        files = pm.get_active_files()\n        # Order should be: b, c, a (a was updated last)\n        assert files == [\"b.py\", \"c.py\", \"a.py\"]\n</search>\n<replace>\n    def test_edited_file_moves_to_end(self):\n        \"\"\"When updating a file, it moves to the end; other files stay in place\"\"\"\n        pm = PromptManager(system_prompt=\"System\")\n        pm.append_file_content(\"a.py\", \"a\")\n        pm.append_file_content(\"b.py\", \"b\")\n        pm.append_file_content(\"c.py\", \"c\")\n        \n        # Update a.py - only a moves to end, b and c stay\n        pm.append_file_content(\"a.py\", \"a_updated\")\n        \n        files = pm.get_active_files()\n        # Order should be: b, c, a (a was updated last)\n        assert files == [\"b.py\", \"c.py\", \"a.py\"]\n</replace>\n</edit>\n\n<run_tests file=\"tests/test_prompt_manager.py\" />\n\n<commit message=\"fix: only relocate edited file, not all trailing files\n\nThe relocation algorithm was over-aggressive: when file A was edited, it\ncollected ALL file blocks from A's position forward (B, C, etc.), deleted\nthem all, and re-appended them. This unnecessarily moved unedited files.\n\nThe correct behavior: only delete the old A block(s), append new A at\nthe end. B and C stay at their original positions.\n\nUpdated tests to verify unedited files stay in place.\" />",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_prompt_manager.py",
+          "modified_files": [
+            "tests/test_prompt_manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_prompt_manager.py",
+          "modified_files": [
+            "tests/test_prompt_manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_prompt_manager.py",
+          "modified_files": [
+            "tests/test_prompt_manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_aiw9lr8u\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 53 items\n\ntests/test_prompt_manager.py ........................................... [ 81%]\n..........                                                               [100%]\n\n============================== 53 passed in 0.21s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_aiw9lr8u\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 53 items\n\ntests/test_prompt_manager.py ........................................... [ 81%]\n..........                                                               [100%]\n\n============================== 53 passed in 0.21s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "812a8d39382a",
           "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

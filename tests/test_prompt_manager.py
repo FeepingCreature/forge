@@ -412,14 +412,14 @@ class TestFileContent:
         files = pm.get_active_files()
         assert files == ["b.py"]
 
-    def test_file_relocation_preserves_order(self):
-        """When updating a file, other files after it are relocated to maintain contiguity"""
+    def test_edited_file_moves_to_end(self):
+        """When updating a file, it moves to the end; other files stay in place"""
         pm = PromptManager(system_prompt="System")
         pm.append_file_content("a.py", "a")
         pm.append_file_content("b.py", "b")
         pm.append_file_content("c.py", "c")
         
-        # Update a.py - b and c should be relocated after it
+        # Update a.py - only a moves to end, b and c stay
         pm.append_file_content("a.py", "a_updated")
         
         files = pm.get_active_files()
@@ -969,12 +969,12 @@ class TestFileOrderingAfterEdits:
         assert blocks[0].metadata["tool_call_id"] == "call_123"
         assert "call_123" in blocks[0].content  # tool_call_id appears in header
 
-    def test_edit_file_between_other_files_relocates_correctly(self):
+    def test_edit_file_between_other_files(self):
         """
-        Regression test for the relocation algorithm.
+        When editing A in [S, Z, A, B, C], only A moves to end.
+        B and C stay at their original positions.
 
-        Setup: S Z A B C (where S=system, Z=summaries, A/B/C=files)
-        Edit A: should produce S Z B C A (B and C relocated, A at end)
+        Result: S Z B C A (old A deleted, new A appended)
         """
         pm = PromptManager(system_prompt="System")
         pm.set_summaries({"a.py": "file a", "b.py": "file b", "c.py": "file c"})
@@ -984,31 +984,27 @@ class TestFileOrderingAfterEdits:
 
         pm.append_file_content("a.py", "a_v2")
 
-        # Verify order
+        # Verify order: B and C stay, A moves to end
         assert self._get_file_order(pm) == ["b.py", "c.py", "a.py"]
 
-        # Verify block types in order (system, summaries, then files at end)
+        # Verify block types — B and C stay at original positions
         active = [b for b in pm.blocks if not b.deleted]
         types = [b.block_type for b in active]
         assert types == [
             BlockType.SYSTEM,
             BlockType.SUMMARIES,
-            BlockType.FILE_CONTENT,  # b.py
-            BlockType.FILE_CONTENT,  # c.py
-            BlockType.FILE_CONTENT,  # a.py
+            BlockType.FILE_CONTENT,  # b.py (original position)
+            BlockType.FILE_CONTENT,  # c.py (original position)
+            BlockType.FILE_CONTENT,  # a.py (moved to end)
         ]
 
-    def test_file_blocks_contiguous_after_interleaved_edit(self):
+    def test_unedited_files_stay_in_place(self):
         """
-        After editing a file mid-conversation, all file blocks should be contiguous.
+        When file A is edited, files B and C should NOT move.
 
-        This is the actual purpose of the relocation algorithm: cache optimization.
-        Without relocation, conversation blocks would split the file region, causing
-        cache invalidation from the first file block forward on every edit.
-
-        Scenario: files A,B loaded, then conversation, then A edited.
-        Without relocation: [deleted-A, B, user, tool, result, new-A] — B is separated from A
-        With relocation:    [user, tool, result, B, new-A] — files are contiguous at the tail
+        Only the edited file gets relocated to the end. Other files
+        stay at their original positions in the block stream, even if
+        they appear after the edited file's old position.
         """
         pm = PromptManager(system_prompt="System")
         pm.append_file_content("a.py", "a_v1")
@@ -1016,27 +1012,25 @@ class TestFileOrderingAfterEdits:
         pm.append_user_message("Edit a.py")
         pm.append_tool_call([{"id": "c1", "type": "function", "function": {"name": "edit", "arguments": "{}"}}])
         pm.append_tool_result("c1", '{"ok": true}')
-        # Now edit a.py — should relocate b.py to be contiguous with new a.py
         pm.append_file_content("a.py", "a_v2")
 
         active = [b for b in pm.blocks if not b.deleted]
         types = [b.block_type for b in active]
 
-        # All FILE_CONTENT blocks should be at the end, with no non-file blocks between them
-        file_indices = [i for i, t in enumerate(types) if t == BlockType.FILE_CONTENT]
-        assert len(file_indices) == 2, f"Expected 2 file blocks, got {len(file_indices)}"
-
-        # Check contiguity: the file indices should be consecutive
-        assert file_indices[-1] - file_indices[0] == len(file_indices) - 1, (
-            f"File blocks are not contiguous! Indices: {file_indices}, "
-            f"block types: {[t.value for t in types]}"
-        )
-
-        # Verify they're at the tail (last blocks)
-        assert file_indices[-1] == len(types) - 1, (
-            f"File blocks should be at the tail! Last file at {file_indices[-1]}, "
-            f"total blocks: {len(types)}"
-        )
+        # b.py should be at its original position (index 1, after system),
+        # NOT relocated to be contiguous with a.py
+        assert types == [
+            BlockType.SYSTEM,
+            BlockType.FILE_CONTENT,  # b.py stays at original position
+            BlockType.USER_MESSAGE,
+            BlockType.TOOL_CALL,
+            BlockType.TOOL_RESULT,
+            BlockType.FILE_CONTENT,  # a.py moved to end
+        ]
+        # Verify which files
+        file_blocks = [b for b in active if b.block_type == BlockType.FILE_CONTENT]
+        assert file_blocks[0].metadata["filepath"] == "b.py"
+        assert file_blocks[1].metadata["filepath"] == "a.py"
 
     def test_conversation_between_file_edits_preserved(self):
         """

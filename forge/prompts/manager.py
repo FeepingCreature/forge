@@ -173,18 +173,15 @@ class PromptManager:
         """
         print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
 
-        # Cache optimization: relocate all file blocks from the earliest target instance forward.
+        # Cache optimization: delete old version, append new at end.
         #
-        # Example: S Z A B C x x A x x x U -> we want S Z x x x x x B C A U
+        # When file A is edited, we delete its old block and append the new
+        # version at the end. Other files stay where they are — they don't
+        # need to move just because A was updated.
         #
-        # Rationale: When we delete all A blocks, cache invalidates from the earliest A forward.
-        # Since B and C are already losing their cache position, we relocate them too.
-        # This keeps all file blocks contiguous at the tail, so future edits only invalidate
-        # from the file block region forward. A goes last to maintain LRU ordering.
-        #
-        # Algorithm: two passes.
-        # Pass 1: find the earliest (first in message order) target block index
-        # Pass 2: collect and delete all file blocks from that index forward
+        # Algorithm:
+        # 1. Find all existing blocks for this filepath and delete them
+        # 2. Append new content at end (done below)
         earliest_target_idx: int | None = next(
             (
                 i
@@ -200,27 +197,15 @@ class PromptManager:
             # New file, no existing blocks to relocate
             print("   ↳ New file, no existing blocks")
         else:
-            # Collect all file blocks from earliest_target_idx to end
-            files_to_relocate: list[ContentBlock] = []
+            # Delete only the target file's blocks — leave other files in place
             for i in range(earliest_target_idx, len(self.blocks)):
                 block = self.blocks[i]
-                if block.block_type == BlockType.FILE_CONTENT and not block.deleted:
-                    files_to_relocate.append(block)
+                if (block.block_type == BlockType.FILE_CONTENT
+                        and not block.deleted
+                        and block.metadata.get("filepath") == filepath):
                     block.deleted = True
 
-            print(f"   ↳ Relocating {len(files_to_relocate)} file(s) for {filepath} update")
-
-            # Re-append non-target files in original order (already in order from forward scan)
-            for block in files_to_relocate:
-                if block.metadata.get("filepath") != filepath:
-                    self.blocks.append(
-                        ContentBlock(
-                            block_type=BlockType.FILE_CONTENT,
-                            content=block.content,
-                            metadata=block.metadata.copy(),
-                        )
-                    )
-                    print(f"   ↳ Relocated {block.metadata.get('filepath')}")
+            print(f"   ↳ Deleted old {filepath}, will append new version at end")
 
         # Format content block with explicit annotation
         # Make it VERY clear this is informative context, not a question

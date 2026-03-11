@@ -375,6 +375,78 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773261887-bmLr9ubCte9S9oaHXCP1"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261911348.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261911348.json",
+      "timestamp": 1773261911.3584704,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261911-rSpEsA4miuVAOx5H9epE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261945242.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261945242.json",
+      "timestamp": 1773261945.2450893,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261945-CE4vQ6qdDiBeJewC2nWw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773261989448.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773261989448.json",
+      "timestamp": 1773261989.4507265,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773261989-nIEMxVNEu51Q0WmBa8WB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262006143.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262006143.json",
+      "timestamp": 1773262006.1465394,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262006-wiV2K2nHbtFRVLgH1n6g"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262019047.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262019047.json",
+      "timestamp": 1773262019.0499609,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262019-i1sWtOKgzDb38UTcBQs4"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262034539.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262034539.json",
+      "timestamp": 1773262034.5433178,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262034-4BMPce7BRbW8auFzFdPD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262063673.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262063673.json",
+      "timestamp": 1773262063.6758797,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262063-UeP5wXuLq5HYeyrgzLG9"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773262077066.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773262077066.json",
+      "timestamp": 1773262077.069816,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773262077-zjYOIn737wIMVrGKEHRJ"
     }
   ],
   "messages": [
@@ -1167,6 +1239,194 @@
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 83de1d32",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay and now?"
+    },
+    {
+      "role": "assistant",
+      "content": "## Messages I perceive in my context (last ~10):\n\n1. **[id 1]** [COMPACTED] - Traced the full edit\u2192prompt reorder flow, fixed bug, analyzed scenarios\n2. **[id 28-30]** Assistant - Compact + write ordering tests + commit\n3. **[id 31]** User - \"try to intentionally break one\"\n4. **[id 32]** Assistant - Broke relocation logic + run_tests\n5. **[id 33]** User - \"do we actually have an inline run_tests tool\"\n6. **[id 34-36]** Assistant - Yes, ran tests\n7. **[id 37]** User - \"so what's going on there?\"\n8. **[id 38]** Assistant - Tests passed, explained why, added contiguity test\n9. **[id 39]** User - \"file blocks NOT supposed to be contiguous\"\n10. **[id 40]** Assistant - Fixed algorithm to only relocate edited file\n11. **[id 41]** User - \"why do tests always pass, put assert False\"\n12. **[id 42-43]** Assistant - assert False worked, removed it\n13. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n14. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit a4c3952d \u2713\n15. **[id 46]** Assistant - Made trivial edit (print message wording)\n16. **[id 47]** User - \"okay and now?\"\n\n---\n\nEverything looks good! The pipeline is working:\n- Edit applied \u2713\n- Tests passed \u2713  \n- Commit created (a4c3952d) \u2713\n\nThe message order in my context is stable \u2014 no reordering visible. Messages flow chronologically from the compacted summary through to your latest message.\n\nContext is at 93.9k tokens though, which is very large. Want me to compact the earlier back-and-forth (the broken relocation attempts, assert False experiments, etc.) to free up space? Most of that is resolved now \u2014 the final state is:\n\n1. **Algorithm fixed**: `append_file_content` only deletes the edited file's block and appends new version at end. Other files stay in place.\n2. **Tests written**: `TestFileOrderingAfterEdits` with 14 tests covering ordering, uniqueness, content correctness, and non-relocation of unedited files.\n3. **Pipeline working**: edit \u2192 run_tests \u2192 commit all functional."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 8b58133c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "DO NOT COMPACT. you changed manager.py! why is manager.py not after that change now?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 50] ## Messages I perceive in my context (last ~10):\n\n1. **[id 37]** User - \"so what's going on there?\"\n2. **[id 38]** Assistant - Tests passed, explained why, added contiguity test\n3. **[id 39]** User - \"file blocks NOT supposed to be contiguous\"\n4. **[id 40]** Assistant - Fixed algorithm to only relocate edited file\n5. **[id 41]** User - \"why do tests always pass, put assert False\"\n6. **[id 42-43]** Assistant - assert False worked, removed it\n7. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n8. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n9. **[id 46]** Assistant - Made trivial edit to manager.py\n10. **[id 47]** User - \"okay and now?\"\n11. **[id 48]** Assistant - Everything looks good\n12. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why is manager.py not after that change now?\"\n\n---\n\nYou're absolutely right \u2014 **this is the bug in action!** I edited `forge/prompts/manager.py` in [id 46], but looking at my context, manager.py is still in its original position in the file ordering \u2014 it's NOT after that edit. The files in my context appear in this order:\n\n1. CLAUDE.md\n2. forge/session/live_session.py\n3. forge/session/manager.py\n4. tests/test_prompt_manager.py\n5. forge/prompts/manager.py\n\nAnd manager.py's content DOES reflect the edit (it says \"Setting file content\" not \"Appending\"), so the content is correct. But the **position** hasn't changed \u2014 it should be AFTER the conversation where I edited it.\n\nWait \u2014 actually, the edit I made was through Forge's own edit pipeline (the `<edit>` inline command), which calls `file_was_modified()` on the SessionManager. That should call `prompt_manager.append_file_content()` which should delete the old block and append a new one at the end. \n\nSo either:\n1. `file_was_modified()` isn't being called for `forge/prompts/manager.py` after my edit, or\n2. The file IS being relocated but the context I see doesn't reflect that because the file was already loaded before the edit happened\n\nLet me check \u2014 is this a problem with the prompt reordering code, or is it that the file context shown to me is managed differently from the prompt blocks? The files shown as `[CONTEXT: File contents for ...]` at the top of my context \u2014 are those coming from the prompt manager's `to_messages()`, or are they injected separately by the Forge infrastructure?\n\nThis is the key question. If those file contexts are injected by something OTHER than the prompt manager, then the prompt manager's reordering wouldn't affect what I see."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c6e188ba",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "can you check? I don't actually know out of hand. But we're definitely seeing the bug in action."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 52] ## Messages I perceive in my context (last ~10):\n\n1. **[id 39]** User - \"file blocks NOT supposed to be contiguous\"\n2. **[id 40]** Assistant - Fixed algorithm to only relocate edited file\n3. **[id 41]** User - \"why do tests always pass, put assert False\"\n4. **[id 42-43]** Assistant - assert False worked, removed it\n5. **[id 44]** User - \"test if this works, make a trivial change\"\n6. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n7. **[id 46]** Assistant - Made trivial edit to manager.py\n8. **[id 47]** User - \"okay and now?\"\n9. **[id 48]** Assistant - Everything looks good\n10. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why isn't it after the change?\"\n11. **[id 50]** Assistant - You're right, this is the bug in action\n12. **[id 51]** User - \"can you check?\"\n\n---\n\n**Files I see in my context, in the exact order they appear:**\n\n1. CLAUDE.md\n2. forge/session/live_session.py\n3. forge/session/manager.py\n4. tests/test_prompt_manager.py\n5. forge/prompts/manager.py\n\n**The edit I made was to `forge/prompts/manager.py`**, and it's still at position 5 \u2014 exactly where it was before. The content IS updated (says \"Setting\" not \"Appending\"), but it didn't move.\n\nLet me trace what should happen. When the edit tool runs on `forge/prompts/manager.py`, `_process_tool_side_effects` should add it to `_pending_file_updates`, and then `_flush_pending_file_updates` calls `session_manager.file_was_modified(filepath)`. Let me check how the edit tool reports its side effects:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"FILES_MODIFIED|modified_files\", \"file\": \"forge/tools/builtin/edit.py\", \"max_matches\": 10}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01KC1pjo329g9D2LLQLzg4kW",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01KC1pjo329g9D2LLQLzg4kW",
+      "content": "{\"message\": \"Found 4 matches\", \"output\": \"\\u2500\\u2500 forge/tools/builtin/edit.py:326 \\u2500\\u2500\\n     323 |     return {\\n     324 |         \\\"success\\\": True,\\n     325 |         \\\"message\\\": f\\\"Replaced in {filepath}\\\",\\n>>>  326 |         \\\"modified_files\\\": [filepath],\\n     327 |         \\\"side_effects\\\": [SideEffect.FILES_MODIFIED],\\n     328 |     }\\n     329 | \\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:327 \\u2500\\u2500\\n     324 |         \\\"success\\\": True,\\n     325 |         \\\"message\\\": f\\\"Replaced in {filepath}\\\",\\n     326 |         \\\"modified_files\\\": [filepath],\\n>>>  327 |         \\\"side_effects\\\": [SideEffect.FILES_MODIFIED],\\n     328 |     }\\n     329 | \\n     330 | \\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:343 \\u2500\\u2500\\n     340 | \\n     341 |     vfs.write_file(filepath, content)\\n     342 | \\n>>>  343 |     side_effects = [SideEffect.FILES_MODIFIED]\\n     344 |     result: dict[str, Any] = {\\n     345 |         \\\"success\\\": True,\\n     346 |         \\\"message\\\": f\\\"Wrote {len(content)} bytes to {filepath}\\\",\\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:347 \\u2500\\u2500\\n     344 |     result: dict[str, Any] = {\\n     345 |         \\\"success\\\": True,\\n     346 |         \\\"message\\\": f\\\"Wrote {len(content)} bytes to {filepath}\\\",\\n>>>  347 |         \\\"modified_files\\\": [filepath],\\n     348 |         \\\"side_effects\\\": side_effects,\\n     349 |     }\\n     350 | \", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 4}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/tools/builtin/edit.py\",\n  \"max_matches\": 10,\n  \"pattern\": \"FILES_MODIFIED|modified_files\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 4 matches\",\n  \"output\": \"\\u2500\\u2500 forge/tools/builtin/edit.py:326 \\u2500\\u2500\\n     323 |     return {\\n     324 |         \\\"success\\\": True,\\n     325 |         \\\"message\\\": f\\\"Replaced in {filepath}\\\",\\n>>>  326 |         \\\"modified_files\\\": [filepath],\\n     327 |         \\\"side_effects\\\": [SideEffect.FILES_MODIFIED],\\n     328 |     }\\n     329 | \\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:327 \\u2500\\u2500\\n     324 |         \\\"success\\\": True,\\n     325 |         \\\"message\\\": f\\\"Replaced in {filepath}\\\",\\n     326 |         \\\"modified_files\\\": [filepath],\\n>>>  327 |         \\\"side_effects\\\": [SideEffect.FILES_MODIFIED],\\n     328 |     }\\n     329 | \\n     330 | \\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:343 \\u2500\\u2500\\n     340 | \\n     341 |     vfs.write_file(filepath, content)\\n     342 | \\n>>>  343 |     side_effects = [SideEffect.FILES_MODIFIED]\\n     344 |     result: dict[str, Any] = {\\n     345 |         \\\"success\\\": True,\\n     346 |         \\\"message\\\": f\\\"Wrote {len(content)} bytes to {filepath}\\\",\\n\\n\\u2500\\u2500 forge/tools/builtin/edit.py:347 \\u2500\\u2500\\n     344 |     result: dict[str, Any] = {\\n     345 |         \\\"success\\\": True,\\n     346 |         \\\"message\\\": f\\\"Wrote {len(content)} bytes to {filepath}\\\",\\n>>>  347 |         \\\"modified_files\\\": [filepath],\\n     348 |         \\\"side_effects\\\": side_effects,\\n     349 |     }\\n     350 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 4\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 53] ## Messages I perceive in my context (last ~10):\n\n1. **[id 41]** User - \"why do tests always pass, put assert False\"\n2. **[id 42-43]** Assistant - assert False worked, removed it\n3. **[id 44]** User - \"test if this works, make a trivial change\"\n4. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n5. **[id 46]** Assistant - Made trivial edit to manager.py\n6. **[id 47]** User - \"okay and now?\"\n7. **[id 48]** Assistant - Everything looks good\n8. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why isn't it after the change?\"\n9. **[id 50]** Assistant - You're right, this is the bug in action\n10. **[id 51]** User - \"can you check?\"\n11. **[id 52]** Assistant - grep_context for FILES_MODIFIED in edit.py\n\n---\n\nOK so the edit tool DOES report `FILES_MODIFIED` with the filepath. That means `_process_tool_side_effects` should queue the file update, and `_flush_pending_file_updates` should call `file_was_modified()`.\n\nBut wait \u2014 the edit tool is an **inline command**, not an API tool call. Inline commands go through a different path! Let me check how inline command side effects are processed:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"_process_tool_side_effects\", \"file\": \"forge/session/live_session.py\", \"max_matches\": 10}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01E1EqxqjKjikgTy376iqz7F",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01E1EqxqjKjikgTy376iqz7F",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/session/live_session.py:693 \\u2500\\u2500\\n     690 |             # Process successful commands before failure\\n     691 |             for i, res in enumerate(results[:-1]):\\n     692 |                 if res.get(\\\"success\\\"):\\n>>>  693 |                     self._process_tool_side_effects(res, commands[i])\\n     694 | \\n     695 |             # Flush pending file updates so prompt has current content\\n     696 |             self._flush_pending_file_updates()\\n\\n\\u2500\\u2500 forge/session/live_session.py:710 \\u2500\\u2500\\n     707 | \\n     708 |         # All succeeded\\n     709 |         for i, res in enumerate(results):\\n>>>  710 |             self._process_tool_side_effects(res, commands[i])\\n     711 | \\n     712 |         # Flush pending file updates so prompt has current content\\n     713 |         self._flush_pending_file_updates()\\n\\n\\u2500\\u2500 forge/session/live_session.py:748 \\u2500\\u2500\\n     745 |         self.state = SessionState.ERROR\\n     746 |         self._emit_event(ErrorEvent(f\\\"Inline command error: {error_msg}\\\"))\\n     747 | \\n>>>  748 |     def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:\\n     749 |         \\\"\\\"\\\"Process side effects from tool execution.\\\"\\\"\\\"\\n     750 |         from forge.tools.side_effects import SideEffect\\n     751 | \", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/session/live_session.py\",\n  \"max_matches\": 10,\n  \"pattern\": \"_process_tool_side_effects\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/live_session.py:693 \\u2500\\u2500\\n     690 |             # Process successful commands before failure\\n     691 |             for i, res in enumerate(results[:-1]):\\n     692 |                 if res.get(\\\"success\\\"):\\n>>>  693 |                     self._process_tool_side_effects(res, commands[i])\\n     694 | \\n     695 |             # Flush pending file updates so prompt has current content\\n     696 |             self._flush_pending_file_updates()\\n\\n\\u2500\\u2500 forge/session/live_session.py:710 \\u2500\\u2500\\n     707 | \\n     708 |         # All succeeded\\n     709 |         for i, res in enumerate(results):\\n>>>  710 |             self._process_tool_side_effects(res, commands[i])\\n     711 | \\n     712 |         # Flush pending file updates so prompt has current content\\n     713 |         self._flush_pending_file_updates()\\n\\n\\u2500\\u2500 forge/session/live_session.py:748 \\u2500\\u2500\\n     745 |         self.state = SessionState.ERROR\\n     746 |         self._emit_event(ErrorEvent(f\\\"Inline command error: {error_msg}\\\"))\\n     747 | \\n>>>  748 |     def _process_tool_side_effects(self, result: dict[str, Any], cmd: Any = None) -> None:\\n     749 |         \\\"\\\"\\\"Process side effects from tool execution.\\\"\\\"\\\"\\n     750 |         from forge.tools.side_effects import SideEffect\\n     751 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 54] ## Messages I perceive in my context (last ~10):\n\n1. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n2. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n3. **[id 46]** Assistant - Made trivial edit to manager.py\n4. **[id 47]** User - \"okay and now?\"\n5. **[id 48]** Assistant - Everything looks good\n6. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why isn't it after the change?\"\n7. **[id 50]** Assistant - You're right, this is the bug in action\n8. **[id 51]** User - \"can you check?\"\n9. **[id 52]** Assistant - grep_context for FILES_MODIFIED in edit.py\n10. **[id 53]** Assistant - grep_context for _process_tool_side_effects in live_session.py\n\n---\n\nOK so I found the inline command path. When inline commands succeed:\n1. `_on_inline_commands_finished` calls `_process_tool_side_effects(res, cmd)` for each result\n2. Then calls `_flush_pending_file_updates()` which calls `session_manager.file_was_modified(filepath)`\n3. `file_was_modified` calls `prompt_manager.append_file_content()` which should delete old block and append new at end\n\nSo the code path exists. But I notice something \u2014 the `[CONTEXT: File contents for ...]` blocks I see in my context... these look like they're injected by the **Forge infrastructure** (the tool that manages my context window), not directly from `to_messages()`. \n\nLet me check \u2014 who actually injects those `[CONTEXT: File contents for ...]` blocks into what I see?",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"CONTEXT: File contents for\", \"max_matches\": 5}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_017AvfHnKbKEdQCUXqKLCdkV",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017AvfHnKbKEdQCUXqKLCdkV",
+      "content": "{\"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:214 \\u2500\\u2500\\n     211 |         # Make it VERY clear this is informative context, not a question\\n     212 |         if tool_call_id:\\n     213 |             header = (\\n>>>  214 |                 f\\\"[CONTEXT: File contents for {filepath} after tool call {tool_call_id}. \\\"\\n     215 |                 f\\\"This is purely informative - showing the result of the tool operation.]\\\"\\n     216 |             )\\n     217 |         elif note:\\n\\n\\u2500\\u2500 forge/prompts/manager.py:219 \\u2500\\u2500\\n     216 |             )\\n     217 |         elif note:\\n     218 |             header = (\\n>>>  219 |                 f\\\"[CONTEXT: File contents for {filepath}. \\\"\\n     220 |                 f\\\"This is purely informative context, not a question. NOTE: {note}]\\\"\\n     221 |             )\\n     222 |         else:\\n\\n\\u2500\\u2500 forge/prompts/manager.py:224 \\u2500\\u2500\\n     221 |             )\\n     222 |         else:\\n     223 |             header = (\\n>>>  224 |                 f\\\"[CONTEXT: File contents for {filepath}. \\\"\\n     225 |                 f\\\"This is purely informative context, not a question.]\\\"\\n     226 |             )\\n     227 | \", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 3}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"max_matches\": 5,\n  \"pattern\": \"CONTEXT: File contents for\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:214 \\u2500\\u2500\\n     211 |         # Make it VERY clear this is informative context, not a question\\n     212 |         if tool_call_id:\\n     213 |             header = (\\n>>>  214 |                 f\\\"[CONTEXT: File contents for {filepath} after tool call {tool_call_id}. \\\"\\n     215 |                 f\\\"This is purely informative - showing the result of the tool operation.]\\\"\\n     216 |             )\\n     217 |         elif note:\\n\\n\\u2500\\u2500 forge/prompts/manager.py:219 \\u2500\\u2500\\n     216 |             )\\n     217 |         elif note:\\n     218 |             header = (\\n>>>  219 |                 f\\\"[CONTEXT: File contents for {filepath}. \\\"\\n     220 |                 f\\\"This is purely informative context, not a question. NOTE: {note}]\\\"\\n     221 |             )\\n     222 |         else:\\n\\n\\u2500\\u2500 forge/prompts/manager.py:224 \\u2500\\u2500\\n     221 |             )\\n     222 |         else:\\n     223 |             header = (\\n>>>  224 |                 f\\\"[CONTEXT: File contents for {filepath}. \\\"\\n     225 |                 f\\\"This is purely informative context, not a question.]\\\"\\n     226 |             )\\n     227 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 55] ## Messages I perceive in my context (last ~10):\n\n1. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n2. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n3. **[id 46]** Assistant - Made trivial edit to manager.py\n4. **[id 47]** User - \"okay and now?\"\n5. **[id 48]** Assistant - Everything looks good\n6. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why isn't it after the change?\"\n7. **[id 50]** Assistant - You're right, this is the bug in action\n8. **[id 51]** User - \"can you check?\"\n9. **[id 52]** Assistant - grep for FILES_MODIFIED in edit.py\n10. **[id 53]** Assistant - grep for _process_tool_side_effects in live_session.py\n11. **[id 54]** Assistant - grep for \"CONTEXT: File contents for\"\n\n---\n\nThe `[CONTEXT: File contents for ...]` header is generated **by the PromptManager itself** in `append_file_content()` (manager.py lines 214-226). So those file blocks I see ARE coming through `to_messages()`. The prompt manager is the source of truth.\n\nSo the question is: **why isn't `forge/prompts/manager.py` being moved to after the edit?**\n\nHere's my theory: the edit I made was an **inline command** (`<edit>`). The inline command execution path does call `_flush_pending_file_updates()` \u2192 `file_was_modified()` \u2192 `append_file_content()`. BUT \u2014 that happens **during my turn**, before `to_messages()` is called for the NEXT request. \n\nActually wait \u2014 the file content I see right now IS the content for this current request. So `to_messages()` was already called to build the prompt I'm currently reading. The file was updated in the prompt manager's blocks, but the question is whether `to_messages()` was called AFTER the file update happened.\n\nLet me look at the actual ordering. The file blocks I see are:\n\n1. CLAUDE.md - `[CONTEXT: File contents for CLAUDE.md. This is purely informative context, not a question.]`\n2. live_session.py - `[CONTEXT: File contents for forge/session/live_session.py...]`\n3. session/manager.py - `[CONTEXT: File contents for forge/session/manager.py...]`\n4. test_prompt_manager.py - `[CONTEXT: File contents for tests/test_prompt_manager.py...]`\n5. prompts/manager.py - `[CONTEXT: File contents for forge/prompts/manager.py...]`\n\nAnd the **conversation messages** (user/assistant) come AFTER all these files. So all 5 files are in a contiguous block before any conversation.\n\nThe key issue: **the file was edited in a previous turn** (the turn where I made the trivial change). After that turn completed and committed, a new `sync_prompt_manager()` call would have been made for THIS turn's `_process_llm_request()`. But `sync_prompt_manager()` only **adds/removes** files \u2014 it doesn't update existing ones:\n\n```python\ndef sync_prompt_manager(self) -> None:\n    # NOTE: This only adds/removes files. File UPDATES are handled by\n    # file_was_modified() which is called when tools actually change files.\n```\n\nSo after commit + VFS refresh, the file content in the prompt manager is **stale from the previous turn's flush**. The `file_was_modified()` call happened during the previous turn, correctly moving the file to the end. But then the turn finished, committed, VFS was refreshed... and on the NEXT turn, `sync_prompt_manager()` sees the file is already in context and does nothing.\n\nThe file IS at the end of the blocks from the previous turn's edit. But **all the conversation blocks from that turn were committed and cleared**, and then new conversation starts fresh. So the ordering from the previous turn's flush is actually preserved!\n\nLet me add a print to see the actual block order right before `to_messages()`:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"def sync_prompt_manager\", \"file\": \"forge/session/manager.py\", \"context_after\": 20}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01WnPyzLZouRfu3Wpi4sKJVM",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WnPyzLZouRfu3Wpi4sKJVM",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/session/manager.py:250 \\u2500\\u2500\\n     247 | \\n     248 |         return context\\n     249 | \\n>>>  250 |     def sync_prompt_manager(self) -> None:\\n     251 |         \\\"\\\"\\\"\\n     252 |         Sync the prompt manager with current state.\\n     253 | \\n     254 |         Call this before building messages to ensure prompt manager\\n     255 |         has current file contents. Summaries are set once at session start,\\n     256 |         not here.\\n     257 | \\n     258 |         NOTE: This only adds/removes files. File UPDATES are handled by\\n     259 |         file_was_modified() which is called when tools actually change files.\\n     260 |         This ensures only modified files move to end of prompt (cache optimization).\\n     261 |         \\\"\\\"\\\"\\n     262 |         current_prompt_files = set(self.prompt_manager.get_active_files())\\n     263 | \\n     264 |         # Add files that are newly in context (not already in prompt manager)\\n     265 |         for filepath in self.active_files:\\n     266 |             if filepath not in current_prompt_files:\\n     267 |                 try:\\n     268 |                     content = self.tool_manager.vfs.read_file(filepath)\\n     269 |                     self.prompt_manager.append_file_content(filepath, content)\\n     270 |                 except (FileNotFoundError, KeyError):\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 20,\n  \"file\": \"forge/session/manager.py\",\n  \"pattern\": \"def sync_prompt_manager\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/manager.py:250 \\u2500\\u2500\\n     247 | \\n     248 |         return context\\n     249 | \\n>>>  250 |     def sync_prompt_manager(self) -> None:\\n     251 |         \\\"\\\"\\\"\\n     252 |         Sync the prompt manager with current state.\\n     253 | \\n     254 |         Call this before building messages to ensure prompt manager\\n     255 |         has current file contents. Summaries are set once at session start,\\n     256 |         not here.\\n     257 | \\n     258 |         NOTE: This only adds/removes files. File UPDATES are handled by\\n     259 |         file_was_modified() which is called when tools actually change files.\\n     260 |         This ensures only modified files move to end of prompt (cache optimization).\\n     261 |         \\\"\\\"\\\"\\n     262 |         current_prompt_files = set(self.prompt_manager.get_active_files())\\n     263 | \\n     264 |         # Add files that are newly in context (not already in prompt manager)\\n     265 |         for filepath in self.active_files:\\n     266 |             if filepath not in current_prompt_files:\\n     267 |                 try:\\n     268 |                     content = self.tool_manager.vfs.read_file(filepath)\\n     269 |                     self.prompt_manager.append_file_content(filepath, content)\\n     270 |                 except (FileNotFoundError, KeyError):\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 56] ## Messages I perceive in my context (last ~10):\n\n1. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n2. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n3. **[id 46]** Assistant - Made trivial edit to manager.py\n4. **[id 47]** User - \"okay and now?\"\n5. **[id 48]** Assistant - Everything looks good\n6. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py! why isn't it after the change?\"\n7. **[id 50]** Assistant - You're right, this is the bug in action\n8. **[id 51]** User - \"can you check?\"\n9. **[id 52-55]** Assistant - series of grep_context calls tracing the code path\n10. **[id recap]** Conversation recap injected by system\n\n---\n\nOK let me stop speculating and just add prints. I want to see what's actually happening when the prompt is built for this very request. Let me add a print that dumps the block order right at the start of `to_messages()`:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n    def to_messages(self) -> list[dict[str, Any]]:\n        \"\"\"\n        Convert the block stream to API message format.\n</search>\n<replace>\n    def to_messages(self) -> list[dict[str, Any]]:\n        \"\"\"\n        Convert the block stream to API message format.\n        # DEBUG: dump block order\n</replace>\n</edit>\n\nWait, that would break the docstring. Let me do it properly \u2014 add the print inside the method body:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/prompts/manager.py\"}",
+            "name": "undo_edit"
+          },
+          "id": "toolu_vrtx_01BVNZK2DZd1W97RRNEJFNcd",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01BVNZK2DZd1W97RRNEJFNcd",
+      "content": "{\"action\": \"reverted\", \"message\": \"Reverted to base commit version: forge/prompts/manager.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `undo_edit`\n```json\n{\n  \"filepath\": \"forge/prompts/manager.py\"\n}\n```\n**Result:**\n```json\n{\n  \"action\": \"reverted\",\n  \"message\": \"Reverted to base commit version: forge/prompts/manager.py\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 58] ## Messages I perceive in my context (last ~10):\n\n1. **[id 44]** User - \"test if this works, make a trivial change\" + IMPORTANT instruction\n2. **[id 45]** Pipeline results - edit \u2713, tests \u2713, commit \u2713\n3. **[id 46]** Assistant - Made trivial edit to manager.py\n4. **[id 47]** User - \"okay and now?\"\n5. **[id 48]** Assistant - Everything looks good\n6. **[id 49]** User - \"DO NOT COMPACT. you changed manager.py!\"\n7. **[id 50]** Assistant - You're right, this is the bug\n8. **[id 51]** User - \"can you check?\"\n9. **[id 52-55]** Assistant - grep_context calls tracing code path\n10. **[id 56]** User - Commands executed: \u2713 edit (on manager.py)\n11. **[id 57]** Assistant - Tried to add debug print, then undo_edit\n\n---\n\nOK, let me stop speculating and just add a debug print. The undo_edit reverted my previous attempt so manager.py is clean. Let me add a print inside `to_messages()` that dumps the block order:\n\n<edit file=\"forge/prompts/manager.py\">\n<search>\n        messages: list[dict[str, Any]] = []\n\n        # Filter out deleted blocks\n        active_blocks = [b for b in self.blocks if not b.deleted]\n</search>\n<replace>\n        messages: list[dict[str, Any]] = []\n\n        # DEBUG: dump block order to see what's happening\n        active_blocks_debug = [b for b in self.blocks if not b.deleted]\n        print(\"\ud83d\udd0d to_messages() block order:\")\n        for idx, b in enumerate(active_blocks_debug):\n            if b.block_type == BlockType.FILE_CONTENT:\n                print(f\"   [{idx}] {b.block_type.value}: {b.metadata.get('filepath')}\")\n            elif b.block_type in (BlockType.USER_MESSAGE, BlockType.ASSISTANT_MESSAGE):\n                preview = b.content[:60].replace('\\n', ' ')\n                print(f\"   [{idx}] {b.block_type.value}: {preview}...\")\n            else:\n                print(f\"   [{idx}] {b.block_type.value}\")\n\n        # Filter out deleted blocks\n        active_blocks = [b for b in self.blocks if not b.deleted]\n</replace>\n</edit>\n\nNow when the next request is built, the server logs will show us the exact block ordering. After you see the output, paste the relevant lines and we'll know exactly what's happening.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
           ],
           "success": true
         }

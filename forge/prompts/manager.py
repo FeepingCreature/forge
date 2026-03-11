@@ -171,7 +171,7 @@ class PromptManager:
             note: Optional note (e.g., "summary may be outdated")
             tool_call_id: If this file was just modified by a tool, the tool call ID
         """
-        print(f"📄 PromptManager: Appending file content for {filepath} ({len(content)} chars)")
+        print(f"📄 PromptManager: Setting file content for {filepath} ({len(content)} chars)")
 
         # Cache optimization: delete old version, append new at end.
         #

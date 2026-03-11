@@ -1156,7 +1156,6 @@ Chain everything optimistically. The pipeline handles failures for you."""
     def to_messages(self) -> list[dict[str, Any]]:
         """
         Convert the block stream to API message format.
-        # DEBUG: dump block order
 
         Skips deleted blocks. Places cache_control on:
         1. The last user message (start of turn) - ensures prefix is always cacheable
@@ -1172,18 +1171,6 @@ Chain everything optimistically. The pipeline handles failures for you."""
         they don't cache-invalidate any conversation content that comes before them.
         """
         messages: list[dict[str, Any]] = []
-
-        # DEBUG: dump block order to see what's happening
-        active_blocks_debug = [b for b in self.blocks if not b.deleted]
-        print("🔍 to_messages() block order:")
-        for idx, b in enumerate(active_blocks_debug):
-            if b.block_type == BlockType.FILE_CONTENT:
-                print(f"   [{idx}] {b.block_type.value}: {b.metadata.get('filepath')}")
-            elif b.block_type in (BlockType.USER_MESSAGE, BlockType.ASSISTANT_MESSAGE):
-                preview = b.content[:60].replace('\n', ' ')
-                print(f"   [{idx}] {b.block_type.value}: {preview}...")
-            else:
-                print(f"   [{idx}] {b.block_type.value}")
 
         # Filter out deleted blocks
         active_blocks = [b for b in self.blocks if not b.deleted]

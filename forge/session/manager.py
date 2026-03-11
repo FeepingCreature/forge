@@ -260,7 +260,6 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         This ensures only modified files move to end of prompt (cache optimization).
         """
         current_prompt_files = set(self.prompt_manager.get_active_files())
-        print(f"🔍 sync_prompt_manager: active_files={sorted(self.active_files)}, prompt_files={sorted(current_prompt_files)}")
 
         # Add files that are newly in context (not already in prompt manager)
         for filepath in self.active_files:
@@ -268,7 +267,6 @@ Think about what category this file is, then put ONLY the final bullets or "—"
                 try:
                     content = self.tool_manager.vfs.read_file(filepath)
                     self.prompt_manager.append_file_content(filepath, content)
-                    print(f"🔍   sync: Added new file {filepath}")
                 except (FileNotFoundError, KeyError):
                     pass  # File doesn't exist, skip
 
@@ -276,9 +274,6 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         for filepath in current_prompt_files:
             if filepath not in self.active_files:
                 self.prompt_manager.remove_file_content(filepath)
-                print(f"🔍   sync: Removed file {filepath}")
-
-        print(f"🔍   sync: Final file order: {self.prompt_manager.get_active_files()}")
 
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
@@ -369,24 +364,16 @@ Think about what category this file is, then put ONLY the final bullets or "—"
             filepath: Path to the modified file
             tool_call_id: The tool call ID that modified this file (for context in prompt)
         """
-        print(f"🔍 file_was_modified: {filepath} (tool_call_id={tool_call_id})")
-        print(f"🔍   Currently in active_files: {filepath in self.active_files}")
-        print(f"🔍   Current file order BEFORE: {self.prompt_manager.get_active_files()}")
-
         # If file not in active context, add it so AI sees its own changes
         if filepath not in self.active_files:
             self.active_files.add(filepath)
-            print(f"🔍   Added {filepath} to active_files")
 
         try:
             # Read from VFS to get the NEW content including pending changes
             content = self.tool_manager.vfs.read_file(filepath)
-            print(f"🔍   Read {len(content)} chars from VFS for {filepath}")
             # append_file_content handles deleting old version and adding new at end
             self.prompt_manager.append_file_content(filepath, content, tool_call_id=tool_call_id)
-            print(f"🔍   Current file order AFTER: {self.prompt_manager.get_active_files()}")
-        except (FileNotFoundError, KeyError) as e:
-            print(f"🔍   File not found, removing: {e}")
+        except (FileNotFoundError, KeyError):
             # File was deleted
             self.prompt_manager.remove_file_content(filepath)
 

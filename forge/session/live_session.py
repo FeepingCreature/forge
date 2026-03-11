@@ -562,6 +562,12 @@ class LiveSession(QObject):
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
         client = LLMClient(api_key, model)
 
+        # Flush any pending file updates BEFORE building the prompt.
+        # This must happen here (not in _on_inline_commands_finished) so that
+        # updated file content blocks appear AFTER the assistant message and
+        # "Commands executed" feedback that describe the edit.
+        self._flush_pending_file_updates()
+
         # Build prompt
         self.session_manager.sync_prompt_manager()
         messages = self.session_manager.get_prompt_messages()
@@ -672,11 +678,6 @@ class LiveSession(QObject):
         result = getattr(self, "_pending_stream_result", {})
         content = result.get("content", "")
 
-        print(f"🔍 _on_inline_commands_finished: {len(results)} results, failed_index={failed_index}")
-        for i, res in enumerate(results):
-            cmd_name = commands[i].tool_name if i < len(commands) else "?"
-            print(f"🔍   result[{i}] ({cmd_name}): success={res.get('success')}, side_effects={res.get('side_effects', [])}, modified_files={res.get('modified_files', [])}")
-
         if failed_index is not None:
             # Handle failure - truncate and continue with error
             failed_cmd = commands[failed_index]
@@ -697,8 +698,8 @@ class LiveSession(QObject):
                 if res.get("success"):
                     self._process_tool_side_effects(res, commands[i])
 
-            # Flush pending file updates so prompt has current content
-            self._flush_pending_file_updates()
+            # NOTE: We do NOT flush pending file updates here — same reason as
+            # success path. Flush happens in _process_llm_request().
 
             # Add error to conversation
             error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
@@ -714,8 +715,11 @@ class LiveSession(QObject):
         for i, res in enumerate(results):
             self._process_tool_side_effects(res, commands[i])
 
-        # Flush pending file updates so prompt has current content
-        self._flush_pending_file_updates()
+        # NOTE: We do NOT flush pending file updates here. The flush must happen
+        # AFTER the assistant message and "Commands executed" feedback are appended
+        # to the prompt, so that updated file content blocks appear AFTER the
+        # messages that describe the edit. The flush happens in _process_llm_request()
+        # right before to_messages() is called.
 
         self.update_last_assistant_message({"_inline_results": results})
 
@@ -755,15 +759,10 @@ class LiveSession(QObject):
         from forge.tools.side_effects import SideEffect
 
         side_effects = result.get("side_effects", [])
-        cmd_name = getattr(cmd, 'tool_name', None) if cmd else None
-        print(f"🔍 _process_tool_side_effects: cmd={cmd_name}, side_effects={side_effects}")
 
         if SideEffect.FILES_MODIFIED in side_effects:
-            modified = result.get("modified_files", [])
-            print(f"🔍   FILES_MODIFIED detected, files: {modified}")
-            for filepath in modified:
+            for filepath in result.get("modified_files", []):
                 self._pending_file_updates.append((filepath, None))
-                print(f"🔍   Queued pending file update: {filepath} (total pending: {len(self._pending_file_updates)})")
 
         if SideEffect.NEW_FILES_CREATED in side_effects:
             for filepath in result.get("new_files", []):
@@ -1005,13 +1004,16 @@ class LiveSession(QObject):
 
         This ensures the prompt contains current file content after tools
         (both inline commands and API tool calls) modify files.
+
+        Called from _process_llm_request() right before to_messages(), so that
+        updated file content appears AFTER the assistant/user messages that
+        describe the edit operation.
         """
-        print(f"🔍 _flush_pending_file_updates: {len(self._pending_file_updates)} pending updates")
+        if not self._pending_file_updates:
+            return
         for filepath, tool_call_id in self._pending_file_updates:
-            print(f"🔍   Flushing: {filepath} (tool_call_id={tool_call_id})")
             self.session_manager.file_was_modified(filepath, tool_call_id)
         self._pending_file_updates = []
-        print(f"🔍   Flush complete. Active files in prompt: {self.session_manager.prompt_manager.get_active_files()}")
 
     def _continue_after_tools(self) -> None:
         """Continue LLM conversation after tool execution.

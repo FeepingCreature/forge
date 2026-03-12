@@ -208,6 +208,19 @@ def get_chat_styles() -> str:
         tr:hover td {
             background: #e3f2fd;
         }
+        /* SVG diagram containers */
+        .svg-container {
+            margin: 12px 0;
+            padding: 16px;
+            background: #fafafa;
+            border-radius: 8px;
+            overflow-x: auto;
+            text-align: center;
+        }
+        .svg-container svg {
+            max-width: 100%;
+            height: auto;
+        }
         /* Mermaid diagram containers */
         .mermaid-container {
             margin: 12px 0;
@@ -341,6 +354,9 @@ def get_chat_scripts() -> str:
             if (container) {
                 container.innerHTML = html;
 
+                // Render any SVG diagrams in the new content
+                renderSvgDiagrams();
+
                 // Render any Mermaid diagrams in the new content
                 renderMermaidDiagrams();
 
@@ -348,6 +364,23 @@ def get_chat_scripts() -> str:
                     window.scrollTo(0, document.body.scrollHeight);
                 }
             }
+        }
+
+        // Render SVG diagrams - finds code blocks with class 'language-svg'
+        // and replaces them with the actual SVG rendered directly.
+        function renderSvgDiagrams() {
+            var codeBlocks = document.querySelectorAll('pre > code.language-svg');
+            codeBlocks.forEach(function(codeBlock) {
+                var pre = codeBlock.parentElement;
+                if (pre.dataset.svgProcessed) return;
+                pre.dataset.svgProcessed = 'true';
+
+                var svgText = codeBlock.textContent;
+                var container = document.createElement('div');
+                container.className = 'svg-container';
+                container.innerHTML = svgText;
+                if (pre.parentNode) pre.replaceWith(container);
+            });
         }
 
         // Render Mermaid diagrams - finds code blocks with class 'language-mermaid'

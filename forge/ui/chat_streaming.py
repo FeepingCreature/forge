@@ -11,6 +11,66 @@ import re
 from forge.ui.tool_rendering import render_streaming_edits, render_streaming_tool_html
 
 
+def _detect_svg_blocks(text: str) -> list[dict]:
+    """Detect SVG fenced code blocks in streaming text.
+
+    Returns a list of segments: either plain text or svg blocks.
+    Handles incomplete (still-streaming) SVG blocks.
+
+    Each segment is a dict with:
+        - type: "text" or "svg"
+        - content: the text content
+        - complete: bool (for svg blocks, whether the closing ``` was found)
+    """
+    segments: list[dict] = []
+    pattern = re.compile(r"^[ \t]*```svg\s*$", re.MULTILINE)
+
+    pos = 0
+    for match in pattern.finditer(text):
+        if match.start() > pos:
+            segments.append({"type": "text", "content": text[pos : match.start()]})
+
+        block_content_start = match.end()
+        close_pattern = re.compile(r"^[ \t]*```\s*$", re.MULTILINE)
+        close_match = close_pattern.search(text, block_content_start)
+
+        if close_match:
+            svg_content = text[block_content_start : close_match.start()].strip()
+            segments.append({"type": "svg", "content": svg_content, "complete": True})
+            pos = close_match.end()
+        else:
+            svg_content = text[block_content_start:].strip()
+            if svg_content:
+                segments.append({"type": "svg", "content": svg_content, "complete": False})
+            pos = len(text)
+
+    if pos < len(text):
+        segments.append({"type": "text", "content": text[pos:]})
+
+    return segments
+
+
+def _render_streaming_svg_html(segments: list[dict]) -> str:
+    """Render streaming content that contains SVG blocks.
+
+    Text segments are HTML-escaped and wrapped in <span> tags.
+    SVG segments are injected directly as HTML in a container div.
+    Incomplete SVG blocks show a streaming indicator.
+    """
+    parts: list[str] = []
+    for seg in segments:
+        if seg["type"] == "text":
+            escaped = html.escape(seg["content"])
+            parts.append(f'<span class="streaming-text">{escaped}</span>')
+        else:
+            svg_content = seg["content"]
+            indicator = ""
+            if not seg["complete"]:
+                indicator = '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>'
+            parts.append(f'<div class="svg-container">{svg_content}{indicator}</div>')
+    return "".join(parts)
+
+
 def escape_for_js(text: str) -> str:
     """Escape text for safe inclusion in JavaScript string literals."""
     return (

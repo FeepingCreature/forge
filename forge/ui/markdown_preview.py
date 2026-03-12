@@ -138,9 +138,15 @@ def _markdown_to_html(text: str) -> str:
                 code_lang = line.strip()[3:].strip()
                 code_lines = []
             else:
-                code_content = html.escape("\n".join(code_lines))
-                lang_class = f' class="language-{code_lang}"' if code_lang else ""
-                html_parts.append(f"<pre><code{lang_class}>{code_content}</code></pre>")
+                if code_lang == "svg":
+                    svg_content = "\n".join(code_lines)
+                    html_parts.append(
+                        f'<div class="svg-container">{svg_content}</div>'
+                    )
+                else:
+                    code_content = html.escape("\n".join(code_lines))
+                    lang_class = f' class="language-{code_lang}"' if code_lang else ""
+                    html_parts.append(f"<pre><code{lang_class}>{code_content}</code></pre>")
                 in_code_block = False
                 code_lang = ""
                 code_lines = []
@@ -231,9 +237,13 @@ def _markdown_to_html(text: str) -> str:
     _flush_table()
 
     if in_code_block:
-        code_content = html.escape("\n".join(code_lines))
-        lang_class = f' class="language-{code_lang}"' if code_lang else ""
-        html_parts.append(f"<pre><code{lang_class}>{code_content}</code></pre>")
+        if code_lang == "svg":
+            svg_content = "\n".join(code_lines)
+            html_parts.append(f'<div class="svg-container">{svg_content}</div>')
+        else:
+            code_content = html.escape("\n".join(code_lines))
+            lang_class = f' class="language-{code_lang}"' if code_lang else ""
+            html_parts.append(f"<pre><code{lang_class}>{code_content}</code></pre>")
 
     return "\n".join(html_parts)
 
@@ -324,6 +334,16 @@ def _build_preview_html(markdown_text: str) -> str:
             margin: 24px 0;
         }}
         img {{ max-width: 100%; }}
+        /* SVG diagrams */
+        .svg-container {
+            margin: 16px 0;
+            padding: 16px;
+            background: #fafafa;
+            border-radius: 8px;
+            overflow-x: auto;
+            text-align: center;
+        }
+        .svg-container svg { max-width: 100%; height: auto; }
         /* Mermaid diagrams */
         .mermaid-container {{
             margin: 16px 0;

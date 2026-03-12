@@ -168,6 +168,21 @@ graph TD
 
 Mermaid supports flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, Gantt charts, and more. See https://mermaid.js.org/syntax/ for full documentation.
 
+# SVG Graphics
+
+You can render SVG graphics inline using fenced code blocks:
+
+~~~
+```svg
+<svg width="200" height="100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="100" fill="#4a90d9" rx="10"/>
+  <text x="100" y="55" text-anchor="middle" fill="white" font-size="16">Hello SVG</text>
+</svg>
+```
+~~~
+
+SVG blocks are rendered as actual graphics in the chat. Use SVG for custom visualizations, icons, or anything that needs precise visual control beyond what Mermaid offers.
+
 """
 
 # Instructions for XML inline edit format

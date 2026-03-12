@@ -335,15 +335,15 @@ def _build_preview_html(markdown_text: str) -> str:
         }}
         img {{ max-width: 100%; }}
         /* SVG diagrams */
-        .svg-container {
+        .svg-container {{
             margin: 16px 0;
             padding: 16px;
             background: #fafafa;
             border-radius: 8px;
             overflow-x: auto;
             text-align: center;
-        }
-        .svg-container svg { max-width: 100%; height: auto; }
+        }}
+        .svg-container svg {{ max-width: 100%; height: auto; }}
         /* Mermaid diagrams */
         .mermaid-container {{
             margin: 16px 0;

@@ -250,8 +250,36 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
             }}
         }})();
         """
+    # Check for SVG code blocks (```svg)
+    svg_segments = _detect_svg_blocks(display_content)
+    has_svg = any(seg["type"] == "svg" for seg in svg_segments)
+
+    if has_svg:
+        rendered_html = _render_streaming_svg_html(svg_segments)
+        escaped_html = escape_for_js(rendered_html)
+
+        return f"""
+        (function() {{
+            var streamingMsg = document.getElementById('streaming-message');
+            if (streamingMsg) {{
+                var scrollThreshold = 50;
+                var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+                var content = streamingMsg.querySelector('.content');
+                if (content) {{
+                    content.innerHTML = `{escaped_html}`;
+                    content.style.whiteSpace = 'pre-wrap';
+                }}
+
+                if (wasAtBottom) {{
+                    window.scrollTo(0, document.body.scrollHeight);
+                }}
+            }}
+        }})();
+        """
+
     else:
-        # No edit blocks or mermaid - replace entire content with stripped version
+        # No edit blocks, mermaid, or SVG - replace entire content with stripped version
         escaped_content = escape_for_js(display_content)
 
         return f"""

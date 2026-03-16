@@ -410,6 +410,15 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773652274-nKbD5YBHm0RhhRaw4YXr"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773652551003.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773652551003.json",
+      "timestamp": 1773652551.0040927,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773652551-KyU64zQczKcXl739ivnj"
     }
   ],
   "messages": [
@@ -584,6 +593,49 @@
         },
         {
           "commit": "395bb804c4ba",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 3b848160",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm let's try to retry with 10s wait if we get ratelimited?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood idea. I'll add a retry with a 10s sleep when we detect a rate limit (202 status or empty results that look like a challenge page):\n\n<edit file=\"forge/tools/builtin/web_search.py\">\n<search>\nimport html\nimport re\nimport urllib.error\nimport urllib.parse\nimport urllib.request\nfrom typing import Any\n</search>\n<replace>\nimport html\nimport re\nimport time\nimport urllib.error\nimport urllib.parse\nimport urllib.request\nfrom typing import Any\n</replace>\n</edit>\n\n<edit file=\"forge/tools/builtin/web_search.py\">\n<search>\ndef _search_ddg(query: str, max_results: int) -> list[dict[str, str]] | None:\n    \"\"\"Search DuckDuckGo HTML and parse results.\n\n    Uses the HTML version of DuckDuckGo (html.duckduckgo.com) which returns\n    a simple page we can parse without JavaScript rendering.\n    \"\"\"\n    url = \"https://html.duckduckgo.com/html/\"\n    data = urllib.parse.urlencode({\"q\": query}).encode(\"utf-8\")\n\n    req = urllib.request.Request(\n        url,\n        data=data,\n        headers={\n            \"User-Agent\": \"Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0\",\n            \"Accept\": \"text/html,application/xhtml+xml\",\n            \"Accept-Language\": \"en-US,en;q=0.5\",\n        },\n    )\n\n    try:\n        with urllib.request.urlopen(req, timeout=15) as response:\n            status = response.status\n            body = response.read().decode(\"utf-8\", errors=\"replace\")\n            if status == 202:\n                # DuckDuckGo rate limit - returns 202 with a challenge page\n                return None\n    except urllib.error.HTTPError as e:\n        print(f\"web_search: HTTP {e.code} from DuckDuckGo for query: {query!r}\")\n        return None\n    except Exception as e:\n        print(f\"web_search: {type(e).__name__}: {e} for query: {query!r}\")\n        return None\n\n    return _parse_ddg_html(body, max_results)\n</search>\n<replace>\ndef _search_ddg(query: str, max_results: int, _retries: int = 1) -> list[dict[str, str]] | None:\n    \"\"\"Search DuckDuckGo HTML and parse results.\n\n    Uses the HTML version of DuckDuckGo (html.duckduckgo.com) which returns\n    a simple page we can parse without JavaScript rendering.\n\n    Retries once after a 10s wait if rate-limited.\n    \"\"\"\n    url = \"https://html.duckduckgo.com/html/\"\n    data = urllib.parse.urlencode({\"q\": query}).encode(\"utf-8\")\n\n    req = urllib.request.Request(\n        url,\n        data=data,\n        headers={\n            \"User-Agent\": \"Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0\",\n            \"Accept\": \"text/html,application/xhtml+xml\",\n            \"Accept-Language\": \"en-US,en;q=0.5\",\n        },\n    )\n\n    rate_limited = False\n\n    try:\n        with urllib.request.urlopen(req, timeout=15) as response:\n            status = response.status\n            body = response.read().decode(\"utf-8\", errors=\"replace\")\n            if status == 202:\n                rate_limited = True\n    except urllib.error.HTTPError as e:\n        if e.code in (202, 403, 429):\n            rate_limited = True\n        else:\n            print(f\"web_search: HTTP {e.code} from DuckDuckGo for query: {query!r}\")\n            return None\n    except Exception as e:\n        print(f\"web_search: {type(e).__name__}: {e} for query: {query!r}\")\n        return None\n\n    if rate_limited:\n        if _retries > 0:\n            print(f\"web_search: rate-limited by DuckDuckGo, retrying in 10s...\")\n            time.sleep(10)\n            return _search_ddg(query, max_results, _retries=_retries - 1)\n        else:\n            print(f\"web_search: rate-limited by DuckDuckGo, no retries left for query: {query!r}\")\n            return None\n\n    return _parse_ddg_html(body, max_results)\n</replace>\n</edit>\n\n<commit message=\"web_search: retry once after 10s on DuckDuckGo rate limit\"/>\n\nDone! Now when DuckDuckGo rate-limits (HTTP 202, 403, or 429), it'll wait 10 seconds and retry once before giving up. The retry count is controlled by the `_retries` parameter (defaults to 1 retry).",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/web_search.py",
+          "modified_files": [
+            "forge/tools/builtin/web_search.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/web_search.py",
+          "modified_files": [
+            "forge/tools/builtin/web_search.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "910f1cf87e3a",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

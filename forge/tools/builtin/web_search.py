@@ -7,6 +7,7 @@ This is a conditionally-enabled built-in tool. Enable it per-repo by adding
 
 import html
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -132,8 +133,16 @@ def _search_ddg(query: str, max_results: int) -> list[dict[str, str]] | None:
 
     try:
         with urllib.request.urlopen(req, timeout=15) as response:
+            status = response.status
             body = response.read().decode("utf-8", errors="replace")
+            if status == 202:
+                # DuckDuckGo rate limit - returns 202 with a challenge page
+                return None
+    except urllib.error.HTTPError as e:
+        print(f"web_search: HTTP {e.code} from DuckDuckGo for query: {query!r}")
+        return None
     except Exception as e:
+        print(f"web_search: {type(e).__name__}: {e} for query: {query!r}")
         return None
 
     return _parse_ddg_html(body, max_results)

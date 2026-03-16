@@ -1,8 +1,9 @@
 {
   "active_files": [
-    "forge/tools/builtin/web_read.py",
+    "forge/tools/builtin/session.py",
+    "forge/tools/builtin/web_search.py",
     "CLAUDE.md",
-    "forge/tools/builtin/session.py"
+    "forge/tools/builtin/web_read.py"
   ],
   "request_log_entries": [
     {
@@ -391,6 +392,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1773652140-LR8uvPnp2FVDMUyzGu5J"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773652267487.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773652267487.json",
+      "timestamp": 1773652267.4884877,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773652267-jcFgqQyJKKLGYoXIfM08"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1773652273981.json",
+      "response_file": "/tmp/forge_debug/response_stream_1773652273981.json",
+      "timestamp": 1773652273.9826336,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1773652274-nKbD5YBHm0RhhRaw4YXr"
     }
   ],
   "messages": [
@@ -502,6 +521,69 @@
         },
         {
           "commit": "a294c3b8aa50",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 85 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm, in testing search doesn't seem to work, is there a ratelimit for ddg?"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood question! Let me look at the web_search tool to see how it uses DuckDuckGo.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/builtin/web_search.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_015PzFgPt13LnpctCbsivrzk",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015PzFgPt13LnpctCbsivrzk",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/builtin/web_search.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nYes, DuckDuckGo does rate-limit automated requests. The `html.duckduckgo.com/html/` endpoint will start returning `202` or `403` responses, or sometimes just empty results, if you hit it too frequently. There's no documented rate limit \u2014 it's anti-bot protection.\n\nLooking at the code, the problem is that `_search_ddg` silently returns `None` on any exception (line in the `except` block), so you'd just see `\"Search request failed\"` with no details about what went wrong.\n\nA few options:\n\n1. **Add the actual error to the response** so at least you can see *why* it fails (is it a 202? 403? timeout?)\n2. **Add a small delay/retry** for transient rate limits\n3. **Switch to a different search backend** (e.g., the DuckDuckGo Lite endpoint, or a proper search API)\n\nLet me at least surface the error so you can see what's happening:\n\n<edit file=\"forge/tools/builtin/web_search.py\">\n<search>\n    try:\n        with urllib.request.urlopen(req, timeout=15) as response:\n            body = response.read().decode(\"utf-8\", errors=\"replace\")\n    except Exception as e:\n        return None\n</search>\n<replace>\n    try:\n        with urllib.request.urlopen(req, timeout=15) as response:\n            status = response.status\n            body = response.read().decode(\"utf-8\", errors=\"replace\")\n            if status == 202:\n                # DuckDuckGo rate limit - returns 202 with a challenge page\n                return None\n    except urllib.error.HTTPError as e:\n        print(f\"web_search: HTTP {e.code} from DuckDuckGo for query: {query!r}\")\n        return None\n    except Exception as e:\n        print(f\"web_search: {type(e).__name__}: {e} for query: {query!r}\")\n        return None\n</replace>\n</edit>\n\nWe also need the import for `urllib.error`:\n\n<edit file=\"forge/tools/builtin/web_search.py\">\n<search>\nimport urllib.parse\nimport urllib.request\n</search>\n<replace>\nimport urllib.error\nimport urllib.parse\nimport urllib.request\n</replace>\n</edit>\n\n<commit message=\"web_search: surface DuckDuckGo errors instead of silently failing\"/>\n\nThat said, the real answer to \"does DDG rate-limit?\" is **yes, absolutely**. The HTML endpoint is meant for browsers, not programmatic use. If you're hitting it repeatedly in testing, you'll get blocked quickly. \n\nOptions going forward:\n- **Brave Search API** \u2014 free tier with 2,000 queries/month, proper API with JSON responses\n- **SearXNG** \u2014 self-hosted meta-search, no rate limits\n- **Google Custom Search** \u2014 100 free queries/day\n\nWant me to look into switching to a proper search API?",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/web_search.py",
+          "modified_files": [
+            "forge/tools/builtin/web_search.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/tools/builtin/web_search.py",
+          "modified_files": [
+            "forge/tools/builtin/web_search.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "395bb804c4ba",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

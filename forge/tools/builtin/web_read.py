@@ -33,7 +33,7 @@ def get_schema() -> dict[str, Any]:
                 "- Checking API references\n"
                 "- Reading blog posts or articles\n"
                 "- Extracting code examples from web pages\n\n"
-                "Optionally pass a question to focus the extraction on specific information."
+                "Pass a question to focus the extraction on specific information."
             ),
             "parameters": {
                 "type": "object",
@@ -45,12 +45,12 @@ def get_schema() -> dict[str, Any]:
                     "question": {
                         "type": "string",
                         "description": (
-                            "Optional: focus extraction on answering this question. "
-                            "Without this, returns the full page content."
+                            "What to extract from the page. Focus the extraction on "
+                            "answering this question."
                         ),
                     },
                 },
-                "required": ["url"],
+                "required": ["url", "question"],
             },
         },
     }
@@ -63,6 +63,8 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
 
     if not url:
         return {"success": False, "error": "No URL specified"}
+    if not question:
+        return {"success": False, "error": "A question is required to focus the extraction"}
 
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
@@ -76,7 +78,7 @@ def execute(vfs: Any, args: dict[str, Any]) -> dict[str, Any]:
     cleaned = _strip_non_content(body)
 
     # Truncate to avoid blowing up the cheap model's context
-    max_chars = 100_000
+    max_chars = 400_000
     if len(cleaned) > max_chars:
         cleaned = cleaned[:max_chars] + "\n\n[... truncated ...]"
 
@@ -155,18 +157,11 @@ def _extract_with_llm(url: str, html_text: str, question: str) -> str | None:
 
     client = LLMClient(api_key, model)
 
-    if question:
-        instruction = (
-            f"Extract the relevant information from this webpage to answer: {question}\n\n"
-            "Include code examples, API signatures, and specific details. "
-            "Skip navigation, ads, and boilerplate."
-        )
-    else:
-        instruction = (
-            "Extract the main content from this webpage as clean, readable text. "
-            "Preserve code blocks, headings, lists, and important formatting. "
-            "Skip navigation, ads, sidebars, and boilerplate."
-        )
+    instruction = (
+        f"Extract the relevant information from this webpage to answer: {question}\n\n"
+        "Include code examples, API signatures, and specific details. "
+        "Skip navigation, ads, and boilerplate."
+    )
 
     prompt = f"""You are a web content extractor. Given raw HTML from a webpage, extract the useful content.
 

@@ -28,11 +28,34 @@ def _discover_builtin_tools() -> set[str]:
     return tools
 
 
+def _discover_conditional_tools() -> set[str]:
+    """Discover built-in tools that require explicit opt-in via repo config.
+
+    A tool is conditional if its module defines CONDITIONAL = True.
+    These tools are only loaded when listed in .forge/config.json "enabled_tools".
+    """
+    builtin_dir = Path(__file__).parent / "builtin"
+    conditional = set()
+    for tool_file in builtin_dir.iterdir():
+        if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
+            # Quick scan for CONDITIONAL = True without importing
+            try:
+                content = tool_file.read_text()
+                if "CONDITIONAL = True" in content:
+                    conditional.add(tool_file.stem)
+            except OSError:
+                pass
+    return conditional
+
+
 class ToolManager:
     """Manages tools available to the LLM"""
 
     # Built-in tools that are always approved (auto-discovered from builtin/)
     BUILTIN_TOOLS = _discover_builtin_tools()
+
+    # Conditional tools require opt-in via .forge/config.json "enabled_tools"
+    CONDITIONAL_TOOLS = _discover_conditional_tools()
 
     def __init__(
         self,
@@ -70,6 +93,33 @@ class ToolManager:
         self._approved_tools: dict[str, str] = {}  # tool_name -> file_hash
         self._pending_approvals: dict[str, str] = {}  # Changes to amend onto last commit
         self._load_approved_tools()
+
+        # Load per-repo enabled tools config
+        self._enabled_tools: set[str] = self._load_enabled_tools()
+
+    def _load_enabled_tools(self) -> set[str]:
+        """Load the list of conditionally-enabled tools from .forge/config.json.
+
+        Conditional built-in tools (those with CONDITIONAL = True) are only
+        loaded when explicitly listed in the repo's config file under "enabled_tools".
+        """
+        try:
+            content = self.vfs.read_file(".forge/config.json")
+            config = json.loads(content)
+            enabled = config.get("enabled_tools", [])
+            return set(enabled)
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            return set()
+
+    def _is_tool_enabled(self, tool_name: str) -> bool:
+        """Check if a built-in tool should be loaded.
+
+        Unconditional tools are always enabled.
+        Conditional tools require listing in .forge/config.json "enabled_tools".
+        """
+        if tool_name not in self.CONDITIONAL_TOOLS:
+            return True  # Not conditional, always enabled
+        return tool_name in self._enabled_tools
 
     def _load_approved_tools(self) -> None:
         """Load approved tools from VFS (git commit + pending changes)"""
@@ -228,6 +278,11 @@ class ToolManager:
         for tool_file in self.builtin_tools_dir.iterdir():
             if tool_file.suffix == ".py" and tool_file.name != "__init__.py":
                 tool_name = tool_file.stem
+
+                # Skip conditional tools that aren't enabled in repo config
+                if not self._is_tool_enabled(tool_name):
+                    continue
+
                 tool_module = self._load_tool_module(tool_name, is_builtin=True)
                 if tool_module and hasattr(tool_module, "get_schema"):
                     schema = tool_module.get_schema()

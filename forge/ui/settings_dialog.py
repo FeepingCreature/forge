@@ -2,6 +2,7 @@
 Settings dialog for Forge
 """
 
+import json
 from typing import TYPE_CHECKING  # noqa: I001
 
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
@@ -30,6 +31,7 @@ from forge.ui.model_picker_dialog import ModelPickerPopup
 
 if TYPE_CHECKING:
     from forge.config.settings import Settings  # noqa: I001
+    from forge.ui.branch_workspace import BranchWorkspace
 
 
 class ModelFetchWorker(QObject):
@@ -55,9 +57,15 @@ class ModelFetchWorker(QObject):
 class SettingsDialog(QDialog):
     """Settings dialog window"""
 
-    def __init__(self, settings: "Settings", parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        settings: "Settings",
+        parent: QWidget | None = None,
+        workspace: "BranchWorkspace | None" = None,
+    ) -> None:
         super().__init__(parent)
         self.settings = settings
+        self.workspace = workspace
         self.setWindowTitle("Forge Settings")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
@@ -89,6 +97,10 @@ class SettingsDialog(QDialog):
         # Git Settings Tab
         git_tab = self._create_git_tab()
         tabs.addTab(git_tab, "Git")
+
+        # Tools Tab (per-repo conditional tools)
+        tools_tab = self._create_tools_tab()
+        tabs.addTab(tools_tab, "Tools")
 
         # Keybindings Tab
         keybindings_tab = self._create_keybindings_tab()
@@ -234,6 +246,72 @@ class SettingsDialog(QDialog):
         # Connect click events using event filter
         self.summarization_model_input.installEventFilter(self)
 
+        return widget
+
+    def _create_tools_tab(self) -> QWidget:
+        """Create tools settings tab for per-repo conditional tool toggles."""
+        from forge.tools.manager import ToolManager
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Description
+        desc = QLabel(
+            "Enable optional built-in tools for this repository.\n"
+            "These tools are available to the AI when enabled."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("margin-bottom: 8px;")
+        layout.addWidget(desc)
+
+        # Tool descriptions for display
+        tool_descriptions: dict[str, str] = {
+            "web_search": "Search the web using DuckDuckGo",
+            "web_read": "Fetch and extract content from web pages",
+        }
+
+        # Load current enabled tools from repo config
+        enabled_tools: set[str] = set()
+        if self.workspace:
+            try:
+                content = self.workspace.vfs.read_file(".forge/config.json")
+                config = json.loads(content)
+                enabled_tools = set(config.get("enabled_tools", []))
+            except (FileNotFoundError, json.JSONDecodeError, KeyError):
+                pass
+
+        # Create checkboxes for each conditional tool
+        self._tool_checkboxes: dict[str, QCheckBox] = {}
+        conditional_tools = sorted(ToolManager.CONDITIONAL_TOOLS)
+
+        if not conditional_tools:
+            no_tools = QLabel("No optional tools available.")
+            no_tools.setStyleSheet("color: #888;")
+            layout.addWidget(no_tools)
+        else:
+            for tool_name in conditional_tools:
+                description = tool_descriptions.get(tool_name, tool_name)
+                checkbox = QCheckBox(f"{tool_name} — {description}")
+                checkbox.setChecked(tool_name in enabled_tools)
+                if not self.workspace:
+                    checkbox.setEnabled(False)
+                self._tool_checkboxes[tool_name] = checkbox
+                layout.addWidget(checkbox)
+
+        if not self.workspace:
+            no_repo = QLabel(
+                "\nOpen a branch tab to configure tools for this repository."
+            )
+            no_repo.setStyleSheet("color: #888; font-style: italic;")
+            layout.addWidget(no_repo)
+
+        # Note about when changes take effect
+        note = QLabel("Changes take effect on the next AI turn.")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888; font-size: 10px; margin-top: 12px;")
+        layout.addWidget(note)
+
+        layout.addStretch()
         return widget
 
     def _create_keybindings_tab(self) -> QWidget:
@@ -515,6 +593,31 @@ class SettingsDialog(QDialog):
             self.api_key_eye_action.setIcon(self._create_eye_icon(crossed=False))
             self.api_key_eye_action.setToolTip("Reveal API key")
 
+    def _save_tools_config(self) -> None:
+        """Save conditional tools configuration to .forge/config.json via VFS."""
+        from forge.git_backend.commit_types import CommitType
+
+        assert self.workspace is not None
+
+        # Build enabled tools list from checkboxes
+        enabled: list[str] = []
+        for tool_name, checkbox in self._tool_checkboxes.items():
+            if checkbox.isChecked():
+                enabled.append(tool_name)
+        enabled.sort()
+
+        # Load existing config, update enabled_tools, save
+        config: dict = {}
+        try:
+            content = self.workspace.vfs.read_file(".forge/config.json")
+            config = json.loads(content)
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
+        config["enabled_tools"] = enabled
+        self.workspace.vfs.write_file(".forge/config.json", json.dumps(config, indent=2))
+        self.workspace.vfs.commit("Update enabled tools", commit_type=CommitType.PREPARE)
+
     def _load_settings(self) -> None:
         """Load current settings into UI"""
         # LLM settings
@@ -576,5 +679,9 @@ class SettingsDialog(QDialog):
 
         # Save to file
         self.settings.save()
+
+        # Save per-repo tools config via VFS
+        if self.workspace and hasattr(self, "_tool_checkboxes"):
+            self._save_tools_config()
 
         self.accept()

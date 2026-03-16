@@ -707,7 +707,8 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self) -> None:
         """Open settings dialog"""
-        dialog = SettingsDialog(self.settings, self)
+        workspace = self._get_current_workspace()
+        dialog = SettingsDialog(self.settings, self, workspace=workspace)
         if dialog.exec():
             # Settings were saved, could reload/apply them here
             self.status_bar.showMessage("Settings saved")

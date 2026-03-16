@@ -281,6 +281,7 @@ def _generate_inline_tool_docs(tool_schemas: list[dict]) -> str:
                         "name": name,
                         "syntax": schema["inline_syntax"],
                         "description": func.get("description", ""),
+                        "parameters": func.get("parameters", {}),
                     }
                 )
 
@@ -299,9 +300,26 @@ def _generate_inline_tool_docs(tool_schemas: list[dict]) -> str:
     for tool in inline_tools:
         lines.append(f"**{tool['name']}**: `{tool['syntax']}`")
         if tool["description"]:
-            # Take first sentence of description
-            desc = tool["description"].split(".")[0] + "."
+            # Use full description - the LLM needs complete info to avoid inventing flags
+            desc = tool["description"].strip()
             lines.append(f"  {desc}")
+
+        # Document parameters so the LLM knows exactly what's valid
+        props = tool["parameters"].get("properties", {})
+        required = tool["parameters"].get("required", [])
+        if props:
+            lines.append("")
+            lines.append("  Parameters (ONLY these are valid, do not invent others):")
+            for param_name, param_info in props.items():
+                param_desc = param_info.get("description", "")
+                param_type = param_info.get("type", "")
+                req = " (required)" if param_name in required else ""
+                default = param_info.get("default")
+                default_str = f", default: {default}" if default is not None else ""
+                lines.append(f"  - `{param_name}` ({param_type}{req}{default_str}): {param_desc}")
+        elif not props:
+            lines.append("  No parameters. Use exactly as shown.")
+
         lines.append("")
 
     return "\n".join(lines)

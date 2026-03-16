@@ -224,9 +224,7 @@ class MainWindow(QMainWindow):
         )
 
         # Connect clear session request
-        chat_widget.clear_session_requested.connect(
-            lambda r=runner: r.clear_session()
-        )
+        chat_widget.clear_session_requested.connect(lambda r=runner: r.clear_session())
 
         # Connect file explorer context changes directly to SessionManager
         branch_widget.context_file_added.connect(session_manager.add_active_file)

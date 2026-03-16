@@ -1318,10 +1318,14 @@ def render_streaming_edits(content: str) -> str:
             # No more complete commands - check for partial at the end
             remaining = content[pos:]
             if remaining:
-                partial_html = _render_partial_inline_command(remaining, inline_tools, code_regions, pos)
+                partial_html = _render_partial_inline_command(
+                    remaining, inline_tools, code_regions, pos
+                )
                 if partial_html:
                     # Find where the partial command starts
-                    partial_start = _find_partial_command_start(remaining, inline_tools, code_regions, pos)
+                    partial_start = _find_partial_command_start(
+                        remaining, inline_tools, code_regions, pos
+                    )
                     if partial_start is not None:
                         text_before = remaining[:partial_start].rstrip()
                         if text_before:

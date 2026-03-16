@@ -335,9 +335,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
             # Write to VFS and commit as a PREPARE commit (invisible to normal history)
             self.tool_manager.vfs.write_file(SESSION_FILE, json.dumps(session_data, indent=2))
-            self.tool_manager.vfs.commit(
-                "save active files", commit_type=CommitType.PREPARE
-            )
+            self.tool_manager.vfs.commit("save active files", commit_type=CommitType.PREPARE)
 
             # Refresh VFS so the committed state is the new baseline
             self.tool_manager.vfs = self._create_fresh_vfs()

@@ -496,9 +496,7 @@ class EditorWidget(QWidget):
             self.search_bar.show()
             self.search_bar.search_input.setText(self._last_search_text)
         self._do_find(self._last_search_text, forward=True)
-        self.search_bar.set_match_info(
-            self._current_match_index + 1, len(self._match_positions)
-        )
+        self.search_bar.set_match_info(self._current_match_index + 1, len(self._match_positions))
 
     def _repeat_find_prev(self) -> None:
         """Repeat last search backward (Shift+F3), showing search bar if needed"""
@@ -509,9 +507,7 @@ class EditorWidget(QWidget):
             self.search_bar.show()
             self.search_bar.search_input.setText(self._last_search_text)
         self._do_find(self._last_search_text, forward=False)
-        self.search_bar.set_match_info(
-            self._current_match_index + 1, len(self._match_positions)
-        )
+        self.search_bar.set_match_info(self._current_match_index + 1, len(self._match_positions))
 
     def _update_match_positions(self, text: str) -> None:
         """Update the list of match positions"""

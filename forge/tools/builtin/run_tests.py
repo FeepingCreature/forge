@@ -173,9 +173,7 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
             if "pytest" in cmd_desc:
                 cmd.append(file)
             elif cmd_desc == "make test":
-                results["note"] = (
-                    "File filtering not supported with make test, running all tests"
-                )
+                results["note"] = "File filtering not supported with make test, running all tests"
 
         # Add pattern filter if specified
         if pattern:

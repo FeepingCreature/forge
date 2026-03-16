@@ -18,6 +18,7 @@ from forge.prompts.system import get_system_prompt
 
 class BlockType(Enum):
     """Types of content blocks in the prompt stream. (v5 - post-fix test)"""
+
     SYSTEM = "system"
     SUMMARIES = "summaries"
     FILE_CONTENT = "file_content"
@@ -201,9 +202,11 @@ class PromptManager:
             # Delete only the target file's blocks — leave other files in place
             for i in range(earliest_target_idx, len(self.blocks)):
                 block = self.blocks[i]
-                if (block.block_type == BlockType.FILE_CONTENT
-                        and not block.deleted
-                        and block.metadata.get("filepath") == filepath):
+                if (
+                    block.block_type == BlockType.FILE_CONTENT
+                    and not block.deleted
+                    and block.metadata.get("filepath") == filepath
+                ):
                     block.deleted = True
 
             print(f"   ↳ Deleted old {filepath}, will append new version at end")

@@ -140,9 +140,7 @@ def _markdown_to_html(text: str) -> str:
             else:
                 if code_lang == "svg":
                     svg_content = "\n".join(code_lines)
-                    html_parts.append(
-                        f'<div class="svg-container">{svg_content}</div>'
-                    )
+                    html_parts.append(f'<div class="svg-container">{svg_content}</div>')
                 else:
                     code_content = html.escape("\n".join(code_lines))
                     lang_class = f' class="language-{code_lang}"' if code_lang else ""

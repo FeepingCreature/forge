@@ -66,7 +66,9 @@ def _render_streaming_svg_html(segments: list[dict]) -> str:
             svg_content = seg["content"]
             indicator = ""
             if not seg["complete"]:
-                indicator = '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>'
+                indicator = (
+                    '<div style="color:#999;font-size:11px;margin-top:4px;">▋ streaming...</div>'
+                )
             parts.append(f'<div class="svg-container">{svg_content}{indicator}</div>')
     return "".join(parts)
 
@@ -107,9 +109,19 @@ def _repair_partial_mermaid(content: str) -> str:
         complete_endings = ("]", "}", ")", ">", "|", ";", '"', "'", "end")
         # Lines that are just a diagram type declaration are complete
         type_decls = (
-            "graph", "flowchart", "sequenceDiagram", "classDiagram",
-            "stateDiagram", "stateDiagram-v2", "erDiagram", "gantt",
-            "pie", "gitGraph", "mindmap", "timeline", "journey",
+            "graph",
+            "flowchart",
+            "sequenceDiagram",
+            "classDiagram",
+            "stateDiagram",
+            "stateDiagram-v2",
+            "erDiagram",
+            "gantt",
+            "pie",
+            "gitGraph",
+            "mindmap",
+            "timeline",
+            "journey",
         )
         is_type_decl = any(last.strip().startswith(t) for t in type_decls)
         is_complete = (

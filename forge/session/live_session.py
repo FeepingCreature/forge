@@ -1070,9 +1070,7 @@ class LiveSession(QObject):
         self.state = SessionState.IDLE
 
         # Commit the cleared state (writes empty session.json, commits, refreshes VFS)
-        sm.commit_ai_turn(
-            self.messages, session_metadata=self.get_session_metadata()
-        )
+        sm.commit_ai_turn(self.messages, session_metadata=self.get_session_metadata())
 
         # Notify UI
         self._emit_event(MessagesTruncatedEvent(0))

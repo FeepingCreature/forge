@@ -299,9 +299,7 @@ class SettingsDialog(QDialog):
                 layout.addWidget(checkbox)
 
         if not self.workspace:
-            no_repo = QLabel(
-                "\nOpen a branch tab to configure tools for this repository."
-            )
+            no_repo = QLabel("\nOpen a branch tab to configure tools for this repository.")
             no_repo.setStyleSheet("color: #888; font-style: italic;")
             layout.addWidget(no_repo)
 

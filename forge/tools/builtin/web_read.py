@@ -116,8 +116,7 @@ def _fetch_page(url: str) -> str | None:
                     return body
                 # Skip binary content
                 if any(
-                    t in content_type
-                    for t in ["image/", "audio/", "video/", "application/octet"]
+                    t in content_type for t in ["image/", "audio/", "video/", "application/octet"]
                 ):
                     return None
 
@@ -137,9 +136,7 @@ def _strip_non_content(html_text: str) -> str:
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     # Remove common non-content elements
     for tag in ["nav", "footer", "header"]:
-        text = re.sub(
-            rf"<{tag}[^>]*>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE
-        )
+        text = re.sub(rf"<{tag}[^>]*>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
     # Collapse excessive whitespace
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r"[ \t]{2,}", " ", text)

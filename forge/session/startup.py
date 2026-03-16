@@ -28,11 +28,23 @@ def replay_messages_to_prompt_manager(
     session from disk, we replay messages into the prompt and re-apply any
     compaction so the LLM sees the compacted version.
 
+    Compaction is deferred until after ALL messages have been replayed. This is
+    critical because compact_messages() has a second pass that compacts tool
+    results associated with compacted tool calls - those tool results appear
+    later in the message list and must already be in the PromptManager when
+    compaction runs.
+
     Args:
         messages: List of message dicts from session.json or session.messages
         session_manager: The SessionManager whose prompt_manager to populate
     """
     import json
+
+    # Collect compaction requests to apply after all messages are replayed.
+    # compact_messages() needs tool results to already be in the PromptManager
+    # so it can compact them too, but tool results come after the assistant
+    # message that triggered the compact call.
+    deferred_compactions: list[tuple[str, str, str]] = []  # (from_id, to_id, summary)
 
     for msg in messages:
         if msg.get("_ui_only"):
@@ -48,7 +60,7 @@ def replay_messages_to_prompt_manager(
             if tool_calls:
                 session_manager.append_tool_call(tool_calls, content)
 
-                # Re-apply compaction from compact tool calls
+                # Collect compaction requests for deferred application
                 for tc in tool_calls:
                     func = tc.get("function", {})
                     if func.get("name") == "compact":
@@ -58,10 +70,7 @@ def replay_messages_to_prompt_manager(
                             to_id = args.get("to_id", "")
                             summary = args.get("summary", "")
                             if from_id and to_id:
-                                compacted, _ = session_manager.compact_messages(
-                                    from_id, to_id, summary
-                                )
-                                print(f"📦 Replayed compaction: {compacted} message(s)")
+                                deferred_compactions.append((from_id, to_id, summary))
                         except (json.JSONDecodeError, TypeError):
                             pass  # Malformed args, skip
             elif content:
@@ -69,6 +78,14 @@ def replay_messages_to_prompt_manager(
         elif role == "tool":
             tool_call_id = msg.get("tool_call_id", "")
             session_manager.append_tool_result(tool_call_id, content)
+
+    # Now apply all compactions - all messages (including tool results) are in place
+    for from_id, to_id, summary in deferred_compactions:
+        compacted, error = session_manager.compact_messages(from_id, to_id, summary)
+        if error:
+            print(f"⚠️ Compaction replay error ({from_id}-{to_id}): {error}")
+        else:
+            print(f"📦 Replayed compaction: {compacted} message(s)")
 
 
 def load_or_create_session(

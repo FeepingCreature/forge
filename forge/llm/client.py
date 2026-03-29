@@ -94,11 +94,9 @@ class LLMClient:
             result: dict[str, Any] = response.json()
             print("✅ LLM Response received")
 
-            # Fetch cost info from response and log it
+            # Extract cost from response usage data
             generation_id = result.get("id")
-            actual_cost = None
-            if generation_id:
-                actual_cost = self._fetch_and_record_cost(generation_id)
+            actual_cost = self._extract_and_record_cost(result)
 
             # Log response
             REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)
@@ -222,13 +220,17 @@ class LLMClient:
                     except json.JSONDecodeError:
                         continue
 
-        # Fetch cost info after streaming completes and log response
-        print(f"💰 Stream complete, generation_id={generation_id}")
+        # Extract cost from the final chunk's usage data
         actual_cost = None
-        if generation_id:
-            actual_cost = self._fetch_and_record_cost(generation_id)
-        else:
-            print("💰 WARNING: No generation_id captured from stream!")
+        if all_chunks:
+            # The last chunk(s) with usage data contain the cost
+            for chunk in reversed(all_chunks):
+                if "usage" in chunk:
+                    actual_cost = self._extract_and_record_cost(chunk)
+                    break
+
+        if actual_cost is None:
+            print("💰 WARNING: No cost data found in stream chunks")
 
         # Log the accumulated response
         REQUEST_LOG.log_response(
@@ -238,37 +240,17 @@ class LLMClient:
             generation_id,
         )
 
-    def _fetch_and_record_cost(self, generation_id: str) -> float | None:
-        """Fetch generation cost from OpenRouter and record it. Returns the cost if found."""
-        # OpenRouter provides cost info via the generation endpoint
-        # We need to poll briefly as the cost may not be immediately available
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+    def _extract_and_record_cost(self, response_data: dict[str, Any]) -> float | None:
+        """Extract cost from response/chunk usage data and record it. Returns the cost if found."""
+        usage = response_data.get("usage")
+        if not usage:
+            return None
 
-        # Try a few times with short delays
-        for attempt in range(3):
-            try:
-                response = requests.get(
-                    f"{self.base_url}/generation?id={generation_id}",
-                    headers=headers,
-                    timeout=5,
-                )
-                if response.ok:
-                    raw = response.json()
-                    data = raw.get("data", {})
-                    total_cost = data.get("total_cost")
-                    if total_cost is not None:
-                        cost = float(total_cost)
-                        COST_TRACKER.add_cost(cost)
-                        print(
-                            f"💰 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})"
-                        )
-                        return cost
-                # Cost not ready yet, wait and retry
-                time.sleep(0.5)
-            except Exception as e:
-                print(f"⚠️ Failed to fetch cost: {e}")
-                break
+        cost_value = usage.get("cost")
+        if cost_value is not None:
+            cost = float(cost_value)
+            COST_TRACKER.add_cost(cost)
+            print(f"💰 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})")
+            return cost
+
         return None

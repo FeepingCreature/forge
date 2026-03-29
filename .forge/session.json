@@ -1,10 +1,7 @@
 {
   "active_files": [
-    "forge/prompts/manager.py",
-    "tests/test_prompt_manager.py",
-    "forge/tools/builtin/compact.py",
-    "CLAUDE.md",
-    "forge/prompts/system.py"
+    "forge/llm/cost_tracker.py",
+    "forge/llm/client.py"
   ],
   "request_log_entries": [
     {
@@ -357,6 +354,60 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1774799909-Z5mkcEiP4RsbwoepEu7Y"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1774799983279.json",
+      "response_file": "/tmp/forge_debug/response_1774799983279.json",
+      "timestamp": 1774799983.2819214,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1774799983-DXOP5BTyTBfvT2wy8GA7"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1774799983281.json",
+      "response_file": "/tmp/forge_debug/response_1774799983281.json",
+      "timestamp": 1774799983.2824776,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": null,
+      "generation_id": "gen-1774799983-Ozcx3TOqbH4jbzb1saY0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1774800131964.json",
+      "response_file": "/tmp/forge_debug/response_stream_1774800131964.json",
+      "timestamp": 1774800131.9664264,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1774800132-h1fKPmoo6EnMEp5J7r4w"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1774800141470.json",
+      "response_file": "/tmp/forge_debug/response_stream_1774800141470.json",
+      "timestamp": 1774800141.4721506,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1774800141-Iq7XYBW5BdXXgt3YmRm5"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1774800151893.json",
+      "response_file": "/tmp/forge_debug/response_stream_1774800151893.json",
+      "timestamp": 1774800151.894381,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1774800152-uXDugZTXli98pyBSeEY2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1774800184035.json",
+      "response_file": "/tmp/forge_debug/response_stream_1774800184035.json",
+      "timestamp": 1774800184.0373082,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1774800184-IqbplCRtKC4Bal24Wd6J"
     }
   ],
   "messages": [
@@ -578,6 +629,142 @@
         },
         {
           "commit": "8fe7dbbb66a1",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 88 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "alright. next we need to fix the cost accounting. the api to request costs for a request is not reliable. for streamed requests, we have to use the completion message:\n\n    {\n      \"id\": \"gen-1774799909-Z5mkcEiP4RsbwoepEu7Y\",\n      \"object\": \"chat.completion.chunk\",\n      \"created\": 1774799909,\n      \"model\": \"anthropic/claude-4.6-opus-20260205\",\n      \"provider\": \"Google\",\n      \"choices\": [\n        {\n          \"index\": 0,\n          \"delta\": {\n            \"content\": \"\",\n            \"role\": \"assistant\"\n          },\n          \"finish_reason\": \"stop\",\n          \"native_finish_reason\": \"end_turn\"\n        }\n      ]\n    },\n    {\n      \"id\": \"gen-1774799909-Z5mkcEiP4RsbwoepEu7Y\",\n      \"object\": \"chat.completion.chunk\",\n      \"created\": 1774799909,\n      \"model\": \"anthropic/claude-4.6-opus-20260205\",\n      \"provider\": \"Google\",\n      \"choices\": [\n        {\n          \"index\": 0,\n          \"delta\": {\n            \"content\": \"\",\n            \"role\": \"assistant\"\n          },\n          \"finish_reason\": \"stop\",\n          \"native_finish_reason\": \"end_turn\"\n        }\n      ],\n      \"usage\": {\n        \"prompt_tokens\": 67710,\n        \"completion_tokens\": 3638,\n        \"total_tokens\": 71348,\n        \"cost\": 0.50405875,\n        \"is_byok\": false,\n        \"prompt_tokens_details\": {\n          \"cached_tokens\": 0,\n          \"cache_write_tokens\": 59647,\n          \"audio_tokens\": 0,\n          \"video_tokens\": 0\n        },\n        \"cost_details\": {\n          \"upstream_inference_cost\": 0.50405875,\n          \"upstream_inference_prompt_cost\": 0.41310875,\n          \"upstream_inference_completions_cost\": 0.09095\n        },\n        \"completion_tokens_details\": {\n          \"reasoning_tokens\": 0,\n          \"image_tokens\": 0,\n          \"audio_tokens\": 0\n        }\n      }\n    }\n  ],\n\nfor a non-streaming request it looks like\n{\n  \"id\": \"gen-1774799983-Ozcx3TOqbH4jbzb1saY0\",\n  \"object\": \"chat.completion\",\n  \"created\": 1774799983,\n  \"model\": \"anthropic/claude-4.5-haiku-20251001\",\n  \"provider\": \"Google\",\n  \"system_fingerprint\": null,\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\",\n      \"native_finish_reason\": \"end_turn\",\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"This is CODE (Python module with importable classes and public methods).\\n\\n<summary>\\n**Classes:**\\n- `BlockType` (Enum): Content block type constants (SYSTEM, SUMMARIES, FILE_CONTENT, USER_MESSAGE, ASSISTANT_MESSAGE, TOOL_CALL, TOOL_RESULT)\\n- `ContentBlock` (dataclass): Represents a prompt stream block with type, content, metadata, deleted flag\\n- `PromptManager`: Main prompt manager with append-only stream, cache optimization, and API conversion\\n  - `__init__(system_prompt, tool_schemas)`: Initialize with optional system prompt\\n  - `set_summaries(summaries, file_sizes, files_beyond_budget)`: Set repository file summaries\\n  - `append_file_content(filepath, content, note, tool_call_id)`: Add/update file content\\n  - `remove_file_content(filepath)`: Remove file from stream\\n  - `to_messages()`: Convert blocks to API message format with cache control\\n  - `append_user_message(text)`: Add user message to stream\\n  - `append_assistant_message(text)`: Add assistant response\\n  - `append_tool_call(tool_name, input_data)`: Add tool invocation\\n  - `append_tool_result(tool_result, is_error, is_ephemeral)`: Add tool result\\n  - `get_tool_call_id(user_id)`: Map user-friendly to actual tool call ID\\n  - `replace_ephemeral_tool_results()`: Replace temporary results with placeholders\\n</summary>\",\n        \"refusal\": null,\n        \"reasoning\": null\n      }\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 2738,\n    \"completion_tokens\": 369,\n    \"total_tokens\": 3107,\n    \"cost\": 0.004583,\n    \"is_byok\": false,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\": 0,\n      \"cache_write_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"video_tokens\": 0\n    },\n    \"cost_details\": {\n      \"upstream_inference_cost\": 0.004583,\n      \"upstream_inference_prompt_cost\": 0.002738,\n      \"upstream_inference_completions_cost\": 0.001845\n    },\n    \"completion_tokens_details\": {\n      \"reasoning_tokens\": 0,\n      \"image_tokens\": 0,\n      \"audio_tokens\": 0\n    }\n  }\n}"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nLet me understand the current cost tracking flow before making changes.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/llm/cost_tracker.py\", \"forge/llm/client.py\"], \"remove\": [\"forge/prompts/manager.py\", \"tests/test_prompt_manager.py\", \"forge/tools/builtin/compact.py\", \"forge/prompts/system.py\", \"CLAUDE.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01Spoy1Y4PBxVojM5aGMujMy",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Spoy1Y4PBxVojM5aGMujMy",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/llm/cost_tracker.py\", \"forge/llm/client.py\"], \"message\": \"Added 2 files, removed 5 files from context\", \"remove\": [\"forge/prompts/manager.py\", \"tests/test_prompt_manager.py\", \"forge/tools/builtin/compact.py\", \"forge/prompts/system.py\", \"CLAUDE.md\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nNow I understand the current flow. The key issues:\n\n1. **Streaming (`chat_stream`)**: After streaming completes, it calls `_fetch_and_record_cost()` which makes 3 separate HTTP requests to the `/generation` endpoint with retries. But the cost is already available in the final stream chunk's `usage.cost` field.\n\n2. **Non-streaming (`chat`)**: Similarly calls `_fetch_and_record_cost()`, but the response already contains `usage.cost` directly.\n\n3. **`_fetch_and_record_cost`** is unreliable and adds latency (up to 1.5s of polling). We can eliminate it entirely.\n\nLet me also check who else calls these methods:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"_fetch_and_record_cost|actual_cost|COST_TRACKER\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01X3fXy5Avmc74Gna4mfWzQf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01X3fXy5Avmc74Gna4mfWzQf",
+      "content": "{\"message\": \"Found 10 matches\", \"output\": \"\\u2500\\u2500 forge/llm/client.py:12 \\u2500\\u2500\\n       9 | \\n      10 | import requests\\n      11 | \\n>>>   12 | from forge.llm.cost_tracker import COST_TRACKER\\n      13 | from forge.llm.request_log import REQUEST_LOG\\n      14 | \\n      15 | \\n\\n\\u2500\\u2500 forge/llm/client.py:99 \\u2500\\u2500\\n      96 | \\n      97 |             # Fetch cost info from response and log it\\n      98 |             generation_id = result.get(\\\"id\\\")\\n>>>   99 |             actual_cost = None\\n     100 |             if generation_id:\\n     101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n\\n\\u2500\\u2500 forge/llm/client.py:101 \\u2500\\u2500\\n      98 |             generation_id = result.get(\\\"id\\\")\\n      99 |             actual_cost = None\\n     100 |             if generation_id:\\n>>>  101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n     103 |             # Log response\\n     104 |             REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\\n\\n\\u2500\\u2500 forge/llm/client.py:104 \\u2500\\u2500\\n     101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n     103 |             # Log response\\n>>>  104 |             REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\\n     105 | \\n     106 |             return result\\n     107 | \\n\\n\\u2500\\u2500 forge/llm/client.py:227 \\u2500\\u2500\\n     224 | \\n     225 |         # Fetch cost info after streaming completes and log response\\n     226 |         print(f\\\"\\ud83d\\udcb0 Stream complete, generation_id={generation_id}\\\")\\n>>>  227 |         actual_cost = None\\n     228 |         if generation_id:\\n     229 |             actual_cost = self._fetch_and_record_cost(generation_id)\\n     230 |         else:\\n\\n\\u2500\\u2500 forge/llm/client.py:229 \\u2500\\u2500\\n     226 |         print(f\\\"\\ud83d\\udcb0 Stream complete, generation_id={generation_id}\\\")\\n     227 |         actual_cost = None\\n     228 |         if generation_id:\\n>>>  229 |             actual_cost = self._fetch_and_record_cost(generation_id)\\n     230 |         else:\\n     231 |             print(\\\"\\ud83d\\udcb0 WARNING: No generation_id captured from stream!\\\")\\n     232 | \\n\\n\\u2500\\u2500 forge/llm/client.py:237 \\u2500\\u2500\\n     234 |         REQUEST_LOG.log_response(\\n     235 |             log_entry,\\n     236 |             {\\\"chunks\\\": all_chunks, \\\"id\\\": generation_id},\\n>>>  237 |             actual_cost,\\n     238 |             generation_id,\\n     239 |         )\\n     240 | \\n\\n\\u2500\\u2500 forge/llm/client.py:241 \\u2500\\u2500\\n     238 |             generation_id,\\n     239 |         )\\n     240 | \\n>>>  241 |     def _fetch_and_record_cost(self, generation_id: str) -> float | None:\\n     242 |         \\\"\\\"\\\"Fetch generation cost from OpenRouter and record it. Returns the cost if found.\\\"\\\"\\\"\\n     243 |         # OpenRouter provides cost info via the generation endpoint\\n     244 |         # We need to poll briefly as the cost may not be immediately available\\n\\n\\u2500\\u2500 forge/llm/client.py:264 \\u2500\\u2500\\n     261 |                     total_cost = data.get(\\\"total_cost\\\")\\n     262 |                     if total_cost is not None:\\n     263 |                         cost = float(total_cost)\\n>>>  264 |                         COST_TRACKER.add_cost(cost)\\n     265 |                         print(\\n     266 |                             f\\\"\\ud83d\\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\\\"\\n     267 |                         )\\n\\n\\u2500\\u2500 forge/llm/client.py:266 \\u2500\\u2500\\n     263 |                         cost = float(total_cost)\\n     264 |                         COST_TRACKER.add_cost(cost)\\n     265 |                         print(\\n>>>  266 |                             f\\\"\\ud83d\\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\\\"\\n     267 |                         )\\n     268 |                         return cost\\n     269 |                 # Cost not ready yet, wait and retry\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 10}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"include_extensions\": [\n    \".py\"\n  ],\n  \"pattern\": \"_fetch_and_record_cost|actual_cost|COST_TRACKER\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches\",\n  \"output\": \"\\u2500\\u2500 forge/llm/client.py:12 \\u2500\\u2500\\n       9 | \\n      10 | import requests\\n      11 | \\n>>>   12 | from forge.llm.cost_tracker import COST_TRACKER\\n      13 | from forge.llm.request_log import REQUEST_LOG\\n      14 | \\n      15 | \\n\\n\\u2500\\u2500 forge/llm/client.py:99 \\u2500\\u2500\\n      96 | \\n      97 |             # Fetch cost info from response and log it\\n      98 |             generation_id = result.get(\\\"id\\\")\\n>>>   99 |             actual_cost = None\\n     100 |             if generation_id:\\n     101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n\\n\\u2500\\u2500 forge/llm/client.py:101 \\u2500\\u2500\\n      98 |             generation_id = result.get(\\\"id\\\")\\n      99 |             actual_cost = None\\n     100 |             if generation_id:\\n>>>  101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n     103 |             # Log response\\n     104 |             REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\\n\\n\\u2500\\u2500 forge/llm/client.py:104 \\u2500\\u2500\\n     101 |                 actual_cost = self._fetch_and_record_cost(generation_id)\\n     102 | \\n     103 |             # Log response\\n>>>  104 |             REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\\n     105 | \\n     106 |             return result\\n     107 | \\n\\n\\u2500\\u2500 forge/llm/client.py:227 \\u2500\\u2500\\n     224 | \\n     225 |         # Fetch cost info after streaming completes and log response\\n     226 |         print(f\\\"\\ud83d\\udcb0 Stream complete, generation_id={generation_id}\\\")\\n>>>  227 |         actual_cost = None\\n     228 |         if generation_id:\\n     229 |             actual_cost = self._fetch_and_record_cost(generation_id)\\n     230 |         else:\\n\\n\\u2500\\u2500 forge/llm/client.py:229 \\u2500\\u2500\\n     226 |         print(f\\\"\\ud83d\\udcb0 Stream complete, generation_id={generation_id}\\\")\\n     227 |         actual_cost = None\\n     228 |         if generation_id:\\n>>>  229 |             actual_cost = self._fetch_and_record_cost(generation_id)\\n     230 |         else:\\n     231 |             print(\\\"\\ud83d\\udcb0 WARNING: No generation_id captured from stream!\\\")\\n     232 | \\n\\n\\u2500\\u2500 forge/llm/client.py:237 \\u2500\\u2500\\n     234 |         REQUEST_LOG.log_response(\\n     235 |             log_entry,\\n     236 |             {\\\"chunks\\\": all_chunks, \\\"id\\\": generation_id},\\n>>>  237 |             actual_cost,\\n     238 |             generation_id,\\n     239 |         )\\n     240 | \\n\\n\\u2500\\u2500 forge/llm/client.py:241 \\u2500\\u2500\\n     238 |             generation_id,\\n     239 |         )\\n     240 | \\n>>>  241 |     def _fetch_and_record_cost(self, generation_id: str) -> float | None:\\n     242 |         \\\"\\\"\\\"Fetch generation cost from OpenRouter and record it. Returns the cost if found.\\\"\\\"\\\"\\n     243 |         # OpenRouter provides cost info via the generation endpoint\\n     244 |         # We need to poll briefly as the cost may not be immediately available\\n\\n\\u2500\\u2500 forge/llm/client.py:264 \\u2500\\u2500\\n     261 |                     total_cost = data.get(\\\"total_cost\\\")\\n     262 |                     if total_cost is not None:\\n     263 |                         cost = float(total_cost)\\n>>>  264 |                         COST_TRACKER.add_cost(cost)\\n     265 |                         print(\\n     266 |                             f\\\"\\ud83d\\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\\\"\\n     267 |                         )\\n\\n\\u2500\\u2500 forge/llm/client.py:266 \\u2500\\u2500\\n     263 |                         cost = float(total_cost)\\n     264 |                         COST_TRACKER.add_cost(cost)\\n     265 |                         print(\\n>>>  266 |                             f\\\"\\ud83d\\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\\\"\\n     267 |                         )\\n     268 |                         return cost\\n     269 |                 # Cost not ready yet, wait and retry\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 10\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nNow I have the full picture. Let me make the changes:\n\n**For `chat()` (non-streaming)**: Extract `usage.cost` directly from the response instead of calling `_fetch_and_record_cost`.\n\n**For `chat_stream()` (streaming)**: Track the last chunk with `usage` data, extract cost from it after streaming completes.\n\n**Delete `_fetch_and_record_cost`** entirely \u2014 no more polling the `/generation` endpoint.\n\n<edit file=\"forge/llm/client.py\">\n<search>\n            result: dict[str, Any] = response.json()\n            print(\"\u2705 LLM Response received\")\n\n            # Fetch cost info from response and log it\n            generation_id = result.get(\"id\")\n            actual_cost = None\n            if generation_id:\n                actual_cost = self._fetch_and_record_cost(generation_id)\n\n            # Log response\n            REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\n</search>\n<replace>\n            result: dict[str, Any] = response.json()\n            print(\"\u2705 LLM Response received\")\n\n            # Extract cost from response usage data\n            generation_id = result.get(\"id\")\n            actual_cost = self._extract_and_record_cost(result)\n\n            # Log response\n            REQUEST_LOG.log_response(log_entry, result, actual_cost, generation_id)\n</replace>\n</edit>\n\n<edit file=\"forge/llm/client.py\">\n<search>\n        generation_id: str | None = None\n        all_chunks: list[dict[str, Any]] = []\n\n        # Parse SSE stream\n        for line in response.iter_lines():\n            if line:\n                line = line.decode(\"utf-8\")\n                if line.startswith(\"data: \"):\n                    data = line[6:]  # Remove 'data: ' prefix\n                    if data == \"[DONE]\":\n                        break\n                    try:\n                        chunk = json.loads(data)\n                        all_chunks.append(chunk)\n                        # Capture generation ID for cost lookup\n                        if \"id\" in chunk and generation_id is None:\n                            generation_id = chunk[\"id\"]\n\n                        # Check for error in the chunk (content filtering, etc.)\n                        if \"error\" in chunk:\n                            error_info = chunk[\"error\"]\n                            error_msg = error_info.get(\"message\", \"Unknown streaming error\")\n                            error_code = error_info.get(\"code\", \"\")\n                            metadata = error_info.get(\"metadata\", {})\n                            provider = metadata.get(\"provider_name\", \"unknown\")\n                            raise RuntimeError(\n                                f\"LLM streaming error (provider={provider}, code={error_code}): {error_msg}\"\n                            )\n\n                        yield chunk\n                    except json.JSONDecodeError:\n                        continue\n\n        # Fetch cost info after streaming completes and log response\n        print(f\"\ud83d\udcb0 Stream complete, generation_id={generation_id}\")\n        actual_cost = None\n        if generation_id:\n            actual_cost = self._fetch_and_record_cost(generation_id)\n        else:\n            print(\"\ud83d\udcb0 WARNING: No generation_id captured from stream!\")\n\n        # Log the accumulated response\n        REQUEST_LOG.log_response(\n            log_entry,\n            {\"chunks\": all_chunks, \"id\": generation_id},\n            actual_cost,\n            generation_id,\n        )\n</search>\n<replace>\n        generation_id: str | None = None\n        all_chunks: list[dict[str, Any]] = []\n\n        # Parse SSE stream\n        for line in response.iter_lines():\n            if line:\n                line = line.decode(\"utf-8\")\n                if line.startswith(\"data: \"):\n                    data = line[6:]  # Remove 'data: ' prefix\n                    if data == \"[DONE]\":\n                        break\n                    try:\n                        chunk = json.loads(data)\n                        all_chunks.append(chunk)\n                        # Capture generation ID for cost lookup\n                        if \"id\" in chunk and generation_id is None:\n                            generation_id = chunk[\"id\"]\n\n                        # Check for error in the chunk (content filtering, etc.)\n                        if \"error\" in chunk:\n                            error_info = chunk[\"error\"]\n                            error_msg = error_info.get(\"message\", \"Unknown streaming error\")\n                            error_code = error_info.get(\"code\", \"\")\n                            metadata = error_info.get(\"metadata\", {})\n                            provider = metadata.get(\"provider_name\", \"unknown\")\n                            raise RuntimeError(\n                                f\"LLM streaming error (provider={provider}, code={error_code}): {error_msg}\"\n                            )\n\n                        yield chunk\n                    except json.JSONDecodeError:\n                        continue\n\n        # Extract cost from the final chunk's usage data\n        actual_cost = None\n        if all_chunks:\n            # The last chunk(s) with usage data contain the cost\n            for chunk in reversed(all_chunks):\n                if \"usage\" in chunk:\n                    actual_cost = self._extract_and_record_cost(chunk)\n                    break\n\n        if actual_cost is None:\n            print(\"\ud83d\udcb0 WARNING: No cost data found in stream chunks\")\n\n        # Log the accumulated response\n        REQUEST_LOG.log_response(\n            log_entry,\n            {\"chunks\": all_chunks, \"id\": generation_id},\n            actual_cost,\n            generation_id,\n        )\n</replace>\n</edit>\n\n<edit file=\"forge/llm/client.py\">\n<search>\n    def _fetch_and_record_cost(self, generation_id: str) -> float | None:\n        \"\"\"Fetch generation cost from OpenRouter and record it. Returns the cost if found.\"\"\"\n        # OpenRouter provides cost info via the generation endpoint\n        # We need to poll briefly as the cost may not be immediately available\n        headers = {\n            \"Authorization\": f\"Bearer {self.api_key}\",\n            \"Content-Type\": \"application/json\",\n        }\n\n        # Try a few times with short delays\n        for attempt in range(3):\n            try:\n                response = requests.get(\n                    f\"{self.base_url}/generation?id={generation_id}\",\n                    headers=headers,\n                    timeout=5,\n                )\n                if response.ok:\n                    raw = response.json()\n                    data = raw.get(\"data\", {})\n                    total_cost = data.get(\"total_cost\")\n                    if total_cost is not None:\n                        cost = float(total_cost)\n                        COST_TRACKER.add_cost(cost)\n                        print(\n                            f\"\ud83d\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\"\n                        )\n                        return cost\n                # Cost not ready yet, wait and retry\n                time.sleep(0.5)\n            except Exception as e:\n                print(f\"\u26a0\ufe0f Failed to fetch cost: {e}\")\n                break\n        return None\n</search>\n<replace>\n    def _extract_and_record_cost(self, response_data: dict[str, Any]) -> float | None:\n        \"\"\"Extract cost from response/chunk usage data and record it. Returns the cost if found.\"\"\"\n        usage = response_data.get(\"usage\")\n        if not usage:\n            return None\n\n        cost_value = usage.get(\"cost\")\n        if cost_value is not None:\n            cost = float(cost_value)\n            COST_TRACKER.add_cost(cost)\n            print(f\"\ud83d\udcb0 Request cost: ${cost:.6f} (total: ${COST_TRACKER.total_cost:.4f})\")\n            return cost\n\n        return None\n</replace>\n</edit>\n\nNow let me also remove the `time` import since we no longer need `time.sleep` for cost polling \u2014 but wait, it's still used for rate limit backoff. Let me check:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"time\\\\.\", \"file\": \"forge/llm/client.py\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_01UmTxzzPUTaCYTq7nVnS7ax",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/llm/client.py",
+          "modified_files": [
+            "forge/llm/client.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/llm/client.py",
+          "modified_files": [
+            "forge/llm/client.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/llm/client.py",
+          "modified_files": [
+            "forge/llm/client.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UmTxzzPUTaCYTq7nVnS7ax",
+      "content": "{\"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/llm/client.py:80 \\u2500\\u2500\\n      77 |                 print(\\n      78 |                     f\\\"\\u23f3 Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}\\\"\\n      79 |                 )\\n>>>   80 |                 time.sleep(wait_time)\\n      81 |                 continue\\n      82 | \\n      83 |             if not response.ok:\\n\\n\\u2500\\u2500 forge/llm/client.py:161 \\u2500\\u2500\\n     158 |                 print(\\n     159 |                     f\\\"\\u23f3 Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}\\\"\\n     160 |                 )\\n>>>  161 |                 time.sleep(wait_time)\\n     162 |                 continue\\n     163 | \\n     164 |             if not response.ok:\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 2}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/llm/client.py\",\n  \"pattern\": \"time\\\\.\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/llm/client.py:80 \\u2500\\u2500\\n      77 |                 print(\\n      78 |                     f\\\"\\u23f3 Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}\\\"\\n      79 |                 )\\n>>>   80 |                 time.sleep(wait_time)\\n      81 |                 continue\\n      82 | \\n      83 |             if not response.ok:\\n\\n\\u2500\\u2500 forge/llm/client.py:161 \\u2500\\u2500\\n     158 |                 print(\\n     159 |                     f\\\"\\u23f3 Rate limited (429), waiting {wait_time}s before retry {attempt + 1}/{max_retries}\\\"\\n     160 |                 )\\n>>>  161 |                 time.sleep(wait_time)\\n     162 |                 continue\\n     163 | \\n     164 |             if not response.ok:\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood, `time` is still used for rate limit backoff, so we keep that import. The code looks clean. Let me run tests and commit.\n\n<run_tests />\n<commit message=\"Extract cost from response/stream usage data instead of polling /generation endpoint\n\nReplace _fetch_and_record_cost() (which polled the /generation endpoint\nup to 3 times with 0.5s delays) with _extract_and_record_cost() which\nreads usage.cost directly from:\n- Non-streaming: the response JSON's usage object\n- Streaming: the final chunk's usage object\n\nThis eliminates up to 1.5s of latency per request and removes the\nunreliable /generation API dependency.\" />\n\nDone! The changes:\n\n1. **`chat()` (non-streaming)**: Now calls `_extract_and_record_cost(result)` to read `usage.cost` directly from the response JSON.\n\n2. **`chat_stream()` (streaming)**: After streaming completes, scans chunks in reverse to find the last one with `usage` data and extracts `usage.cost` from it.\n\n3. **`_fetch_and_record_cost`** \u2192 **`_extract_and_record_cost`**: Replaced the polling method (3 HTTP requests \u00d7 0.5s delays to `/generation` endpoint) with a simple dict extraction. No more network calls for cost tracking.",
+      "_inline_results": [
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_9t2sd8nl\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 1.27s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_9t2sd8nl\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 1.27s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "820774d75c42",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

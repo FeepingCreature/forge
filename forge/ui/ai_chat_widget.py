@@ -243,8 +243,8 @@ class AIChatWidget(QWidget):
         self._add_system_message(f"✅ Changes committed: {commit_oid[:8]}")
         self.ai_turn_finished.emit(commit_oid)
         self._notify_turn_complete(commit_oid)
-        # Note: Context stats are emitted by SessionManager when files change,
-        # no need to manually trigger here
+        # Note: Context stats refresh is triggered by MainWindow connecting
+        # ai_turn_finished to SessionManager._emit_context_stats()
 
         # Generate summaries for newly created files
         if self.runner._newly_created_files:

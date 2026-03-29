@@ -238,6 +238,12 @@ class MainWindow(QMainWindow):
             lambda stats, bw=branch_widget: self._on_context_stats_updated(stats, bw)
         )
 
+        # Refresh context stats (and mood bar) after AI turn finishes,
+        # since conversation tokens change even if no files were added/removed
+        branch_widget.ai_turn_finished.connect(
+            lambda _oid, sm=session_manager: sm._emit_context_stats()
+        )
+
         # Restore active files to AI context (but don't force open tabs)
         # The AI's context is restored, but user's UI state is not forced
         if session_data and "active_files" in session_data:

@@ -1,13 +1,16 @@
 """
 Compact tool - replace conversation messages with summaries to reduce context size.
 
-Use this when:
-- Previous edits are redundant because the file is now in context
-- Old search results or tool outputs are no longer relevant
-- You want to consolidate multiple operations into a single summary
+Check <context_stats> first! Compact only reduces the conversation portion of context.
+If conversation is small relative to files/summaries, compacting saves almost nothing.
 
-The conversation recap shows message IDs in brackets like [1], [2], etc.
-Use these IDs to specify the range to compact.
+Use this when conversation is large (20k+ tokens) and contains:
+- Old tool results/diffs that are redundant (files are in context showing current state)
+- Debug output you've already understood and acted on
+- Failed approaches you've moved past
+
+Do NOT use when conversation is small — you lose useful history for negligible savings.
+For reducing file context, use update_context to remove files instead.
 """
 
 from typing import TYPE_CHECKING, Any
@@ -24,9 +27,10 @@ def get_schema() -> dict[str, Any]:
             "name": "compact",
             "description": (
                 "Replace previous conversation messages with a summary to reduce context size. "
-                "Use when previous edits are redundant (file is in context), old search results "
-                "are stale, or you want to consolidate multiple operations. "
-                "The summary replaces the original message content. "
+                "Check <context_stats> first — compact only helps when conversation tokens are "
+                "a large portion of context. If conversation is small (under ~10k tokens), "
+                "compacting saves almost nothing and loses useful history. "
+                "For reducing file context, use update_context to remove files instead. "
                 "Message IDs are shown in the conversation recap as [id 1], [id 2], etc."
             ),
             "parameters": {

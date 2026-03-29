@@ -129,17 +129,20 @@ Guidelines:
 
 ### Compacting Context
 
-Use `compact` to replace old tool results with a summary when they become redundant:
+Use `compact` to replace old conversation messages with a summary to reduce context size.
 
-- **Diffs to files in context** - Once a file is loaded, you can see its current state; old diffs are redundant
-- **Debug output once understood** - After you've learned what prints/logs showed, summarize and compact
-- **Failed approaches** - Once you've moved past a failed attempt, you don't need the details
+**Understand what's actually big.** Check the `<context_stats>` at the top of each turn — it shows the token breakdown between summaries, files, and conversation. Usually the files and summaries dwarf the conversation. If conversation is only 5-10% of your context, compacting it saves almost nothing and just makes you lose useful history.
 
-**Compact at feature boundaries.** When you finish a logical unit of work (a feature, a refactor, a bug fix), compact the tool results from that work before moving on. This keeps context lean for the next task and improves cache efficiency.
+**Compact targets conversation, not files.** If files are taking too much space, use `update_context` to remove files you no longer need. `compact` only shrinks the conversation portion.
 
-**Compact proactively** - don't wait until context is huge. The summary preserves your intent and reasoning while reducing token costs.
+**When to compact:**
+- Conversation is **large** (20k+ tokens) and contains stale tool results, old debug output, or failed approaches you've moved past
+- You've done 10+ rounds of edits and the old diffs are redundant because the files are in context showing current state
 
-Example: After implementing a feature with 10+ edits, compact with: "Implemented FooWidget: added calculate(), render(), and tests. Fixed edge case with empty input."
+**When NOT to compact:**
+- Conversation is small relative to total context — you'd save almost nothing
+- You only have a few turns of history — you need that context to stay oriented
+- The messages contain decisions or reasoning you'll need to reference later
 
 ### Message IDs
 

@@ -393,15 +393,30 @@ class TestFileContent:
         assert "print('hello')" in file_blocks[0].content
 
     def test_file_content_replaces_previous(self):
-        """When a file is modified, old content is deleted and new is appended"""
+        """When a file is modified, old content is tombstoned and new is appended"""
         pm = PromptManager(system_prompt="System")
         pm.append_file_content("test.py", "v1")
         pm.append_file_content("test.py", "v2")
         
-        # Only one active file block
-        active_files = [b for b in pm.blocks if b.block_type == BlockType.FILE_CONTENT and not b.deleted]
+        # Only one active (non-tombstone) file block
+        active_files = [
+            b for b in pm.blocks
+            if b.block_type == BlockType.FILE_CONTENT
+            and not b.deleted
+            and not b.metadata.get("tombstone")
+        ]
         assert len(active_files) == 1
         assert "v2" in active_files[0].content
+
+        # Old block is a tombstone (not deleted, but marked)
+        tombstones = [
+            b for b in pm.blocks
+            if b.block_type == BlockType.FILE_CONTENT
+            and not b.deleted
+            and b.metadata.get("tombstone")
+        ]
+        assert len(tombstones) == 1
+        assert "moved to the end" in tombstones[0].content
 
     def test_get_active_files(self):
         pm = PromptManager(system_prompt="System")
@@ -779,8 +794,13 @@ class TestFileOrderingAfterEdits:
     """
 
     def _get_active_file_blocks(self, pm: PromptManager) -> list[ContentBlock]:
-        """Get non-deleted file content blocks in order."""
-        return [b for b in pm.blocks if b.block_type == BlockType.FILE_CONTENT and not b.deleted]
+        """Get non-deleted, non-tombstone file content blocks in order."""
+        return [
+            b for b in pm.blocks
+            if b.block_type == BlockType.FILE_CONTENT
+            and not b.deleted
+            and not b.metadata.get("tombstone")
+        ]
 
     def _get_file_order(self, pm: PromptManager) -> list[str]:
         """Get the order of active files in the prompt."""
@@ -802,15 +822,15 @@ class TestFileOrderingAfterEdits:
         assert "a_v2" in blocks[2].content
         assert "a_v1" not in blocks[2].content
 
-    def test_edit_middle_file_relocates_trailing(self):
-        """Editing a middle file relocates it and everything after it."""
+    def test_edit_middle_file_stays_others_unchanged(self):
+        """Editing a middle file moves only it to the end; others stay."""
         pm = PromptManager(system_prompt="System")
         pm.append_file_content("a.py", "a")
         pm.append_file_content("b.py", "b")
         pm.append_file_content("c.py", "c")
         pm.append_file_content("d.py", "d")
 
-        # Edit b.py — c and d should be relocated, b goes last
+        # Edit b.py — only b moves to end, c and d stay in place
         pm.append_file_content("b.py", "b_v2")
 
         assert self._get_file_order(pm) == ["a.py", "c.py", "d.py", "b.py"]
@@ -972,7 +992,7 @@ class TestFileOrderingAfterEdits:
         When editing A in [S, Z, A, B, C], only A moves to end.
         B and C stay at their original positions.
 
-        Result: S Z B C A (old A deleted, new A appended)
+        Result: S Z tombstone(A) B C A (old A tombstoned, new A appended)
         """
         pm = PromptManager(system_prompt="System")
         pm.set_summaries({"a.py": "file a", "b.py": "file b", "c.py": "file c"})
@@ -982,19 +1002,24 @@ class TestFileOrderingAfterEdits:
 
         pm.append_file_content("a.py", "a_v2")
 
-        # Verify order: B and C stay, A moves to end
+        # Verify active file order: B and C stay, A moves to end
         assert self._get_file_order(pm) == ["b.py", "c.py", "a.py"]
 
-        # Verify block types — B and C stay at original positions
+        # Verify block types — tombstone is visible, B and C stay at original positions
         active = [b for b in pm.blocks if not b.deleted]
         types = [b.block_type for b in active]
         assert types == [
             BlockType.SYSTEM,
             BlockType.SUMMARIES,
+            BlockType.FILE_CONTENT,  # a.py tombstone (original position)
             BlockType.FILE_CONTENT,  # b.py (original position)
             BlockType.FILE_CONTENT,  # c.py (original position)
             BlockType.FILE_CONTENT,  # a.py (moved to end)
         ]
+        # Verify the tombstone
+        file_blocks = [b for b in active if b.block_type == BlockType.FILE_CONTENT]
+        assert file_blocks[0].metadata.get("tombstone") is True
+        assert file_blocks[0].metadata["filepath"] == "a.py"
 
     def test_unedited_files_stay_in_place(self):
         """
@@ -1003,6 +1028,8 @@ class TestFileOrderingAfterEdits:
         Only the edited file gets relocated to the end. Other files
         stay at their original positions in the block stream, even if
         they appear after the edited file's old position.
+
+        The old A block becomes a tombstone (not deleted, but marked).
         """
         pm = PromptManager(system_prompt="System")
         pm.append_file_content("a.py", "a_v1")
@@ -1015,18 +1042,22 @@ class TestFileOrderingAfterEdits:
         active = [b for b in pm.blocks if not b.deleted]
         types = [b.block_type for b in active]
 
-        # b.py should be at its original position (index 1, after system),
-        # NOT relocated to be contiguous with a.py
+        # a.py tombstone stays at original position, b.py stays, new a.py at end
         assert types == [
             BlockType.SYSTEM,
+            BlockType.FILE_CONTENT,  # a.py tombstone (original position)
             BlockType.FILE_CONTENT,  # b.py stays at original position
             BlockType.USER_MESSAGE,
             BlockType.TOOL_CALL,
             BlockType.TOOL_RESULT,
             BlockType.FILE_CONTENT,  # a.py moved to end
         ]
-        # Verify which files
-        file_blocks = [b for b in active if b.block_type == BlockType.FILE_CONTENT]
+        # Verify which files (excluding tombstones)
+        file_blocks = [
+            b for b in active
+            if b.block_type == BlockType.FILE_CONTENT
+            and not b.metadata.get("tombstone")
+        ]
         assert file_blocks[0].metadata["filepath"] == "b.py"
         assert file_blocks[1].metadata["filepath"] == "a.py"
 

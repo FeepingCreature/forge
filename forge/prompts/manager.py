@@ -184,32 +184,35 @@ class PromptManager:
         # Algorithm:
         # 1. Find all existing blocks for this filepath and delete them
         # 2. Append new content at end (done below)
-        earliest_target_idx: int | None = next(
+        # Find the active (non-tombstone, non-deleted) block for this file
+        active_block_idx: int | None = next(
             (
                 i
                 for i, block in enumerate(self.blocks)
                 if block.block_type == BlockType.FILE_CONTENT
                 and not block.deleted
+                and not block.metadata.get("tombstone")
                 and block.metadata.get("filepath") == filepath
             ),
             None,
         )
 
-        if earliest_target_idx is None:
+        if active_block_idx is None:
             # New file, no existing blocks to relocate
             print("   ↳ New file, no existing blocks")
         else:
-            # Delete only the target file's blocks — leave other files in place
-            for i in range(earliest_target_idx, len(self.blocks)):
-                block = self.blocks[i]
-                if (
-                    block.block_type == BlockType.FILE_CONTENT
-                    and not block.deleted
-                    and block.metadata.get("filepath") == filepath
-                ):
-                    block.deleted = True
+            # Replace the active block with a tombstone pointing to the new location.
+            # This preserves cause-and-effect: the LLM can see "file was here, now
+            # it's been moved to the end" rather than the content just vanishing.
+            # Old tombstones from previous updates are left as-is (already tiny).
+            block = self.blocks[active_block_idx]
+            block.content = (
+                f"[File {filepath} was here. "
+                f"Its content has been moved to the end of context.]"
+            )
+            block.metadata["tombstone"] = True
 
-            print(f"   ↳ Deleted old {filepath}, will append new version at end")
+            print(f"   ↳ Tombstoned old {filepath}, will append new version at end")
 
         # Format content block with explicit annotation
         # Make it VERY clear this is informative context, not a question
@@ -241,7 +244,7 @@ class PromptManager:
 
     def remove_file_content(self, filepath: str) -> None:
         """
-        Remove a file's content from the stream.
+        Remove a file's content from the stream (both active blocks and tombstones).
 
         Note: Caller should ensure summary is updated before calling this,
         since the summary will be the only hint about this file.
@@ -254,8 +257,10 @@ class PromptManager:
                 and not block.deleted
             ):
                 block.deleted = True
-                print(f"   ↳ Found and deleted {filepath}")
-                break
+                if block.metadata.get("tombstone"):
+                    print(f"   ↳ Deleted tombstone for {filepath}")
+                else:
+                    print(f"   ↳ Found and deleted {filepath}")
 
     def _assign_message_id(self) -> str:
         """Assign the next user-friendly message ID"""
@@ -472,6 +477,7 @@ class PromptManager:
             if (
                 block.block_type == BlockType.FILE_CONTENT
                 and not block.deleted
+                and not block.metadata.get("tombstone")
                 and "filepath" in block.metadata
             ):
                 files.append(block.metadata["filepath"])
@@ -781,14 +787,25 @@ class PromptManager:
 
             elif block.block_type == BlockType.FILE_CONTENT:
                 filepath = block.metadata.get("filepath", "unknown")
-                segments.append(
-                    {
-                        "name": f"File: {filepath}",
-                        "type": "file",
-                        "tokens": tokens,
-                        "details": filepath,
-                    }
-                )
+                if block.metadata.get("tombstone"):
+                    # Tombstone - show as conversation overhead, not a file
+                    segments.append(
+                        {
+                            "name": f"(moved: {filepath})",
+                            "type": "tool_result",
+                            "tokens": tokens,
+                            "details": f"{filepath} moved to end of context",
+                        }
+                    )
+                else:
+                    segments.append(
+                        {
+                            "name": f"File: {filepath}",
+                            "type": "file",
+                            "tokens": tokens,
+                            "details": filepath,
+                        }
+                    )
 
             elif block.block_type == BlockType.USER_MESSAGE:
                 preview = block.content[:100] + "..." if len(block.content) > 100 else block.content
@@ -892,8 +909,12 @@ class PromptManager:
             elif block.block_type == BlockType.SUMMARIES:
                 stats["summaries_tokens"] += tokens
             elif block.block_type == BlockType.FILE_CONTENT:
-                stats["files_tokens"] += tokens
-                stats["file_count"] += 1
+                if block.metadata.get("tombstone"):
+                    # Tombstones are tiny placeholders, count as conversation overhead
+                    stats["conversation_tokens"] += tokens
+                else:
+                    stats["files_tokens"] += tokens
+                    stats["file_count"] += 1
             elif block.block_type == BlockType.TOOL_CALL:
                 stats["conversation_tokens"] += tokens
                 # Also count tool call metadata

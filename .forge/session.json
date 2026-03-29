@@ -408,6 +408,15 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "gen-1774800184-IqbplCRtKC4Bal24Wd6J"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1774800283880.json",
+      "response_file": "/tmp/forge_debug/response_stream_1774800283880.json",
+      "timestamp": 1774800283.882025,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "gen-1774800284-3Qo5nox2CuA1p5xaU6AQ"
     }
   ],
   "messages": [
@@ -765,6 +774,50 @@
         },
         {
           "commit": "820774d75c42",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 6434e0e2",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm can we record it during streaming somewhere instead of processing after the fact? or is it not practical"
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood question. The issue is that `chat_stream` is a generator \u2014 it `yield`s chunks to the caller. The cost chunk comes at the very end of the stream, so we *can* process it inline as we yield. The problem is: should we yield the usage chunk to the caller, or swallow it?\n\nLooking at the current code, every chunk is yielded including the final ones. The caller (StreamWorker) processes `choices[0].delta` for content/tool_calls. The usage chunk has empty content in `delta`, so yielding it is harmless \u2014 the caller just ignores it.\n\nSo yes, we can record cost during streaming \u2014 just check each chunk for `usage` as we yield it. This is simpler and means cost is recorded immediately when the stream ends, rather than in post-processing. It also means we don't need to scan `all_chunks` in reverse afterward.\n\n<edit file=\"forge/llm/client.py\">\n<search>\n        generation_id: str | None = None\n        all_chunks: list[dict[str, Any]] = []\n\n        # Parse SSE stream\n        for line in response.iter_lines():\n            if line:\n                line = line.decode(\"utf-8\")\n                if line.startswith(\"data: \"):\n                    data = line[6:]  # Remove 'data: ' prefix\n                    if data == \"[DONE]\":\n                        break\n                    try:\n                        chunk = json.loads(data)\n                        all_chunks.append(chunk)\n                        # Capture generation ID for cost lookup\n                        if \"id\" in chunk and generation_id is None:\n                            generation_id = chunk[\"id\"]\n\n                        # Check for error in the chunk (content filtering, etc.)\n                        if \"error\" in chunk:\n                            error_info = chunk[\"error\"]\n                            error_msg = error_info.get(\"message\", \"Unknown streaming error\")\n                            error_code = error_info.get(\"code\", \"\")\n                            metadata = error_info.get(\"metadata\", {})\n                            provider = metadata.get(\"provider_name\", \"unknown\")\n                            raise RuntimeError(\n                                f\"LLM streaming error (provider={provider}, code={error_code}): {error_msg}\"\n                            )\n\n                        yield chunk\n                    except json.JSONDecodeError:\n                        continue\n\n        # Extract cost from the final chunk's usage data\n        actual_cost = None\n        if all_chunks:\n            # The last chunk(s) with usage data contain the cost\n            for chunk in reversed(all_chunks):\n                if \"usage\" in chunk:\n                    actual_cost = self._extract_and_record_cost(chunk)\n                    break\n\n        if actual_cost is None:\n            print(\"\ud83d\udcb0 WARNING: No cost data found in stream chunks\")\n\n        # Log the accumulated response\n        REQUEST_LOG.log_response(\n            log_entry,\n            {\"chunks\": all_chunks, \"id\": generation_id},\n            actual_cost,\n            generation_id,\n        )\n</search>\n<replace>\n        generation_id: str | None = None\n        all_chunks: list[dict[str, Any]] = []\n        actual_cost: float | None = None\n\n        # Parse SSE stream\n        for line in response.iter_lines():\n            if line:\n                line = line.decode(\"utf-8\")\n                if line.startswith(\"data: \"):\n                    data = line[6:]  # Remove 'data: ' prefix\n                    if data == \"[DONE]\":\n                        break\n                    try:\n                        chunk = json.loads(data)\n                        all_chunks.append(chunk)\n                        # Capture generation ID for cost lookup\n                        if \"id\" in chunk and generation_id is None:\n                            generation_id = chunk[\"id\"]\n\n                        # Check for error in the chunk (content filtering, etc.)\n                        if \"error\" in chunk:\n                            error_info = chunk[\"error\"]\n                            error_msg = error_info.get(\"message\", \"Unknown streaming error\")\n                            error_code = error_info.get(\"code\", \"\")\n                            metadata = error_info.get(\"metadata\", {})\n                            provider = metadata.get(\"provider_name\", \"unknown\")\n                            raise RuntimeError(\n                                f\"LLM streaming error (provider={provider}, code={error_code}): {error_msg}\"\n                            )\n\n                        # Record cost inline when the usage chunk arrives\n                        if \"usage\" in chunk:\n                            actual_cost = self._extract_and_record_cost(chunk)\n\n                        yield chunk\n                    except json.JSONDecodeError:\n                        continue\n\n        if actual_cost is None:\n            print(\"\ud83d\udcb0 WARNING: No cost data found in stream chunks\")\n\n        # Log the accumulated response\n        REQUEST_LOG.log_response(\n            log_entry,\n            {\"chunks\": all_chunks, \"id\": generation_id},\n            actual_cost,\n            generation_id,\n        )\n</replace>\n</edit>\n\n<run_tests />\n<commit message=\"Record streaming cost inline as chunks arrive instead of post-processing\n\nExtract cost from usage chunk as it streams through rather than scanning\nall_chunks in reverse after the stream completes. Simpler and more\nimmediate.\" />\n\nThe cost is now recorded as soon as the usage chunk arrives during streaming, rather than scanning backwards through all chunks after the fact. Since the usage chunk is the very last one in the stream, cost gets recorded at the natural end of streaming \u2014 no post-processing needed.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/llm/client.py",
+          "modified_files": [
+            "forge/llm/client.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_lqm1kquf\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 1.15s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_lqm1kquf\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 1.15s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "f1656163e310",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

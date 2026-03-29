@@ -189,6 +189,7 @@ class LLMClient:
 
         generation_id: str | None = None
         all_chunks: list[dict[str, Any]] = []
+        actual_cost: float | None = None
 
         # Parse SSE stream
         for line in response.iter_lines():
@@ -216,18 +217,13 @@ class LLMClient:
                                 f"LLM streaming error (provider={provider}, code={error_code}): {error_msg}"
                             )
 
+                        # Record cost inline when the usage chunk arrives
+                        if "usage" in chunk:
+                            actual_cost = self._extract_and_record_cost(chunk)
+
                         yield chunk
                     except json.JSONDecodeError:
                         continue
-
-        # Extract cost from the final chunk's usage data
-        actual_cost = None
-        if all_chunks:
-            # The last chunk(s) with usage data contain the cost
-            for chunk in reversed(all_chunks):
-                if "usage" in chunk:
-                    actual_cost = self._extract_and_record_cost(chunk)
-                    break
 
         if actual_cost is None:
             print("💰 WARNING: No cost data found in stream chunks")

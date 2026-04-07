@@ -29,9 +29,11 @@ the full output is replaced with a placeholder to save context space. Use this f
 lookups where you'll act immediately on the results (load files, make decisions, etc.).
 
 Good for:
-- Quickly checking how a function is called without loading the whole file
+- Peeking at a file you're unsure about before committing to loading it
+- Quickly checking a single detail without loading a large file
 - Scanning multiple files for a pattern to find the relevant one
-- Investigating before committing to loading large files
+
+If you're going to edit the file, just load it with update_context instead.
 
 Excludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.
 The pattern is a Python regex.""",

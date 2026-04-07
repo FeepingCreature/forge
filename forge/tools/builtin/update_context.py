@@ -22,7 +22,9 @@ IMPORTANT:
 - Files in active context have full content included in every turn (costs tokens)
 - Use file summaries to decide what to load - don't load speculatively
 
-Example: {"add": ["src/a.py", "src/b.py"], "remove": ["src/old.py"]}""",
+Example: {"add": ["src/a.py", "src/b.py"], "remove": ["src/old.py"]}
+
+This is your primary tool. Load files to read and edit them, unload when done.""",
             "parameters": {
                 "type": "object",
                 "properties": {

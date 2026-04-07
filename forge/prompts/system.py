@@ -53,7 +53,7 @@ These tools solve specific problems where loading files one-by-one isn't practic
 
 **`grep_open`** — Find all files that mention a name, then load them. Use this when changing an interface: renaming a function, modifying a constant, changing an API. You need to find *every* call site across the repo, not just the ones you know about.
 
-**`grep_context`** — Peek at a file without loading it. Use this when you're unsure *which* file you need and want to check before committing to loading it. Results are ephemeral (gone next turn) and not editable, so don't use this for files you plan to edit.
+**`grep_context`** — Search for a pattern and see matching lines without loading files. Use this to *find* things — which file defines a function, where a constant is set, how something is called. Results are ephemeral (gone next turn). Once you've found what you need, load the file with `update_context` to read and edit it.
 
 **`scout`** — Ask a question across many files at once. Use this when you need to scan more files than you can practically load — "which of these 20 files handles authentication?" or "what patterns do these modules use?" Scout sends files to a smaller model, so it's for triage and understanding, not for files you're about to edit.
 

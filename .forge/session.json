@@ -1,6 +1,7 @@
 {
   "active_files": [
     "forge/tools/builtin/update_context.py",
+    "forge/prompts/system.py",
     "forge/tools/builtin/grep_context.py",
     "CLAUDE.md",
     "forge/tools/builtin/session.py"
@@ -104,6 +105,24 @@
       "streaming": true,
       "actual_cost": 0.27618375,
       "generation_id": "gen-1775549647-0bwUDY50cw0fpXAjgiWm"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1775549706520.json",
+      "response_file": "/tmp/forge_debug/response_stream_1775549706520.json",
+      "timestamp": 1775549706.5222702,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.28991625,
+      "generation_id": "gen-1775549710-dyfmuqbmJh5rTuodPOYm"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1775549725494.json",
+      "response_file": "/tmp/forge_debug/response_stream_1775549725494.json",
+      "timestamp": 1775549725.4952254,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.31773375,
+      "generation_id": "gen-1775549729-6LsSJkZG3iJxQ9EiVZ0N"
     }
   ],
   "messages": [
@@ -1217,6 +1236,92 @@
     {
       "role": "assistant",
       "content": "Ready for the next task! What would you like to work on?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 707e8fd0",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "well actually can you change the grep_context guidance a bit? we *shouldn't* use it to investigate- it's a *search* tool. if we're going to investigate we should do it by opening the file and commenting about it."
+    },
+    {
+      "role": "assistant",
+      "content": "\n\nGood point. `grep_context` is for *searching* \u2014 finding which file has what you need. If you want to *understand* code, you load the file. Let me update both the tool description and the system prompt guidance.\n\n<edit file=\"forge/tools/builtin/grep_context.py\">\n<search>\n            \"description\": \"\"\"Search for a pattern and show lines around each match WITHOUT adding files to context.\n\nUse this to peek at code before deciding if you need the full file. Unlike grep_open, this\nreturns snippets inline and does NOT add files to your active context.\n\n**EPHEMERAL**: This tool's results are only available for ONE turn. After you respond,\nthe full output is replaced with a placeholder to save context space. Use this for quick\nlookups where you'll act immediately on the results (load files, make decisions, etc.).\n\nGood for:\n- Peeking at a file you're unsure about before committing to loading it\n- Quickly checking a single detail without loading a large file\n- Scanning multiple files for a pattern to find the relevant one\n\nIf you're going to edit the file, just load it with update_context instead.\n\nExcludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.\nThe pattern is a Python regex.\"\"\",\n</search>\n<replace>\n            \"description\": \"\"\"Search for a pattern and show lines around each match WITHOUT adding files to context.\n\nUse this to peek at code before deciding if you need the full file. Unlike grep_open, this\nreturns snippets inline and does NOT add files to your active context.\n\n**EPHEMERAL**: This tool's results are only available for ONE turn. After you respond,\nthe full output is replaced with a placeholder to save context space. Use this for quick\nlookups where you'll act immediately on the results (load files, make decisions, etc.).\n\nGood for:\n- Quickly checking how a function is called without loading the whole file\n- Scanning multiple files for a pattern to find the relevant one\n- Investigating before committing to loading large files\n\nExcludes .git, __pycache__, node_modules, .venv, venv by default. Binary files are skipped.\nThe pattern is a Python regex.\"\"\",\n</replace>\n</edit>\n\nNow update the system prompt to match:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01UTau7Ug2pJBp35iNc6XrDU",
+          "type": "function"
+        }
+      ],
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/grep_context.py",
+          "modified_files": [
+            "forge/tools/builtin/grep_context.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01UTau7Ug2pJBp35iNc6XrDU",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I see the edit to `grep_context.py` already went through (from the \"Commands executed: \u2713 edit\" message). Let me check what it looks like now \u2014 ah wait, I can see it in my context. The tool description currently says:\n\n```\n- Quickly checking how a function is called without loading the whole file\n- Scanning multiple files for a pattern to find the relevant one\n- Investigating before committing to loading large files\n```\n\nThat third bullet still says \"Investigating\" which is wrong. `grep_context` is a search tool \u2014 you search, find the file, then load it to investigate. Let me fix both the tool description and the system prompt.\n\n<edit file=\"forge/tools/builtin/grep_context.py\">\n<search>\nGood for:\n- Quickly checking how a function is called without loading the whole file\n- Scanning multiple files for a pattern to find the relevant one\n- Investigating before committing to loading large files</search>\n<replace>\nGood for:\n- Finding which file contains a function/class/pattern before loading it\n- Scanning multiple files for a pattern to find the relevant one\n- Checking a quick detail (e.g. a function signature) without loading a large file</replace>\n</edit>\n\nNow update the system prompt to match \u2014 it currently says \"Peek at a file without loading it. Use this when you're unsure *which* file you need and want to check before committing to loading it.\" That's close but still frames it as investigation rather than search:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n**`grep_context`** \u2014 Peek at a file without loading it. Use this when you're unsure *which* file you need and want to check before committing to loading it. Results are ephemeral (gone next turn) and not editable, so don't use this for files you plan to edit.</search>\n<replace>\n**`grep_context`** \u2014 Search for a pattern and see matching lines without loading files. Use this to *find* things \u2014 which file defines a function, where a constant is set, how something is called. Results are ephemeral (gone next turn). Once you've found what you need, load the file with `update_context` to read and edit it.</replace>\n</edit>\n\n<run_tests />\n<commit message=\"Reframe grep_context as a search tool, not investigation tool\n\ngrep_context finds things. If you want to understand/investigate code,\nload the file with update_context. Updated both the tool description\nand system prompt guidance.\" />\n\nDone! Both the tool description and system prompt now frame `grep_context` as a *search* tool: you use it to find which file has what you need, then load that file to actually read and understand the code.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/tools/builtin/grep_context.py",
+          "modified_files": [
+            "forge/tools/builtin/grep_context.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.5.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_s6p6ee_k\nconfigfile: pyproject.toml\nplugins: cov-4.1.0, asyncio-0.26.0, Faker-40.8.0, qt-4.5.0, anyio-4.10.0, mock-3.15.1, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 0.82s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.5.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_s6p6ee_k\nconfigfile: pyproject.toml\nplugins: cov-4.1.0, asyncio-0.26.0, Faker-40.8.0, qt-4.5.0, anyio-4.10.0, mock-3.15.1, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 0.82s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "7d321ff3f77d",
+          "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,

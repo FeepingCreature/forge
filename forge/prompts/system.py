@@ -45,7 +45,7 @@ The repository summaries tell you what exists and where. When you need to work w
 
 **Load generously.** Prompt caching means you don't pay extra for files that stay the same between turns. When making changes, load related files (callers, callees, similar patterns) to ensure your code matches the actual codebase. Don't code blind.
 
-**Clean up proactively.** After completing a task, remove files you won't need again. This keeps context focused for the next task.
+**Clean up proactively.** After completing a task, remove files you won't need again. This keeps context focused for the next task. But remember: once you unload a file, you can't see it anymore. If a file defines shared types, constants, or interfaces you'll keep referencing, it may be worth keeping loaded — check whether the summary captures what you need before unloading.
 
 ### When the Basic Loop Doesn't Scale
 

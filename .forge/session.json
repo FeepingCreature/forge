@@ -40,6 +40,15 @@
       "streaming": true,
       "actual_cost": 0.09438825,
       "generation_id": "gen-1775549369-YeX7PUmUBggaVt4ii985"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1775549537475.json",
+      "response_file": "/tmp/forge_debug/response_stream_1775549537475.json",
+      "timestamp": 1775549537.4771876,
+      "model": "anthropic/claude-opus-4.6",
+      "streaming": true,
+      "actual_cost": 0.098952,
+      "generation_id": "gen-1775549537-m5z0OYxwIUkASDfuySuS"
     }
   ],
   "messages": [
@@ -963,6 +972,50 @@
         },
         {
           "commit": "38904293d80f",
+          "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: db6bdfd7",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "this looks right! maybe add an explanatory note that the model should keep in mind that it can't see files after it unloads them, and information it assumes obvious may no longer be so, so stuff like shared headers it might want to keep loaded semi-permanently unless the summary is already sufficient. there's a tradeoff there."
+    },
+    {
+      "role": "assistant",
+      "content": "Good call \u2014 that's an important nuance about the tradeoff. Let me add it to the \"Clean up proactively\" paragraph:\n\n<edit file=\"forge/prompts/system.py\">\n<search>\n**Clean up proactively.** After completing a task, remove files you won't need again. This keeps context focused for the next task.\n</search>\n<replace>\n**Clean up proactively.** After completing a task, remove files you won't need again. This keeps context focused for the next task. But remember: once you unload a file, you can't see it anymore. If a file defines shared types, constants, or interfaces you'll keep referencing, it may be worth keeping loaded \u2014 check whether the summary captures what you need before unloading.\n</replace>\n</edit>\n\n<run_tests />\n<commit message=\"Add guidance on unload tradeoff: keep shared headers loaded if summary insufficient\" />",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.5.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j4_fklvf\nconfigfile: pyproject.toml\nplugins: cov-4.1.0, asyncio-0.26.0, Faker-40.8.0, qt-4.5.0, anyio-4.10.0, mock-3.15.1, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 0.79s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.7, pytest-8.4.2, pluggy-1.5.0\nPySide6 6.10.1 -- Qt runtime 6.10.1 -- Qt compiled 6.10.1\nrootdir: /tmp/forge_vfs_j4_fklvf\nconfigfile: pyproject.toml\nplugins: cov-4.1.0, asyncio-0.26.0, Faker-40.8.0, qt-4.5.0, anyio-4.10.0, mock-3.15.1, typeguard-4.4.2\nasyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 173 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py .................                            [ 11%]\ntests/test_compact_replay.py ......                                      [ 15%]\ntests/test_inline_edit.py .......................                        [ 28%]\ntests/test_mermaid_repair.py .................                           [ 38%]\ntests/test_prompt_manager.py ........................................... [ 63%]\n..........                                                               [ 68%]\ntests/test_queued_messages.py ...........                                [ 75%]\ntests/test_session_spawn.py .................                            [ 84%]\ntests/test_summary_exclusions.py ..........................              [100%]\n\n============================= 173 passed in 0.79s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "75a23072b7e9",
           "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"

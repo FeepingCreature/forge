@@ -253,6 +253,15 @@ Pick a fresh nonce per block (or reuse one — it just has to match within a
 single block). Only use the nonced form when your body actually contains
 edit-block delimiters; otherwise prefer the plain form.
 
+**Critical: the nonce must not collide with content in your body.** The
+parser closes the block at the *first* literal `</edit_NONCE>` it sees, so
+if your search/replace text quotes an example using nonce `q5`, you cannot
+also wrap with nonce `q5` — the regex will truncate at the inner closing
+tag and silently reinterpret your edit as a whole-file write. Before
+emitting the wrapper, glance at the body and pick a token that you can see
+isn't already there (a few random letters/digits like `x9k`, `mn4`, `zz1`
+are usually fine).
+
 If a block fails to parse (mismatched tags, missing close, or unescaped
 delimiters in a non-nonced body), you'll receive an explicit error — the
 parser will not silently drop your edit.

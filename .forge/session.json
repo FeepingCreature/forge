@@ -1,5 +1,6 @@
 {
   "active_files": [
+    "forge/prompts/system.py",
     "forge/ui/tool_rendering.py",
     "CLAUDE.md"
   ],
@@ -372,6 +373,33 @@
       "streaming": true,
       "actual_cost": 0.59526,
       "generation_id": "gen-1776653459-UsAZwvJHBWSwtrPG20U8"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653515314.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653515314.json",
+      "timestamp": 1776653515.3169737,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.62372375,
+      "generation_id": "gen-1776653515-gUJa7fta0i8BuVE0e8DU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653542169.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653542169.json",
+      "timestamp": 1776653542.171739,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.12570525,
+      "generation_id": "gen-1776653542-sjQsVXcz0W0IJeYGeMYK"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653571159.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653571159.json",
+      "timestamp": 1776653571.1615422,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.4181825,
+      "generation_id": "gen-1776653571-8IxdDVNcXl4bMGNqN3PZ"
     }
   ],
   "messages": [
@@ -1229,6 +1257,92 @@
             "mid_turn_commit"
           ],
           "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: bf77734f",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm, the closing tags from the *example* aren't in the rendered diff body."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 46] Good catch \u2014 the saved `CLAUDE.md` shows the body got truncated mid-block:\n\n```\n    <replace_q5>\n    Close with </edit_NONCE> (any matching suffix works).\n                              \u2190 stops here, missing </replace_q5> and </edit_q5>\n```\n\nThe committed file is missing the closing `</replace_q5>` and `</edit_q5>`. So the partial-edit parser's `_render_partial_edit` didn't show those final lines in the live diff preview *and* the saved file lost them too.\n\nTwo possible causes:\n\n1. **Streaming preview mis-render only** (cosmetic). The live preview's `_render_partial_edit` strips trailing newlines / closing tags during streaming because it can't yet tell if more content is coming. The committed file *should* still have them. But the committed file in the context above doesn't, so this isn't just cosmetic.\n\n2. **Edit-block parser bug** (real). The unified `EDIT_PATTERN` somehow consumed the closing tags as part of the body. Let me think...\n\nLooking at the body of my `<replace_q5>`:\n```\n    <edit_q5 file=\"docs.md\">\n    <search_q5>\n    Close with </edit> or </search>.\n    </search_q5>\n    <replace_q5>\n    Close with </edit_NONCE> (any matching suffix works).\n    </replace_q5>\n    </edit_q5>\n```\n\nThe unified pattern's body lookahead is `(?!</edit\\1>)` where `\\1` is `_q5` (the outer block's nonce). So the body terminates at the **first** `</edit_q5>` \u2014 which is the one inside my example, not my outer wrapper's closing tag!\n\nThat's a real bug in the design: **nonces aren't safe against self-collision**. If a body literally contains `</edit_NONCE>` with the same NONCE you chose, the parser truncates there.\n\nThe user-visible consequence: when I pasted my outer block with nonce `q5`, and the body contained `</replace_q5>` + `</edit_q5>` from the example I was quoting, the regex stopped at the inner `</search_q5>` (wait, it actually stopped earlier \u2014 let me retrace).\n\nActually retracing more carefully: the EDIT_PATTERN body uses `</edit\\1>` lookahead in both `search` and `replace` body groups. For my outer `_q5` block:\n- search body lookahead: stops at first `</edit_q5>` \n- the search body contains `</search_q5>` and `</edit_q5>` literals from the example\n- it would stop at the inner `</edit_q5>`, then expect `</search_q5>` immediately \u2014 which won't match\n- so the whole regex fails to match the outer block at all\n- but **WRITE_PATTERN** then tries: it stops body at `<search_q5>` OR `</edit_q5>` \u2014 it'd stop at `<search_q5>` (the outer's, position 0 in body), then expect `\\n?</edit_q5>` \u2014 won't match\n- WRITE_PATTERN backs off, tries longer body... eventually matches all the way to the inner `</edit_q5>` as a whole-file write!\n\n**That's exactly what happened.** My nonced edit got reinterpreted as a whole-file write that wrote everything up to the first `</edit_q5>` it found inside the body. Hence the truncated CLAUDE.md.\n\nThis is a fundamental issue: **the nonce must be unique against the body, not just unique to the parser**. The fix is one of:\n\n(a) **Tell the AI**: \"pick a nonce that doesn't appear in the body\" \u2014 this is what I should've done by reading my own example before writing the outer block.\n\n(b) **Detect collision and reject**: if the parser sees a successful match whose body contains the closing tag of the *outer* block, that's a smell \u2014 but actually this *is* what we want when the user wants the example to round-trip; the AI just needs a different nonce.\n\n(c) **Document the rule** in the system prompt so I don't make this mistake again.\n\nI think (a)+(c) is right: it's the AI's job to pick a nonce that doesn't collide. Let me update the system prompt to call this out, then redo the CLAUDE.md edit with a fresh non-colliding nonce.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01EWQiqrm9giMaa1iBz1dTYE",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EWQiqrm9giMaa1iBz1dTYE",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 47] Right \u2014 diagnosis confirmed. The bug is: when a body contains `</edit_NONCE>` literals matching the *outer* block's nonce, the regex stops there instead of at the real outer close. My edit got reinterpreted as a whole-file write that truncated at the inner `</edit_q5>`.\n\nThis is fundamentally a \"pick a nonce that doesn't appear in your body\" rule. Two things to do:\n\n1. Add a clear \"pick a non-colliding nonce\" warning to the system prompt\n2. Repair `CLAUDE.md` (it was corrupted by my last edit)\n\nLet me also free up context \u2014 conversation is at 41.8k. Compacting most of the history first since the work is done.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"from_id\": \"1\", \"to_id\": \"44\", \"summary\": \"Designed and implemented nonced edit-block syntax to fix two bugs in the inline edit parser:\\n1. Bodies containing literal &lt;/edit&gt;, &lt;/search&gt;, &lt;/replace&gt; broke the parser silently.\\n2. Mixing search/replace with whole-file writes had edge cases.\\n\\nCHANGES MADE (all committed):\\n- forge/tools/builtin/edit.py: Unified EDIT_PATTERN/WRITE_PATTERN to match both plain &lt;edit&gt; and nonced &lt;edit_NONCE&gt; via single regex with captured suffix `(_\\\\w+|)` backreferenced into closing tags. Removed escape=\\\"html\\\" mechanism. Added detect_unparsed_edit_blocks() and EDIT_OPEN_DETECTOR for surfacing parse errors. parse_edits() simplified to one finditer call.\\n- forge/tools/invocation.py: Collapsed _PATTERN_METHODS table to two entries (inline + write). Added detect_unparsed_inline_blocks() and execute_inline_commands_with_parse_check() which surfaces malformed blocks as visible errors instead of silent drops.\\n- forge/ui/chat_workers.py + forge/session/live_session.py: InlineCommandWorker now takes content and routes through parse-checking executor.\\n- forge/prompts/system.py: Replaced \\\"HTML Escaping\\\" docs with \\\"Editing Files That Contain Edit-Block Syntax\\\" teaching the nonce form. STILL NEEDS: warning that nonce must not appear in body (the current bug we're addressing).\\n- forge/ui/tool_rendering.py: Updated streaming preview parser. Removed dead EDIT_BLOCK_PATTERN and per-tag SEARCH/REPLACE patterns. Unified EDIT_START_PATTERN captures suffix; _render_partial_edit threads suffix into composed inner tag string literals via str.find.\\n- tests/test_inline_edit.py: Added TestNoncedEditSyntax, TestUnparsedBlockDetection, TestStreamingPartialEditNonced. All 31+ tests pass.\\n- CLAUDE.md: Added \\\"Editing files that mention edit-block syntax\\\" section with example using nonce x9. THIS FILE WAS THEN CORRUPTED in [id 44] when I tried to edit it with nonce q5 while the body contained literal &lt;/edit_q5&gt; \u2014 the parser truncated at the inner closing tag, treating it as a whole-file write that lost the trailing portion.\\n\\nOUTSTANDING WORK (for current turn):\\n1. Fix CLAUDE.md \u2014 it's currently truncated. The committed file ends with \\\"Close with &lt;/edit_NONCE&gt; (any matching suffix works).\\\" followed directly by \\\"If a block fails to parse...\\\" \u2014 missing the closing &lt;/replace_q5&gt; and &lt;/edit_q5&gt; from the example, but the # Glossary header is still present below.\\n2. Update forge/prompts/system.py EDIT_FORMAT_XML to add explicit warning: \\\"the nonce must not appear as a literal closing tag inside your body \u2014 pick a fresh random token that you can verify isn't in the search/replace text.\\\"\\n\\nUser's last action: confirmed CLAUDE.md is corrupted and asked for diagnosis. I diagnosed the regex self-collision issue and need to fix both items above.\"}",
+            "name": "compact"
+          },
+          "id": "toolu_vrtx_01CLeYw3EjSCb8uR5DJVwKNf",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01CLeYw3EjSCb8uR5DJVwKNf",
+      "content": "{\"compact\": true, \"from_id\": \"1\", \"success\": true, \"summary\": \"Designed and implemented nonced edit-block syntax to fix two bugs in the inline edit parser:\\n1. Bodies containing literal &lt;/edit&gt;, &lt;/search&gt;, &lt;/replace&gt; broke the parser silently.\\n2. Mixing search/replace with whole-file writes had edge cases.\\n\\nCHANGES MADE (all committed):\\n- forge/tools/builtin/edit.py: Unified EDIT_PATTERN/WRITE_PATTERN to match both plain &lt;edit&gt; and nonced &lt;edit_NONCE&gt; via single regex with captured suffix `(_\\\\w+|)` backreferenced into closing tags. Removed escape=\\\"html\\\" mechanism. Added detect_unparsed_edit_blocks() and EDIT_OPEN_DETECTOR for surfacing parse errors. parse_edits() simplified to one finditer call.\\n- forge/tools/invocation.py: Collapsed _PATTERN_METHODS table to two entries (inline + write). Added detect_unparsed_inline_blocks() and execute_inline_commands_with_parse_check() which surfaces malformed blocks as visible errors instead of silent drops.\\n- forge/ui/chat_workers.py + forge/session/live_session.py: InlineCommandWorker now takes content and routes through parse-checking executor.\\n- forge/prompts/system.py: Replaced \\\"HTML Escaping\\\" docs with \\\"Editing Files That Contain Edit-Block Syntax\\\" teaching the nonce form. STILL NEEDS: warning that nonce must not appear in body (the current bug we're addressing).\\n- forge/ui/tool_rendering.py: Updated streaming preview parser. Removed dead EDIT_BLOCK_PATTERN and per-tag SEARCH/REPLACE patterns. Unified EDIT_START_PATTERN captures suffix; _render_partial_edit threads suffix into composed inner tag string literals via str.find.\\n- tests/test_inline_edit.py: Added TestNoncedEditSyntax, TestUnparsedBlockDetection, TestStreamingPartialEditNonced. All 31+ tests pass.\\n- CLAUDE.md: Added \\\"Editing files that mention edit-block syntax\\\" section with example using nonce x9. THIS FILE WAS THEN CORRUPTED in [id 44] when I tried to edit it with nonce q5 while the body contained literal &lt;/edit_q5&gt; \\u2014 the parser truncated at the inner closing tag, treating it as a whole-file write that lost the trailing portion.\\n\\nOUTSTANDING WORK (for current turn):\\n1. Fix CLAUDE.md \\u2014 it's currently truncated. The committed file ends with \\\"Close with &lt;/edit_NONCE&gt; (any matching suffix works).\\\" followed directly by \\\"If a block fails to parse...\\\" \\u2014 missing the closing &lt;/replace_q5&gt; and &lt;/edit_q5&gt; from the example, but the # Glossary header is still present below.\\n2. Update forge/prompts/system.py EDIT_FORMAT_XML to add explicit warning: \\\"the nonce must not appear as a literal closing tag inside your body \\u2014 pick a fresh random token that you can verify isn't in the search/replace text.\\\"\\n\\nUser's last action: confirmed CLAUDE.md is corrupted and asked for diagnosis. I diagnosed the regex self-collision issue and need to fix both items above.\", \"to_id\": \"44\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 48] Now let me make both fixes. I'll use nonce `zz1` for the system.py edit (verified not in body) and reconstruct CLAUDE.md as a whole-file write since the example bodies contain too many edit tag literals.\n\n<edit file=\"forge/prompts/system.py\">\n<search>\nPick a fresh nonce per block (or reuse one \u2014 it just has to match within a\nsingle block). Only use the nonced form when your body actually contains\nedit-block delimiters; otherwise prefer the plain form.\n</search>\n<replace>\nPick a fresh nonce per block (or reuse one \u2014 it just has to match within a\nsingle block). Only use the nonced form when your body actually contains\nedit-block delimiters; otherwise prefer the plain form.\n\n**Critical: the nonce must not collide with content in your body.** The\nparser closes the block at the *first* literal `</edit_NONCE>` it sees, so\nif your search/replace text quotes an example using nonce `q5`, you cannot\nalso wrap with nonce `q5` \u2014 the regex will truncate at the inner closing\ntag and silently reinterpret your edit as a whole-file write. Before\nemitting the wrapper, glance at the body and pick a token that you can see\nisn't already there (a few random letters/digits like `x9k`, `mn4`, `zz1`\nare usually fine).\n</replace>\n</edit>\n\n<edit file=\"CLAUDE.md\">\n# Editing files that mention edit-block syntax\n\nWhen a search or replace body contains literal `&lt;/edit&gt;`, `&lt;/search&gt;`, or\n`&lt;/replace&gt;`, use the **nonced** form: pick any short token and append `_TOKEN`\nto the `edit`, `search`, and `replace` tag names. The closing tags must use the\nsame token. The system prompt has the full spec and an example.\n\nTwo gotchas worth repeating here because they bit us:\n\n1. **Pick a nonce that doesn't appear in your body.** The parser closes at the\n   first matching `</edit_TOKEN>` it sees \u2014 if you wrap with `_q5` and your\n   body quotes an example also using `_q5`, the outer block truncates at the\n   inner close and the trailing portion is lost.\n2. **If a block fails to parse, you'll get an explicit error** rather than a\n   silent drop. Trust the error and fix the specific issue rather than\n   retrying blindly.\n\n# Glossary\n\n- **Turn**: Everything from the last user message to the stop token. A turn may include many tool calls.\n- **Step**: A single [input, AI response] pair. Either [user message, AI response] or [tool results, AI response].\n\n# Never touch the working directory\n\nGit operations must NEVER operate on the working directory or `repo.index`.\nAll file operations go through the VFS, and all git operations use in-memory trees.\n\nThe working directory is the user's space. We only touch it to fast-forward after commits\nwhen the user's branch is checked out (so they see our changes).\n\nIf you see `repo.merge()`, `repo.checkout()`, `repo.index.add()`, or similar - that's a bug.\nUse `merge_trees()`, `create_blob()`, `create_commit()` with in-memory tree building instead.\n\n# No fallbacks\n\nNo fallbacks! No try/except, no fallback codepaths, no \"kept for compatibility.\nWe do *not* have the space in the context to do this whole project and also hedge.\nThere Is Only One Way To Do It, if that fails, we just fail.\nErrors and backtraces are holy.\n\nTry/except will be the *very last* paths added to the codebase.\n\n# Naming conventions\n\n- **Don't alias things with different names** - If you import/re-export something, keep the same name. Different names in different places make the codebase harder to navigate and break tooling (summaries, grep, etc.). If you find an existing alias with a different name, mark it with `# FIXME: confusing alias` for later cleanup.\n\n# When compacting, note what's DONE\n\nWhen using compact() to summarize previous tool calls, clearly mark what work was completed.\nUse past tense and be explicit: \"Fixed X by changing Y\" not \"Need to fix X\".\n\nThe compacted summary is often all I have to know what happened. If edits were made,\nsay which files were edited and what changed. If something was created, say what.\n\n# When you need external information you can't get, stop and ask\n\nIf you need to check external documentation (API docs, library docs, etc.) and\nthere's no tool available to do that \u2014 **stop and tell the user**. Don't try to\nreverse-engineer the answer by grepping the codebase or making speculative\nscout calls. That wastes context and time without producing certainty.\n\nSay: \"I need to check [X docs] but I don't have a web search tool. Can you\nlook up [specific question] or paste the relevant docs?\"\n\n# When uncertain, add prints\n\nWhen you're uncertain about what's happening in the code, don't guess.\nAdd print statements to see what's actually going on.\nPrint variable values, execution flow, state - whatever you need to understand the issue.\nOnce you have the data, you can fix it properly.\n\nGuessing wastes time and context. Prints give you certainty.\n\n# Ownership and \"need to know\"\n\nWhen you need data, ask: **\"Who should I be asking, and why do they know?\"**\n\nThink of it as roleplay - each object has a role and knows certain things:\n- \"Is it safe to proceed?\" \u2192 Ask the session manager (it knows about workdir state)\n- \"What files are in context?\" \u2192 Ask the session manager (it tracks that)\n- \"Render this message\" \u2192 That's your job, chat widget\n\nIf you find yourself asking \"hand me that object so I can ask it something\", \nstop. Ask the owner to answer the question instead. They know their internals,\nyou don't need to.\n\n**If you weren't given it at construction, you probably don't need it.**\nNeeding to reach through objects (`obj.manager._repo`) suggests confused ownership.\nEither you should have been given it in `__init__`, or you should be asking\na different question.\n\n**Accessors answer questions, they don't hand out objects.**\n```python\n# Bad: \"give me your repo so I can check something\"\nrepo = session_manager._repo\nif repo.is_workdir_clean(): ...\n\n# Good: \"is the workdir clean?\"\nif session_manager.is_workdir_clean(): ...\n```\n\nThe session manager owns the repo, so it answers questions about repo state.\nThe chat widget doesn't even need to know repos exist.\n</edit>\n\nBoth fixes done:\n\n1. **`forge/prompts/system.py`** \u2014 Added an explicit \"the nonce must not collide with content in your body\" warning to the EDIT_FORMAT_XML doc, with the truncation failure mode spelled out.\n\n2. **`CLAUDE.md`** \u2014 Rewrote without using literal edit tags in the body (used HTML entities `&lt;/edit&gt;` etc. in the prose so the file is round-trip safe). Kept it short and pointed to the system prompt for the actual example. Added the two gotchas: nonce must not appear in body, parse errors are explicit so trust them.\n\nI deliberately avoided putting another nonced example in CLAUDE.md \u2014 the system prompt already has one, and every duplicated example is another opportunity for the same self-collision footgun. Now the AI can also reload CLAUDE.md without needing the nonced form at all (just plain `<edit>` works since the body has no literal closing tags).\n\n<run_tests pattern=\"test_inline_edit\"/>",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Wrote 4804 bytes to CLAUDE.md",
+          "modified_files": [
+            "CLAUDE.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_5nx0o1a1\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 186 items / 150 deselected / 36 selected\n\ntests/test_inline_edit.py ....................................           [100%]\n\n====================== 36 passed, 150 deselected in 0.69s ======================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_5nx0o1a1\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 186 items / 150 deselected / 36 selected\n\ntests/test_inline_edit.py ....................................           [100%]\n\n====================== 36 passed, 150 deselected in 0.69s ======================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
         }
       ]
     }

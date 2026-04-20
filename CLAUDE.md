@@ -1,19 +1,19 @@
 # Editing files that mention edit-block syntax
 
-When a search or replace body contains literal `</edit>`, `</search>`, or
-`</replace>` (e.g. when editing this file, the system prompt, or test fixtures),
-use the **nonced** form: pick any short token and append `_TOKEN` to the
-`edit`, `search`, and `replace` tag names. Example:
+When a search or replace body contains literal `&lt;/edit&gt;`, `&lt;/search&gt;`, or
+`&lt;/replace&gt;`, use the **nonced** form: pick any short token and append `_TOKEN`
+to the `edit`, `search`, and `replace` tag names. The closing tags must use the
+same token. The system prompt has the full spec and an example.
 
-    <edit_q5 file="docs.md">
-    <search_q5>
-    Close with </edit> or </search>.
-    </search_q5>
-    <replace_q5>
-    Close with </edit_NONCE> (any matching suffix works).
-    
+Two gotchas worth repeating here because they bit us:
 
-If a block fails to parse, you'll get an explicit error rather than a silent drop.
+1. **Pick a nonce that doesn't appear in your body.** The parser closes at the
+   first matching `</edit_TOKEN>` it sees — if you wrap with `_q5` and your
+   body quotes an example also using `_q5`, the outer block truncates at the
+   inner close and the trailing portion is lost.
+2. **If a block fails to parse, you'll get an explicit error** rather than a
+   silent drop. Trust the error and fix the specific issue rather than
+   retrying blindly.
 
 # Glossary
 

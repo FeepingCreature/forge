@@ -1,3 +1,21 @@
+# Editing files that mention edit-block syntax
+
+When a search or replace body contains literal `</edit>`, `</search>`, or
+`</replace>` (e.g. when editing this file, the system prompt, or test fixtures),
+use the **nonced** form: pick any short token and append `_TOKEN` to the
+`edit`, `search`, and `replace` tag names. Example:
+
+    <edit_x9 file="docs.md">
+    <search_x9>
+    Close with </edit>.
+    </search_x9>
+    <replace_x9>
+    Close with </edit_NONCE> (any matching suffix).
+    </replace_x9>
+    </edit_x9>
+
+If a block fails to parse, you'll get an explicit error rather than a silent drop.
+
 # Glossary
 
 - **Turn**: Everything from the last user message to the stop token. A turn may include many tool calls.

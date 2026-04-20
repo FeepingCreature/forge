@@ -5,7 +5,7 @@ This module handles <edit> blocks that appear in assistant message text,
 allowing edits to be made without tool calls (avoiding round-trip costs
 when the AI narrates after edits).
 
-Syntax:
+Standard syntax:
     <edit file="path/to/file.py">
     <search>
     exact text to find
@@ -15,19 +15,21 @@ Syntax:
     </replace>
     </edit>
 
-For files containing XML-like syntax, use escape="html":
-    <edit file="path/to/file.py" escape="html">
-    <search>
-    content with &lt;tags&gt;
-    </search>
-    <replace>
-    new content
-    </replace>
-    </edit>
+Nonced syntax (use when search/replace bodies contain edit-related XML):
+    <edit_NONCE file="path/to/file.py">
+    <search_NONCE>
+    text containing </search>, </edit>, etc.
+    </search_NONCE>
+    <replace_NONCE>
+    replacement
+    </replace_NONCE>
+    </edit_NONCE>
+
+NONCE can be any sequence of word characters (letters/digits/underscore).
+The same nonce must appear on edit, search, and replace tags within one block.
 """
 
 import difflib
-import html
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -94,58 +96,85 @@ class EditBlock:
     # Position in original text for truncation on failure
     start_pos: int
     end_pos: int
-    # Whether HTML entities should be unescaped
-    escape_html: bool = False
 
 
-# Regex to match <edit file="...">...</edit> blocks with search/replace
-# Using DOTALL so . matches newlines
-# Key: use negative lookahead to prevent matching across </edit> boundaries
-# The (?:(?!</edit>).)*? pattern matches any char that's not the start of </edit>
-# Optional escape="html" attribute for editing files containing XML-like syntax
+# --- Patterns ---------------------------------------------------------------
+#
+# A single regex handles both plain and nonced forms. Group 1 captures the
+# suffix on the opening tag — either an empty string (plain form) or the
+# literal "_NONCE" (nonced form). The same suffix is backreferenced into all
+# closing tags via `\1`, so:
+#   plain:  <edit ...> ... </edit>
+#   nonced: <edit_x9k ...> ... </edit_x9k>
+# both match the same pattern.
+#
+# The suffix uses `(_\w+|)` rather than `(_\w+)?` so that group 1 always
+# participates in the match (Python regex backreferences fail when the
+# referenced group didn't participate, even with a default empty string).
+#
+# The body uses `(?!</edit\1>)` as a negative lookahead so that a stray
+# closing tag inside the body terminates the block cleanly. In the plain
+# form this means </edit> can't appear inside a body — use the nonced
+# form for those cases. In the nonced form the lookahead is </edit_NONCE>
+# which is unique enough that body content won't collide.
+
 EDIT_PATTERN = re.compile(
-    r'<edit\s+file="([^"]+)"(?:\s+escape="(html)")?\s*>\s*'
-    r"<search>\n?((?:(?!</edit>).)*?)\n?</search>\s*"
-    r"<replace>\n?((?:(?!</edit>).)*?)\n?</replace>\s*"
-    r"</edit>",
+    r'<edit(_\w+|)\s+file="([^"]+)"\s*>\s*'
+    r"<search\1>\n?((?:(?!</edit\1>).)*?)\n?</search\1>\s*"
+    r"<replace\1>\n?((?:(?!</edit\1>).)*?)\n?</replace\1>\s*"
+    r"</edit\1>",
     re.DOTALL,
 )
 
-# Regex to match <edit file="...">content</edit> blocks (whole-file write)
-# This is for creating new files or completely replacing file content
 WRITE_PATTERN = re.compile(
-    r'<edit\s+file="([^"]+)"(?:\s+escape="(html)")?\s*>\n?'
-    r"((?:(?!<search>|</edit>).)*?)"  # Content that doesn't start with <search>
-    r"\n?</edit>",
+    r'<edit(_\w+|)\s+file="([^"]+)"\s*>\n?'
+    r"((?:(?!<search\1>|</edit\1>).)*?)"
+    r"\n?</edit\1>",
     re.DOTALL,
 )
+
+# Loose detector: anything that *looks* like an opening <edit ...> tag,
+# plain or nonced. Used to detect blocks that opened but didn't parse
+# cleanly, so we can surface a parse error to the AI instead of silently
+# dropping the edit.
+EDIT_OPEN_DETECTOR = re.compile(r'<edit(?:_\w+)?\s+file="[^"]+"\s*>')
 
 
 def get_inline_pattern() -> re.Pattern[str]:
-    """Return compiled regex for inline invocation."""
+    """Return compiled regex for inline invocation (search/replace).
+
+    Matches both plain <edit> and nonced <edit_NONCE> forms.
+    """
     return EDIT_PATTERN
 
 
 def get_write_pattern() -> re.Pattern[str]:
-    """Return compiled regex for whole-file write invocation."""
+    """Return compiled regex for whole-file write invocation.
+
+    Matches both plain <edit> and nonced <edit_NONCE> forms.
+    """
     return WRITE_PATTERN
 
 
 def parse_inline_match(match: re.Match[str]) -> dict[str, Any]:
-    """Parse regex match into tool arguments."""
+    """Parse a search/replace match into tool arguments.
+
+    Group 1 is the suffix ('' or '_NONCE'); groups 2-4 are file/search/replace.
+    """
     return {
-        "filepath": match.group(1),
-        "escape_html": match.group(2) == "html",
+        "filepath": match.group(2),
         "search": match.group(3),
         "replace": match.group(4),
     }
 
 
 def parse_write_match(match: re.Match[str]) -> dict[str, Any]:
-    """Parse regex match for whole-file write into tool arguments."""
+    """Parse a whole-file write match into tool arguments.
+
+    Group 1 is the suffix ('' or '_NONCE'); groups 2-3 are file/content.
+    """
     return {
-        "filepath": match.group(1),
-        "escape_html": match.group(2) == "html",
+        "filepath": match.group(2),
         "content": match.group(3),
     }
 
@@ -165,7 +194,6 @@ def get_schema() -> dict[str, Any]:
                     "filepath": {"type": "string"},
                     "search": {"type": "string"},
                     "replace": {"type": "string"},
-                    "escape_html": {"type": "boolean"},
                 },
                 "required": ["filepath", "search", "replace"],
             },
@@ -177,106 +205,90 @@ def parse_edits(content: str) -> list[EditBlock]:
     """
     Parse <edit> blocks from assistant message content.
 
-    Returns list of EditBlock objects in order of appearance.
+    Returns list of EditBlock objects in order of appearance. The unified
+    EDIT_PATTERN matches both plain <edit> and nonced <edit_NONCE> forms.
+    Whole-file writes are not returned by this function (they have no
+    search/replace) — see WRITE_PATTERN handling in the inline command
+    dispatcher.
     """
-    edits = []
-    for match in EDIT_PATTERN.finditer(content):
-        filepath = match.group(1)
-        escape_attr = match.group(2)  # "html" or None
-        search = match.group(3)
-        replace = match.group(4)
-
-        edits.append(
-            EditBlock(
-                file=filepath,
-                search=search,
-                replace=replace,
-                start_pos=match.start(),
-                end_pos=match.end(),
-                escape_html=(escape_attr == "html"),
-            )
+    return [
+        EditBlock(
+            file=match.group(2),
+            search=match.group(3),
+            replace=match.group(4),
+            start_pos=match.start(),
+            end_pos=match.end(),
         )
+        for match in EDIT_PATTERN.finditer(content)
+    ]
 
-    return edits
+
+def detect_unparsed_edit_blocks(
+    content: str, parsed_spans: list[tuple[int, int]]
+) -> list[tuple[int, str]]:
+    """
+    Find <edit ...> opening tags that did NOT result in a successful parse.
+
+    Args:
+        content: Full assistant message text.
+        parsed_spans: List of (start, end) spans that were successfully parsed
+            as edit/write commands.
+
+    Returns:
+        List of (position, snippet) for each unparsed opening tag, where
+        snippet is a short excerpt for diagnostics.
+    """
+    unparsed: list[tuple[int, str]] = []
+    for m in EDIT_OPEN_DETECTOR.finditer(content):
+        pos = m.start()
+        # Skip if this opening tag is inside a successfully-parsed span.
+        if any(start <= pos < end for start, end in parsed_spans):
+            continue
+        snippet = content[pos : pos + 120].replace("\n", " ")
+        unparsed.append((pos, snippet))
+    return unparsed
 
 
 def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """
     Execute an edit from parsed arguments.
 
-    This is the standard tool execute interface.
     Supports both search/replace edits and whole-file writes.
     """
     filepath = args.get("filepath", "")
-    escape_html = args.get("escape_html", False)
 
-    # Check if this is a whole-file write (has 'content' key, no 'search' key)
+    # Whole-file write: 'content' present, no 'search'.
     if "content" in args and "search" not in args:
-        content = args.get("content", "")
-        if escape_html:
-            content = html.unescape(content)
-        return _do_write(vfs, filepath, content)
+        return _do_write(vfs, filepath, args.get("content", ""))
 
-    # Standard search/replace edit
-    search = args.get("search", "")
-    replace = args.get("replace", "")
-
-    # Unescape HTML entities if escape="html" was specified
-    if escape_html:
-        search = html.unescape(search)
-        replace = html.unescape(replace)
-
-    return _do_edit(vfs, filepath, search, replace)
+    # Standard search/replace edit.
+    return _do_edit(vfs, filepath, args.get("search", ""), args.get("replace", ""))
 
 
 def execute_edit(vfs: "VFS", edit: EditBlock) -> dict[str, Any]:
-    """
-    Execute a single edit block (legacy interface).
-
-    Returns a result dict similar to search_replace tool:
-    - {"success": True, "message": "..."} on success
-    - {"success": False, "error": "..."} on failure
-    """
-    search = edit.search
-    replace = edit.replace
-
-    # Unescape HTML entities if escape="html" was specified
-    # This allows editing files that contain <search>, <edit>, etc.
-    if edit.escape_html:
-        search = html.unescape(search)
-        replace = html.unescape(replace)
-
-    return _do_edit(vfs, edit.file, search, replace)
+    """Execute a single edit block (legacy interface)."""
+    return _do_edit(vfs, edit.file, edit.search, edit.replace)
 
 
 def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, Any]:
-    """
-    Core edit logic shared by execute() and execute_edit().
-    """
+    """Core edit logic shared by execute() and execute_edit()."""
     if not filepath or not isinstance(filepath, str):
         return {"success": False, "error": "filepath must be a non-empty string"}
 
-    # Read current state from VFS
     try:
         content = vfs.read_file(filepath)
     except FileNotFoundError:
         return {"success": False, "error": f"File not found: {filepath}"}
 
     if search not in content:
-        # Find the closest matching text to help diagnose the issue
         best_match, distance, pos = _find_best_match(search, content)
 
-        # Calculate similarity percentage
         max_len = max(len(search), len(best_match))
         similarity = ((max_len - distance) / max_len * 100) if max_len > 0 else 0
 
-        # Generate a diff to show what's different
         diff = _generate_diff(search, best_match)
-
-        # Find the line number of the best match
         line_num = content[:pos].count("\n") + 1
 
-        # Build focused error message
         if similarity >= 95:
             hint = (
                 "VERY CLOSE MATCH - check the diff carefully for:\n"
@@ -295,7 +307,6 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
                 "You may need to reload the file to see current content."
             )
 
-        # Show just first/last few lines of the match for context
         match_lines = best_match.split("\n")
         if len(match_lines) > 6:
             match_preview = "\n".join(match_lines[:3] + ["    ..."] + match_lines[-2:])
@@ -314,10 +325,7 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
 
         return {"success": False, "error": error_msg}
 
-    # Replace first occurrence
     new_content = content.replace(search, replace, 1)
-
-    # Write back to VFS
     vfs.write_file(filepath, new_content)
 
     return {
@@ -329,13 +337,10 @@ def _do_edit(vfs: "VFS", filepath: str, search: str, replace: str) -> dict[str, 
 
 
 def _do_write(vfs: "VFS", filepath: str, content: str) -> dict[str, Any]:
-    """
-    Write complete file content (create or overwrite).
-    """
+    """Write complete file content (create or overwrite)."""
     if not filepath or not isinstance(filepath, str):
         return {"success": False, "error": "filepath must be a non-empty string"}
 
-    # Check if this is a new file (for summary generation)
     is_new = not vfs.file_exists(filepath)
 
     vfs.write_file(filepath, content)
@@ -357,14 +362,9 @@ def _do_write(vfs: "VFS", filepath: str, content: str) -> dict[str, Any]:
 
 def execute_edits(vfs: "VFS", edits: list[EditBlock]) -> tuple[list[dict[str, Any]], int | None]:
     """
-    Execute a list of edit blocks sequentially.
+    Execute a list of edit blocks sequentially. Stops on first failure.
 
-    Stops on first failure (like tool chain behavior).
-
-    Returns:
-        (results, failed_index) where:
-        - results: list of result dicts for executed edits
-        - failed_index: index of first failed edit, or None if all succeeded
+    Returns (results, failed_index) where failed_index is None if all succeeded.
     """
     results = []
     failed_index = None

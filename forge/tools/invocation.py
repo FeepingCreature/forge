@@ -218,6 +218,16 @@ def _inside_code_region(pos: int, regions: list[tuple[int, int]]) -> int | None:
     return None
 
 
+# Pattern variants a tool module can expose. Each entry maps a
+# "get_*_pattern" method name to its corresponding "parse_*_match" method
+# name. The edit tool's patterns now match both plain and nonced forms in
+# a single regex, so only two entries are needed.
+_PATTERN_METHODS: list[tuple[str, str]] = [
+    ("get_inline_pattern", "parse_inline_match"),
+    ("get_write_pattern", "parse_write_match"),
+]
+
+
 def parse_inline_commands(content: str) -> list[InlineCommand]:
     """
     Parse all inline commands from assistant message content.
@@ -233,30 +243,24 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
     pos = 0
 
     while pos < len(content):
-        # Find the earliest matching command from current position
+        # Find the earliest matching command from current position across
+        # every (tool, pattern-variant) the tool exposes.
         earliest_match: re.Match[str] | None = None
         earliest_tool: str | None = None
-        earliest_parser: Any = None  # The parse function to use
+        earliest_parser: Any = None
 
         for tool_name, module in inline_tools.items():
-            # Check primary pattern
-            pattern = module.get_inline_pattern()
-            match = pattern.search(content, pos)
-            if match and (earliest_match is None or match.start() < earliest_match.start()):
-                earliest_match = match
-                earliest_tool = tool_name
-                earliest_parser = module.parse_inline_match
-
-            # Check for secondary write pattern (edit tool supports both syntaxes)
-            if hasattr(module, "get_write_pattern"):
-                write_pattern = module.get_write_pattern()
-                write_match = write_pattern.search(content, pos)
-                if write_match and (
-                    earliest_match is None or write_match.start() < earliest_match.start()
-                ):
-                    earliest_match = write_match
+            for pattern_attr, parser_attr in _PATTERN_METHODS:
+                if not hasattr(module, pattern_attr):
+                    continue
+                pattern = getattr(module, pattern_attr)()
+                match = pattern.search(content, pos)
+                if match is None:
+                    continue
+                if earliest_match is None or match.start() < earliest_match.start():
+                    earliest_match = match
                     earliest_tool = tool_name
-                    earliest_parser = module.parse_write_match
+                    earliest_parser = getattr(module, parser_attr)
 
         if earliest_match is None or earliest_tool is None or earliest_parser is None:
             # No more commands found
@@ -282,6 +286,36 @@ def parse_inline_commands(content: str) -> list[InlineCommand]:
         pos = earliest_match.end()
 
     return commands
+
+
+def detect_unparsed_inline_blocks(
+    content: str, commands: list[InlineCommand]
+) -> list[dict[str, Any]]:
+    """
+    Detect inline blocks that *look* like commands but failed to parse.
+
+    Currently checks the edit tool's loose opening-tag detector. Any
+    <edit ...> (or <edit_NONCE ...>) that did not result in a parsed
+    command — and isn't inside a code region — is reported so the AI can
+    see that its edit was silently dropped instead of executing.
+
+    Returns a list of dicts: {"tool": "edit", "position": int, "snippet": str}.
+    """
+    inline_tools = discover_inline_tools()
+    code_regions = _build_code_regions(content)
+    parsed_spans = [(c.start_pos, c.end_pos) for c in commands]
+    unparsed: list[dict[str, Any]] = []
+
+    for tool_name, module in inline_tools.items():
+        if not hasattr(module, "detect_unparsed_edit_blocks"):
+            continue
+        for pos, snippet in module.detect_unparsed_edit_blocks(content, parsed_spans):
+            # Ignore detections inside code regions — those are documentation.
+            if _inside_code_region(pos, code_regions) is not None:
+                continue
+            unparsed.append({"tool": tool_name, "position": pos, "snippet": snippet})
+
+    return unparsed
 
 
 def execute_inline_commands(
@@ -316,3 +350,31 @@ def execute_inline_commands(
             break
 
     return results, failed_index
+
+
+def execute_inline_commands_with_parse_check(
+    vfs: "VFS", content: str, commands: list[InlineCommand]
+) -> tuple[list[dict[str, Any]], int | None]:
+    """
+    Like execute_inline_commands but first checks for blocks that look like
+    inline commands but failed to parse. If any are found, they are reported
+    as a failed result *before* executing successfully-parsed commands, so
+    the AI sees that some of its work was silently dropped.
+    """
+    unparsed = detect_unparsed_inline_blocks(content, commands)
+    if unparsed:
+        snippets = "\n".join(
+            f"  - at position {u['position']}: {u['snippet']!r}" for u in unparsed
+        )
+        error = (
+            f"{len(unparsed)} inline command block(s) failed to parse and were ignored.\n"
+            "This usually means a body contained </edit>, </search>, or </replace>, "
+            "or the closing tag was missing/mismatched.\n"
+            "If a body legitimately contains those tags, use the nonced syntax: "
+            '<edit_NONCE file="..."><search_NONCE>...</search_NONCE>'
+            "<replace_NONCE>...</replace_NONCE></edit_NONCE>\n\n"
+            f"Unparsed blocks:\n{snippets}"
+        )
+        return ([{"success": False, "error": error}], 0)
+
+    return execute_inline_commands(vfs, commands)

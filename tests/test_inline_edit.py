@@ -465,6 +465,170 @@ class TestCodeBlockSkipping:
         assert len(commands) == 0
 
 
+class TestNoncedEditSyntax:
+    """Test the nonced <edit_NONCE> / <search_NONCE> / <replace_NONCE> form."""
+
+    def test_simple_nonced_edit(self):
+        content = (
+            '<edit_abc123 file="test.py">\n'
+            "<search_abc123>\n"
+            "old\n"
+            "</search_abc123>\n"
+            "<replace_abc123>\n"
+            "new\n"
+            "</replace_abc123>\n"
+            "</edit_abc123>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 1
+        assert edits[0].file == "test.py"
+        assert edits[0].search == "old"
+        assert edits[0].replace == "new"
+
+    def test_nonced_body_can_contain_edit_delimiters(self):
+        """The whole point: a nonced body may contain </edit>, </search>, etc."""
+        content = (
+            '<edit_n1 file="parser_docs.md">\n'
+            "<search_n1>\n"
+            "Close with </edit> and </search>.\n"
+            "</search_n1>\n"
+            "<replace_n1>\n"
+            "Close with </edit_NONCE> or </edit>.\n"
+            "</replace_n1>\n"
+            "</edit_n1>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 1
+        assert "</edit>" in edits[0].search
+        assert "</search>" in edits[0].search
+        assert "</edit_NONCE>" in edits[0].replace
+
+    def test_mismatched_nonce_does_not_match(self):
+        """edit_aaa with search_bbb is a parse error, not a successful match."""
+        content = (
+            '<edit_aaa file="test.py">\n'
+            "<search_bbb>\n"
+            "x\n"
+            "</search_bbb>\n"
+            "<replace_bbb>\n"
+            "y\n"
+            "</replace_bbb>\n"
+            "</edit_aaa>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 0
+
+    def test_nonced_and_plain_in_same_message(self):
+        content = (
+            '<edit file="a.py">\n'
+            "<search>\nfoo\n</search>\n"
+            "<replace>\nbar\n</replace>\n"
+            "</edit>\n"
+            "\n"
+            'And a tricky one:\n'
+            '<edit_z file="b.md">\n'
+            "<search_z>\nuse </edit>\n</search_z>\n"
+            "<replace_z>\nuse </edit_NONCE>\n</replace_z>\n"
+            "</edit_z>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 2
+        # parse_edits sorts by position, so plain comes first
+        assert edits[0].file == "a.py"
+        assert edits[1].file == "b.md"
+        assert "</edit>" in edits[1].search
+
+
+class TestUnparsedBlockDetection:
+    """Test that malformed <edit> blocks surface as parse errors."""
+
+    def test_detects_orphan_open_tag(self):
+        from forge.tools.builtin.edit import detect_unparsed_edit_blocks
+
+        content = (
+            '<edit file="oops.py">\n'
+            "<search>\nfoo\n</search>\n"
+            "I forgot the replace and the close.\n"
+        )
+        # Nothing parsed successfully → parsed_spans is empty.
+        unparsed = detect_unparsed_edit_blocks(content, parsed_spans=[])
+        assert len(unparsed) == 1
+        assert unparsed[0][0] == 0  # position of opening tag
+        assert "oops.py" in unparsed[0][1]
+
+    def test_successful_parse_is_not_flagged(self):
+        from forge.tools.builtin.edit import detect_unparsed_edit_blocks
+
+        content = (
+            '<edit file="ok.py">\n'
+            "<search>\nfoo\n</search>\n"
+            "<replace>\nbar\n</replace>\n"
+            "</edit>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 1
+        spans = [(e.start_pos, e.end_pos) for e in edits]
+        unparsed = detect_unparsed_edit_blocks(content, parsed_spans=spans)
+        assert unparsed == []
+
+    def test_execute_with_parse_check_reports_unparsed(self):
+        """execute_inline_commands_with_parse_check returns an error result
+        when blocks failed to parse, BEFORE attempting to execute."""
+        from unittest.mock import MagicMock
+
+        from forge.tools.invocation import (
+            execute_inline_commands_with_parse_check,
+            parse_inline_commands,
+        )
+
+        # Content has one valid edit and one orphan open tag.
+        content = (
+            '<edit file="good.py">\n'
+            "<search>\nfoo\n</search>\n"
+            "<replace>\nbar\n</replace>\n"
+            "</edit>\n"
+            "\n"
+            '<edit file="malformed.py">\n'
+            "<search>\nbaz\n</search>\n"
+            "no replace, no close, oops\n"
+        )
+
+        commands = parse_inline_commands(content)
+        # Only the good edit parses
+        assert len(commands) == 1
+
+        vfs = MagicMock()
+        results, failed_index = execute_inline_commands_with_parse_check(
+            vfs, content, commands
+        )
+        # Parse error short-circuits execution: no VFS writes happen.
+        assert failed_index == 0
+        assert results[0]["success"] is False
+        assert "failed to parse" in results[0]["error"].lower()
+        assert "malformed.py" in results[0]["error"]
+        vfs.write_file.assert_not_called()
+
+    def test_orphan_in_code_block_is_ignored(self):
+        """A malformed-looking <edit> inside a fenced code block is documentation,
+        not a real command, and must not be flagged."""
+        from forge.tools.invocation import (
+            detect_unparsed_inline_blocks,
+            parse_inline_commands,
+        )
+
+        content = (
+            "Here's the syntax (don't actually run this):\n\n"
+            "```\n"
+            '<edit file="example.py">\n'
+            "<search>\nold\n</search>\n"
+            "(no replace shown)\n"
+            "```\n"
+        )
+        commands = parse_inline_commands(content)
+        unparsed = detect_unparsed_inline_blocks(content, commands)
+        assert unparsed == []
+
+
 class TestInlineCommandOrdering:
     """Test that inline commands are processed before tool calls are recorded."""
 

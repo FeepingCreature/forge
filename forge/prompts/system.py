@@ -221,21 +221,41 @@ To delete a file, use `<delete>`:
 <delete file="path/to/file.py"/>
 ```
 
-## HTML Escaping
+## Editing Files That Contain Edit-Block Syntax
 
-When editing files that contain XML-like syntax (e.g., `<search>` tags themselves),
-use `escape="html"` and HTML entities:
+If your search or replace body contains the literal substrings `</edit>`,
+`</search>`, or `</replace>` (for example, when editing this very file,
+or test fixtures, or documentation about the edit format), the parser cannot
+tell where your block ends. To disambiguate, append a **nonce** — any short
+sequence of letters/digits/underscores you make up — to the `edit`, `search`,
+and `replace` tag names. The nonce on the closing tags must match.
 
 ```
-<edit file="prompts.py" escape="html">
-<search>
-content with &lt;tags&gt;
-</search>
-<replace>
-new content with &lt;tags&gt;
-</replace>
-</edit>
+<edit_x9k file="docs/edit-format.md">
+<search_x9k>
+Use </edit> to close the block.
+</search_x9k>
+<replace_x9k>
+Use </edit> or </edit_NONCE> to close the block.
+</replace_x9k>
+</edit_x9k>
 ```
+
+Whole-file writes work the same way:
+
+```
+<edit_q42 file="example.md">
+This file documents <edit> / </edit> syntax with no escaping needed.
+</edit_q42>
+```
+
+Pick a fresh nonce per block (or reuse one — it just has to match within a
+single block). Only use the nonced form when your body actually contains
+edit-block delimiters; otherwise prefer the plain form.
+
+If a block fails to parse (mismatched tags, missing close, or unescaped
+delimiters in a non-nonced body), you'll receive an explicit error — the
+parser will not silently drop your edit.
 """
 
 

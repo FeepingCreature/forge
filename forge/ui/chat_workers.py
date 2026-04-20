@@ -140,18 +140,21 @@ class InlineCommandWorker(QObject):
     finished = Signal(list, object)  # Emitted when done (results, failed_index or None)
     error = Signal(str)  # Emitted on error
 
-    def __init__(self, vfs: Any, commands: list) -> None:
+    def __init__(self, vfs: Any, commands: list, content: str = "") -> None:
         super().__init__()
         self.vfs = vfs
         self.commands = commands
+        self.content = content
 
     def run(self) -> None:
         """Execute inline commands sequentially."""
-        from forge.tools.invocation import execute_inline_commands
+        from forge.tools.invocation import execute_inline_commands_with_parse_check
 
         self.vfs.claim_thread()
         try:
-            results, failed_index = execute_inline_commands(self.vfs, self.commands)
+            results, failed_index = execute_inline_commands_with_parse_check(
+                self.vfs, self.content, self.commands
+            )
             self.finished.emit(results, failed_index)
         except Exception as e:
             import traceback

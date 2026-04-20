@@ -655,8 +655,14 @@ class LiveSession(QObject):
         """Start executing inline commands in background thread."""
         from forge.ui.chat_workers import InlineCommandWorker
 
+        # Pass the streamed assistant content so the worker can detect
+        # <edit> blocks that *looked* like commands but failed to parse,
+        # and surface them as errors instead of silently dropping them.
+        content = getattr(self, "_pending_stream_result", {}).get("content", "")
         self._inline_thread = QThread()
-        self._inline_worker = InlineCommandWorker(self.session_manager.vfs, commands)
+        self._inline_worker = InlineCommandWorker(
+            self.session_manager.vfs, commands, content
+        )
         self._inline_worker.moveToThread(self._inline_thread)
 
         self._inline_worker.finished.connect(self._on_inline_commands_finished)

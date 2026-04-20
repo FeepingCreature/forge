@@ -1,6 +1,7 @@
 {
   "active_files": [
-    "forge/ui/tool_rendering.py"
+    "forge/ui/tool_rendering.py",
+    "CLAUDE.md"
   ],
   "request_log_entries": [
     {
@@ -344,6 +345,33 @@
       "streaming": true,
       "actual_cost": 0.176568,
       "generation_id": "gen-1776653384-deXfgXk4ByMODxAqxmSU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1776653447330.json",
+      "response_file": "/tmp/forge_debug/response_1776653447330.json",
+      "timestamp": 1776653447.3320637,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001464,
+      "generation_id": "gen-1776653447-L0QqITSxakmwWo7Fvmbg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1776653447331.json",
+      "response_file": "/tmp/forge_debug/response_1776653447331.json",
+      "timestamp": 1776653447.3326945,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003932,
+      "generation_id": "gen-1776653447-8aiyGUUKppwSO2QN6j7z"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653459410.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653459410.json",
+      "timestamp": 1776653459.4122956,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.59526,
+      "generation_id": "gen-1776653459-UsAZwvJHBWSwtrPG20U8"
     }
   ],
   "messages": [
@@ -1164,6 +1192,39 @@
         {
           "commit": "1eaee4adbadd",
           "message": "Committed: 2 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "nice! I've restarted with the new code, try a nonced edit?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 43] Sure! The streaming parser changes look like they made it in (the file you pasted shows the new unified `EDIT_START_PATTERN` and the rewritten `_render_partial_edit`). Trying a nonced edit on `CLAUDE.md` \u2014 bumping the example token to prove a fresh round-trip works:\n\n<edit_q5 file=\"CLAUDE.md\">\n<search_q5>\n    <edit_x9 file=\"docs.md\">\n    <search_x9>\n    Close with </edit>.\n    </search_x9>\n    <replace_x9>\n    Close with </edit_NONCE> (any matching suffix).\n    </replace_x9>\n    </edit_x9>\n</search_q5>\n<replace_q5>\n    <edit_q5 file=\"docs.md\">\n    <search_q5>\n    Close with </edit> or </search>.\n    </search_q5>\n    <replace_q5>\n    Close with </edit_NONCE> (any matching suffix works).\n    </replace_q5>\n    </edit_q5>\n</replace_q5>\n</edit_q5>\n\n<commit message=\"docs: tweak nonced-edit example in CLAUDE.md\"/>\n\nDone \u2014 if the commit landed, the nonced edit round-tripped through the new parser even though the body contains four literal `</edit>`, two `</search>`, and one `</replace>` (which would have torpedoed the plain parser).",
+      "_inline_results": [
+        {
+          "message": "Replaced in CLAUDE.md",
+          "modified_files": [
+            "CLAUDE.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "f242bbba1a91",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

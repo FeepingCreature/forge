@@ -5,14 +5,13 @@ When a search or replace body contains literal `</edit>`, `</search>`, or
 use the **nonced** form: pick any short token and append `_TOKEN` to the
 `edit`, `search`, and `replace` tag names. Example:
 
-    <edit_x9 file="docs.md">
-    <search_x9>
-    Close with </edit>.
-    </search_x9>
-    <replace_x9>
-    Close with </edit_NONCE> (any matching suffix).
-    </replace_x9>
-    </edit_x9>
+    <edit_q5 file="docs.md">
+    <search_q5>
+    Close with </edit> or </search>.
+    </search_q5>
+    <replace_q5>
+    Close with </edit_NONCE> (any matching suffix works).
+    
 
 If a block fails to parse, you'll get an explicit error rather than a silent drop.
 

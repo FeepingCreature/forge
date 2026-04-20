@@ -539,6 +539,66 @@ class TestNoncedEditSyntax:
         assert "</edit>" in edits[1].search
 
 
+class TestStreamingPartialEditNonced:
+    """Test that the streaming partial-edit renderer handles nonced syntax."""
+
+    def test_partial_plain_edit_still_works(self):
+        from forge.ui.tool_rendering import _render_partial_edit
+
+        # Mid-stream: opened <edit>, partial <search> body
+        content = '<edit file="foo.py">\n<search>\nold cont'
+        html = _render_partial_edit(content)
+        assert html is not None
+        assert "foo.py" in html
+        assert "old cont" in html
+
+    def test_partial_nonced_edit_search_phase(self):
+        from forge.ui.tool_rendering import _render_partial_edit
+
+        # Mid-stream nonced edit: still receiving the search body
+        content = '<edit_x9 file="parser.py">\n<search_x9>\nclose with </edit'
+        html = _render_partial_edit(content)
+        assert html is not None
+        assert "parser.py" in html
+        # The body contains a literal </edit which must NOT terminate the block
+        assert "close with" in html
+
+    def test_partial_nonced_edit_replace_phase(self):
+        from forge.ui.tool_rendering import _render_partial_edit
+
+        # Mid-stream nonced edit: search complete, mid-replace
+        content = (
+            '<edit_abc file="docs.md">\n'
+            "<search_abc>\nold </edit> text\n</search_abc>\n"
+            "<replace_abc>\nnew </edit> tex"
+        )
+        html = _render_partial_edit(content)
+        assert html is not None
+        assert "docs.md" in html
+        # Both bodies contain literal </edit> and must round-trip
+        assert "old" in html
+        assert "new" in html
+
+    def test_partial_nonced_edit_full_block_pre_close(self):
+        """Replace body complete, but </edit_NONCE> not yet streamed."""
+        from forge.ui.tool_rendering import _render_partial_edit
+
+        content = (
+            '<edit_z file="x.py">\n'
+            "<search_z>\nold\n</search_z>\n"
+            "<replace_z>\nnew\n</replace_z>\n"
+        )
+        html = _render_partial_edit(content)
+        assert html is not None
+        assert "x.py" in html
+
+    def test_no_edit_returns_none(self):
+        from forge.ui.tool_rendering import _render_partial_edit
+
+        assert _render_partial_edit("just some prose") is None
+        assert _render_partial_edit("") is None
+
+
 class TestUnparsedBlockDetection:
     """Test that malformed <edit> blocks surface as parse errors."""
 

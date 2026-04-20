@@ -1,9 +1,6 @@
 {
   "active_files": [
-    "forge/tools/invocation.py",
-    "forge/prompts/system.py",
-    "CLAUDE.md",
-    "tests/test_inline_edit.py"
+    "forge/ui/tool_rendering.py"
   ],
   "request_log_entries": [
     {
@@ -293,6 +290,60 @@
       "streaming": true,
       "actual_cost": 0.06530125,
       "generation_id": "gen-1776653270-lmQImZ6ExwxCX54ztTlI"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653303784.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653303784.json",
+      "timestamp": 1776653303.7861135,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.5023825,
+      "generation_id": "gen-1776653303-7WQAgMGxDgdwe9mOa7Zj"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653309098.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653309098.json",
+      "timestamp": 1776653309.1010823,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.260296,
+      "generation_id": "gen-1776653309-v314nvjbb8Jwpw4xxyQB"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653317270.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653317270.json",
+      "timestamp": 1776653317.2727077,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.31401575,
+      "generation_id": "gen-1776653317-Wnmm6qNOUGMMqNzXW3Rl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653328625.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653328625.json",
+      "timestamp": 1776653328.6280522,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.61449875,
+      "generation_id": "gen-1776653328-qO3vCEOmequqv1c3oW8a"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653375657.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653375657.json",
+      "timestamp": 1776653375.659468,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.094303,
+      "generation_id": "gen-1776653375-XPDztBny3jKK7Vffllzq"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776653384701.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776653384701.json",
+      "timestamp": 1776653384.70345,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.176568,
+      "generation_id": "gen-1776653384-deXfgXk4ByMODxAqxmSU"
     }
   ],
   "messages": [
@@ -929,6 +980,190 @@
         {
           "commit": "4ecd6304c917",
           "message": "Committed: 1 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 94b0938e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "nice! but I'm pretty sure the stream preview parser doesn't handle nonces yet, let's do that?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 39] Good catch. Let me find the streaming preview parser.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"stream.*edit|preview.*edit|partial.*edit|streaming.*command|edit.*stream\", \"include_extensions\": [\".py\"]}",
+            "name": "grep_open"
+          },
+          "id": "toolu_vrtx_019AkdxhgG9KQQpe3F4M93mA",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_019AkdxhgG9KQQpe3F4M93mA",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/tool_rendering.py\"], \"matches\": [{\"filepath\": \"forge/ui/ai_chat_widget.py\", \"first_match\": \"streaming message, rendering <edit\", \"match_count\": 1}, {\"filepath\": \"forge/ui/chat_streaming.py\", \"first_match\": \"streaming_edit\", \"match_count\": 2}, {\"filepath\": \"forge/ui/tool_rendering.py\", \"first_match\": \"edit blocks in stream\", \"match_count\": 14}], \"message\": \"Found 3 files matching 'stream.*edit|preview.*edit|partial.*edit|streaming.*command|edit.*stream'\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 40] Looking at `tool_rendering.py`, I can see three streaming parsers that need updating:\n\n1. **`EDIT_BLOCK_PATTERN`** (complete blocks) \u2014 used in `render_streaming_edits` indirectly via `inline_tools` (which now uses the unified pattern, so this is **already fine** \u2014 the streaming code calls `module.get_inline_pattern()` which returns the unified regex)\n2. **The partial-edit patterns** (`EDIT_START_PATTERN`, `SEARCH_START_PATTERN`, etc.) \u2014 only handle plain syntax. **This is what needs fixing.**\n3. **`EDIT_BLOCK_PATTERN` constant** \u2014 appears to be dead code (not referenced elsewhere I can see), but I'll leave it.\n\nLet me first verify `EDIT_BLOCK_PATTERN` is actually unused, then fix the partial patterns.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"EDIT_BLOCK_PATTERN\"}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_014rxND3vGFZR9mB8qo61gT1",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_014rxND3vGFZR9mB8qo61gT1",
+      "content": "{\"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/ui/tool_rendering.py:986 \\u2500\\u2500\\n     983 | # =============================================================================\\n     984 | \\n     985 | # Regex patterns for parsing edit blocks in streaming content\\n>>>  986 | EDIT_BLOCK_PATTERN = re.compile(\\n     987 |     r'<edit\\\\s+file=\\\"([^\\\"]+)\\\">\\\\s*'\\n     988 |     r\\\"<search>\\\\n?(.*?)\\\\n?</search>\\\\s*\\\"\\n     989 |     r\\\"<replace>\\\\n?(.*?)\\\\n?</replace>\\\\s*\\\"\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 1}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"pattern\": \"EDIT_BLOCK_PATTERN\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/tool_rendering.py:986 \\u2500\\u2500\\n     983 | # =============================================================================\\n     984 | \\n     985 | # Regex patterns for parsing edit blocks in streaming content\\n>>>  986 | EDIT_BLOCK_PATTERN = re.compile(\\n     987 |     r'<edit\\\\s+file=\\\"([^\\\"]+)\\\">\\\\s*'\\n     988 |     r\\\"<search>\\\\n?(.*?)\\\\n?</search>\\\\s*\\\"\\n     989 |     r\\\"<replace>\\\\n?(.*?)\\\\n?</replace>\\\\s*\\\"\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 41] `EDIT_BLOCK_PATTERN` is dead code \u2014 only its definition exists, no references. I'll remove it as cleanup.\n\nPlan:\n1. Update partial-edit patterns to match nonced opening too (capture suffix from `<edit_NONCE`, then look for matching `<search_NONCE>`/`</search_NONCE>`/etc.)\n2. Rewrite `_render_partial_edit` to thread the suffix through\n3. Update `_find_partial_command_start` and `EDIT_START_PATTERN` to detect both forms\n4. Drop dead `EDIT_BLOCK_PATTERN`\n5. Drop the now-large files from context after edits\n6. Run tests\n\nFree up context first \u2014 I have what I need from `ai_chat_widget.py` and `chat_streaming.py` (they call `module.get_inline_pattern()` which already handles nonces \u2014 only `tool_rendering.py`'s partial parser needs work).",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_streaming.py\", \"CLAUDE.md\", \"forge/prompts/system.py\", \"tests/test_inline_edit.py\", \"forge/tools/invocation.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01PdudvTwMVinjdKWVaruet6",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01PdudvTwMVinjdKWVaruet6",
+      "content": "{\"action\": \"update_context\", \"add\": [], \"message\": \"Added 0 files, removed 6 files from context\", \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_streaming.py\", \"CLAUDE.md\", \"forge/prompts/system.py\", \"tests/test_inline_edit.py\", \"forge/tools/invocation.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 42] Now updating the streaming partial-edit parser. The plan: capture the suffix from `<edit_NONCE` (or empty), then use it in subsequent `<search\\1>`, `</search\\1>`, `<replace\\1>`, `</replace\\1>` patterns.\n\nSince the partial parsers run on a *suffix* of the content (not from a regex match), I can't backreference across separate `re.compile`d patterns. Instead, I'll detect the suffix once (from the opening `<edit>` tag) then build per-call patterns or use simple string matching with the captured suffix.\n\nI'll use string-based tag construction once we know the suffix \u2014 much simpler than regex backreferences across multiple patterns.\n\n<edit file=\"forge/ui/tool_rendering.py\" escape=\"html\">\n<search>\n# Regex patterns for parsing edit blocks in streaming content\nEDIT_BLOCK_PATTERN = re.compile(\n    r'&lt;edit\\s+file=\"([^\"]+)\"&gt;\\s*'\n    r\"&lt;search&gt;\\n?(.*?)\\n?&lt;/search&gt;\\s*\"\n    r\"&lt;replace&gt;\\n?(.*?)\\n?&lt;/replace&gt;\\s*\"\n    r\"&lt;/edit&gt;\",\n    re.DOTALL,\n)\n\n# Partial patterns for streaming detection\nEDIT_START_PATTERN = re.compile(r'&lt;edit\\s+file=\"([^\"]*)\"?', re.DOTALL)\nSEARCH_START_PATTERN = re.compile(r\"&lt;search&gt;\\n?\", re.DOTALL)\nSEARCH_END_PATTERN = re.compile(r\"\\n?&lt;/search&gt;\", re.DOTALL)\nREPLACE_START_PATTERN = re.compile(r\"&lt;replace&gt;\\n?\", re.DOTALL)\nREPLACE_END_PATTERN = re.compile(r\"\\n?&lt;/replace&gt;\", re.DOTALL)\n</search>\n<replace>\n# Partial patterns for streaming detection.\n#\n# The opening pattern captures (suffix, filepath) where suffix is either \"\"\n# (plain &lt;edit&gt;) or \"_NONCE\" (nonced &lt;edit_NONCE&gt;). Once we know the suffix,\n# we build the inner tag literals as strings rather than using regex\n# backreferences across separately-compiled patterns.\nEDIT_START_PATTERN = re.compile(r'&lt;edit(_\\w+|)\\s+file=\"([^\"]*)\"?', re.DOTALL)\n</search>\n</edit>\n\n<edit file=\"forge/ui/tool_rendering.py\" escape=\"html\">\n<search>\ndef _find_partial_command_start(\n    content: str,\n    inline_tools: dict,\n    code_regions: list[tuple[int, int]] | None = None,\n    offset: int = 0,\n) -&gt; int | None:\n    \"\"\"Find the start position of a partial inline command, if any.\n\n    Skips partial commands that fall inside code blocks.\n\n    Args:\n        content: The text to search (a suffix of the full message)\n        inline_tools: Discovered inline tools\n        code_regions: Code regions from the full message\n        offset: Position of content within the full message (for code region checks)\n    \"\"\"\n    from forge.tools.invocation import _inside_code_region\n\n    # For now, just check for &lt;edit which is the most common streaming case\n    edit_start = EDIT_START_PATTERN.search(content)\n    if edit_start:\n        # Check if this falls inside a code block (using absolute position)\n        if code_regions is not None:\n            abs_pos = offset + edit_start.start()\n            if _inside_code_region(abs_pos, code_regions) is not None:\n                return None\n        return edit_start.start()\n    return None\n</search>\n<replace>\ndef _find_partial_command_start(\n    content: str,\n    inline_tools: dict,\n    code_regions: list[tuple[int, int]] | None = None,\n    offset: int = 0,\n) -&gt; int | None:\n    \"\"\"Find the start position of a partial inline command, if any.\n\n    Skips partial commands that fall inside code blocks.\n    Detects both plain &lt;edit&gt; and nonced &lt;edit_NONCE&gt; openings.\n\n    Args:\n        content: The text to search (a suffix of the full message)\n        inline_tools: Discovered inline tools\n        code_regions: Code regions from the full message\n        offset: Position of content within the full message (for code region checks)\n    \"\"\"\n    from forge.tools.invocation import _inside_code_region\n\n    # Check for &lt;edit ...&gt; or &lt;edit_NONCE ...&gt; \u2014 most common streaming case\n    edit_start = EDIT_START_PATTERN.search(content)\n    if edit_start:\n        # Check if this falls inside a code block (using absolute position)\n        if code_regions is not None:\n            abs_pos = offset + edit_start.start()\n            if _inside_code_region(abs_pos, code_regions) is not None:\n                return None\n        return edit_start.start()\n    return None\n</replace>\n</edit>\n\n<edit file=\"forge/ui/tool_rendering.py\" escape=\"html\">\n<search>\ndef _render_partial_edit(content: str) -&gt; str | None:\n    \"\"\"\n    Try to render a partial/incomplete &lt;edit&gt; block during streaming.\n\n    Returns HTML if a partial edit is detected, None otherwise.\n    \"\"\"\n    # Check if we have the start of an edit block\n    edit_match = EDIT_START_PATTERN.search(content)\n    if not edit_match:\n        return None\n\n    # Extract filepath (may be incomplete)\n    filepath = edit_match.group(1) if edit_match.group(1) else \"\"\n\n    # Find the content after &lt;edit file=\"...\"&gt;\n    after_edit = content[edit_match.end() :]\n\n    # Look for &lt;search&gt; tag\n    search_start = SEARCH_START_PATTERN.search(after_edit)\n    if not search_start:\n        # Haven't seen &lt;search&gt; yet\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    after_search_tag = after_edit[search_start.end() :]\n\n    # Look for &lt;/search&gt;\n    search_end = SEARCH_END_PATTERN.search(after_search_tag)\n    if not search_end:\n        # Still streaming search content\n        search_content = after_search_tag\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    # We have complete search, extract it\n    search_content = after_search_tag[: search_end.start()]\n    after_search = after_search_tag[search_end.end() :]\n\n    # Look for &lt;replace&gt;\n    replace_start = REPLACE_START_PATTERN.search(after_search)\n    if not replace_start:\n        # Between &lt;/search&gt; and &lt;replace&gt;\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    after_replace_tag = after_search[replace_start.end() :]\n\n    # Look for &lt;/replace&gt;\n    replace_end = REPLACE_END_PATTERN.search(after_replace_tag)\n    if not replace_end:\n        # Still streaming replace content\n        replace_content = after_replace_tag\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=replace_content,\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    # Complete replace but no &lt;/edit&gt; yet - still render as streaming\n    replace_content = after_replace_tag[: replace_end.start()]\n    return render_diff_html(\n        filepath=filepath,\n        search=search_content,\n        replace=replace_content,\n        is_streaming=True,\n        streaming_phase=\"replace\",\n    )\n</search>\n<replace>\ndef _render_partial_edit(content: str) -&gt; str | None:\n    \"\"\"\n    Try to render a partial/incomplete &lt;edit&gt; block during streaming.\n\n    Handles both plain &lt;edit&gt; / &lt;search&gt; / &lt;replace&gt; tags and the nonced\n    form &lt;edit_NONCE&gt; / &lt;search_NONCE&gt; / &lt;replace_NONCE&gt; \u2014 the suffix is\n    captured from the opening tag and reused for the inner tags.\n\n    Returns HTML if a partial edit is detected, None otherwise.\n    \"\"\"\n    # Check if we have the start of an edit block (plain or nonced)\n    edit_match = EDIT_START_PATTERN.search(content)\n    if not edit_match:\n        return None\n\n    # Group 1 is the suffix (\"\" or \"_NONCE\"); group 2 is the filepath.\n    suffix = edit_match.group(1) or \"\"\n    filepath = edit_match.group(2) if edit_match.group(2) else \"\"\n\n    # Build the inner tag literals based on the suffix.\n    search_open = f\"&lt;search{suffix}&gt;\"\n    search_close = f\"&lt;/search{suffix}&gt;\"\n    replace_open = f\"&lt;replace{suffix}&gt;\"\n    replace_close = f\"&lt;/replace{suffix}&gt;\"\n\n    # Find the content after the opening &lt;edit ...&gt; / &lt;edit_NONCE ...&gt; tag.\n    # The pattern only consumed up through the closing quote of file=\"...\"; the\n    # opening tag may still have a trailing \"&gt;\" we need to skip past.\n    rest = content[edit_match.end() :]\n    gt_idx = rest.find(\"&gt;\")\n    if gt_idx == -1:\n        # Opening tag isn't even closed yet\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n    after_edit = rest[gt_idx + 1 :]\n\n    # Look for the search opening tag.\n    search_start_idx = after_edit.find(search_open)\n    if search_start_idx == -1:\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n    after_search_tag = after_edit[search_start_idx + len(search_open) :]\n    # Strip a single leading newline (matches \"\\n?\" in the original regex).\n    if after_search_tag.startswith(\"\\n\"):\n        after_search_tag = after_search_tag[1:]\n\n    # Look for the search closing tag.\n    search_end_idx = after_search_tag.find(search_close)\n    if search_end_idx == -1:\n        # Still streaming search content\n        # Strip trailing newline (matches \"\\n?\" before close in original regex)\n        search_content = after_search_tag.rstrip(\"\\n\")\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    search_content = after_search_tag[:search_end_idx].rstrip(\"\\n\")\n    after_search = after_search_tag[search_end_idx + len(search_close) :]\n\n    # Look for the replace opening tag.\n    replace_start_idx = after_search.find(replace_open)\n    if replace_start_idx == -1:\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n    after_replace_tag = after_search[replace_start_idx + len(replace_open) :]\n    if after_replace_tag.startswith(\"\\n\"):\n        after_replace_tag = after_replace_tag[1:]\n\n    # Look for the replace closing tag.\n    replace_end_idx = after_replace_tag.find(replace_close)\n    if replace_end_idx == -1:\n        # Still streaming replace content\n        replace_content = after_replace_tag.rstrip(\"\\n\")\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=replace_content,\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    # Complete replace but no &lt;/edit{suffix}&gt; yet \u2014 still render as streaming\n    replace_content = after_replace_tag[:replace_end_idx].rstrip(\"\\n\")\n    return render_diff_html(\n        filepath=filepath,\n        search=search_content,\n        replace=replace_content,\n        is_streaming=True,\n        streaming_phase=\"replace\",\n    )\n</replace>\n</edit>\n\nNow let me check if there are existing tests for the streaming parser, and add some for nonced partials:",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"pattern\": \"_render_partial_edit|render_streaming_edits|EDIT_START_PATTERN\", \"max_matches\": 15}",
+            "name": "grep_context"
+          },
+          "id": "toolu_vrtx_015xHbgfs4kNfsXE6xPWaC96",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_015xHbgfs4kNfsXE6xPWaC96",
+      "content": "{\"message\": \"Found 9 matches\", \"output\": \"\\u2500\\u2500 forge/ui/chat_streaming.py:11 \\u2500\\u2500\\n       8 | import html\\n       9 | import re\\n      10 | \\n>>>   11 | from forge.ui.tool_rendering import render_streaming_edits, render_streaming_tool_html\\n      12 | \\n      13 | \\n      14 | def _detect_svg_blocks(text: str) -> list[dict]:\\n\\n\\u2500\\u2500 forge/ui/chat_streaming.py:272 \\u2500\\u2500\\n     269 |     # Check if we have any <edit> blocks in the accumulated content\\n     270 |     if \\\"<edit\\\" in display_content:\\n     271 |         # Render inline edits as diff views\\n>>>  272 |         rendered_html = render_streaming_edits(display_content)\\n     273 |         escaped_html = escape_for_js(rendered_html)\\n     274 | \\n     275 |         # Update the entire content with rendered edits\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:995 \\u2500\\u2500\\n     992 | )\\n     993 | \\n     994 | # Partial patterns for streaming detection\\n>>>  995 | EDIT_START_PATTERN = re.compile(r'<edit\\\\s+file=\\\"([^\\\"]*)\\\"?', re.DOTALL)\\n     996 | SEARCH_START_PATTERN = re.compile(r\\\"<search>\\\\n?\\\", re.DOTALL)\\n     997 | SEARCH_END_PATTERN = re.compile(r\\\"\\\\n?</search>\\\", re.DOTALL)\\n     998 | REPLACE_START_PATTERN = re.compile(r\\\"<replace>\\\\n?\\\", re.DOTALL)\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1268 \\u2500\\u2500\\n    1265 |     \\\"\\\"\\\"\\n    1266 | \\n    1267 | \\n>>> 1268 | def render_streaming_edits(content: str) -> str:\\n    1269 |     \\\"\\\"\\\"\\n    1270 |     Render streaming content with partial inline command support.\\n    1271 | \\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1375 \\u2500\\u2500\\n    1372 |     from forge.tools.invocation import _inside_code_region\\n    1373 | \\n    1374 |     # For now, just check for <edit which is the most common streaming case\\n>>> 1375 |     edit_start = EDIT_START_PATTERN.search(content)\\n    1376 |     if edit_start:\\n    1377 |         # Check if this falls inside a code block (using absolute position)\\n    1378 |         if code_regions is not None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1403 \\u2500\\u2500\\n    1400 | \\n    1401 |     # Check if the partial edit start falls inside a code block\\n    1402 |     if code_regions is not None:\\n>>> 1403 |         edit_match = EDIT_START_PATTERN.search(content)\\n    1404 |         if edit_match:\\n    1405 |             abs_pos = offset + edit_match.start()\\n    1406 |             if _inside_code_region(abs_pos, code_regions) is not None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1410 \\u2500\\u2500\\n    1407 |                 return None\\n    1408 | \\n    1409 |     # Delegate to existing partial edit renderer\\n>>> 1410 |     return _render_partial_edit(content)\\n    1411 | \\n    1412 | \\n    1413 | def _render_partial_edit(content: str) -> str | None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1413 \\u2500\\u2500\\n    1410 |     return _render_partial_edit(content)\\n    1411 | \\n    1412 | \\n>>> 1413 | def _render_partial_edit(content: str) -> str | None:\\n    1414 |     \\\"\\\"\\\"\\n    1415 |     Try to render a partial/incomplete <edit> block during streaming.\\n    1416 | \\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1420 \\u2500\\u2500\\n    1417 |     Returns HTML if a partial edit is detected, None otherwise.\\n    1418 |     \\\"\\\"\\\"\\n    1419 |     # Check if we have the start of an edit block\\n>>> 1420 |     edit_match = EDIT_START_PATTERN.search(content)\\n    1421 |     if not edit_match:\\n    1422 |         return None\\n    1423 | \", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"total_matches\": 9}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"max_matches\": 15,\n  \"pattern\": \"_render_partial_edit|render_streaming_edits|EDIT_START_PATTERN\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 9 matches\",\n  \"output\": \"\\u2500\\u2500 forge/ui/chat_streaming.py:11 \\u2500\\u2500\\n       8 | import html\\n       9 | import re\\n      10 | \\n>>>   11 | from forge.ui.tool_rendering import render_streaming_edits, render_streaming_tool_html\\n      12 | \\n      13 | \\n      14 | def _detect_svg_blocks(text: str) -> list[dict]:\\n\\n\\u2500\\u2500 forge/ui/chat_streaming.py:272 \\u2500\\u2500\\n     269 |     # Check if we have any <edit> blocks in the accumulated content\\n     270 |     if \\\"<edit\\\" in display_content:\\n     271 |         # Render inline edits as diff views\\n>>>  272 |         rendered_html = render_streaming_edits(display_content)\\n     273 |         escaped_html = escape_for_js(rendered_html)\\n     274 | \\n     275 |         # Update the entire content with rendered edits\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:995 \\u2500\\u2500\\n     992 | )\\n     993 | \\n     994 | # Partial patterns for streaming detection\\n>>>  995 | EDIT_START_PATTERN = re.compile(r'<edit\\\\s+file=\\\"([^\\\"]*)\\\"?', re.DOTALL)\\n     996 | SEARCH_START_PATTERN = re.compile(r\\\"<search>\\\\n?\\\", re.DOTALL)\\n     997 | SEARCH_END_PATTERN = re.compile(r\\\"\\\\n?</search>\\\", re.DOTALL)\\n     998 | REPLACE_START_PATTERN = re.compile(r\\\"<replace>\\\\n?\\\", re.DOTALL)\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1268 \\u2500\\u2500\\n    1265 |     \\\"\\\"\\\"\\n    1266 | \\n    1267 | \\n>>> 1268 | def render_streaming_edits(content: str) -> str:\\n    1269 |     \\\"\\\"\\\"\\n    1270 |     Render streaming content with partial inline command support.\\n    1271 | \\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1375 \\u2500\\u2500\\n    1372 |     from forge.tools.invocation import _inside_code_region\\n    1373 | \\n    1374 |     # For now, just check for <edit which is the most common streaming case\\n>>> 1375 |     edit_start = EDIT_START_PATTERN.search(content)\\n    1376 |     if edit_start:\\n    1377 |         # Check if this falls inside a code block (using absolute position)\\n    1378 |         if code_regions is not None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1403 \\u2500\\u2500\\n    1400 | \\n    1401 |     # Check if the partial edit start falls inside a code block\\n    1402 |     if code_regions is not None:\\n>>> 1403 |         edit_match = EDIT_START_PATTERN.search(content)\\n    1404 |         if edit_match:\\n    1405 |             abs_pos = offset + edit_match.start()\\n    1406 |             if _inside_code_region(abs_pos, code_regions) is not None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1410 \\u2500\\u2500\\n    1407 |                 return None\\n    1408 | \\n    1409 |     # Delegate to existing partial edit renderer\\n>>> 1410 |     return _render_partial_edit(content)\\n    1411 | \\n    1412 | \\n    1413 | def _render_partial_edit(content: str) -> str | None:\\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1413 \\u2500\\u2500\\n    1410 |     return _render_partial_edit(content)\\n    1411 | \\n    1412 | \\n>>> 1413 | def _render_partial_edit(content: str) -> str | None:\\n    1414 |     \\\"\\\"\\\"\\n    1415 |     Try to render a partial/incomplete <edit> block during streaming.\\n    1416 | \\n\\n\\u2500\\u2500 forge/ui/tool_rendering.py:1420 \\u2500\\u2500\\n    1417 |     Returns HTML if a partial edit is detected, None otherwise.\\n    1418 |     \\\"\\\"\\\"\\n    1419 |     # Check if we have the start of an edit block\\n>>> 1420 |     edit_match = EDIT_START_PATTERN.search(content)\\n    1421 |     if not edit_match:\\n    1422 |         return None\\n    1423 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 9\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 43] grep confirms my edits to `tool_rendering.py` already landed (line 995 still shows the old `EDIT_START_PATTERN` though \u2014 wait, that's because grep_context reads from the on-disk version, which is what I edited; the line number shifted slightly but the pattern is the new unified one I wrote). Let me verify by looking at the actual current state, then add tests.\n\nActually, looking at line 995 from the grep \u2014 `r'<edit\\s+file=\"([^\"]*)\"?'` \u2014 that's the **OLD** pattern. My edit didn't apply. The other patterns (`SEARCH_START_PATTERN`, etc.) are also still there at lines 996-998. So either my edits failed silently or the file got reverted.\n\nLet me re-check the current file state and try the edits again with fresh eyes.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"forge/ui/tool_rendering.py\", \"line\": 993, \"context\": 10}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_01Xp1UeDQ5PnADr8UFcrjTD8",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Xp1UeDQ5PnADr8UFcrjTD8",
+      "content": "{\"content\": \"     983 | # =============================================================================\\n     984 | \\n     985 | # Regex patterns for parsing edit blocks in streaming content\\n     986 | EDIT_BLOCK_PATTERN = re.compile(\\n     987 |     r'<edit\\\\s+file=\\\"([^\\\"]+)\\\">\\\\s*'\\n     988 |     r\\\"<search>\\\\n?(.*?)\\\\n?</search>\\\\s*\\\"\\n     989 |     r\\\"<replace>\\\\n?(.*?)\\\\n?</replace>\\\\s*\\\"\\n     990 |     r\\\"</edit>\\\",\\n     991 |     re.DOTALL,\\n     992 | )\\n>>>  993 | \\n     994 | # Partial patterns for streaming detection\\n     995 | EDIT_START_PATTERN = re.compile(r'<edit\\\\s+file=\\\"([^\\\"]*)\\\"?', re.DOTALL)\\n     996 | SEARCH_START_PATTERN = re.compile(r\\\"<search>\\\\n?\\\", re.DOTALL)\\n     997 | SEARCH_END_PATTERN = re.compile(r\\\"\\\\n?</search>\\\", re.DOTALL)\\n     998 | REPLACE_START_PATTERN = re.compile(r\\\"<replace>\\\\n?\\\", re.DOTALL)\\n     999 | REPLACE_END_PATTERN = re.compile(r\\\"\\\\n?</replace>\\\", re.DOTALL)\\n    1000 | \\n    1001 | \\n    1002 | def _escape_raw_html(text: str) -> str:\\n    1003 |     \\\"\\\"\\\"Escape raw HTML tags in markdown text, preserving code blocks and inline code.\", \"filepath\": \"forge/ui/tool_rendering.py\", \"range\": \"983-1003\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"target_line\": 993, \"total_lines\": 1497}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 44] Confirmed \u2014 my edits to `tool_rendering.py` didn't apply (file still has the original code). The likely cause: my `<search>` blocks contained `<search>`/`<replace>`/`</search>` literals from the regex strings, which the *current* parser still chokes on even with `escape=\"html\"`. The `escape=\"html\"` mechanism was for the body, but I think I have the dynamics wrong.\n\nLet me try with the **nonced syntax** instead \u2014 that's the whole point of this feature. The unified pattern is now live, so it should work.\n\n<edit_p3 file=\"forge/ui/tool_rendering.py\">\n<search_p3>\n# Regex patterns for parsing edit blocks in streaming content\nEDIT_BLOCK_PATTERN = re.compile(\n    r'<edit\\s+file=\"([^\"]+)\">\\s*'\n    r\"<search>\\n?(.*?)\\n?</search>\\s*\"\n    r\"<replace>\\n?(.*?)\\n?</replace>\\s*\"\n    r\"</edit>\",\n    re.DOTALL,\n)\n\n# Partial patterns for streaming detection\nEDIT_START_PATTERN = re.compile(r'<edit\\s+file=\"([^\"]*)\"?', re.DOTALL)\nSEARCH_START_PATTERN = re.compile(r\"<search>\\n?\", re.DOTALL)\nSEARCH_END_PATTERN = re.compile(r\"\\n?</search>\", re.DOTALL)\nREPLACE_START_PATTERN = re.compile(r\"<replace>\\n?\", re.DOTALL)\nREPLACE_END_PATTERN = re.compile(r\"\\n?</replace>\", re.DOTALL)\n</search_p3>\n<replace_p3>\n# Partial patterns for streaming detection.\n#\n# The opening pattern captures (suffix, filepath) where suffix is either \"\"\n# (plain <edit>) or \"_NONCE\" (nonced <edit_NONCE>). Once we know the suffix,\n# we build the inner tag literals as plain strings rather than using regex\n# backreferences across separately-compiled patterns.\nEDIT_START_PATTERN = re.compile(r'<edit(_\\w+|)\\s+file=\"([^\"]*)\"?', re.DOTALL)\n</replace_p3>\n</edit_p3>\n\n<edit_p4 file=\"forge/ui/tool_rendering.py\">\n<search_p4>\ndef _render_partial_edit(content: str) -> str | None:\n    \"\"\"\n    Try to render a partial/incomplete <edit> block during streaming.\n\n    Returns HTML if a partial edit is detected, None otherwise.\n    \"\"\"\n    # Check if we have the start of an edit block\n    edit_match = EDIT_START_PATTERN.search(content)\n    if not edit_match:\n        return None\n\n    # Extract filepath (may be incomplete)\n    filepath = edit_match.group(1) if edit_match.group(1) else \"\"\n\n    # Find the content after <edit file=\"...\">\n    after_edit = content[edit_match.end() :]\n\n    # Look for <search> tag\n    search_start = SEARCH_START_PATTERN.search(after_edit)\n    if not search_start:\n        # Haven't seen <search> yet\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    after_search_tag = after_edit[search_start.end() :]\n\n    # Look for </search>\n    search_end = SEARCH_END_PATTERN.search(after_search_tag)\n    if not search_end:\n        # Still streaming search content\n        search_content = after_search_tag\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    # We have complete search, extract it\n    search_content = after_search_tag[: search_end.start()]\n    after_search = after_search_tag[search_end.end() :]\n\n    # Look for <replace>\n    replace_start = REPLACE_START_PATTERN.search(after_search)\n    if not replace_start:\n        # Between </search> and <replace>\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    after_replace_tag = after_search[replace_start.end() :]\n\n    # Look for </replace>\n    replace_end = REPLACE_END_PATTERN.search(after_replace_tag)\n    if not replace_end:\n        # Still streaming replace content\n        replace_content = after_replace_tag\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=replace_content,\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    # Complete replace but no </edit> yet - still render as streaming\n    replace_content = after_replace_tag[: replace_end.start()]\n    return render_diff_html(\n        filepath=filepath,\n        search=search_content,\n        replace=replace_content,\n        is_streaming=True,\n        streaming_phase=\"replace\",\n    )\n</search_p4>\n<replace_p4>\ndef _render_partial_edit(content: str) -> str | None:\n    \"\"\"\n    Try to render a partial/incomplete <edit> block during streaming.\n\n    Handles both plain <edit> / <search> / <replace> tags and the nonced\n    form <edit_NONCE> / <search_NONCE> / <replace_NONCE> \u2014 the suffix is\n    captured from the opening tag and reused for the inner tags.\n\n    Returns HTML if a partial edit is detected, None otherwise.\n    \"\"\"\n    # Check if we have the start of an edit block (plain or nonced)\n    edit_match = EDIT_START_PATTERN.search(content)\n    if not edit_match:\n        return None\n\n    # Group 1 is the suffix (\"\" or \"_NONCE\"); group 2 is the filepath.\n    suffix = edit_match.group(1) or \"\"\n    filepath = edit_match.group(2) if edit_match.group(2) else \"\"\n\n    # Build the inner tag literals based on the suffix.\n    search_open = f\"<search{suffix}>\"\n    search_close = f\"</search{suffix}>\"\n    replace_open = f\"<replace{suffix}>\"\n    replace_close = f\"</replace{suffix}>\"\n\n    # The opening-tag pattern only consumed up through the closing quote of\n    # file=\"...\"; the opening tag may still have a trailing \">\" we need to\n    # skip past before looking at the body.\n    rest = content[edit_match.end() :]\n    gt_idx = rest.find(\">\")\n    if gt_idx == -1:\n        # Opening tag isn't even closed yet\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n    after_edit = rest[gt_idx + 1 :]\n\n    # Look for the search opening tag.\n    search_start_idx = after_edit.find(search_open)\n    if search_start_idx == -1:\n        return render_diff_html(\n            filepath=filepath,\n            search=\"\",\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n    after_search_tag = after_edit[search_start_idx + len(search_open) :]\n    # Strip a single leading newline (matches \"\\n?\" in the original regex).\n    if after_search_tag.startswith(\"\\n\"):\n        after_search_tag = after_search_tag[1:]\n\n    # Look for the search closing tag.\n    search_end_idx = after_search_tag.find(search_close)\n    if search_end_idx == -1:\n        # Still streaming search content\n        search_content = after_search_tag.rstrip(\"\\n\")\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"search\",\n        )\n\n    search_content = after_search_tag[:search_end_idx].rstrip(\"\\n\")\n    after_search = after_search_tag[search_end_idx + len(search_close) :]\n\n    # Look for the replace opening tag.\n    replace_start_idx = after_search.find(replace_open)\n    if replace_start_idx == -1:\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=\"\",\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n    after_replace_tag = after_search[replace_start_idx + len(replace_open) :]\n    if after_replace_tag.startswith(\"\\n\"):\n        after_replace_tag = after_replace_tag[1:]\n\n    # Look for the replace closing tag.\n    replace_end_idx = after_replace_tag.find(replace_close)\n    if replace_end_idx == -1:\n        # Still streaming replace content\n        replace_content = after_replace_tag.rstrip(\"\\n\")\n        return render_diff_html(\n            filepath=filepath,\n            search=search_content,\n            replace=replace_content,\n            is_streaming=True,\n            streaming_phase=\"replace\",\n        )\n\n    # Complete replace but no </edit{suffix}> yet \u2014 still render as streaming.\n    replace_content = after_replace_tag[:replace_end_idx].rstrip(\"\\n\")\n    return render_diff_html(\n        filepath=filepath,\n        search=search_content,\n        replace=replace_content,\n        is_streaming=True,\n        streaming_phase=\"replace\",\n    )\n</replace_p4>\n</edit_p4>\n\nNow I need a small fix to `_find_partial_command_start`'s comment (it still says \"for now, just check for &lt;edit\"). Minor cleanup:\n\n<edit_p5 file=\"forge/ui/tool_rendering.py\">\n<search_p5>\n    from forge.tools.invocation import _inside_code_region\n\n    # For now, just check for <edit which is the most common streaming case\n    edit_start = EDIT_START_PATTERN.search(content)\n</search_p5>\n<replace_p5>\n    from forge.tools.invocation import _inside_code_region\n\n    # Check for <edit ...> or <edit_NONCE ...> \u2014 most common streaming case.\n    edit_start = EDIT_START_PATTERN.search(content)\n</replace_p5>\n</edit_p5>\n\nNow add tests for the streaming nonced parser:\n\n<edit_p6 file=\"tests/test_inline_edit.py\">\n<search_p6>\nclass TestUnparsedBlockDetection:\n</search_p6>\n<replace_p6>\nclass TestStreamingPartialEditNonced:\n    \"\"\"Test that the streaming partial-edit renderer handles nonced syntax.\"\"\"\n\n    def test_partial_plain_edit_still_works(self):\n        from forge.ui.tool_rendering import _render_partial_edit\n\n        # Mid-stream: opened <edit>, partial <search> body\n        content = '<edit file=\"foo.py\">\\n<search>\\nold cont'\n        html = _render_partial_edit(content)\n        assert html is not None\n        assert \"foo.py\" in html\n        assert \"old cont\" in html\n\n    def test_partial_nonced_edit_search_phase(self):\n        from forge.ui.tool_rendering import _render_partial_edit\n\n        # Mid-stream nonced edit: still receiving the search body\n        content = '<edit_x9 file=\"parser.py\">\\n<search_x9>\\nclose with </edit'\n        html = _render_partial_edit(content)\n        assert html is not None\n        assert \"parser.py\" in html\n        # The body contains a literal </edit which must NOT terminate the block\n        assert \"close with\" in html\n\n    def test_partial_nonced_edit_replace_phase(self):\n        from forge.ui.tool_rendering import _render_partial_edit\n\n        # Mid-stream nonced edit: search complete, mid-replace\n        content = (\n            '<edit_abc file=\"docs.md\">\\n'\n            \"<search_abc>\\nold </edit> text\\n</search_abc>\\n\"\n            \"<replace_abc>\\nnew </edit> tex\"\n        )\n        html = _render_partial_edit(content)\n        assert html is not None\n        assert \"docs.md\" in html\n        # Both bodies contain literal </edit> and must round-trip\n        assert \"old\" in html\n        assert \"new\" in html\n\n    def test_partial_nonced_edit_full_block_pre_close(self):\n        \"\"\"Replace body complete, but </edit_NONCE> not yet streamed.\"\"\"\n        from forge.ui.tool_rendering import _render_partial_edit\n\n        content = (\n            '<edit_z file=\"x.py\">\\n'\n            \"<search_z>\\nold\\n</search_z>\\n\"\n            \"<replace_z>\\nnew\\n</replace_z>\\n\"\n        )\n        html = _render_partial_edit(content)\n        assert html is not None\n        assert \"x.py\" in html\n\n    def test_no_edit_returns_none(self):\n        from forge.ui.tool_rendering import _render_partial_edit\n\n        assert _render_partial_edit(\"just some prose\") is None\n        assert _render_partial_edit(\"\") is None\n\n\nclass TestUnparsedBlockDetection:\n</replace_p6>\n</edit_p6>\n\n<run_tests file=\"tests/test_inline_edit.py\"/>\n\n<commit message=\"Streaming preview parser: handle nonced edit syntax\n\nThe streaming partial-edit renderer in tool_rendering.py only handled\nplain <edit>/<search>/<replace> tags. When the AI uses the nonced form\n(<edit_NONCE> etc.) for bodies containing literal edit-block delimiters,\nthe live diff preview would either fail to render or terminate\nprematurely on a stray </edit> in the body.\n\n- Unified EDIT_START_PATTERN to capture the suffix ('' or '_NONCE').\n- Rewrote _render_partial_edit to thread the suffix into the inner tag\n  literals via plain string matching (regex backreferences don't span\n  separately-compiled patterns).\n- Removed dead EDIT_BLOCK_PATTERN and the old per-tag SEARCH/REPLACE\n  partial patterns (the new code uses str.find with composed literals).\n- Added TestStreamingPartialEditNonced covering plain, search-phase\n  nonced, replace-phase nonced, full-pre-close nonced, and no-edit\n  cases.\"/>\n\nDone \u2014 the streaming preview now handles nonced syntax. Bodies containing literal `</edit>` will no longer cause the live diff to bail out partway through.",
+      "_inline_results": [
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in forge/ui/tool_rendering.py",
+          "modified_files": [
+            "forge/ui/tool_rendering.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "message": "Replaced in tests/test_inline_edit.py",
+          "modified_files": [
+            "tests/test_inline_edit.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_9qrlhvc9\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 36 items\n\ntests/test_inline_edit.py ....................................           [100%]\n\n============================== 36 passed in 0.35s ==============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.13.9, pytest-9.0.2, pluggy-1.5.0\nPySide6 6.9.3 -- Qt runtime 6.9.3 -- Qt compiled 6.9.3\nrootdir: /tmp/forge_vfs_9qrlhvc9\nconfigfile: pyproject.toml\nplugins: mock-3.15.1, qt-4.5.0, anyio-4.10.0\ncollected 36 items\n\ntests/test_inline_edit.py ....................................           [100%]\n\n============================== 36 passed in 0.35s ==============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        },
+        {
+          "commit": "1eaee4adbadd",
+          "message": "Committed: 2 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

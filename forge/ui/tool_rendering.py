@@ -982,21 +982,13 @@ def render_run_tests_html(
 # Inline <edit> block rendering for flow-text edits
 # =============================================================================
 
-# Regex patterns for parsing edit blocks in streaming content
-EDIT_BLOCK_PATTERN = re.compile(
-    r'<edit\s+file="([^"]+)">\s*'
-    r"<search>\n?(.*?)\n?</search>\s*"
-    r"<replace>\n?(.*?)\n?</replace>\s*"
-    r"</edit>",
-    re.DOTALL,
-)
-
-# Partial patterns for streaming detection
-EDIT_START_PATTERN = re.compile(r'<edit\s+file="([^"]*)"?', re.DOTALL)
-SEARCH_START_PATTERN = re.compile(r"<search>\n?", re.DOTALL)
-SEARCH_END_PATTERN = re.compile(r"\n?</search>", re.DOTALL)
-REPLACE_START_PATTERN = re.compile(r"<replace>\n?", re.DOTALL)
-REPLACE_END_PATTERN = re.compile(r"\n?</replace>", re.DOTALL)
+# Partial patterns for streaming detection.
+#
+# The opening pattern captures (suffix, filepath) where suffix is either ""
+# (plain <edit>) or "_NONCE" (nonced <edit_NONCE>). Once we know the suffix,
+# we build the inner tag literals as plain strings rather than using regex
+# backreferences across separately-compiled patterns.
+EDIT_START_PATTERN = re.compile(r'<edit(_\w+|)\s+file="([^"]*)"?', re.DOTALL)
 
 
 def _escape_raw_html(text: str) -> str:
@@ -1371,7 +1363,7 @@ def _find_partial_command_start(
     """
     from forge.tools.invocation import _inside_code_region
 
-    # For now, just check for <edit which is the most common streaming case
+    # Check for <edit ...> or <edit_NONCE ...> — most common streaming case.
     edit_start = EDIT_START_PATTERN.search(content)
     if edit_start:
         # Check if this falls inside a code block (using absolute position)
@@ -1414,23 +1406,34 @@ def _render_partial_edit(content: str) -> str | None:
     """
     Try to render a partial/incomplete <edit> block during streaming.
 
+    Handles both plain <edit> / <search> / <replace> tags and the nonced
+    form <edit_NONCE> / <search_NONCE> / <replace_NONCE> — the suffix is
+    captured from the opening tag and reused for the inner tags.
+
     Returns HTML if a partial edit is detected, None otherwise.
     """
-    # Check if we have the start of an edit block
+    # Check if we have the start of an edit block (plain or nonced)
     edit_match = EDIT_START_PATTERN.search(content)
     if not edit_match:
         return None
 
-    # Extract filepath (may be incomplete)
-    filepath = edit_match.group(1) if edit_match.group(1) else ""
+    # Group 1 is the suffix ("" or "_NONCE"); group 2 is the filepath.
+    suffix = edit_match.group(1) or ""
+    filepath = edit_match.group(2) if edit_match.group(2) else ""
 
-    # Find the content after <edit file="...">
-    after_edit = content[edit_match.end() :]
+    # Build the inner tag literals based on the suffix.
+    search_open = f"<search{suffix}>"
+    search_close = f"</search{suffix}>"
+    replace_open = f"<replace{suffix}>"
+    replace_close = f"</replace{suffix}>"
 
-    # Look for <search> tag
-    search_start = SEARCH_START_PATTERN.search(after_edit)
-    if not search_start:
-        # Haven't seen <search> yet
+    # The opening-tag pattern only consumed up through the closing quote of
+    # file="..."; the opening tag may still have a trailing ">" we need to
+    # skip past before looking at the body.
+    rest = content[edit_match.end() :]
+    gt_idx = rest.find(">")
+    if gt_idx == -1:
+        # Opening tag isn't even closed yet
         return render_diff_html(
             filepath=filepath,
             search="",
@@ -1438,14 +1441,28 @@ def _render_partial_edit(content: str) -> str | None:
             is_streaming=True,
             streaming_phase="search",
         )
+    after_edit = rest[gt_idx + 1 :]
 
-    after_search_tag = after_edit[search_start.end() :]
+    # Look for the search opening tag.
+    search_start_idx = after_edit.find(search_open)
+    if search_start_idx == -1:
+        return render_diff_html(
+            filepath=filepath,
+            search="",
+            replace="",
+            is_streaming=True,
+            streaming_phase="search",
+        )
+    after_search_tag = after_edit[search_start_idx + len(search_open) :]
+    # Strip a single leading newline (matches "\n?" in the original regex).
+    if after_search_tag.startswith("\n"):
+        after_search_tag = after_search_tag[1:]
 
-    # Look for </search>
-    search_end = SEARCH_END_PATTERN.search(after_search_tag)
-    if not search_end:
+    # Look for the search closing tag.
+    search_end_idx = after_search_tag.find(search_close)
+    if search_end_idx == -1:
         # Still streaming search content
-        search_content = after_search_tag
+        search_content = after_search_tag.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
             search=search_content,
@@ -1454,14 +1471,12 @@ def _render_partial_edit(content: str) -> str | None:
             streaming_phase="search",
         )
 
-    # We have complete search, extract it
-    search_content = after_search_tag[: search_end.start()]
-    after_search = after_search_tag[search_end.end() :]
+    search_content = after_search_tag[:search_end_idx].rstrip("\n")
+    after_search = after_search_tag[search_end_idx + len(search_close) :]
 
-    # Look for <replace>
-    replace_start = REPLACE_START_PATTERN.search(after_search)
-    if not replace_start:
-        # Between </search> and <replace>
+    # Look for the replace opening tag.
+    replace_start_idx = after_search.find(replace_open)
+    if replace_start_idx == -1:
         return render_diff_html(
             filepath=filepath,
             search=search_content,
@@ -1469,14 +1484,15 @@ def _render_partial_edit(content: str) -> str | None:
             is_streaming=True,
             streaming_phase="replace",
         )
+    after_replace_tag = after_search[replace_start_idx + len(replace_open) :]
+    if after_replace_tag.startswith("\n"):
+        after_replace_tag = after_replace_tag[1:]
 
-    after_replace_tag = after_search[replace_start.end() :]
-
-    # Look for </replace>
-    replace_end = REPLACE_END_PATTERN.search(after_replace_tag)
-    if not replace_end:
+    # Look for the replace closing tag.
+    replace_end_idx = after_replace_tag.find(replace_close)
+    if replace_end_idx == -1:
         # Still streaming replace content
-        replace_content = after_replace_tag
+        replace_content = after_replace_tag.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
             search=search_content,
@@ -1485,8 +1501,8 @@ def _render_partial_edit(content: str) -> str | None:
             streaming_phase="replace",
         )
 
-    # Complete replace but no </edit> yet - still render as streaming
-    replace_content = after_replace_tag[: replace_end.start()]
+    # Complete replace but no </edit{suffix}> yet — still render as streaming.
+    replace_content = after_replace_tag[:replace_end_idx].rstrip("\n")
     return render_diff_html(
         filepath=filepath,
         search=search_content,

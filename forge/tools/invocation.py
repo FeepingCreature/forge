@@ -182,12 +182,13 @@ def _is_inline_tool(module: Any) -> bool:
     return hasattr(module, "parse_inline_match")
 
 
-# Pattern to find code regions that should be skipped during inline command parsing.
-# Order matters: fenced blocks (``` or ~~~) must be checked before inline backticks.
-_CODE_REGION_PATTERN = re.compile(
-    r"(?:```(?:``)*|~~~).*?(?:```(?:``)*|~~~)"  # fenced code blocks (``` or ~~~)
-    r"|"
-    r"`+(?!`)(?:(?!`).)+`+",  # inline code spans (`...` or ``...``)
+# Pattern for an inline backtick code span. CommonMark rule: a run of N
+# backticks opens a span; it closes at the next run of EXACTLY N backticks.
+# Backreference \1 enforces matching run length, and lookarounds prevent
+# matching a sub-run inside a longer one (e.g. ``foo`` should be one span,
+# not two single-tick spans around `foo`).
+_INLINE_CODE_PATTERN = re.compile(
+    r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)",
     re.DOTALL,
 )
 
@@ -198,10 +199,122 @@ def _build_code_regions(content: str) -> list[tuple[int, int]]:
 
     Returns sorted list of (start, end) tuples for regions where inline
     commands should NOT be matched.
+
+    Fenced blocks follow CommonMark rules:
+      - An open fence is a line of 0-3 leading spaces, then 3+ of `\\`` or `~`,
+        optionally followed by an info string.
+      - The matching close is a line of 0-3 leading spaces, then >= the same
+        number of the SAME character, then only whitespace to end of line.
+      - Tildes never close backtick fences and vice versa.
+      - Inner fences with FEWER markers don't close the outer fence.
+      - An unterminated open fence protects the rest of the document.
+
+    Inline backtick spans follow CommonMark: a run of N backticks closes at
+    the next run of exactly N backticks.
+
+    Inline spans are only collected OUTSIDE fenced blocks (so a backtick
+    inside a fenced code example doesn't get treated as inline code).
     """
-    regions: list[tuple[int, int]] = []
-    for m in _CODE_REGION_PATTERN.finditer(content):
-        regions.append((m.start(), m.end()))
+    fenced_spans: list[tuple[int, int]] = []
+
+    # Pass 1: line-oriented fence scanner.
+    # Walk through lines tracking byte offsets so we can record (start, end).
+    lines: list[tuple[int, int, str]] = []  # (line_start, line_end_excl_nl, line_text)
+    pos = 0
+    while pos <= len(content):
+        nl = content.find("\n", pos)
+        if nl == -1:
+            lines.append((pos, len(content), content[pos:]))
+            break
+        lines.append((pos, nl, content[pos:nl]))
+        pos = nl + 1
+
+    def _fence_info(line: str) -> tuple[str, int] | None:
+        """If line is a valid fence (open OR close), return (char, count).
+
+        Recognizes 0-3 leading spaces, then >=3 of ` or ~. Anything after the
+        run is allowed (info string for opens; only whitespace is valid for
+        closes — caller distinguishes).
+        """
+        i = 0
+        # 0-3 leading spaces
+        while i < len(line) and i < 3 and line[i] == " ":
+            i += 1
+        if i < len(line) and line[i] == " ":
+            return None  # 4+ leading spaces => indented code, not a fence
+        if i >= len(line):
+            return None
+        ch = line[i]
+        if ch not in ("`", "~"):
+            return None
+        run_start = i
+        while i < len(line) and line[i] == ch:
+            i += 1
+        run_len = i - run_start
+        if run_len < 3:
+            return None
+        return (ch, run_len)
+
+    def _is_valid_close(line: str, open_char: str, open_len: int) -> bool:
+        """A close fence has same char, >= markers, and only whitespace after."""
+        info = _fence_info(line)
+        if info is None:
+            return False
+        ch, n = info
+        if ch != open_char or n < open_len:
+            return False
+        # After the fence run, only whitespace allowed (no info string on close).
+        i = 0
+        while i < len(line) and i < 3 and line[i] == " ":
+            i += 1
+        i += n
+        rest = line[i:]
+        return rest.strip() == ""
+
+    # Walk lines, finding open fences and matching closes.
+    line_idx = 0
+    while line_idx < len(lines):
+        line_start, line_end, line_text = lines[line_idx]
+        info = _fence_info(line_text)
+        if info is None:
+            line_idx += 1
+            continue
+        open_char, open_len = info
+
+        # Search subsequent lines for the matching close.
+        close_idx = None
+        for j in range(line_idx + 1, len(lines)):
+            if _is_valid_close(lines[j][2], open_char, open_len):
+                close_idx = j
+                break
+
+        if close_idx is None:
+            # Unterminated: protect from the open fence to end of content.
+            fenced_spans.append((line_start, len(content)))
+            break
+
+        # Region spans from start of open line to end of close line (incl. \n).
+        close_line_start, close_line_end, _ = lines[close_idx]
+        # Include the trailing newline of the close line if present
+        region_end = close_line_end + 1 if close_line_end < len(content) else len(content)
+        fenced_spans.append((line_start, region_end))
+        line_idx = close_idx + 1
+
+    # Pass 2: inline backtick spans, only outside fenced blocks.
+    def _in_fenced(p: int) -> bool:
+        for s, e in fenced_spans:
+            if s <= p < e:
+                return True
+        return False
+
+    inline_spans: list[tuple[int, int]] = []
+    for m in _INLINE_CODE_PATTERN.finditer(content):
+        if _in_fenced(m.start()):
+            continue
+        inline_spans.append((m.start(), m.end()))
+
+    regions = fenced_spans + inline_spans
+    regions.sort()
     return regions
 
 

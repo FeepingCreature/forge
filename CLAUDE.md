@@ -1,16 +1,17 @@
 # Editing files that mention edit-block syntax
 
-When a search or replace body contains literal `&lt;/edit&gt;`, `&lt;/search&gt;`, or
-`&lt;/replace&gt;`, use the **nonced** form: pick any short token and append `_TOKEN`
-to the `edit`, `search`, and `replace` tag names. The closing tags must use the
+When an `<old>`, `<new>`, or `<write>` body contains literal `</replace>`,
+`</old>`, `</new>`, or `</write>`, use the **nonced** form: pick any short
+token and append `_TOKEN` to every tag name in the block (`replace_TOKEN`,
+`old_TOKEN`, `new_TOKEN`, or `write_TOKEN`). The closing tags must use the
 same token. The system prompt has the full spec and an example.
 
 Two gotchas worth repeating here because they bit us:
 
 1. **Pick a nonce that doesn't appear in your body.** The parser closes at the
-   first matching `</edit_TOKEN>` it sees — if you wrap with `_q5` and your
-   body quotes an example also using `_q5`, the outer block truncates at the
-   inner close and the trailing portion is lost.
+   first matching `</replace_TOKEN>` (or `</write_TOKEN>`) it sees — if you
+   wrap with `_q5` and your body quotes an example also using `_q5`, the outer
+   block truncates at the inner close and the trailing portion is lost.
 2. **If a block fails to parse, you'll get an explicit error** rather than a
    silent drop. Trust the error and fix the specific issue rather than
    retrying blindly.

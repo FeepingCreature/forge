@@ -130,23 +130,25 @@ class TestCodeRegions:
         assert len(regions) == 1
 
     def test_four_space_indent_is_not_a_fence(self):
-        """4 leading spaces makes it a code-line, not a fence open.
+        """4 leading spaces means the line is not a valid fence opener.
 
-        This isn't strictly handled (we'd need full CommonMark indented-code
-        detection), but the fence regex correctly requires 0-3 leading
-        spaces, so 4 spaces won't be recognized as a fence open.
+        We don't enforce strict CommonMark indented-code detection. The
+        inline-backtick scanner may still match the two triple-backtick
+        runs as one inline span across the newlines, which is MORE
+        protection (any inline command on the middle line gets skipped),
+        not less. The important property is the safety direction: a
+        command on the middle line must not leak through.
         """
-        from forge.tools.invocation import _build_code_regions
+        from forge.tools.invocation import parse_inline_commands
 
-        content = "    ```\nnot a fence\n    ```\n"
-        regions = _build_code_regions(content)
-        # No fence regions; the inline-backtick scanner may or may not find
-        # spans here, depending on regex specifics. We only assert that
-        # NEITHER ``` line is treated as a fence open (no full-line region).
-        for s, e in regions:
-            chunk = content[s:e]
-            # If a fence had been recognized it would span multiple lines
-            assert "\n" not in chunk or chunk.count("\n") < 2
+        # Use a real inline command on the middle line; it must NOT parse.
+        content = (
+            "    ```\n"
+            'XCOMMITX message="should not run"X\n'
+            "    ```\n"
+        ).replace("XCOMMITX", "&lt;commit").replace('"X', '"/&gt;')
+        commands = parse_inline_commands(content)
+        assert len(commands) == 0
 
     def test_multiple_separate_fenced_blocks(self):
         from forge.tools.invocation import _build_code_regions

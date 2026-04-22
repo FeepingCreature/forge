@@ -685,9 +685,23 @@ class LiveSession(QObject):
         content = result.get("content", "")
 
         if failed_index is not None:
-            # Handle failure - truncate and continue with error
+            # Handle failure - truncate and continue with error.
+            # We keep a small "tail" of content after the failed command's
+            # end_pos so the AI can see a bit of what came next (it was
+            # confusing itself thinking it never wrote the trailing text).
+            # We also append an explicit marker so the AI knows the message
+            # was cut off here.
             failed_cmd = commands[failed_index]
-            truncated_content = content[: failed_cmd.end_pos]
+            TAIL_CHARS = 400
+            cut_at = failed_cmd.end_pos
+            tail = content[cut_at : cut_at + TAIL_CHARS]
+            had_more = len(content) > cut_at + TAIL_CHARS
+            truncation_marker = (
+                f"\n\n[... message truncated here because the inline command above failed."
+                f" {len(content) - cut_at} chars followed; the next {len(tail)} are shown above."
+                f"{' More content was discarded.' if had_more else ''}]"
+            )
+            truncated_content = content[:cut_at] + tail + truncation_marker
 
             self.update_last_assistant_message({"content": truncated_content})
             # Remove tool_calls if present

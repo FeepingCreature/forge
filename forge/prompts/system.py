@@ -294,8 +294,9 @@ def get_system_prompt(tool_schemas: list[dict] | None = None) -> str:
 
 
 def _generate_inline_tool_docs(tool_schemas: list[dict]) -> str:
-    """Generate documentation for inline tools (excluding edit which is documented above)."""
-    # Collect inline tools that aren't 'edit' (already documented in EDIT_FORMAT_XML)
+    """Generate documentation for inline tools (excluding edit which is documented above as <replace>/<write>)."""
+    # Collect inline tools that aren't 'edit' (the edit tool's <replace>/<write>
+    # syntax is already documented in EDIT_FORMAT_XML).
     inline_tools = []
     for schema in tool_schemas:
         if schema.get("invocation") == "inline" and schema.get("inline_syntax"):
@@ -319,7 +320,7 @@ def _generate_inline_tool_docs(tool_schemas: list[dict]) -> str:
         "",
         "## Other Inline Commands",
         "",
-        "In addition to `<edit>` blocks, you can use these inline commands:",
+        "In addition to `<replace>` and `<write>` blocks, you can use these inline commands:",
         "",
     ]
 

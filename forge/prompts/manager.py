@@ -1103,13 +1103,13 @@ class PromptManager:
         """
         return """## REMINDER: Be Optimistic, Do Everything In One Response
 
-Inline commands (`<edit>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.
+Inline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.
 If any command fails, execution stops and you get control back with the error.
 
 **Don't wait for results. Assume success and keep going:**
 
 ```
-[make edits]
+[make edits with <replace> or <write>]
 <run_tests/>
 <commit message="Add feature X"/>
 

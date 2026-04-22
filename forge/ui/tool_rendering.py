@@ -979,16 +979,17 @@ def render_run_tests_html(
 
 
 # =============================================================================
-# Inline <edit> block rendering for flow-text edits
+# Inline <replace>/<write> block rendering for flow-text edits
 # =============================================================================
 
 # Partial patterns for streaming detection.
 #
-# The opening pattern captures (suffix, filepath) where suffix is either ""
-# (plain <edit>) or "_NONCE" (nonced <edit_NONCE>). Once we know the suffix,
-# we build the inner tag literals as plain strings rather than using regex
-# backreferences across separately-compiled patterns.
-EDIT_START_PATTERN = re.compile(r'<edit(_\w+|)\s+file="([^"]*)"?', re.DOTALL)
+# Each pattern captures (suffix, filepath) where suffix is either ""
+# (plain <replace>/<write>) or "_NONCE" (nonced form). Once we know the
+# suffix, we build the inner tag literals as plain strings rather than
+# using regex backreferences across separately-compiled patterns.
+REPLACE_START_PATTERN = re.compile(r'<replace(_\w+|)\s+file="([^"]*)"?', re.DOTALL)
+WRITE_START_PATTERN = re.compile(r'<write(_\w+|)\s+file="([^"]*)"?', re.DOTALL)
 
 
 def _escape_raw_html(text: str) -> str:
@@ -1146,6 +1147,14 @@ def _render_inline_command_html(
     widget_id = f"inline-tool-{command_index}" if command_index is not None else None
 
     if tool_name == "edit":
+        # The edit tool handles both <replace> (search/replace args) and
+        # <write> (content arg). Distinguish by which keys are present.
+        if "content" in args and "search" not in args:
+            return _render_write_card(
+                filepath=str(args.get("filepath", "")),
+                body=str(args.get("content", "")),
+                is_streaming=is_streaming,
+            )
         return render_diff_html(
             filepath=str(args.get("filepath", "")),
             search=str(args.get("search", "")),
@@ -1363,15 +1372,22 @@ def _find_partial_command_start(
     """
     from forge.tools.invocation import _inside_code_region
 
-    # Check for <edit ...> or <edit_NONCE ...> — most common streaming case.
-    edit_start = EDIT_START_PATTERN.search(content)
-    if edit_start:
-        # Check if this falls inside a code block (using absolute position)
+    # Check for <replace ...> or <write ...> (plus their nonced forms) —
+    # the two streaming-preview-eligible inline commands. Pick the
+    # earliest one that isn't inside a code block.
+    candidates = []
+    for pattern in (REPLACE_START_PATTERN, WRITE_START_PATTERN):
+        m = pattern.search(content)
+        if m:
+            candidates.append(m)
+
+    candidates.sort(key=lambda m: m.start())
+    for m in candidates:
         if code_regions is not None:
-            abs_pos = offset + edit_start.start()
+            abs_pos = offset + m.start()
             if _inside_code_region(abs_pos, code_regions) is not None:
-                return None
-        return edit_start.start()
+                continue
+        return m.start()
     return None
 
 
@@ -1384,53 +1400,71 @@ def _render_partial_inline_command(
     """
     Try to render a partial/incomplete inline command during streaming.
 
-    Currently only handles partial <edit> blocks (most common case).
+    Handles partial <replace> and <write> blocks (the only inline commands
+    with bodies long enough to benefit from streaming previews).
     Skips commands that fall inside code blocks.
     Returns HTML if a partial command is detected, None otherwise.
     """
     from forge.tools.invocation import _inside_code_region
 
-    # Check if the partial edit start falls inside a code block
-    if code_regions is not None:
-        edit_match = EDIT_START_PATTERN.search(content)
-        if edit_match:
-            abs_pos = offset + edit_match.start()
-            if _inside_code_region(abs_pos, code_regions) is not None:
-                return None
+    # Find the earliest partial start (replace or write) that isn't in a code block.
+    replace_match = REPLACE_START_PATTERN.search(content)
+    write_match = WRITE_START_PATTERN.search(content)
 
-    # Delegate to existing partial edit renderer
-    return _render_partial_edit(content)
+    def _in_code(m: re.Match[str] | None) -> bool:
+        if m is None or code_regions is None:
+            return False
+        abs_pos = offset + m.start()
+        return _inside_code_region(abs_pos, code_regions) is not None
+
+    # Filter out matches inside code regions, pick earliest of the rest.
+    candidates: list[tuple[int, str]] = []
+    if replace_match and not _in_code(replace_match):
+        candidates.append((replace_match.start(), "replace"))
+    if write_match and not _in_code(write_match):
+        candidates.append((write_match.start(), "write"))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda c: c[0])
+    _, kind = candidates[0]
+
+    if kind == "replace":
+        return _render_partial_replace(content)
+    else:
+        return _render_partial_write(content)
 
 
-def _render_partial_edit(content: str) -> str | None:
+def _render_partial_replace(content: str) -> str | None:
     """
-    Try to render a partial/incomplete <edit> block during streaming.
+    Try to render a partial/incomplete <replace> block during streaming.
 
-    Handles both plain <edit> / <search> / <replace> tags and the nonced
-    form <edit_NONCE> / <search_NONCE> / <replace_NONCE> — the suffix is
+    Handles both plain <replace> / <old> / <new> tags and the nonced
+    form <replace_NONCE> / <old_NONCE> / <new_NONCE> — the suffix is
     captured from the opening tag and reused for the inner tags.
 
-    Returns HTML if a partial edit is detected, None otherwise.
+    Returns HTML if a partial replace is detected, None otherwise.
     """
-    # Check if we have the start of an edit block (plain or nonced)
-    edit_match = EDIT_START_PATTERN.search(content)
-    if not edit_match:
+    # Check if we have the start of a replace block (plain or nonced)
+    replace_match = REPLACE_START_PATTERN.search(content)
+    if not replace_match:
         return None
 
     # Group 1 is the suffix ("" or "_NONCE"); group 2 is the filepath.
-    suffix = edit_match.group(1) or ""
-    filepath = edit_match.group(2) if edit_match.group(2) else ""
+    suffix = replace_match.group(1) or ""
+    filepath = replace_match.group(2) if replace_match.group(2) else ""
 
     # Build the inner tag literals based on the suffix.
-    search_open = f"<search{suffix}>"
-    search_close = f"</search{suffix}>"
-    replace_open = f"<replace{suffix}>"
-    replace_close = f"</replace{suffix}>"
+    old_open = f"<old{suffix}>"
+    old_close = f"</old{suffix}>"
+    new_open = f"<new{suffix}>"
+    new_close = f"</new{suffix}>"
 
     # The opening-tag pattern only consumed up through the closing quote of
     # file="..."; the opening tag may still have a trailing ">" we need to
     # skip past before looking at the body.
-    rest = content[edit_match.end() :]
+    rest = content[replace_match.end() :]
     gt_idx = rest.find(">")
     if gt_idx == -1:
         # Opening tag isn't even closed yet
@@ -1441,11 +1475,11 @@ def _render_partial_edit(content: str) -> str | None:
             is_streaming=True,
             streaming_phase="search",
         )
-    after_edit = rest[gt_idx + 1 :]
+    after_replace = rest[gt_idx + 1 :]
 
-    # Look for the search opening tag.
-    search_start_idx = after_edit.find(search_open)
-    if search_start_idx == -1:
+    # Look for the <old> opening tag.
+    old_start_idx = after_replace.find(old_open)
+    if old_start_idx == -1:
         return render_diff_html(
             filepath=filepath,
             search="",
@@ -1453,60 +1487,150 @@ def _render_partial_edit(content: str) -> str | None:
             is_streaming=True,
             streaming_phase="search",
         )
-    after_search_tag = after_edit[search_start_idx + len(search_open) :]
-    # Strip a single leading newline (matches "\n?" in the original regex).
-    if after_search_tag.startswith("\n"):
-        after_search_tag = after_search_tag[1:]
+    after_old_tag = after_replace[old_start_idx + len(old_open) :]
+    # Strip a single leading newline (matches "\n?" in the parser regex).
+    if after_old_tag.startswith("\n"):
+        after_old_tag = after_old_tag[1:]
 
-    # Look for the search closing tag.
-    search_end_idx = after_search_tag.find(search_close)
-    if search_end_idx == -1:
-        # Still streaming search content
-        search_content = after_search_tag.rstrip("\n")
+    # Look for the </old> closing tag.
+    old_end_idx = after_old_tag.find(old_close)
+    if old_end_idx == -1:
+        # Still streaming old content
+        old_content = after_old_tag.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
-            search=search_content,
+            search=old_content,
             replace="",
             is_streaming=True,
             streaming_phase="search",
         )
 
-    search_content = after_search_tag[:search_end_idx].rstrip("\n")
-    after_search = after_search_tag[search_end_idx + len(search_close) :]
+    old_content = after_old_tag[:old_end_idx].rstrip("\n")
+    after_old = after_old_tag[old_end_idx + len(old_close) :]
 
-    # Look for the replace opening tag.
-    replace_start_idx = after_search.find(replace_open)
-    if replace_start_idx == -1:
+    # Look for the <new> opening tag.
+    new_start_idx = after_old.find(new_open)
+    if new_start_idx == -1:
         return render_diff_html(
             filepath=filepath,
-            search=search_content,
+            search=old_content,
             replace="",
             is_streaming=True,
             streaming_phase="replace",
         )
-    after_replace_tag = after_search[replace_start_idx + len(replace_open) :]
-    if after_replace_tag.startswith("\n"):
-        after_replace_tag = after_replace_tag[1:]
+    after_new_tag = after_old[new_start_idx + len(new_open) :]
+    if after_new_tag.startswith("\n"):
+        after_new_tag = after_new_tag[1:]
 
-    # Look for the replace closing tag.
-    replace_end_idx = after_replace_tag.find(replace_close)
-    if replace_end_idx == -1:
-        # Still streaming replace content
-        replace_content = after_replace_tag.rstrip("\n")
+    # Look for the </new> closing tag.
+    new_end_idx = after_new_tag.find(new_close)
+    if new_end_idx == -1:
+        # Still streaming new content
+        new_content = after_new_tag.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
-            search=search_content,
-            replace=replace_content,
+            search=old_content,
+            replace=new_content,
             is_streaming=True,
             streaming_phase="replace",
         )
 
-    # Complete replace but no </edit{suffix}> yet — still render as streaming.
-    replace_content = after_replace_tag[:replace_end_idx].rstrip("\n")
+    # Complete new but no </replace{suffix}> yet — still render as streaming.
+    new_content = after_new_tag[:new_end_idx].rstrip("\n")
     return render_diff_html(
         filepath=filepath,
-        search=search_content,
-        replace=replace_content,
+        search=old_content,
+        replace=new_content,
         is_streaming=True,
         streaming_phase="replace",
+    )
+
+
+def _render_partial_write(content: str) -> str | None:
+    """
+    Try to render a partial/incomplete <write> block during streaming.
+
+    Whole-file writes don't have a meaningful diff (the whole file is being
+    replaced), so we render them as a simple "creating/writing" card showing
+    the filepath and a preview of the content as it streams in.
+
+    Returns HTML if a partial write is detected, None otherwise.
+    """
+    write_match = WRITE_START_PATTERN.search(content)
+    if not write_match:
+        return None
+
+    suffix = write_match.group(1) or ""
+    filepath = write_match.group(2) if write_match.group(2) else ""
+    close_tag = f"</write{suffix}>"
+
+    # Skip past the opening tag's closing ">".
+    rest = content[write_match.end() :]
+    gt_idx = rest.find(">")
+    if gt_idx == -1:
+        # Opening tag isn't even closed yet — show the empty card.
+        return _render_write_card(filepath, body="", is_streaming=True)
+    body_and_after = rest[gt_idx + 1 :]
+    # Strip a single leading newline (matches "\n?" in the parser regex).
+    if body_and_after.startswith("\n"):
+        body_and_after = body_and_after[1:]
+
+    # Look for the closing </write{suffix}> tag.
+    close_idx = body_and_after.find(close_tag)
+    if close_idx == -1:
+        # Still streaming the body
+        body = body_and_after.rstrip("\n")
+        return _render_write_card(filepath, body=body, is_streaming=True)
+
+    # Body complete but block render still considered streaming until executed.
+    body = body_and_after[:close_idx].rstrip("\n")
+    return _render_write_card(filepath, body=body, is_streaming=True)
+
+
+def _render_write_card(filepath: str, body: str, is_streaming: bool) -> str:
+    """Render a <write> block as a simple file-creation card with body preview."""
+    escaped_filepath = html.escape(filepath) if filepath else "..."
+    streaming_class = " streaming" if is_streaming else ""
+    cursor = '<span class="diff-cursor">▋</span>' if is_streaming else ""
+
+    # Show the streaming body inside a code-style block so newlines render.
+    body_html = ""
+    if body:
+        # Cap the displayed body to keep the card from growing unboundedly
+        # during long file writes; the file content itself isn't truncated,
+        # just this preview.
+        display_body = body
+        truncated_note = ""
+        if len(body) > 4000:
+            display_body = body[-4000:]
+            truncated_note = (
+                f'<div class="diff-streaming-indicator">'
+                f"… showing last 4000 of {len(body)} chars …"
+                f"</div>"
+            )
+        escaped_body = html.escape(display_body)
+        body_html = (
+            f"{truncated_note}"
+            f'<pre class="line-excerpt" style="max-height:300px;overflow-y:auto;">'
+            f"{escaped_body}{cursor}"
+            f"</pre>"
+        )
+    elif is_streaming:
+        body_html = (
+            f'<div class="diff-streaming-indicator">'
+            f"Receiving file content…{cursor}"
+            f"</div>"
+        )
+
+    return (
+        f'<div class="tool-card{streaming_class}">'
+        f'<div class="tool-card-header">'
+        f'<span class="tool-icon">📝</span>'
+        f'<span class="tool-name">write</span>'
+        f'<span class="filepath" style="color:#795e26;">{escaped_filepath}</span>'
+        f"</div>"
+        f'<div class="tool-card-body" style="padding:0;">'
+        f"{body_html}"
+        f"</div>"
+        f"</div>"
     )

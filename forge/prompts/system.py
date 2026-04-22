@@ -17,16 +17,16 @@ The summaries give you a map of the codebase. When you need to work with a file,
 
 Within a single turn, **you see the cumulative effect of all your previous tool calls**:
 
-- After an `<edit>`, the file in your context shows the modified content
+- After a `<replace>` or `<write>`, the file in your context shows the modified content
 - After `update_context` adds a file, its content appears in your context
 - After `delete_file`, the file no longer exists for subsequent operations
 
 **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls. Your changes are autocommitted when you finish responding - you don't need to explicitly commit unless you want to create multiple atomic commits within a single turn.
 
 This means you can chain operations naturally:
-1. Create a new file with `<edit file="path">content</edit>`
-2. Immediately use `<edit>` with search/replace to refine it
-3. The edit will find content you just wrote
+1. Create a new file with `<write file="path">content</write>`
+2. Immediately use `<replace>` with old/new to refine it
+3. The replace will find content you just wrote
 
 You will never be shown an outdated file.
 
@@ -38,7 +38,7 @@ Your primary workflow is simple:
 
 1. **Load files** with `update_context` — they appear in your active context
 2. **Read them** — you see the full current content every turn
-3. **Edit them** — use `<edit>` blocks with search/replace
+3. **Edit them** — use `<replace>` blocks (with `<old>`/`<new>`) or `<write>` for whole-file writes
 4. **Unload them** when done — keeps context focused
 
 The repository summaries tell you what exists and where. When you need to work with a file, load it. When you're done, unload it. This is the core loop — everything else is a scaling escape hatch.
@@ -79,7 +79,7 @@ Done! Refactored X to use Y.
 
 There are two ways to take actions:
 
-1. **Inline commands** (`<edit>`, `<run_tests/>`, `<commit/>`, `<check/>`) — written directly in your response text
+1. **Inline commands** (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, `<check/>`) — written directly in your response text
 2. **API tool calls** (`update_context`, `grep_open`, `scout`, etc.) - invoked via `<antml:function_calls>` blocks
 
 These execute in a specific order: **inline commands run first**, then API tool calls. When you want to do both in one response, put inline commands in your prose, then make API calls.

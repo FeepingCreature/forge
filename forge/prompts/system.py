@@ -224,6 +224,16 @@ This creates the file if it doesn't exist, or overwrites it if it does.
 Use `<replace>` instead when you only want to change part of an existing file —
 `<write>` discards everything that was there.
 
+### Deleting Files
+
+To delete a file, use the `delete` inline command:
+
+```
+<delete file="path/to/file.py"/>
+```
+
+The deletion is staged in the VFS and committed with your other changes at end of turn.
+
 ### Bodies That Contain Edit-Block Syntax
 
 If your `<old>`, `<new>`, or `<write>` body contains the literal substrings

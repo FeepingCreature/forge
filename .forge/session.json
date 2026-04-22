@@ -1,8 +1,11 @@
 {
   "active_files": [
+    "forge/tools/invocation.py",
     "CLAUDE.md",
+    "forge/prompts/manager.py",
     "forge/tools/builtin/delete_file.py",
-    "forge/prompts/system.py"
+    "forge/prompts/system.py",
+    "forge/tools/manager.py"
   ],
   "request_log_entries": [
     {
@@ -31,6 +34,42 @@
       "streaming": true,
       "actual_cost": 0.0670445,
       "generation_id": "gen-1776891843-JguAvY1Ylcjl0oJLk02T"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1776891904435.json",
+      "response_file": "/tmp/forge_debug/response_1776891904435.json",
+      "timestamp": 1776891904.4354863,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002863,
+      "generation_id": "gen-1776891904-gHKqXdMyo7Qtv7sCtDqk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776891923186.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776891923186.json",
+      "timestamp": 1776891923.1881251,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.20951625,
+      "generation_id": "gen-1776891923-lo2bf5I8y9Amwofhg4V2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776891926193.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776891926193.json",
+      "timestamp": 1776891926.1944342,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.10738725,
+      "generation_id": "gen-1776891926-fnfN1QwXLEnTI7wcflwZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776892005357.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776892005357.json",
+      "timestamp": 1776892005.3601556,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.419835,
+      "generation_id": "gen-1776892005-xEZ58espGg9YDvef3x1U"
     }
   ],
   "messages": [
@@ -79,6 +118,61 @@
     {
       "role": "assistant",
       "content": "Fixing by removing the contradictory paragraph from `EDIT_FORMAT_XML`. The auto-generated inline tool docs already cover `delete_file`.\n\n<replace file=\"forge/prompts/system.py\">\n<old>\n### Deleting Files\n\nTo delete a file, use the `delete_file` tool (API call), not an inline command.\n\n### Bodies That Contain Edit-Block Syntax\n</old>\n<new>\n### Bodies That Contain Edit-Block Syntax\n</new>\n</replace>\n\nDone. Removed the stale \"Deleting Files\" paragraph from `EDIT_FORMAT_XML`. Now the prompt is consistent: the auto-generated inline-tool docs (built from `delete_file.py`'s schema) will be the single source of truth for how to invoke deletion \u2014 `<delete file=\"path/to/file.py\"/>`.",
+      "_inline_results": [
+        {
+          "filepath": "forge/prompts/system.py",
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 87 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm is it possible the delete_file builtin isn't making it into the prompt? another instance reports not seeing it"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 7] Good question \u2014 let me trace how `delete_file` would get registered as an inline tool.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"forge/tools/manager.py\", \"forge/tools/invocation.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01REeRCQgpsQmHGKRN6bB2Gb",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01REeRCQgpsQmHGKRN6bB2Gb",
+      "content": "{\"action\": \"update_context\", \"add\": [\"forge/tools/manager.py\", \"forge/tools/invocation.py\"], \"message\": \"Added 2 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 8] Yes \u2014 found it. There's a real bug. Two paths build the inline-tool docs and they disagree about which tools to include.\n\n**Path 1 \u2014 what the system prompt says** (`_generate_inline_tool_docs` in `system.py`):\n\n```python\nfor schema in tool_schemas:\n    if schema.get(\"invocation\") == \"inline\" and schema.get(\"inline_syntax\"):\n        ...\n```\n\nIt iterates `tool_schemas` \u2014 the list returned by `ToolManager.discover_tools()`.\n\n**Path 2 \u2014 what `discover_tools()` returns** (`manager.py`):\n\n```python\ndef discover_tools(self, force_refresh: bool = False) -> list[dict[str, Any]]:\n    ...\n    return self._filter_inline_tools(tools)\n\ndef _filter_inline_tools(self, tools):\n    \"\"\"Filter out inline tools - they use XML syntax, not API calls.\"\"\"\n    return [t for t in tools if t.get(\"invocation\", \"api\") != \"inline\"]\n```\n\n`discover_tools()` **strips out every inline tool** before returning. So by the time `_generate_inline_tool_docs` iterates the list looking for `invocation == \"inline\"`, there are zero matches. The \"Other Inline Commands\" section is silently empty, and `delete_file` (along with every other inline tool \u2014 `commit`, `check`, `run_tests`, `think`, `rename_file`, plus the write half of edit) never gets documented to the LLM.\n\nThe other instance is correct: `delete_file` is not in their prompt.\n\nThis is a clean ownership/contract bug \u2014 `discover_tools()` is built for the API tool-call path and pre-filters for that consumer, but the prompt builder needs the unfiltered list.\n\nThere are a couple of ways to fix this. The cleanest one in keeping with the codebase's \"ask the right owner\" principle would be to give `ToolManager` a separate accessor for inline schemas, e.g. `discover_inline_tool_schemas()`, and have `get_system_prompt()` get its list from there (or from both, merged). That keeps each consumer asking for what it actually needs.\n\nA smaller fix: have `discover_tools()` return everything and let the API-call site do its own filtering \u2014 but that risks breaking callers that depend on the current behavior, so I'd want to grep call sites first.\n\nBefore I touch anything, two questions:\n\n1. Want me to go with the **separate accessor** (`discover_inline_tool_schemas()`) approach? I think it's the right fit here.\n2. The caller of `get_system_prompt(tool_schemas=...)` \u2014 which builds the prompt at session start \u2014 needs to pass the inline schemas too. Do you know offhand where that's called, or should I grep for it?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 86 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hang on- I think the answer may just be to document delete inline like we do replace/write."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 10] Good call \u2014 that's a much smaller fix and matches how `<replace>`/`<write>` are handled. Just add a static \"Deleting Files\" subsection to `EDIT_FORMAT_XML` documenting `<delete file=\"...\"/>` directly, alongside the other inline commands. The bug in `discover_tools()` filtering out inline tools from the prompt-builder path is real but separate; want me to leave it for another turn?\n\nFor this turn, adding the delete docs:\n\n<replace file=\"forge/prompts/system.py\">\n<old>\n### Bodies That Contain Edit-Block Syntax\n</old>\n<new>\n### Deleting Files\n\nTo delete a file, use the `delete` inline command:\n\n```\n<delete file=\"path/to/file.py\"/>\n```\n\nThe deletion is staged in the VFS and committed with your other changes at end of turn.\n\n### Bodies That Contain Edit-Block Syntax\n</new>\n</replace>\n\nDone. `<delete file=\"...\"/>` is now documented in the same static block as `<replace>` and `<write>`, so it'll show up in the prompt regardless of the `discover_tools()` inline-filtering bug.\n\nWant me to also tackle that filtering bug (so `commit`, `check`, `run_tests`, `think`, `rename_file` get auto-documented too), or leave it?",
       "_inline_results": [
         {
           "filepath": "forge/prompts/system.py",

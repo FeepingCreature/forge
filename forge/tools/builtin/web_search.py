@@ -154,7 +154,7 @@ def _search_ddg(query: str, max_results: int, _retries: int = 1) -> list[dict[st
 
     if rate_limited:
         if _retries > 0:
-            print(f"web_search: rate-limited by DuckDuckGo, retrying in 10s...")
+            print("web_search: rate-limited by DuckDuckGo, retrying in 10s...")
             time.sleep(10)
             return _search_ddg(query, max_results, _retries=_retries - 1)
         else:

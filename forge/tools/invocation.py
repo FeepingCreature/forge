@@ -302,10 +302,7 @@ def _build_code_regions(content: str) -> list[tuple[int, int]]:
 
     # Pass 2: inline backtick spans, only outside fenced blocks.
     def _in_fenced(p: int) -> bool:
-        for s, e in fenced_spans:
-            if s <= p < e:
-                return True
-        return False
+        return any(s <= p < e for s, e in fenced_spans)
 
     inline_spans: list[tuple[int, int]] = []
     for m in _INLINE_CODE_PATTERN.finditer(content):
@@ -476,9 +473,7 @@ def execute_inline_commands_with_parse_check(
     """
     unparsed = detect_unparsed_inline_blocks(content, commands)
     if unparsed:
-        snippets = "\n".join(
-            f"  - at position {u['position']}: {u['snippet']!r}" for u in unparsed
-        )
+        snippets = "\n".join(f"  - at position {u['position']}: {u['snippet']!r}" for u in unparsed)
         error = (
             f"{len(unparsed)} inline command block(s) failed to parse and were ignored.\n"
             "This usually means a body contained </replace>, </old>, </new>, or </write>, "

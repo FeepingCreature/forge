@@ -660,9 +660,7 @@ class LiveSession(QObject):
         # and surface them as errors instead of silently dropping them.
         content = getattr(self, "_pending_stream_result", {}).get("content", "")
         self._inline_thread = QThread()
-        self._inline_worker = InlineCommandWorker(
-            self.session_manager.vfs, commands, content
-        )
+        self._inline_worker = InlineCommandWorker(self.session_manager.vfs, commands, content)
         self._inline_worker.moveToThread(self._inline_thread)
 
         self._inline_worker.finished.connect(self._on_inline_commands_finished)
@@ -703,9 +701,7 @@ class LiveSession(QObject):
                 if num_skipped > 0
                 else ""
             )
-            error_injection = (
-                f"\n\n[INLINE COMMAND ERROR: {error_text}]\n"
-            )
+            error_injection = f"\n\n[INLINE COMMAND ERROR: {error_text}]\n"
             has_tail_content = cut_at < len(content)
             tail_marker = (
                 f"\n\n[... text above this point was preserved as-written;"
@@ -713,12 +709,7 @@ class LiveSession(QObject):
                 if (has_tail_content or num_skipped > 0)
                 else ""
             )
-            annotated_content = (
-                content[:cut_at]
-                + error_injection
-                + content[cut_at:]
-                + tail_marker
-            )
+            annotated_content = content[:cut_at] + error_injection + content[cut_at:] + tail_marker
 
             self.update_last_assistant_message({"content": annotated_content})
             # Remove tool_calls if present

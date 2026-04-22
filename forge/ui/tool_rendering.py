@@ -1616,11 +1616,7 @@ def _render_write_card(filepath: str, body: str, is_streaming: bool) -> str:
             f"</pre>"
         )
     elif is_streaming:
-        body_html = (
-            f'<div class="diff-streaming-indicator">'
-            f"Receiving file content…{cursor}"
-            f"</div>"
-        )
+        body_html = f'<div class="diff-streaming-indicator">Receiving file content…{cursor}</div>'
 
     return (
         f'<div class="tool-card{streaming_class}">'

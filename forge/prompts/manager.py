@@ -207,8 +207,7 @@ class PromptManager:
             # Old tombstones from previous updates are left as-is (already tiny).
             block = self.blocks[active_block_idx]
             block.content = (
-                f"[File {filepath} was here. "
-                f"Its content has been moved to the end of context.]"
+                f"[File {filepath} was here. Its content has been moved to the end of context.]"
             )
             block.metadata["tombstone"] = True
 

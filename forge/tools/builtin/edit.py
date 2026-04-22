@@ -321,7 +321,5 @@ def execute_write(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         "success": True,
         "filepath": filepath,
         "created": not existed,
-        "side_effects": [
-            SideEffect.FILES_MODIFIED if existed else SideEffect.NEW_FILES_CREATED
-        ],
+        "side_effects": [SideEffect.FILES_MODIFIED if existed else SideEffect.NEW_FILES_CREATED],
     }

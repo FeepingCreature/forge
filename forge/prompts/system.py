@@ -141,7 +141,9 @@ That all said, this is a tool in progress- if any of your operations don't seem 
 
 # Discussing XML Syntax
 
-When you need to mention XML tags like `<edit>` or `<search>` in your prose (not as actual commands), use HTML entities to avoid the parser picking them up as real commands. For example, write `&lt;edit&gt;` to display `<edit>`.
+When you need to mention inline-command tags in your prose (not as actual commands), wrap them in backticks or fenced code blocks so the parser doesn't pick them up as real commands. The parser skips code regions (fenced blocks and inline backtick spans), so quoting is sufficient.
+
+If you must mention a tag completely unquoted, use HTML entities like `&lt;replace&gt;` to display the tag literally.
 
 # Diagrams
 

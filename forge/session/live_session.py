@@ -740,7 +740,7 @@ class LiveSession(QObject):
 
             # Add error to conversation
             error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
-            self.session_manager.append_assistant_message(truncated_content)
+            self.session_manager.append_assistant_message(annotated_content)
             self.add_message({"role": "user", "content": error_content, "_ui_only": True})
             self.session_manager.append_user_message(error_content)
 

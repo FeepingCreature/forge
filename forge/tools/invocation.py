@@ -5,7 +5,7 @@ Tools declare their preferred invocation mode. Inline tools use XML syntax
 embedded in assistant messages. API tools use function calling.
 
 Inline tools (no context change on success):
-- edit (with search/replace for edits, or just content for whole-file write)
+- replace (search/replace surgical edits) and write (whole-file create/overwrite)
 - delete_file, rename_file
 - commit, check, run_tests
 - think
@@ -368,11 +368,12 @@ def execute_inline_commands_with_parse_check(
         )
         error = (
             f"{len(unparsed)} inline command block(s) failed to parse and were ignored.\n"
-            "This usually means a body contained </edit>, </search>, or </replace>, "
+            "This usually means a body contained </replace>, </old>, </new>, or </write>, "
             "or the closing tag was missing/mismatched.\n"
             "If a body legitimately contains those tags, use the nonced syntax: "
-            '<edit_NONCE file="..."><search_NONCE>...</search_NONCE>'
-            "<replace_NONCE>...</replace_NONCE></edit_NONCE>\n\n"
+            '<replace_NONCE file="..."><old_NONCE>...</old_NONCE>'
+            "<new_NONCE>...</new_NONCE></replace_NONCE>"
+            ' or <write_NONCE file="...">...</write_NONCE>.\n\n'
             f"Unparsed blocks:\n{snippets}"
         )
         return ([{"success": False, "error": error}], 0)

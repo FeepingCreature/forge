@@ -685,25 +685,42 @@ class LiveSession(QObject):
         content = result.get("content", "")
 
         if failed_index is not None:
-            # Handle failure - truncate and continue with error.
-            # We keep a small "tail" of content after the failed command's
-            # end_pos so the AI can see a bit of what came next (it was
-            # confusing itself thinking it never wrote the trailing text).
-            # We also append an explicit marker so the AI knows the message
-            # was cut off here.
+            # Handle failure: inject the error message inline at the failure
+            # site, keep ALL trailing content (everything the AI wrote
+            # afterward), and append a tail marker noting that subsequent
+            # inline commands were skipped.
+            #
+            # This is much less confusing than truncating: the AI sees its
+            # own full message, with the error in context where it actually
+            # happened, instead of wondering why its message ends abruptly.
             failed_cmd = commands[failed_index]
-            TAIL_CHARS = 400
+            failed_result = results[failed_index]
+            error_text = failed_result.get("error", "(no error message)")
             cut_at = failed_cmd.end_pos
-            tail = content[cut_at : cut_at + TAIL_CHARS]
-            had_more = len(content) > cut_at + TAIL_CHARS
-            truncation_marker = (
-                f"\n\n[... message truncated here because the inline command above failed."
-                f" {len(content) - cut_at} chars followed; the next {len(tail)} are shown above."
-                f"{' More content was discarded.' if had_more else ''}]"
+            num_skipped = len(commands) - failed_index - 1
+            skipped_note = (
+                f" {num_skipped} subsequent inline command(s) were skipped."
+                if num_skipped > 0
+                else ""
             )
-            truncated_content = content[:cut_at] + tail + truncation_marker
+            error_injection = (
+                f"\n\n[INLINE COMMAND ERROR: {error_text}]\n"
+            )
+            has_tail_content = cut_at < len(content)
+            tail_marker = (
+                f"\n\n[... text above this point was preserved as-written;"
+                f" inline commands after the error were not executed.{skipped_note}]"
+                if (has_tail_content or num_skipped > 0)
+                else ""
+            )
+            annotated_content = (
+                content[:cut_at]
+                + error_injection
+                + content[cut_at:]
+                + tail_marker
+            )
 
-            self.update_last_assistant_message({"content": truncated_content})
+            self.update_last_assistant_message({"content": annotated_content})
             # Remove tool_calls if present
             for i in range(len(self.messages) - 1, -1, -1):
                 if self.messages[i].get("role") == "assistant":

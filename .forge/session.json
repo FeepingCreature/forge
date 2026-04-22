@@ -655,6 +655,24 @@
       "streaming": true,
       "actual_cost": 0.101313,
       "generation_id": "gen-1776874674-ZJHnmYc9QrOS42buupec"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1776874691269.json",
+      "response_file": "/tmp/forge_debug/response_1776874691269.json",
+      "timestamp": 1776874691.2698255,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000139,
+      "generation_id": "gen-1776874691-AdEQNjEnESJHWjYCaFLl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1776874748293.json",
+      "response_file": "/tmp/forge_debug/response_stream_1776874748293.json",
+      "timestamp": 1776874748.2957346,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.123215,
+      "generation_id": "gen-1776874748-ZaRiUpEQLVS4oPWgtlG1"
     }
   ],
   "messages": [
@@ -2805,6 +2823,35 @@
       "role": "assistant",
       "content": "[id 138] Got the code in front of me. Now making the two fixes you asked for. The change is straightforward: include some context after the failure point and add a clear marker that the message was truncated.\n\n<replace file=\"forge/session/live_session.py\">\n<old>\n        if failed_index is not None:\n            # Handle failure - truncate and continue with error\n            failed_cmd = commands[failed_index]\n            truncated_content = content[: failed_cmd.end_pos]\n\n            self.update_last_assistant_message({\"content\": truncated_content})\n</old>\n<new>\n        if failed_index is not None:\n            # Handle failure - truncate and continue with error.\n            # We keep a small \"tail\" of content after the failed command's\n            # end_pos so the AI can see a bit of what came next (it was\n            # confusing itself thinking it never wrote the trailing text).\n            # We also append an explicit marker so the AI knows the message\n            # was cut off here.\n            failed_cmd = commands[failed_index]\n            TAIL_CHARS = 400\n            cut_at = failed_cmd.end_pos\n            tail = content[cut_at : cut_at + TAIL_CHARS]\n            had_more = len(content) > cut_at + TAIL_CHARS\n            truncation_marker = (\n                f\"\\n\\n[... message truncated here because the inline command above failed.\"\n                f\" {len(content) - cut_at} chars followed; the next {len(tail)} are shown above.\"\n                f\"{' More content was discarded.' if had_more else ''}]\"\n            )\n            truncated_content = content[:cut_at] + tail + truncation_marker\n\n            self.update_last_assistant_message({\"content\": truncated_content})\n</new>\n</replace>\n\nThat should do it. After this lands, when an inline command fails I'll see:\n\n1. Everything I wrote up through the failed command (as before)\n2. The next ~400 chars of what I actually wrote afterward\n3. An explicit `[... message truncated here because the inline command above failed. N chars followed; ...]` marker\n\nThree notes:\n\n- The marker is added to BOTH the in-memory message AND what gets passed back to me on the next turn (since `update_last_assistant_message` is what feeds into the prompt). So I'll see it.\n- 400 chars is a guess \u2014 enough to show one or two more sentences of context. If it's not enough or too much, tweak `TAIL_CHARS`.\n- I deliberately did NOT change `self.session_manager.append_assistant_message(truncated_content)` on line 712 \u2014 that now also includes the tail+marker, which is what we want (consistent view in both the live message and the prompt history).\n\nWant to test by running the app and triggering a failure on purpose? Or move on to the remaining cleanup (`tool_rendering.py` streaming preview, `tests/test_inline_edit.py` rewrite, the false-positive issue in `detect_unparsed_edit_blocks`)?",
       "_inline_results": [
+        {
+          "filepath": "forge/session/live_session.py",
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f117372c",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "do you think it might make sense to [tool parser: error injection] at the location where it happened and then just say [truncated due to earlier error] at the end? or is that too confusing for you"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 141] **That's a much better design.** Yes \u2014 error injected at the failure point, then `[... truncated due to earlier error]` marker at the very end. Two big advantages:\n\n1. **The error is exactly where it happened.** No more \"the failure must have been somewhere up there, let me scroll.\" I see `[ERROR: search text not found in foo.py]` inline, in context, right where I tried the edit.\n2. **The whole tail is preserved.** I see everything I wrote afterward \u2014 explanation, follow-up edits, commits, summaries. None of that gets clipped to \"save space\" since I wrote it anyway.\n\nNot confusing at all \u2014 actually less confusing than the current truncation. Let me redo it:\n\n<replace file=\"forge/session/live_session.py\">\n<old>\n        if failed_index is not None:\n            # Handle failure - truncate and continue with error.\n            # We keep a small \"tail\" of content after the failed command's\n            # end_pos so the AI can see a bit of what came next (it was\n            # confusing itself thinking it never wrote the trailing text).\n            # We also append an explicit marker so the AI knows the message\n            # was cut off here.\n            failed_cmd = commands[failed_index]\n            TAIL_CHARS = 400\n            cut_at = failed_cmd.end_pos\n            tail = content[cut_at : cut_at + TAIL_CHARS]\n            had_more = len(content) > cut_at + TAIL_CHARS\n            truncation_marker = (\n                f\"\\n\\n[... message truncated here because the inline command above failed.\"\n                f\" {len(content) - cut_at} chars followed; the next {len(tail)} are shown above.\"\n                f\"{' More content was discarded.' if had_more else ''}]\"\n            )\n            truncated_content = content[:cut_at] + tail + truncation_marker\n\n            self.update_last_assistant_message({\"content\": truncated_content})\n</old>\n<new>\n        if failed_index is not None:\n            # Handle failure: inject the error message inline at the failure\n            # site, keep ALL trailing content (everything the AI wrote\n            # afterward), and append a tail marker noting that subsequent\n            # inline commands were skipped.\n            #\n            # This is much less confusing than truncating: the AI sees its\n            # own full message, with the error in context where it actually\n            # happened, instead of wondering why its message ends abruptly.\n            failed_cmd = commands[failed_index]\n            failed_result = results[failed_index]\n            error_text = failed_result.get(\"error\", \"(no error message)\")\n            cut_at = failed_cmd.end_pos\n            num_skipped = len(commands) - failed_index - 1\n            skipped_note = (\n                f\" {num_skipped} subsequent inline command(s) were skipped.\"\n                if num_skipped > 0\n                else \"\"\n            )\n            error_injection = (\n                f\"\\n\\n[INLINE COMMAND ERROR: {error_text}]\\n\"\n            )\n            tail_marker = (\n                f\"\\n\\n[... text above this point was preserved as-written;\"\n                f\" inline commands after the error were not executed.{skipped_note}]\"\n            )\n            annotated_content = (\n                content[:cut_at]\n                + error_injection\n                + content[cut_at:]\n                + tail_marker\n            )\n\n            self.update_last_assistant_message({\"content\": annotated_content})\n</new>\n</replace>\n\nA couple of design choices worth flagging:\n\n1. **The error is in `[INLINE COMMAND ERROR: ...]` brackets** \u2014 distinctive enough that I won't mistake it for content I wrote. The `[...]` square-bracket convention you used in your suggestion is great because it's visually clear and unlikely to collide with real prose.\n\n2. **The tail marker is at the very end.** It's redundant if there's no tail content, but harmless. We could make it conditional (`if cut_at < len(content) or num_skipped > 0`) \u2014 let me add that:\n\n<replace file=\"forge/session/live_session.py\">\n<old>\n            error_injection = (\n                f\"\\n\\n[INLINE COMMAND ERROR: {error_text}]\\n\"\n            )\n            tail_marker = (\n                f\"\\n\\n[... text above this point was preserved as-written;\"\n                f\" inline commands after the error were not executed.{skipped_note}]\"\n            )\n            annotated_content = (\n                content[:cut_at]\n                + error_injection\n                + content[cut_at:]\n                + tail_marker\n            )\n</old>\n<new>\n            error_injection = (\n                f\"\\n\\n[INLINE COMMAND ERROR: {error_text}]\\n\"\n            )\n            has_tail_content = cut_at < len(content)\n            tail_marker = (\n                f\"\\n\\n[... text above this point was preserved as-written;\"\n                f\" inline commands after the error were not executed.{skipped_note}]\"\n                if (has_tail_content or num_skipped > 0)\n                else \"\"\n            )\n            annotated_content = (\n                content[:cut_at]\n                + error_injection\n                + content[cut_at:]\n                + tail_marker\n            )\n</new>\n</replace>\n\n3. **One concern**: `update_last_assistant_message({\"content\": annotated_content})` rewrites my message in-place. If you scroll back up in the chat after the fact and look at my \"original\" message, you'll see the annotated version, not what I actually streamed. That might be surprising if you were watching the stream live. But it's also exactly what I need to see on the next turn to understand what happened, so I think it's correct.\n\nWant to try a deliberate failure to verify the new behavior, or move on to the cleanup work?",
+      "_inline_results": [
+        {
+          "filepath": "forge/session/live_session.py",
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
         {
           "filepath": "forge/session/live_session.py",
           "side_effects": [

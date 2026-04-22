@@ -266,9 +266,11 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
     # Strip [id N] prefix that the model might echo back
     display_content = re.sub(r"^\[id \d+\]\s*", "", streaming_content)
 
-    # Check if we have any <edit> blocks in the accumulated content
-    if "<edit" in display_content:
-        # Render inline edits as diff views
+    # Check if we have any inline edit blocks (<replace> or <write>) in the
+    # accumulated content. Catches both plain and nonced forms (e.g.
+    # <replace_x9k>, <write_q42>) since both start with the bare tag prefix.
+    if "<replace" in display_content or "<write" in display_content:
+        # Render inline edits as diff views / write previews
         rendered_html = render_streaming_edits(display_content)
         escaped_html = escape_for_js(rendered_html)
 
@@ -396,7 +398,7 @@ def build_streaming_tool_calls_js(tool_calls: list[dict]) -> str:
         if not name:
             continue
 
-        # Check for special rendering (search_replace gets a diff view)
+        # Check for special rendering (e.g. edit gets a diff view)
         special_html = render_streaming_tool_html(tc)
         if special_html:
             tool_html_parts.append(special_html)

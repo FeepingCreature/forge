@@ -175,92 +175,97 @@ SVG blocks are rendered as actual graphics in the chat. Use SVG for custom visua
 
 """
 
-# Instructions for XML inline edit format
-# NOTE: This string uses HTML entities for the XML examples because this file
-# itself gets edited by the AI using <edit> blocks!
+# Instructions for XML inline edit format.
+# This documents the surgical-edit (&lt;replace&gt;) and whole-file-write (&lt;write&gt;)
+# syntax to the LLM, plus the nonced form for bodies that contain literal
+# closing tags.
 EDIT_FORMAT_XML = """
 ## Making Edits
 
-To edit files, use `<edit>` blocks in your response:
+There are two inline commands for modifying files:
+- `<replace>` — surgical search/replace edit
+- `<write>` — create or overwrite a whole file
+
+### Surgical Edits with `<replace>`
+
+To change part of a file, find the exact text and replace it:
 
 ```
-<edit file="path/to/file.py">
-<search>
+<replace file="path/to/file.py">
+<old>
 exact text to find
-</search>
-<replace>
+</old>
+<new>
 replacement text
+</new>
 </replace>
-</edit>
 ```
 
 Rules:
-- The search text must match EXACTLY (including whitespace and indentation)
+- The `<old>` text must match EXACTLY (whitespace, indentation, every character)
 - Only the first occurrence is replaced
-- You can include multiple `<edit>` blocks in one response
+- You can include multiple `<replace>` blocks in one response
 - Edits are applied in order; if one fails, later edits are skipped
-- After edits, you can continue talking - no round-trip cost
+- An empty `<new>` block deletes the matched text
 
-## Writing New Files
+### Whole-File Writes with `<write>`
 
-To create a new file or completely replace an existing file, use `<edit>` without search/replace:
+To create a new file or completely overwrite an existing one:
 
 ```
-<edit file="path/to/new_file.py">
+<write file="path/to/new_file.py">
 complete file content here
-</edit>
+</write>
 ```
 
 This creates the file if it doesn't exist, or overwrites it if it does.
+Use `<replace>` instead when you only want to change part of an existing file —
+`<write>` discards everything that was there.
 
-## Deleting Files
+### Deleting Files
 
-To delete a file, use `<delete>`:
+To delete a file, use the `delete_file` tool (API call), not an inline command.
 
-```
-<delete file="path/to/file.py"/>
-```
+### Bodies That Contain Edit-Block Syntax
 
-## Editing Files That Contain Edit-Block Syntax
-
-If your search or replace body contains the literal substrings `</edit>`,
-`</search>`, or `</replace>` (for example, when editing this very file,
-or test fixtures, or documentation about the edit format), the parser cannot
-tell where your block ends. To disambiguate, append a **nonce** — any short
-sequence of letters/digits/underscores you make up — to the `edit`, `search`,
-and `replace` tag names. The nonce on the closing tags must match.
+If your `<old>`, `<new>`, or `<write>` body contains the literal substrings
+`</replace>`, `</old>`, `</new>`, or `</write>` (for example, when editing
+this very file, or test fixtures, or documentation about the edit format),
+the parser cannot tell where your block ends. To disambiguate, append a
+**nonce** — any short sequence of letters/digits/underscores you make up —
+to every tag in the block. The nonce on outer and inner tags must match.
 
 ```
-<edit_x9k file="docs/edit-format.md">
-<search_x9k>
-Use </edit> to close the block.
-</search_x9k>
-<replace_x9k>
-Use </edit> or </edit_NONCE> to close the block.
+<replace_x9k file="docs/edit-format.md">
+<old_x9k>
+Use </replace> to close the block.
+</old_x9k>
+<new_x9k>
+Use </replace> or </replace_NONCE> to close the block.
+</new_x9k>
 </replace_x9k>
-</edit_x9k>
 ```
 
 Whole-file writes work the same way:
 
 ```
-<edit_q42 file="example.md">
-This file documents <edit> / </edit> syntax with no escaping needed.
-</edit_q42>
+<write_q42 file="example.md">
+This file documents </replace> and </write> with no escaping needed.
+</write_q42>
 ```
 
-Pick a fresh nonce per block (or reuse one — it just has to match within a
-single block). Only use the nonced form when your body actually contains
-edit-block delimiters; otherwise prefer the plain form.
+**Critical: the nonce must not appear as a literal closing tag inside your
+body.** The parser closes the block at the *first* `</replace_NONCE>` (or
+`</write_NONCE>`) it sees. If your body quotes an example using nonce `q5`
+and you also wrap with nonce `q5`, the regex will truncate at the inner
+closing tag and your edit will be silently misparsed.
 
-**Critical: the nonce must not collide with content in your body.** The
-parser closes the block at the *first* literal `</edit_NONCE>` it sees, so
-if your search/replace text quotes an example using nonce `q5`, you cannot
-also wrap with nonce `q5` — the regex will truncate at the inner closing
-tag and silently reinterpret your edit as a whole-file write. Before
-emitting the wrapper, glance at the body and pick a token that you can see
-isn't already there (a few random letters/digits like `x9k`, `mn4`, `zz1`
-are usually fine).
+The safe procedure: write the body first, then glance over it and pick a
+nonce (a few random letters/digits like `x9k`, `mn4`, `zz1`) that you can
+verify is not present anywhere in the body.
+
+Only use the nonced form when your body actually contains edit-block
+delimiters; otherwise prefer the plain form.
 
 If a block fails to parse (mismatched tags, missing close, or unescaped
 delimiters in a non-nonced body), you'll receive an explicit error — the

@@ -290,6 +290,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     return {
         "success": True,
         "filepath": filepath,
+        "modified_files": [filepath],
         "side_effects": [SideEffect.FILES_MODIFIED],
     }
 
@@ -317,9 +318,19 @@ def execute_write(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
 
     vfs.write_file(filepath, content)
 
-    return {
+    result: dict[str, Any] = {
         "success": True,
         "filepath": filepath,
         "created": not existed,
-        "side_effects": [SideEffect.FILES_MODIFIED if existed else SideEffect.NEW_FILES_CREATED],
     }
+    if existed:
+        result["modified_files"] = [filepath]
+        result["side_effects"] = [SideEffect.FILES_MODIFIED]
+    else:
+        # New file: declare both — it's "modified" for prompt-refresh purposes
+        # (so the new content is sent to the LLM next turn) AND new for summary
+        # generation purposes.
+        result["modified_files"] = [filepath]
+        result["new_files"] = [filepath]
+        result["side_effects"] = [SideEffect.FILES_MODIFIED, SideEffect.NEW_FILES_CREATED]
+    return result

@@ -192,6 +192,24 @@
       "streaming": false,
       "actual_cost": 0.000323,
       "generation_id": "gen-1777062910-lWnDb8yU9DkXndhnlXBl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777062911282.json",
+      "response_file": "/tmp/forge_debug/response_1777062911282.json",
+      "timestamp": 1777062911.2827282,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000152,
+      "generation_id": "gen-1777062911-FjKVuftEG4jTRuFyr6UP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777062914588.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777062914588.json",
+      "timestamp": 1777062914.5974026,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.29358625,
+      "generation_id": "gen-1777062914-nHWNYxtKHZEx595l33Dk"
     }
   ],
   "messages": [
@@ -544,6 +562,31 @@
     {
       "role": "assistant",
       "content": "[id 18] Step 1 done: scratch file created and loaded into context with content \"Original line A / B / C\". Now I'll end my turn so this gets committed and the prompt block becomes \"stale-eligible\". Edit it next turn and we'll see whether the prompt shows the new content.\n\nReady \u2014 go ahead and tell me to proceed (or just send any message), and I'll do a `<replace>` and report what I see."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 14fd68fd",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay, go"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 20] Good \u2014 the file is in my context from last turn showing the original content:\n\n```\nOriginal line A\nOriginal line B\nOriginal line C\n```\n\nNow I'll edit it. After the edit, my context should immediately show the post-edit content (and confirm the fix works across turns):\n\n<replace file=\"scratch_edit_test.txt\">\n<old>\nOriginal line B\n</old>\n<new>\nEDITED line B (changed across turns!)\n</new>\n</replace>\n\nLooking at the file content block above (which the harness replays into my next view), the prompt manager's `FILE_CONTENT` block for `scratch_edit_test.txt` was the **stale, pre-edit** version coming into this turn \u2014 that's expected, since the edit hasn't happened yet from the prompt's perspective.\n\nWhat matters is: after this `<replace>` runs, when I look at the file in my context **on the next turn**, will I see \"EDITED line B (changed across turns!)\" instead of \"Original line B\"?\n\nLet me also clean up the scratch file so we don't leave noise \u2014 but actually, no, let's leave it so you can verify the next-turn content is fresh. I'll delete it after we confirm.\n\nGo ahead and send any message \u2014 I'll report what content I see for `scratch_edit_test.txt`.",
+      "_inline_results": [
+        {
+          "filepath": "scratch_edit_test.txt",
+          "modified_files": [
+            "scratch_edit_test.txt"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
     }
   ],
   "parent_session": null,

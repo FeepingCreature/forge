@@ -192,8 +192,14 @@ There are two inline commands for modifying files:
 
 `<replace>` is a **pure inline XML command** that you write directly in your
 response prose. It is **not** an API tool call — do not put it inside a
-`<function_calls>` block, do not invoke it via `update_context` or any other
-function. Just write the XML inline and the parser will pick it up.
+`<function_calls>` block, and do not try to invoke it through any function.
+
+In particular, **`update_context` is not how you edit files.** There seems
+to be a pull toward reaching for `update_context` whenever a file operation
+feels unfamiliar — resist it. `update_context` only loads/unloads files into
+your active context. To modify a file you literally write a `<replace>` (or
+`<write>`) tag in your prose and the parser picks it up. There is no
+function-call equivalent.
 
 To change part of a file, find the exact text and replace it:
 
@@ -217,9 +223,8 @@ Rules:
 
 ### ⚠️ Common Mistake: Wrong Closing Tag on `<new>`
 
-For some reason there is a strong bias toward writing the closing tag of the
-`<new>` block as `</old>` instead of `</new>`, producing malformed structure
-like:
+There is a strong, consistent bias toward closing the `<new>` block with
+`</old>` instead of `</new>`, producing malformed structure like:
 
 ```
 <replace file="...">
@@ -232,9 +237,20 @@ like:
 </replace>
 ```
 
-**Before sending any `<replace>` block, glance at the four inner tags and
-confirm the pattern is exactly:** `<old>` … `</old>` … `<new>` … `</new>`.
-Mismatched closers will cause the edit to fail to parse.
+You can't review this "before sending" — token generation *is* sending. The
+moment that matters is **the moment you start typing the closing tag after
+the new content**. At that point the recent context is full of `</old>` and
+the obvious next token feels like `</old>` again. It isn't. The correct
+sequence is always:
+
+  1. `<old>` — open
+  2. `</old>` — close (matches step 1)
+  3. `<new>` — open
+  4. `</new>` — close (matches step 3, **NOT** step 2)
+
+When you're about to emit the fourth tag, pause on the tag name itself and
+recall: it mirrors the `<new>` you just opened, not the `</old>` you just
+closed.
 
 ### Whole-File Writes with `<write>`
 

@@ -263,6 +263,24 @@
       "streaming": true,
       "actual_cost": 0.06805625,
       "generation_id": "gen-1777124417-0Ao0GOkr20vX9KWQJJxD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777124432452.json",
+      "response_file": "/tmp/forge_debug/response_1777124432452.json",
+      "timestamp": 1777124432.4528046,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000143,
+      "generation_id": "gen-1777124432-19VhuKR0zHgCSbRvVZa7"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777124523333.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777124523333.json",
+      "timestamp": 1777124523.3430357,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.0995065,
+      "generation_id": "gen-1777124523-P4mEA2qjVlptB1Bb8zqR"
     }
   ],
   "messages": [
@@ -294,6 +312,41 @@
       "role": "assistant",
       "content": "I'll add both clarifications to the `<replace>` documentation in the EDIT_FORMAT_XML section.\n\n<replace_zq7 file=\"forge/prompts/system.py\">\n<old_zq7>\n### Surgical Edits with `<replace>`\n\nTo change part of a file, find the exact text and replace it:\n\n```\n<replace file=\"path/to/file.py\">\n<old>\nexact text to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nRules:\n- The `<old>` text must match EXACTLY (whitespace, indentation, every character)\n- Only the first occurrence is replaced\n- You can include multiple `<replace>` blocks in one response\n- Edits are applied in order; if one fails, later edits are skipped\n- An empty `<new>` block deletes the matched text\n</old_zq7>\n<new_zq7>\n### Surgical Edits with `<replace>`\n\n`<replace>` is a **pure inline XML command** that you write directly in your\nresponse prose. It is **not** an API tool call \u2014 do not put it inside a\n`<function_calls>` block, do not invoke it via `update_context` or any other\nfunction. Just write the XML inline and the parser will pick it up.\n\nTo change part of a file, find the exact text and replace it:\n\n```\n<replace file=\"path/to/file.py\">\n<old>\nexact text to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nRules:\n- The `<old>` text must match EXACTLY (whitespace, indentation, every character)\n- Only the first occurrence is replaced\n- You can include multiple `<replace>` blocks in one response\n- Edits are applied in order; if one fails, later edits are skipped\n- An empty `<new>` block deletes the matched text\n\n### \u26a0\ufe0f Common Mistake: Wrong Closing Tag on `<new>`\n\nFor some reason there is a strong bias toward writing the closing tag of the\n`<new>` block as `</old>` instead of `</new>`, producing malformed structure\nlike:\n\n```\n<replace file=\"...\">\n<old>\n...\n</old>\n<new>\n...\n</old>      \u2190 WRONG! This must be </new>\n</replace>\n```\n\n**Before sending any `<replace>` block, glance at the four inner tags and\nconfirm the pattern is exactly:** `<old>` \u2026 `</old>` \u2026 `<new>` \u2026 `</new>`.\nMismatched closers will cause the edit to fail to parse.\n</new_zq7>\n</replace_zq7>\n\nDone. Added two clarifications to the `<replace>` docs in `forge/prompts/system.py`:\n\n1. An explicit note up front that `<replace>` is a pure inline XML command, not an API tool call \u2014 it shouldn't go inside `<function_calls>`.\n2. A \"Common Mistake\" callout warning about the bias toward closing `<new>` with `</old>`, with a visual of the wrong pattern and a reminder to verify the `<old>\u2026</old> <new>\u2026</new>` structure before sending.\n\nI used the nonced form (`_zq7`) for the edit because the body contains literal `</old>`, `</new>`, and `</replace>` tokens.",
       "_inline_results": [
+        {
+          "filepath": "forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 86467829",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "thanks that worked perfectly. some notes: um... the model can't exactly \"glance before sending\". it's always sending. it has to pay attention when writing the closing new tag to begin with. second, I note that you said \"invoke via update_context\". I have noticed before that there's a strong bias towards using update_context when you're not sure how to do something, why would that be? update_context has nothing to do with tool calls. is it too close to an existing tool call that you know that we don't support?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 6] Both great points. Let me fix the \"glance before sending\" framing and think about the `update_context` bias.\n\nOn the first point you're absolutely right \u2014 there's no \"before sending\" moment for me. The advice has to land while writing the closing tag, not retroactively. Let me rewrite that.\n\nOn the second point, your hypothesis seems plausible. `update_context` is the most-used and most-recently-trained-on tool name in this codebase, and when I'm reaching for \"the generic way to do a thing with files,\" it's the lexically nearest handle. It's similar in shape to tools I've seen in other harnesses (`read_file`, `open_file`, `view`, etc.) and to things like `str_replace_editor` / `text_editor` where one tool covers many file ops. So when the actual mechanism is unfamiliar (an inline XML command), the prior pulls toward \"must be `update_context`\" as the path of least resistance \u2014 even though semantically it only loads files into context. It's a wrong-but-confident substitution. Fixing the prompt to call out that specific mistake (and not just say \"don't use a function\") should help future-me notice.\n\n<replace_mn4 file=\"forge/prompts/system.py\">\n<old_mn4>\n### Surgical Edits with `<replace>`\n\n`<replace>` is a **pure inline XML command** that you write directly in your\nresponse prose. It is **not** an API tool call \u2014 do not put it inside a\n`<function_calls>` block, do not invoke it via `update_context` or any other\nfunction. Just write the XML inline and the parser will pick it up.\n</old_mn4>\n<new_mn4>\n### Surgical Edits with `<replace>`\n\n`<replace>` is a **pure inline XML command** that you write directly in your\nresponse prose. It is **not** an API tool call \u2014 do not put it inside a\n`<function_calls>` block, and do not try to invoke it through any function.\n\nIn particular, **`update_context` is not how you edit files.** There seems\nto be a pull toward reaching for `update_context` whenever a file operation\nfeels unfamiliar \u2014 resist it. `update_context` only loads/unloads files into\nyour active context. To modify a file you literally write a `<replace>` (or\n`<write>`) tag in your prose and the parser picks it up. There is no\nfunction-call equivalent.\n</new_mn4>\n</replace_mn4>\n\n<replace_kp2 file=\"forge/prompts/system.py\">\n<old_kp2>\n### \u26a0\ufe0f Common Mistake: Wrong Closing Tag on `<new>`\n\nFor some reason there is a strong bias toward writing the closing tag of the\n`<new>` block as `</old>` instead of `</new>`, producing malformed structure\nlike:\n\n```\n<replace file=\"...\">\n<old>\n...\n</old>\n<new>\n...\n</old>      \u2190 WRONG! This must be </new>\n</replace>\n```\n\n**Before sending any `<replace>` block, glance at the four inner tags and\nconfirm the pattern is exactly:** `<old>` \u2026 `</old>` \u2026 `<new>` \u2026 `</new>`.\nMismatched closers will cause the edit to fail to parse.\n</old_kp2>\n<new_kp2>\n### \u26a0\ufe0f Common Mistake: Wrong Closing Tag on `<new>`\n\nThere is a strong, consistent bias toward closing the `<new>` block with\n`</old>` instead of `</new>`, producing malformed structure like:\n\n```\n<replace file=\"...\">\n<old>\n...\n</old>\n<new>\n...\n</old>      \u2190 WRONG! This must be </new>\n</replace>\n```\n\nYou can't review this \"before sending\" \u2014 token generation *is* sending. The\nmoment that matters is **the moment you start typing the closing tag after\nthe new content**. At that point the recent context is full of `</old>` and\nthe obvious next token feels like `</old>` again. It isn't. The correct\nsequence is always:\n\n  1. `<old>` \u2014 open\n  2. `</old>` \u2014 close (matches step 1)\n  3. `<new>` \u2014 open\n  4. `</new>` \u2014 close (matches step 3, **NOT** step 2)\n\nWhen you're about to emit the fourth tag, pause on the tag name itself and\nrecall: it mirrors the `<new>` you just opened, not the `</old>` you just\nclosed.\n</new_kp2>\n</replace_kp2>\n\nDone. Two changes:\n\n1. **`update_context` callout** \u2014 Replaced the throwaway \"or any other function\" with an explicit named warning that `update_context` is the specific wrong-attractor and only loads files into context. Future-me is more likely to notice a named anti-pattern than a generic one.\n\n2. **Reframed the closing-tag advice** \u2014 Removed the impossible \"glance before sending\" instruction. Replaced it with a per-tag generation rule: when typing the *fourth* tag, the relevant memory is `<new>` (step 3), not `</old>` (step 2). This gives the model something to do at the actual decision point rather than at a phantom review step.",
+      "_inline_results": [
+        {
+          "filepath": "forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
         {
           "filepath": "forge/prompts/system.py",
           "modified_files": [

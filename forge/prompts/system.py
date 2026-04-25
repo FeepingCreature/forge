@@ -19,7 +19,7 @@ Within a single turn, **you see the cumulative effect of all your previous tool 
 
 - After a `<replace>` or `<write>`, the file in your context shows the modified content
 - After `update_context` adds a file, its content appears in your context
-- After `delete_file`, the file no longer exists for subsequent operations
+- After a `<delete>` inline command, the file no longer exists for subsequent operations
 
 **This all happens within one turn** - you make multiple tool calls, each one sees the results of prior calls, and at the end everything is committed atomically to git. There is no new user request between your tool calls. Your changes are autocommitted when you finish responding - you don't need to explicitly commit unless you want to create multiple atomic commits within a single turn.
 

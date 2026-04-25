@@ -671,7 +671,17 @@ class LiveSession(QObject):
         self._inline_thread.start()
 
     def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:
-        """Handle inline command completion."""
+        """Handle inline command completion.
+
+        failed_index semantics (see execute_inline_commands_with_parse_check):
+          - None: all commands succeeded.
+          - >= 0: execution failure at commands[failed_index].
+          - PARSE_CHECK_FAILED (-1): parse-check rejected blocks before any
+            command ran. Nothing in `commands` executed; results[0] holds the
+            synthetic parse error. Must NOT be used to index `commands`.
+        """
+        from forge.tools.invocation import PARSE_CHECK_FAILED
+
         if self._inline_thread:
             self._inline_thread.quit()
             self._inline_thread.wait()
@@ -682,8 +692,38 @@ class LiveSession(QObject):
         result = getattr(self, "_pending_stream_result", {})
         content = result.get("content", "")
 
+        if failed_index == PARSE_CHECK_FAILED:
+            # Parse-check failure: the AI wrote something that looked like an
+            # inline command but couldn't be parsed. Nothing was executed,
+            # including the commands that DID parse — partial apply could be
+            # worse than none when intent is ambiguous.
+            #
+            # Prepend the error so it appears BEFORE all the inline command
+            # text the AI wrote, keeping the full original content underneath.
+            error_text = results[0].get("error", "(no error message)")
+            error_injection = f"[INLINE COMMAND ERROR: {error_text}]\n\n"
+            tail_marker = (
+                "\n\n[... no inline commands were executed because parsing failed;"
+                " the assistant text above is preserved as-written.]"
+            )
+            annotated_content = error_injection + content + tail_marker
+
+            self.update_last_assistant_message({"content": annotated_content})
+            for i in range(len(self.messages) - 1, -1, -1):
+                if self.messages[i].get("role") == "assistant":
+                    self.messages[i].pop("tool_calls", None)
+                    break
+
+            self.session_manager.append_assistant_message(annotated_content)
+            error_content = f"\u274c Inline commands not executed:\n\n{error_text}"
+            self.add_message({"role": "user", "content": error_content, "_ui_only": True})
+            self.session_manager.append_user_message(error_content)
+
+            self._continue_after_tools()
+            return
+
         if failed_index is not None:
-            # Handle failure: inject the error message inline at the failure
+            # Execution failure: inject the error message inline at the failure
             # site, keep ALL trailing content (everything the AI wrote
             # afterward), and append a tail marker noting that subsequent
             # inline commands were skipped.
@@ -712,7 +752,6 @@ class LiveSession(QObject):
             annotated_content = content[:cut_at] + error_injection + content[cut_at:] + tail_marker
 
             self.update_last_assistant_message({"content": annotated_content})
-            # Remove tool_calls if present
             for i in range(len(self.messages) - 1, -1, -1):
                 if self.messages[i].get("role") == "assistant":
                     self.messages[i].pop("tool_calls", None)
@@ -721,8 +760,11 @@ class LiveSession(QObject):
             error_result = results[failed_index]
             error_msg = error_result.get("error", "Unknown error")
 
-            # Process successful commands before failure
-            for i, res in enumerate(results[:-1]):
+            # Process successful commands before failure.
+            # Use results[:failed_index] (not results[:-1]); they happen to
+            # match today since execution stops on first failure, but this is
+            # the semantically correct slice if that ever changes.
+            for i, res in enumerate(results[:failed_index]):
                 if res.get("success"):
                     self._process_tool_side_effects(res, commands[i])
 

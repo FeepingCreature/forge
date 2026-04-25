@@ -462,6 +462,14 @@ def execute_inline_commands(
     return results, failed_index
 
 
+# Sentinel value for execute_inline_commands_with_parse_check meaning
+# "parse-check failed before any commands ran; the synthetic error is in
+# results[0]; no commands in the original `commands` list were executed."
+# Distinct from None (all succeeded) and from a non-negative int
+# (index of an execution failure within `commands`).
+PARSE_CHECK_FAILED = -1
+
+
 def execute_inline_commands_with_parse_check(
     vfs: "VFS", content: str, commands: list[InlineCommand]
 ) -> tuple[list[dict[str, Any]], int | None]:
@@ -470,20 +478,29 @@ def execute_inline_commands_with_parse_check(
     inline commands but failed to parse. If any are found, they are reported
     as a failed result *before* executing successfully-parsed commands, so
     the AI sees that some of its work was silently dropped.
+
+    Return contract:
+      - failed_index is None: all `commands` executed successfully;
+        len(results) == len(commands).
+      - failed_index is a non-negative int: command at commands[failed_index]
+        failed at execution time; results[failed_index] holds its error;
+        results[:failed_index] are successful executions.
+      - failed_index == PARSE_CHECK_FAILED (-1): parse-check found unparsed
+        blocks BEFORE any execution. Nothing in `commands` was executed. The
+        synthetic error describing the unparsed blocks is in results[0].
+        Callers must NOT index into `commands` using this value.
     """
     unparsed = detect_unparsed_inline_blocks(content, commands)
     if unparsed:
         snippets = "\n".join(f"  - at position {u['position']}: {u['snippet']!r}" for u in unparsed)
         error = (
             f"{len(unparsed)} inline command block(s) failed to parse and were ignored.\n"
-            "This usually means a body contained </replace>, </old>, </new>, or </write>, "
+            "This usually means a body contained the literal closing tags, "
             "or the closing tag was missing/mismatched.\n"
-            "If a body legitimately contains those tags, use the nonced syntax: "
-            '<replace_NONCE file="..."><old_NONCE>...</old_NONCE>'
-            "<new_NONCE>...</new_NONCE></replace_NONCE>"
-            ' or <write_NONCE file="...">...</write_NONCE>.\n\n'
+            "If a body legitimately contains those tags, use the nonced syntax. "
+            "See the system prompt section on edit-block syntax for details.\n\n"
             f"Unparsed blocks:\n{snippets}"
         )
-        return ([{"success": False, "error": error}], 0)
+        return ([{"success": False, "error": error}], PARSE_CHECK_FAILED)
 
     return execute_inline_commands(vfs, commands)

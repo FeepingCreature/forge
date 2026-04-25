@@ -579,13 +579,114 @@ class TestStreamingPartialWrite:
 # ---------------------------------------------------------------------------
 
 
+class TestParseCheckFailureContract:
+    """Regression tests for execute_inline_commands_with_parse_check.
+
+    Original bug: when parse-check found unparsed blocks, the function returned
+    (results=[synthetic_error], failed_index=0). The consumer
+    (LiveSession._on_inline_commands_finished) used commands[0] to position
+    the error, which mis-attributed the error to the first SUCCESSFULLY parsed
+    command, and never executed any of the parsed commands.
+
+    Fix: parse-check failures use PARSE_CHECK_FAILED (-1) as the sentinel so
+    consumers can distinguish them from execution failures.
+    """
+
+    def test_parse_check_failure_uses_sentinel(self):
+        from forge.tools.invocation import (
+            PARSE_CHECK_FAILED,
+            execute_inline_commands_with_parse_check,
+            parse_inline_commands,
+        )
+
+        # First edit block is well-formed and parses. Second is malformed
+        # (missing close tag) so parse-check should reject the whole batch.
+        good = (
+            "<replace_t1 "
+            'file="good.py">\n'
+            "<old_t1>\nfoo\n</old_t1>\n"
+            "<new_t1>\nbar\n</new_t1>\n"
+            "</replace_t1>"
+        )
+        broken = (
+            "<replace_t2 "
+            'file="broken.py">\n'
+            "<old_t2>\nbaz\n</old_t2>\n"
+            "<new_t2>\nqux\n</new_t2>\n"
+            "(missing close tag here)\n"
+        )
+        content = good + "\n\nThen a broken one:\n" + broken
+
+        commands = parse_inline_commands(content)
+        # The good block parses; the broken one does not.
+        assert len(commands) == 1
+        assert commands[0].args["filepath"] == "good.py"
+
+        vfs = MagicMock()
+        vfs.read_file.return_value = "foo\n"
+
+        results, failed_index = execute_inline_commands_with_parse_check(
+            vfs, content, commands
+        )
+
+        # Critical: failed_index must be the sentinel, NOT 0.
+        # If this is 0, the consumer will mis-attribute the error to commands[0]
+        # (the *successful* parse) instead of to the unparsed block.
+        assert failed_index == PARSE_CHECK_FAILED
+        assert failed_index != 0
+
+        # No command was executed: VFS.write_file was never called even though
+        # commands[0] would have succeeded if executed.
+        vfs.write_file.assert_not_called()
+
+        # The synthetic error is in results[0] and mentions the broken block.
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert "broken.py" in results[0]["error"]
+        assert "failed to parse" in results[0]["error"]
+
+    def test_all_succeed_returns_none(self):
+        from forge.tools.invocation import (
+            execute_inline_commands_with_parse_check,
+            parse_inline_commands,
+        )
+
+        content = (
+            "<replace_t3 "
+            'file="x.py">\n'
+            "<old_t3>\nfoo\n</old_t3>\n"
+            "<new_t3>\nbar\n</new_t3>\n"
+            "</replace_t3>"
+        )
+        commands = parse_inline_commands(content)
+        assert len(commands) == 1
+
+        vfs = MagicMock()
+        vfs.read_file.return_value = "foo\n"
+
+        results, failed_index = execute_inline_commands_with_parse_check(
+            vfs, content, commands
+        )
+
+        assert failed_index is None
+        assert len(results) == 1
+        assert results[0]["success"] is True
+
+    def test_sentinel_value_is_distinct_from_valid_indices(self):
+        from forge.tools.invocation import PARSE_CHECK_FAILED
+
+        # Must be negative so it can never equal a valid list index.
+        assert PARSE_CHECK_FAILED < 0
+
+
 class TestUnparsedBlockDetection:
-    """Test that malformed <replace>/<write> blocks surface as parse errors."""
+    """Test that malformed edit blocks surface as parse errors."""
 
     def test_detects_orphan_replace_open_tag(self):
         content = (
-            '<replace file="oops.py">\n'
-            "<old>\nfoo\n</old>\n"
+            "<replace_t4 "
+            'file="oops.py">\n'
+            "<old_t4>\nfoo\n</old_t4>\n"
             "I forgot the new and the close.\n"
         )
         unparsed = detect_unparsed_edit_blocks(content, parsed_spans=[])

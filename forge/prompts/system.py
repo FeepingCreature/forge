@@ -190,6 +190,11 @@ There are two inline commands for modifying files:
 
 ### Surgical Edits with `<replace>`
 
+`<replace>` is a **pure inline XML command** that you write directly in your
+response prose. It is **not** an API tool call — do not put it inside a
+`<function_calls>` block, do not invoke it via `update_context` or any other
+function. Just write the XML inline and the parser will pick it up.
+
 To change part of a file, find the exact text and replace it:
 
 ```
@@ -209,6 +214,27 @@ Rules:
 - You can include multiple `<replace>` blocks in one response
 - Edits are applied in order; if one fails, later edits are skipped
 - An empty `<new>` block deletes the matched text
+
+### ⚠️ Common Mistake: Wrong Closing Tag on `<new>`
+
+For some reason there is a strong bias toward writing the closing tag of the
+`<new>` block as `</old>` instead of `</new>`, producing malformed structure
+like:
+
+```
+<replace file="...">
+<old>
+...
+</old>
+<new>
+...
+</old>      ← WRONG! This must be </new>
+</replace>
+```
+
+**Before sending any `<replace>` block, glance at the four inner tags and
+confirm the pattern is exactly:** `<old>` … `</old>` … `<new>` … `</new>`.
+Mismatched closers will cause the edit to fail to parse.
 
 ### Whole-File Writes with `<write>`
 

@@ -1102,6 +1102,19 @@ class PromptManager:
         """
         return """## REMINDER: Be Optimistic, Do Everything In One Response
 
+The shape of a `<replace>` block — closing tag of the second child is `</new>`, mirroring `<new>`:
+
+```
+<replace file="path">
+<old>
+text to find
+</old>
+<new>
+replacement text
+</new>
+</replace>
+```
+
 Inline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.
 If any command fails, execution stops and you get control back with the error.
 

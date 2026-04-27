@@ -1016,6 +1016,130 @@ def _escape_raw_html(text: str) -> str:
     return "".join(result)
 
 
+_OL_ITEM_RE = re.compile(r"^(\s*)(\d+)\.\s")
+_FENCE_RE = re.compile(r"^(\s*)(`{3,}|~{3,})")
+
+
+def _extract_ordered_list_numbers(markdown_src: str) -> list[list[int]]:
+    """Extract the source numbers of every ordered list in `markdown_src`.
+
+    Returns a list of lists of integers — one inner list per ordered list,
+    preserving document order. Lists are separated by blank lines, fenced
+    code blocks, or any non-list line.
+
+    Lines inside fenced code blocks are ignored. Indentation is currently
+    flattened: nested ordered lists are not detected here, the HTML
+    post-processor handles nesting via depth tracking instead.
+    """
+    lists: list[list[int]] = []
+    current: list[int] = []
+    in_fence = False
+    fence_marker = ""
+
+    def _close_current() -> None:
+        nonlocal current
+        if current:
+            lists.append(current)
+            current = []
+
+    for line in markdown_src.split("\n"):
+        # Track fenced code blocks so we don't pick up "1. foo" inside them.
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(2)
+            if not in_fence:
+                in_fence = True
+                fence_marker = marker[0]  # ` or ~
+            elif marker[0] == fence_marker:
+                in_fence = False
+                fence_marker = ""
+            _close_current()
+            continue
+        if in_fence:
+            continue
+
+        m = _OL_ITEM_RE.match(line)
+        if m:
+            current.append(int(m.group(2)))
+        elif not line.strip():
+            # Blank line ends a list. If the markdown lib actually merges
+            # blank-separated lists into one, the post-processor will just
+            # consume numbers from the next sub-list — still correct.
+            _close_current()
+        else:
+            # Non-list, non-blank line ends a list.
+            _close_current()
+
+    _close_current()
+    return lists
+
+
+# Match an opening <li ...> tag; we never need to rewrite </li>.
+_LI_OPEN_RE = re.compile(r"<li\b([^>]*)>", re.IGNORECASE)
+
+
+def _preserve_ordered_list_numbers(markdown_src: str, html_out: str) -> str:
+    """Rewrite each <li> inside an <ol> to carry value="N" from the source.
+
+    We walk the HTML and maintain a stack of "current list numbers" keyed
+    by <ol> nesting depth. For every <li> at the current top-of-stack
+    list, we pull the next source number and inject `value="N"` (replacing
+    any existing `value=` attribute).
+
+    If we run out of source numbers for a list (e.g. because our cheap
+    line-based extractor split a list the markdown lib merged), we fall
+    back to whatever the renderer produced — never worse than today.
+    """
+    source_lists = _extract_ordered_list_numbers(markdown_src)
+    if not source_lists:
+        return html_out
+
+    list_iter = iter(source_lists)
+    stack: list[list[int]] = []  # one entry per currently-open <ol>
+    indexes: list[int] = []  # next index into stack[-1] for the next <li>
+
+    out: list[str] = []
+    pos = 0
+    token_re = re.compile(r"<ol\b[^>]*>|</ol\s*>|<li\b[^>]*>", re.IGNORECASE)
+
+    for m in token_re.finditer(html_out):
+        out.append(html_out[pos : m.start()])
+        token = m.group(0)
+        lower = token.lower()
+
+        if lower.startswith("<ol"):
+            try:
+                nums = next(list_iter)
+            except StopIteration:
+                nums = []
+            stack.append(nums)
+            indexes.append(0)
+            out.append(token)
+        elif lower.startswith("</ol"):
+            if stack:
+                stack.pop()
+                indexes.pop()
+            out.append(token)
+        else:
+            # <li ...>
+            if stack and indexes[-1] < len(stack[-1]):
+                value = stack[-1][indexes[-1]]
+                indexes[-1] += 1
+                inner = _LI_OPEN_RE.match(token)
+                attrs = inner.group(1) if inner else ""
+                # Strip any existing value="..." attribute (single or double quoted).
+                attrs = re.sub(r'\s*value\s*=\s*"[^"]*"', "", attrs, flags=re.IGNORECASE)
+                attrs = re.sub(r"\s*value\s*=\s*'[^']*'", "", attrs, flags=re.IGNORECASE)
+                out.append(f'<li value="{value}"{attrs}>')
+            else:
+                out.append(token)
+
+        pos = m.end()
+
+    out.append(html_out[pos:])
+    return "".join(out)
+
+
 def render_markdown(
     content: str,
     inline_results: list[dict[str, object]] | None = None,
@@ -1044,9 +1168,15 @@ def render_markdown(
         discover_inline_tools,
     )
 
-    # Configure markdown extensions for code blocks with language-X class format
-    # The extension_configs dict configures fenced_code to use "language-" prefix
-    md_extensions = ["fenced_code", "tables"]
+    # Configure markdown extensions for code blocks with language-X class format.
+    # `sane_lists` is included so ordered lists respect their starting number
+    # (e.g. "3. foo" becomes <ol start="3">) — but on its own it still
+    # renumbers items consecutively after that. We additionally post-process
+    # the rendered HTML in `_preserve_ordered_list_numbers` to inject a
+    # `value="N"` attribute on every <li> in an <ol>, so the numbers the
+    # user sees match the source markdown exactly. This matters so humans
+    # and the AI can refer to "item 7" and mean the same thing.
+    md_extensions = ["fenced_code", "tables", "sane_lists"]
     md_extension_configs = {
         "fenced_code": {
             "lang_prefix": "language-",
@@ -1088,25 +1218,23 @@ def render_markdown(
             # No more commands - render remaining as markdown
             remaining = content[pos:].strip()
             if remaining:
-                result_parts.append(
-                    md.markdown(
-                        _escape_raw_html(remaining),
-                        extensions=md_extensions,
-                        extension_configs=md_extension_configs,
-                    )
+                rendered = md.markdown(
+                    _escape_raw_html(remaining),
+                    extensions=md_extensions,
+                    extension_configs=md_extension_configs,
                 )
+                result_parts.append(_preserve_ordered_list_numbers(remaining, rendered))
             break
 
         # Render markdown text before this command
         text_before = content[pos : earliest_match.start()].rstrip()
         if text_before:
-            result_parts.append(
-                md.markdown(
-                    _escape_raw_html(text_before),
-                    extensions=md_extensions,
-                    extension_configs=md_extension_configs,
-                )
+            rendered = md.markdown(
+                _escape_raw_html(text_before),
+                extensions=md_extensions,
+                extension_configs=md_extension_configs,
             )
+            result_parts.append(_preserve_ordered_list_numbers(text_before, rendered))
 
         # Get result for this command if available
         result = None

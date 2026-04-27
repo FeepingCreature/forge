@@ -56,14 +56,18 @@ def _markdown_to_html(text: str) -> str:
     code_lang = ""
     code_lines: list[str] = []
     in_list = False
+    in_olist = False
     in_table = False
     table_alignments: list[str] = []
 
     def _flush_list() -> None:
-        nonlocal in_list
+        nonlocal in_list, in_olist
         if in_list:
             html_parts.append("</ul>")
             in_list = False
+        if in_olist:
+            html_parts.append("</ol>")
+            in_olist = False
 
     def _flush_table() -> None:
         nonlocal in_table, table_alignments
@@ -211,10 +215,31 @@ def _markdown_to_html(text: str) -> str:
         # Unordered list items
         m = re.match(r"^[\s]*[-*+]\s+(.+)$", line)
         if m:
+            if in_olist:
+                _flush_list()
             if not in_list:
                 in_list = True
                 html_parts.append("<ul>")
             html_parts.append(f"<li>{_inline(m.group(1))}</li>")
+            i += 1
+            continue
+
+        # Ordered list items — preserve source numbers via value="N".
+        # We start the <ol> at the first item's number (so <ol start="3">
+        # for "3. foo") and emit value="M" on every <li> so that gaps in
+        # the source sequence (1, 7, 99) are preserved verbatim. This
+        # matters so that humans and AIs can refer to "item 7" and mean
+        # the same thing in both the markdown source and the render.
+        m = re.match(r"^[\s]*(\d+)\.\s+(.+)$", line)
+        if m:
+            if in_list:
+                _flush_list()
+            num = int(m.group(1))
+            text = m.group(2)
+            if not in_olist:
+                in_olist = True
+                html_parts.append(f'<ol start="{num}">')
+            html_parts.append(f'<li value="{num}">{_inline(text)}</li>')
             i += 1
             continue
 

@@ -1102,6 +1102,10 @@ class PromptManager:
         """
         return """## REMINDER: Be Optimistic, Do Everything In One Response
 
+`<replace>` is an **inline XML command written directly in your response prose** — not an
+API tool call. Don't put it inside a `<function_calls>` block, and don't try to invoke it
+through `update_context` or any other function. Just write the tag in your message.
+
 The shape of a `<replace>` block — closing tag of the second child is `</new>`, mirroring `<new>`:
 
 ```

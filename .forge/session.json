@@ -651,6 +651,42 @@
       "streaming": true,
       "actual_cost": 0.16049025,
       "generation_id": "gen-1777327176-WDnRIx86Te0sU53zgiEn"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777327188031.json",
+      "response_file": "/tmp/forge_debug/response_1777327188031.json",
+      "timestamp": 1777327188.031729,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000133,
+      "generation_id": "gen-1777327188-6BtLcnC2WBJVf9Je2TFe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777327206645.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777327206645.json",
+      "timestamp": 1777327206.6467714,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.16819825,
+      "generation_id": "gen-1777327206-BmKt1XAINZi9jDpGD5XT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777327224479.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777327224479.json",
+      "timestamp": 1777327224.488243,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.0640375,
+      "generation_id": "gen-1777327224-2h0S2zRv4uPN0kDQrwnE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777327245538.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777327245538.json",
+      "timestamp": 1777327245.547675,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.05837175,
+      "generation_id": "gen-1777327245-KlqMflm7jMUpdannWAAI"
     }
   ],
   "messages": [
@@ -778,6 +814,54 @@
     {
       "role": "assistant",
       "content": "[id 14] Now I'll add the correct-form skeleton near the top of the reminder. Using a nonced `<replace>` because the body contains literal edit-block tags.\n\n<replace_zq7 file=\"forge/prompts/manager.py\">\n<old_zq7>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</old_zq7>\n<new_zq7>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nThe shape of a `<replace>` block \u2014 closing tag of the second child is `</new>`, mirroring `<new>`:\n\n```\n<replace file=\"path\">\n<old>\ntext to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</new_zq7>\n</replace_zq7>\n\nDone. The change is small and surgical:\n\n- Adds a 10-line correct-form skeleton at the very top of the per-turn reminder\n- Puts `</new>` as the most recently-seen closing tag in context right before generation\n- Keeps the rest of the reminder unchanged\n- Doesn't touch the system prompt's existing warning section (which we can revisit if this doesn't help)\n\nThe theory: since this reminder is appended to *every* turn, `</new>` will now appear in the immediately-prior context every time the model generates a `<replace>` block. That competes directly with the induction-head misfire at the strongest possible position \u2014 the local context window when predicting the closing tag.\n\nWorth watching for a few sessions to see if the bug rate actually drops. If it does, great. If not, the next thing to try is probably either:\n1. Removing the \"\u26a0\ufe0f Common Mistake\" section from the system prompt (since by your data it doesn't help, and it adds extra `</old>` tokens)\n2. The asymmetric-children variant (no `</new>` close at all)",
+      "_inline_results": [
+        {
+          "filepath": "forge/prompts/manager.py",
+          "modified_files": [
+            "forge/prompts/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 7b8c43e2",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "thanks! can you also add that this is inline xml, not a toolcall? also a mistake that came a lot recently."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 16] Good call \u2014 I notice the file in context still shows the *old* reminder text (without my skeleton addition). That's because the `[CONTEXT: ...]` block at the bottom is showing the file as of session start, but my edit from the previous turn was committed. So my `<replace>` needs to match the actual on-disk content, which is what's shown.\n\nLet me add both the inline-vs-toolcall note and the skeleton in one edit:\n\n<replace_mw3 file=\"forge/prompts/manager.py\">\n<old_mw3>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</old_mw3>\n<new_mw3>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\n`<replace>` is an **inline XML command written directly in your response prose** \u2014 not an\nAPI tool call. Don't put it inside a `<function_calls>` block, and don't try to invoke it\nthrough `update_context` or any other function. Just write the tag in your message:\n\n```\n<replace file=\"path\">\n<old>\ntext to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nNote the closing tag of the second child is `</new>`, mirroring `<new>` (not `</old>`).\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</new_mw3>\n</replace_mw3>\n\n[INLINE COMMAND ERROR: Search text not found in forge/prompts/manager.py]\n\n\nDone. The reminder now covers both recent failure modes:\n\n1. **Wrong closing tag** (`</old>` instead of `</new>`) \u2014 addressed by the skeleton example, which puts a correct `</new>` in the most-recent-tokens position before generation.\n\n2. **Reaching for a function call instead of writing the inline tag** \u2014 addressed by the explicit \"inline XML command... not an API tool call\" sentence, with `update_context` called out by name since that seems to be the specific wrong direction the model drifts toward.\n\nBoth nudges live in the same per-turn reminder, so they're maximally salient at generation time without bloating the system prompt.\n\n[... text above this point was preserved as-written; inline commands after the error were not executed.]"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nSearch text not found in forge/prompts/manager.py",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 18] Ah \u2014 my previous turn's edit didn't actually land (despite the \"\u2713 edit\" confirmation, the file still shows the original reminder text without my skeleton). So the search text I just used *should* match. Let me look at what actually happened.\n\nLooking at the file content in context, the reminder really does start with `## REMINDER: Be Optimistic, Do Everything In One Response\\n\\nInline commands...` \u2014 no skeleton in between. So my last edit must have been the one that landed (with `_zq7`), but actually... wait. Looking at git: the previous turn says \"\u2713 edit\" but the file content shows no skeleton. That's odd.\n\nLet me just retry with the current actual content and put both improvements in:\n\n<replace_kv8 file=\"forge/prompts/manager.py\">\n<old_kv8>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</old_kv8>\n<new_kv8>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\n`<replace>` is an **inline XML command written directly in your response prose** \u2014 not an\nAPI tool call. Don't put it inside a `<function_calls>` block, and don't try to invoke it\nthrough `update_context` or any other function. Just write the tag in your message:\n\n```\n<replace file=\"path\">\n<old>\ntext to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nNote the closing tag of the second child is `</new>`, mirroring `<new>` (not `</old>`).\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</new_kv8>\n</replace_kv8>\n\n[INLINE COMMAND ERROR: Search text not found in forge/prompts/manager.py]\n\n\nDone. Both nudges are now in the per-turn reminder:\n\n1. **\"It's inline XML, not a tool call\"** \u2014 explicit, with `update_context` called out by name as the wrong direction the model drifts toward.\n2. **Correct-form skeleton** \u2014 the visible `</new>` competes with the induction-head misfire at the strongest possible position (most-recent tokens before generation).\n\nOne thing worth flagging though: my previous turn reported `\u2713 edit` succeeded, but the file content I see now doesn't contain the skeleton from that edit. Either:\n- The earlier edit silently didn't land despite the success message (would be a real bug worth investigating), or\n- The file content shown to me in `[CONTEXT: ...]` is stale relative to what's actually on disk\n\nIf you can check whether the skeleton from my first attempt (`_zq7` nonce) actually made it into the file, that'd confirm which case it is. If the file *does* have it and I just couldn't see it, then this second edit will fail to find the search text and we'll need to look at what's actually there. If the file *doesn't* have it, then something odd happened with the earlier edit pipeline.\n\n[... text above this point was preserved as-written; inline commands after the error were not executed.]"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nSearch text not found in forge/prompts/manager.py",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "no it's because I didn't restart.",
+      "_mid_turn": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 21] Ah, makes sense \u2014 the running app still has the old in-memory `_format_inline_command_reminder()` from before my edit, so the reminder I see appended to *this* turn is the old one. The on-disk file already has the skeleton change. So my second edit was trying to match text that no longer exists on disk.\n\nLet me make the inline-vs-tool-call addition against the *actual* current on-disk content:\n\n<replace_pj4 file=\"forge/prompts/manager.py\">\n<old_pj4>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\nThe shape of a `<replace>` block \u2014 closing tag of the second child is `</new>`, mirroring `<new>`:\n\n```\n<replace file=\"path\">\n<old>\ntext to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</old_pj4>\n<new_pj4>\n        return \"\"\"## REMINDER: Be Optimistic, Do Everything In One Response\n\n`<replace>` is an **inline XML command written directly in your response prose** \u2014 not an\nAPI tool call. Don't put it inside a `<function_calls>` block, and don't try to invoke it\nthrough `update_context` or any other function. Just write the tag in your message.\n\nThe shape of a `<replace>` block \u2014 closing tag of the second child is `</new>`, mirroring `<new>`:\n\n```\n<replace file=\"path\">\n<old>\ntext to find\n</old>\n<new>\nreplacement text\n</new>\n</replace>\n```\n\nInline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.\nIf any command fails, execution stops and you get control back with the error.\n</new_pj4>\n</replace_pj4>\n\nDone. The reminder now leads with the inline-vs-tool-call clarification (calling out `update_context` by name as the wrong direction), then shows the correct-form skeleton. You'll need to restart for both changes to take effect in the running app's reminder.",
       "_inline_results": [
         {
           "filepath": "forge/prompts/manager.py",

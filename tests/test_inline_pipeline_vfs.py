@@ -35,11 +35,10 @@ def repo_with_files(tmp_path):
 
     sig = pygit2.Signature("Test", "test@test.com")
 
-    # Two source files we'll edit, plus a Makefile that fails tests.
     files = {
         "a.py": b"def foo():\n    return 1\n",
         "b.py": b"def bar():\n    return 10\n",
-        # Use printf so this works without bash; `false` exits non-zero.
+        # `false` exits non-zero. printf works without bash.
         "Makefile": b"test:\n\t@printf 'simulated test failure\\n'; false\n",
     }
 
@@ -54,11 +53,45 @@ def repo_with_files(tmp_path):
     return ForgeRepository(str(tmp_path))
 
 
+# Pipeline-content templates are constructed at module level so the
+# triple-quoted strings containing literal <replace>/<old>/<new> tags
+# don't trip up any tooling that scans the test source for inline
+# commands.
+_PIPELINE_EDITS_THEN_TESTS_THEN_NARRATION = (
+    '<replace file="a.py">\n'
+    "<old>\n"
+    "def foo():\n"
+    "    return 1\n"
+    "</old>\n"
+    "<new>\n"
+    "def foo():\n"
+    "    return 2\n"
+    "</new>\n"
+    "</replace>\n"
+    "\n"
+    '<replace file="b.py">\n'
+    "<old>\n"
+    "def bar():\n"
+    "    return 10\n"
+    "</old>\n"
+    "<new>\n"
+    "def bar():\n"
+    "    return 20\n"
+    "</new>\n"
+    "</replace>\n"
+    "\n"
+    "<run_tests/>\n"
+    "\n"
+    "Both functions are updated and the tests should now pass with the\n"
+    "new return values; if anything fails I'll investigate further.\n"
+)
+
+
 def test_edits_persist_in_vfs_when_run_tests_fails(repo_with_files):
     """
-    Pipeline: <replace a.py> → <replace b.py> → narration → <run_tests/>.
+    Real-world flow: <replace a.py> → <replace b.py> → <run_tests/> → narration.
 
-    The two replaces succeed; run_tests runs against the materialized VFS
+    Both replaces succeed; run_tests runs against the materialized VFS
     state (which includes both edits) and reports failure because the
     Makefile's `test` target exits non-zero. The Makefile does NOT modify
     any files, so the writeback loop in run_tests is a no-op.
@@ -66,38 +99,12 @@ def test_edits_persist_in_vfs_when_run_tests_fails(repo_with_files):
     Expected behavior: after the pipeline, the VFS still contains both
     edits in pending_changes, and a.py / b.py read back with the new
     content. The fact that run_tests failed must not erase the edits.
+
+    Trailing narration after the failed <run_tests/> must be ignored
+    (no commands in it) and must not affect the pipeline result.
     """
     vfs = WorkInProgressVFS(repo_with_files, "master")
-
-    content = """\
-I'll fix both functions and then verify with the test suite.
-
-<replace file="a.py">
-<old>
-def foo():
-    return 1
-</old>
-<new>
-def foo():
-    return 2
-</new>
-</replace>
-
-<replace file="b.py">
-<old>
-def bar():
-    return 10
-</old>
-<new>
-def bar():
-    return 20
-</new>
-</replace>
-
-Now let's verify the changes pass the tests.
-
-<run_tests/>
-"""
+    content = _PIPELINE_EDITS_THEN_TESTS_THEN_NARRATION
 
     commands = parse_inline_commands(content)
 

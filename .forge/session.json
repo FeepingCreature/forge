@@ -861,6 +861,78 @@
       "streaming": false,
       "actual_cost": 0.002039,
       "generation_id": "gen-1777821156-zP1lrYCtpypiWGsr0ybT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777821157121.json",
+      "response_file": "/tmp/forge_debug/response_1777821157121.json",
+      "timestamp": 1777821157.1212194,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000168,
+      "generation_id": "gen-1777821157-88pL2Dskjo2XSHPO5sSA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821191994.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821191994.json",
+      "timestamp": 1777821191.9967325,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.58289875,
+      "generation_id": "gen-1777821192-dF4BevQlHu1V3nGCgapw"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821239600.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821239600.json",
+      "timestamp": 1777821239.602916,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.0754745,
+      "generation_id": "gen-1777821239-NECKmeSFaPJ7gq1wMtTO"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821254712.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821254712.json",
+      "timestamp": 1777821254.7147067,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.59308125,
+      "generation_id": "gen-1777821254-eRwN7aOb37444pNJPTRA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821259989.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821259989.json",
+      "timestamp": 1777821259.991405,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.0720025,
+      "generation_id": "gen-1777821260-7klgUj7C6hPbG1EeTQHU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821271612.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821271612.json",
+      "timestamp": 1777821271.621891,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.06274975,
+      "generation_id": "gen-1777821271-5TZjJUYy4IdkJoHJxagT"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821274915.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821274915.json",
+      "timestamp": 1777821274.917432,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.05984525,
+      "generation_id": "gen-1777821275-Dn5HFysy19UkJy65MPuM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777821278247.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777821278247.json",
+      "timestamp": 1777821278.2580864,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.121982,
+      "generation_id": "gen-1777821278-VxdZGyYks6YIjFOt20PQ"
     }
   ],
   "messages": [
@@ -1211,6 +1283,152 @@
     {
       "role": "assistant",
       "content": "[id 18] The test file was written successfully \u2014 the `run_tests` failure was because pytest isn't installed in this sandbox, not because the test is broken. The test itself is committed and ready to run.\n\nHere's a quick summary of what's now in place at `tests/test_inline_pipeline_vfs.py`:\n\n**Scenario** (mirrors what you described):\n1. Assistant message with `<replace a.py>` \u2192 `<replace b.py>` \u2192 narration \u2192 `<run_tests/>`\n2. Both `<replace>` succeed against a real `WorkInProgressVFS`\n3. `<run_tests/>` discovers a hermetic Makefile whose `test:` target prints a message and `exit 1` \u2014 fails *without modifying any files*\n4. Assert: VFS still reads back the edited content for both files, and `pending_changes` still contains them\n\n**Why hermetic Makefile**: `_discover_test_command` checks Makefile `test:` first, so this short-circuits before pytest discovery and gives us a deterministic \"tests fail without touching files\" outcome. That isolates the question to \"does the inline pipeline preserve VFS state on a later failure?\" \u2014 no formatter or test-runner side effects to confound it.\n\nYou can run it locally with:\n```\npytest tests/test_inline_pipeline_vfs.py -v\n```\n\nIf it **passes**, the inline pipeline + VFS layer is innocent \u2014 the bug is somewhere upstream (UI refresh, editor display, or commit handling). If it **fails**, the bug is in the pipeline itself and we'll have a tight reproduction to debug from.\n\nWant me to also write a variant where `<run_tests/>` is replaced by `<check/>` (which *does* modify files via `make format`)? That would isolate whether the writeback loop is the culprit when there's actual file mutation in the temp dir."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 8e8e751f",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay sorry pytest installed, try now"
+    },
+    {
+      "role": "assistant",
+      "content": "<run_tests file=\"tests/test_inline_pipeline_vfs.py\" verbose=\"true\"/>",
+      "_inline_results": [
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3.14\ncachedir: .pytest_cache\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_zkwln4u4\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollecting ... collected 1 item\n\ntests/test_inline_pipeline_vfs.py::test_edits_persist_in_vfs_when_run_tests_fails PASSED [100%]\n\n============================== 1 passed in 0.26s ===============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3.14\ncachedir: .pytest_cache\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_zkwln4u4\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollecting ... collected 1 item\n\ntests/test_inline_pipeline_vfs.py::test_edits_persist_in_vfs_when_run_tests_fails PASSED [100%]\n\n============================== 1 passed in 0.26s ===============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: f8962728",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yeah tests pass...to be clear the flow is `<replace a.py>` -> `<replace b.py>` -> `<run_tests/>` -> narration."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 23] Ah, important correction \u2014 narration comes *after* `<run_tests/>`, not before. That changes things meaningfully: the parser still finds all three commands (since `<run_tests/>` is self-closing and the narration is just text after it), so the pipeline behavior should be the same. But let me update the test to match the actual flow exactly, and add a second test asserting the narration doesn't get parsed as anything weird.\n\n<replace file=\"tests/test_inline_pipeline_vfs.py\">\n<old>\n    content = \"\"\"\\\nI'll fix both functions and then verify with the test suite.\n\n<replace file=\"a.py\">\n<old>\ndef foo():\n    return 1\n</old>\n<new>\ndef foo():\n    return 2\n</new>\n</replace>\n\n<replace file=\"b.py\">\n<old>\ndef bar():\n    return 10\n</old>\n<new>\ndef bar():\n    return 20\n</new>\n</replace>\n\n[INLINE COMMAND ERROR: File not found: b.py]\n\n\nNow let's verify the changes pass the tests.\n\n<run_tests/>\n\"\"\"\n</old>\n<new>\n    # Real-world flow: edits, then run_tests, THEN narration about what\n    # the AI expects to see. The narration sits AFTER the failing test\n    # command \u2014 if anything in the parser/pipeline mis-handles trailing\n    # prose, we want to catch it here.\n    content = \"\"\"\\\n<replace file=\"a.py\">\n<old>\ndef foo():\n    return 1\n</old>\n<new>\ndef foo():\n    return 2\n</new>\n</replace>\n\n<replace file=\"b.py\">\n<old>\ndef bar():\n    return 10\n</old>\n<new>\ndef bar():\n    return 20\n</new>\n</replace>\n\n<run_tests/>\n\nBoth functions are updated and the tests should now pass with the new\nreturn values. If anything fails I'll investigate further.\n\"\"\"\n</new>\n</replace>\n\n<run_tests file=\"tests/test_inline_pipeline_vfs.py\" verbose=\"true\"/>\n\nIf this still passes, then under the test's hermetic conditions the inline pipeline preserves VFS state correctly even with the realistic message shape. That's a real data point \u2014 it means the bug is *not* in `parse_inline_commands` / `execute_inline_commands_with_parse_check` / `WorkInProgressVFS.pending_changes` for this specific scenario. We'd then need to look elsewhere (the worker thread boundary, the `_on_inline_commands_finished` handler in `live_session`, or further upstream in the UI).\n\nWant me to also add a variant where one of the edits comes *after* `<run_tests/>`? That tests whether the pipeline correctly stops at the failed test (so the third edit shouldn't apply) \u2014 which is a different but related correctness property.\n\n[... text above this point was preserved as-written; inline commands after the error were not executed. 5 subsequent inline command(s) were skipped.]"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nFile not found: b.py",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 25] Looks like my last `<replace>` self-cannibalized \u2014 the `<old>` body contained a literal `<replace>` tag which terminated the block early and corrupted the test file. Let me revert and use a nonced form this time, since the body has actual edit-block delimiters.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"tests/test_inline_pipeline_vfs.py\"}",
+            "name": "undo_edit"
+          },
+          "id": "toolu_vrtx_018vPQGZHpyjB2UYoDFjW2sd",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_018vPQGZHpyjB2UYoDFjW2sd",
+      "content": "{\"action\": \"reverted\", \"message\": \"Reverted to base commit version: tests/test_inline_pipeline_vfs.py\", \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `undo_edit`\n```json\n{\n  \"filepath\": \"tests/test_inline_pipeline_vfs.py\"\n}\n```\n**Result:**\n```json\n{\n  \"action\": \"reverted\",\n  \"message\": \"Reverted to base commit version: tests/test_inline_pipeline_vfs.py\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 26] Now let me redo the edit properly, using a nonce since the body contains literal `<replace>` / `</old>` / `</new>` tags.\n\n<replace_q7 file=\"tests/test_inline_pipeline_vfs.py\">\n<old_q7>\n    content = \"\"\"\\\nI'll fix both functions and then verify with the test suite.\n\n<replace file=\"a.py\">\n<old>\ndef foo():\n    return 1\n</old>\n<new>\ndef foo():\n    return 2\n</new>\n</replace>\n\n<replace file=\"b.py\">\n<old>\ndef bar():\n    return 10\n</old>\n<new>\ndef bar():\n    return 20\n</new>\n</replace>\n\nNow let's verify the changes pass the tests.\n\n<run_tests/>\n\"\"\"\n</old_q7>\n<new_q7>\n    # Real-world flow: edits, then run_tests, THEN narration. The\n    # narration sits AFTER the failing test command \u2014 if anything in\n    # the parser/pipeline mis-handles trailing prose after a failed\n    # inline command, we want to catch it here.\n    content = \"\"\"\\\n<replace file=\"a.py\">\n<old>\ndef foo():\n    return 1\n</old>\n<new>\ndef foo():\n    return 2\n</new>\n</replace>\n\n<replace file=\"b.py\">\n<old>\ndef bar():\n    return 10\n</old>\n<new>\ndef bar():\n    return 20\n</new>\n</replace>\n\n<run_tests/>\n\nBoth functions are updated. The tests should now pass with the new\nreturn values; if anything fails I'll investigate further.\n\"\"\"\n</new_q7>\n</replace_q7>\n\n[INLINE COMMAND ERROR: Search text not found in tests/test_inline_pipeline_vfs.py]\n\n\n<run_tests file=\"tests/test_inline_pipeline_vfs.py\" verbose=\"true\"/>\n\nIf this passes too, the inline pipeline + VFS layer is innocent under the realistic message shape (edits \u2192 test \u2192 trailing narration). That gives us a concrete data point that the bug is *not* at this layer, and we should look further upstream \u2014 most likely at the `InlineCommandWorker` thread boundary or `_on_inline_commands_finished` handler in `live_session.py`.\n\n[... text above this point was preserved as-written; inline commands after the error were not executed. 1 subsequent inline command(s) were skipped.]"
+    },
+    {
+      "role": "user",
+      "content": "\u274c `edit` failed:\n\nSearch text not found in tests/test_inline_pipeline_vfs.py",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 28] The `<old>` block didn't match because the file already has the test passing \u2014 the search text I used must have been from the wrong revision in my head. Let me load the current state and redo the edit cleanly.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"tests/test_inline_pipeline_vfs.py\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01WL1ToK2ZNW6YJwHaewvMRt",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01WL1ToK2ZNW6YJwHaewvMRt",
+      "content": "{\"action\": \"update_context\", \"add\": [\"tests/test_inline_pipeline_vfs.py\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 29] Let me look at the current file content and rewrite the `content` block correctly.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"filepath\": \"tests/test_inline_pipeline_vfs.py\", \"line\": 75, \"context\": 25}",
+            "name": "get_lines"
+          },
+          "id": "toolu_vrtx_016B2NunGBUzeWyvHGAAXrEv",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016B2NunGBUzeWyvHGAAXrEv",
+      "content": "{\"content\": \"      50 |     tree = tb.write()\\n      51 |     raw.create_commit(\\\"refs/heads/master\\\", sig, sig, \\\"initial\\\", tree, [])\\n      52 |     raw.set_head(\\\"refs/heads/master\\\")\\n      53 | \\n      54 |     return ForgeRepository(str(tmp_path))\\n      55 | \\n      56 | \\n      57 | def test_edits_persist_in_vfs_when_run_tests_fails(repo_with_files):\\n      58 |     \\\"\\\"\\\"\\n      59 |     Pipeline: <replace a.py> \\u2192 <replace b.py> \\u2192 narration \\u2192 <run_tests/>.\\n      60 | \\n      61 |     The two replaces succeed; run_tests runs against the materialized VFS\\n      62 |     state (which includes both edits) and reports failure because the\\n      63 |     Makefile's `test` target exits non-zero. The Makefile does NOT modify\\n      64 |     any files, so the writeback loop in run_tests is a no-op.\\n      65 | \\n      66 |     Expected behavior: after the pipeline, the VFS still contains both\\n      67 |     edits in pending_changes, and a.py / b.py read back with the new\\n      68 |     content. The fact that run_tests failed must not erase the edits.\\n      69 |     \\\"\\\"\\\"\\n      70 |     vfs = WorkInProgressVFS(repo_with_files, \\\"master\\\")\\n      71 | \\n      72 | def foo():\\n      73 |     return 2\\n      74 | </old>\\n>>>   75 | <new>\\n      76 | def foo():\\n      77 |     return 2\\n      78 | </new>\\n      79 | </replace>\\n      80 | \\n      81 | <replace file=\\\"b.py\\\">\\n      82 | <old>\\n      83 | def bar():\\n      84 |     return 10\\n      85 | </old>\\n      86 | <new>\\n      87 | def bar():\\n      88 |     return 20\\n      89 | </new>\\n      90 | </replace>\\n      91 | \\n      92 | Now let's verify the changes pass the tests.\\n      93 | \\n      94 | <run_tests/>\\n      95 | \\\"\\\"\\\"\\n      96 | \\n      97 |     commands = parse_inline_commands(content)\\n      98 | \\n      99 |     # Sanity: parsed three commands in source order.\\n     100 |     assert len(commands) == 3, (\", \"filepath\": \"tests/test_inline_pipeline_vfs.py\", \"range\": \"50-100\", \"side_effects\": [\"ephemeral_result\"], \"success\": true, \"target_line\": 75, \"total_lines\": 137}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 30] The file is corrupted from the earlier failed edit \u2014 lines 70-94 are mangled (the `content = \"\"\"` line is missing and the docstring body bleeds into actual Python). Easiest fix: rewrite the test function cleanly. Let me overwrite the whole file.\n\n<write_zz9 file=\"tests/test_inline_pipeline_vfs.py\">\n\"\"\"\nTests for the inline-command pipeline's interaction with the VFS.\n\nThese tests run the full parse_inline_commands \u2192 execute_inline_commands\npipeline against a real WorkInProgressVFS over a tiny git repo, and assert\nthat pending VFS state is correct after the pipeline finishes \u2014 including\nwhen a later command in the pipeline fails.\n\"\"\"\n\nimport pygit2\nimport pytest\n\nfrom forge.git_backend.repository import ForgeRepository\nfrom forge.tools.invocation import (\n    execute_inline_commands_with_parse_check,\n    parse_inline_commands,\n)\nfrom forge.vfs.work_in_progress import WorkInProgressVFS\n\n\n@pytest.fixture\ndef repo_with_files(tmp_path):\n    \"\"\"\n    Bootstrap a git repo with two source files plus a Makefile whose\n    `test` target always fails *without* touching any files.\n\n    The failing-but-non-mutating Makefile lets us exercise the\n    <run_tests/> inline command in a hermetic, deterministic way:\n    run_tests will discover `make test`, run it, see returncode != 0,\n    and report failure \u2014 but no files in the materialized tempdir\n    will have been modified, so the writeback loop is a no-op.\n    \"\"\"\n    pygit2.init_repository(str(tmp_path))\n    raw = pygit2.Repository(str(tmp_path))\n\n    sig = pygit2.Signature(\"Test\", \"test@test.com\")\n\n    files = {\n        \"a.py\": b\"def foo():\\n    return 1\\n\",\n        \"b.py\": b\"def bar():\\n    return 10\\n\",\n        # `false` exits non-zero. printf works without bash.\n        \"Makefile\": b\"test:\\n\\t@printf 'simulated test failure\\\\n'; false\\n\",\n    }\n\n    tb = raw.TreeBuilder()\n    for name, data in files.items():\n        blob = raw.create_blob(data)\n        tb.insert(name, blob, pygit2.GIT_FILEMODE_BLOB)\n    tree = tb.write()\n    raw.create_commit(\"refs/heads/master\", sig, sig, \"initial\", tree, [])\n    raw.set_head(\"refs/heads/master\")\n\n    return ForgeRepository(str(tmp_path))\n\n\n# Pipeline-content templates are constructed at module level so the\n# triple-quoted strings containing literal <replace>/<old>/<new> tags\n# don't trip up any tooling that scans the test source for inline\n# commands.\n_PIPELINE_EDITS_THEN_TESTS_THEN_NARRATION = (\n    '<replace file=\"a.py\">\\n'\n    \"<old>\\n\"\n    \"def foo():\\n\"\n    \"    return 1\\n\"\n    \"</old>\\n\"\n    \"<new>\\n\"\n    \"def foo():\\n\"\n    \"    return 2\\n\"\n    \"</new>\\n\"\n    \"</replace>\\n\"\n    \"\\n\"\n    '<replace file=\"b.py\">\\n'\n    \"<old>\\n\"\n    \"def bar():\\n\"\n    \"    return 10\\n\"\n    \"</old>\\n\"\n    \"<new>\\n\"\n    \"def bar():\\n\"\n    \"    return 20\\n\"\n    \"</new>\\n\"\n    \"</replace>\\n\"\n    \"\\n\"\n    \"<run_tests/>\\n\"\n    \"\\n\"\n    \"Both functions are updated and the tests should now pass with the\\n\"\n    \"new return values; if anything fails I'll investigate further.\\n\"\n)\n\n\ndef test_edits_persist_in_vfs_when_run_tests_fails(repo_with_files):\n    \"\"\"\n    Real-world flow: <replace a.py> \u2192 <replace b.py> \u2192 <run_tests/> \u2192 narration.\n\n    Both replaces succeed; run_tests runs against the materialized VFS\n    state (which includes both edits) and reports failure because the\n    Makefile's `test` target exits non-zero. The Makefile does NOT modify\n    any files, so the writeback loop in run_tests is a no-op.\n\n    Expected behavior: after the pipeline, the VFS still contains both\n    edits in pending_changes, and a.py / b.py read back with the new\n    content. The fact that run_tests failed must not erase the edits.\n\n    Trailing narration after the failed <run_tests/> must be ignored\n    (no commands in it) and must not affect the pipeline result.\n    \"\"\"\n    vfs = WorkInProgressVFS(repo_with_files, \"master\")\n    content = _PIPELINE_EDITS_THEN_TESTS_THEN_NARRATION\n\n    commands = parse_inline_commands(content)\n\n    # Sanity: parsed three commands in source order.\n    assert len(commands) == 3, (\n        f\"Expected 3 inline commands (replace, replace, run_tests); \"\n        f\"got {len(commands)}: {[c.tool_name for c in commands]}\"\n    )\n    assert commands[0].tool_name == \"edit\"\n    assert commands[0].args[\"filepath\"] == \"a.py\"\n    assert commands[1].tool_name == \"edit\"\n    assert commands[1].args[\"filepath\"] == \"b.py\"\n    assert commands[2].tool_name == \"run_tests\"\n\n    results, failed_index = execute_inline_commands_with_parse_check(\n        vfs, content, commands\n    )\n\n    # The pipeline must have executed all three commands and stopped on\n    # run_tests (index 2) because tests failed.\n    assert failed_index == 2, (\n        f\"Expected pipeline to fail at run_tests (index 2); \"\n        f\"got failed_index={failed_index}, results={results}\"\n    )\n    assert len(results) == 3\n    assert results[0][\"success\"] is True, f\"first replace failed: {results[0]}\"\n    assert results[1][\"success\"] is True, f\"second replace failed: {results[1]}\"\n    assert results[2][\"success\"] is False, \"run_tests should have failed\"\n\n    # \u2500\u2500 The actual claim under test \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    # Both edits must still be visible through the VFS afterwards.\n    assert vfs.read_file(\"a.py\") == \"def foo():\\n    return 2\\n\", (\n        \"a.py edit was lost from the VFS after run_tests failed\"\n    )\n    assert vfs.read_file(\"b.py\") == \"def bar():\\n    return 20\\n\", (\n        \"b.py edit was lost from the VFS after run_tests failed\"\n    )\n\n    # And they should be present specifically in pending_changes (not\n    # somehow committed or hiding in base_vfs).\n    assert \"a.py\" in vfs.pending_changes\n    assert \"b.py\" in vfs.pending_changes\n</write_zz9>\n\n<run_tests file=\"tests/test_inline_pipeline_vfs.py\" verbose=\"true\"/>\n\nIf this passes, the inline pipeline + VFS layer is innocent for this exact flow (edits \u2192 failing test \u2192 trailing narration), and we can move on to looking upstream \u2014 most likely `InlineCommandWorker` (thread boundary, claim_thread/release_thread) or `_on_inline_commands_finished` in `live_session.py`.",
+      "_inline_results": [
+        {
+          "created": false,
+          "filepath": "tests/test_inline_pipeline_vfs.py",
+          "modified_files": [
+            "tests/test_inline_pipeline_vfs.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3.14\ncachedir: .pytest_cache\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_qzhxq2ak\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollecting ... collected 1 item\n\ntests/test_inline_pipeline_vfs.py::test_edits_persist_in_vfs_when_run_tests_fails PASSED [100%]\n\n============================== 1 passed in 0.26s ===============================\n",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3.14\ncachedir: .pytest_cache\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_qzhxq2ak\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollecting ... collected 1 item\n\ntests/test_inline_pipeline_vfs.py::test_edits_persist_in_vfs_when_run_tests_fails PASSED [100%]\n\n============================== 1 passed in 0.26s ===============================\n",
+          "passed": false,
+          "side_effects": [
+            "has_display_output"
+          ],
+          "success": true,
+          "summary": "\u2713 Tests passed (pytest)",
+          "test_command": "pytest"
+        }
+      ]
     }
   ],
   "parent_session": null,

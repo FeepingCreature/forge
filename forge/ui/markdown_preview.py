@@ -524,7 +524,7 @@ class MarkdownPreviewWidget(QWidget):
         # Preview web view
         self._web_view = QWebEngineView()
         self._web_page = _ExternalLinkPage(self._web_view)
-        self._web_page.javaScriptConsoleMessage = self._on_js_console  # type: ignore[assignment]
+        self._web_page.javaScriptConsoleMessage = self._on_js_console
         self._web_view.setPage(self._web_page)
         self._stack.addWidget(self._web_view)
 
@@ -612,4 +612,4 @@ class MarkdownPreviewWidget(QWidget):
             print(f"[MD Preview] JS error: {message} (line {line})")
 
     def is_preview_visible(self) -> bool:
-        return self._stack.currentIndex() == 1
+        return bool(self._stack.currentIndex() == 1)

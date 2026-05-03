@@ -152,7 +152,7 @@ class MoodBar(QWidget):
         from PySide6.QtGui import QMouseEvent
 
         if not isinstance(event, QMouseEvent):
-            return
+            return None
 
         pos = event.pos()
         for segment_rect, segment in self._segment_rects:
@@ -186,7 +186,7 @@ class MoodBar(QWidget):
             # Cast to QHelpEvent for tooltip-specific methods
             help_event = event if isinstance(event, QHelpEvent) else None
             if help_event is None:
-                return super().event(event)
+                return bool(super().event(event))  # noqa: trailing
 
             # Find which segment the mouse is over
             pos = help_event.pos()
@@ -216,4 +216,4 @@ class MoodBar(QWidget):
             QToolTip.hideText()
             return True
 
-        return super().event(event)
+        return bool(super().event(event))

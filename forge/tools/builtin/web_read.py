@@ -112,7 +112,7 @@ def _fetch_page(url: str) -> str | None:
             if "text/html" not in content_type and "text/plain" not in content_type:
                 # For plain text or other readable formats, still try
                 if "application/json" in content_type:
-                    body = response.read().decode("utf-8", errors="replace")
+                    body: str = response.read().decode("utf-8", errors="replace")
                     return body
                 # Skip binary content
                 if any(
@@ -120,7 +120,8 @@ def _fetch_page(url: str) -> str | None:
                 ):
                     return None
 
-            return response.read().decode("utf-8", errors="replace")
+            decoded: str = response.read().decode("utf-8", errors="replace")
+            return decoded
     except Exception:
         return None
 

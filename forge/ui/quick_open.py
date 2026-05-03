@@ -180,7 +180,7 @@ class QuickOpenWidget(QWidget):
                     self.results_list.setCurrentRow(current_row - 1)
                 return True
 
-        return super().eventFilter(obj, event)
+        return bool(super().eventFilter(obj, event))
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         """Handle show event - focus the search input"""

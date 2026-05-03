@@ -172,7 +172,7 @@ class CodeEditor(QPlainTextEdit):
     def line_number_area_width(self) -> int:
         """Calculate width needed for line numbers"""
         digits = len(str(max(1, self.blockCount())))
-        space = 10 + self.fontMetrics().horizontalAdvance("9") * digits
+        space: int = 10 + self.fontMetrics().horizontalAdvance("9") * digits
         return space
 
     def update_line_number_area_width(self, _: int) -> None:
@@ -641,7 +641,7 @@ class EditorWidget(QWidget):
             if key == Qt.Key.Key_Escape and self._completion_manager:
                 self._completion_manager.dismiss_completion()
 
-        return super().eventFilter(obj, event)
+        return bool(super().eventFilter(obj, event))
 
     def set_completion_enabled(self, enabled: bool) -> None:
         """Enable or disable code completion."""
@@ -655,7 +655,7 @@ class EditorWidget(QWidget):
 
     def get_text(self) -> str:
         """Get editor content"""
-        return self.editor.toPlainText()
+        return str(self.editor.toPlainText())
 
     def set_text(self, text: str) -> None:
         """Set editor content"""

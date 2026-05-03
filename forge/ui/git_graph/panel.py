@@ -112,7 +112,7 @@ class CommitPanel(QGraphicsObject):
         painter.drawRoundedRect(shadow_rect, self.CORNER_RADIUS, self.CORNER_RADIUS)
 
         # Draw panel background
-        state = option.state  # type: ignore[attr-defined]
+        state = option.state
         is_selected = bool(state and (state & QStyle.StateFlag.State_Selected))
         bg_color = QColor("#E3F2FD") if is_selected else QColor("#FFFFFF")
         painter.setBrush(bg_color)

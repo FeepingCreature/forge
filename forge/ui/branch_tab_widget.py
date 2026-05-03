@@ -133,7 +133,7 @@ class BranchTabWidget(QWidget):
 
         Returns the tab index.
         """
-        index = self.file_tabs.insertTab(0, chat_widget, "🤖 AI Chat")
+        index: int = self.file_tabs.insertTab(0, chat_widget, "🤖 AI Chat")
         # AI chat tab is not closable
         self.file_tabs.tabBar().setTabButton(
             0, self.file_tabs.tabBar().ButtonPosition.RightSide, None
@@ -234,7 +234,7 @@ class BranchTabWidget(QWidget):
             tab_widget = editor
 
         # Add to tabs
-        index = self.file_tabs.addTab(tab_widget, f"📄 {filename}")
+        index: int = self.file_tabs.addTab(tab_widget, f"📄 {filename}")
         self.file_tabs.setCurrentIndex(index)
 
         # Track editor (always the EditorWidget, not the wrapper)

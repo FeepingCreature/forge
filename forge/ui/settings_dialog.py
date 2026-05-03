@@ -411,7 +411,7 @@ class SettingsDialog(QDialog):
             elif obj == self.summarization_model_input:
                 self._show_summarization_model_picker()
                 return True
-        return super().eventFilter(obj, event)
+        return bool(super().eventFilter(obj, event))
 
     def _fetch_models(self) -> None:
         """Fetch available models from OpenRouter in background"""

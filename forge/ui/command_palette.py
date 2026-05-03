@@ -206,6 +206,6 @@ class CommandPalette(QDialog):
 
     def showEvent(self, event: object) -> None:  # noqa: N802
         """Focus search input when shown."""
-        super().showEvent(event)  # type: ignore[arg-type]
+        super().showEvent(event)
         self.search_input.setFocus()
         self.search_input.selectAll()

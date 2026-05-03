@@ -14,7 +14,7 @@ class ForkBranchDialog(QDialog):
     """Dialog for forking a branch with session options."""
 
     def __init__(self, source_branch: str, parent: object = None) -> None:
-        super().__init__(parent)  # type: ignore[arg-type]
+        super().__init__(parent)
         self.setWindowTitle("Fork Branch")
         self.setMinimumWidth(350)
 
@@ -47,8 +47,8 @@ class ForkBranchDialog(QDialog):
 
     def get_branch_name(self) -> str:
         """Get the entered branch name."""
-        return self.name_edit.text().strip()
+        return str(self.name_edit.text().strip())
 
     def should_include_session(self) -> bool:
         """Check if session should be copied."""
-        return self.include_session.isChecked()
+        return bool(self.include_session.isChecked())

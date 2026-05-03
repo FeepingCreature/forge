@@ -381,7 +381,7 @@ class AIChatWidget(QWidget):
         self.chat_view.setPage(custom_page)
 
         # Log JavaScript console messages to stdout for debugging
-        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message  # type: ignore
+        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message
 
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)
@@ -565,7 +565,7 @@ class AIChatWidget(QWidget):
                 # Enter pressed without Shift - send message
                 self._send_message()
                 return True  # Event handled
-        return super().eventFilter(obj, event)
+        return bool(super().eventFilter(obj, event))
 
     def _update_blocking_state(self) -> None:
         """Update UI blocking state based on pending approvals"""
@@ -631,7 +631,7 @@ class AIChatWidget(QWidget):
             QMessageBox.StandardButton.Cancel,
         )
 
-        return reply == QMessageBox.StandardButton.Discard
+        return bool(reply == QMessageBox.StandardButton.Discard)
 
     def _send_message(self) -> None:
         """Send user message to AI"""

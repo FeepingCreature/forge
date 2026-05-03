@@ -343,7 +343,16 @@ and revertible.
 
 ## Status
 
-- [~] Phase 1 — TaskRunner (in progress)
+- [x] Phase 1 — TaskRunner
+  - [x] step 1: `forge/runtime/tasks.py` (CancelToken / TaskHandle / TaskRunner protocol / SyncTaskRunner / QtTaskRunner) + `tests/test_task_runner.py`
+        Sync coverage in place; QtTaskRunner smoke tests deferred (SIGABRT in cross-thread Signal delivery — see TODO comment block in the test file).
+  - [x] step 2: `LiveSession` and `SessionManager` migrated. All four off-thread sites (LLM stream / inline commands / tool execution / summary generation) now go through `TaskRunner.submit`. Event dispatch via `forge/runtime/events.py` dataclasses (StreamChunk, StreamToolCallDelta, ToolStarted, ToolFinished, SummaryProgress).
 - [ ] Phase 2 — LLMBackend
 - [ ] Phase 3 — De-Qt workers
 - [ ] Phase 4 — Harness + DSL + migrations
+
+### Carried-over follow-ups
+
+- **QtTaskRunner smoke tests** — deferred behind a TODO in `tests/test_task_runner.py`. Three suspected causes (Signal(object) closures, deleteLater race, thread.quit ordering); three investigation paths noted. Production path is exercised by the running app, just not by tests yet. Worth revisiting once we have an end-to-end harness in Phase 4 because that may expose the symptoms differently.
+
+- **`chat_workers.py` is now dead-ish** — `LiveSession` and `SessionManager` no longer import from it. The four worker classes (`StreamWorker`, `InlineCommandWorker`, `ToolExecutionWorker`, `SummaryWorker`) are reachable from nothing in production. We could delete the file *now* but Phase 3 plans to do it as part of the de-Qt sweep, so leaving it for now keeps the diff focused per phase.

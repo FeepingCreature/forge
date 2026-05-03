@@ -1,13 +1,6 @@
 {
   "active_files": [
-    "tests/test_task_runner.py",
-    "forge/session/live_session.py",
-    "TEST_REFACTOR_TODO.md",
-    "forge/runtime/events.py",
-    "forge/session/manager.py",
-    "forge/runtime/tasks.py",
-    "forge/ui/chat_workers.py",
-    "forge/runtime/__init__.py"
+    "TEST_REFACTOR_TODO.md"
   ],
   "request_log_entries": [
     {
@@ -1620,6 +1613,33 @@
       "streaming": false,
       "actual_cost": 0.000842,
       "generation_id": "gen-1777828970-sHWymLYyEefQ6jwaVjWR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777829058308.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777829058308.json",
+      "timestamp": 1777829058.3122509,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.7441375,
+      "generation_id": "gen-1777829058-v79c6lMlNXVQYagf3mys"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777829074102.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777829074102.json",
+      "timestamp": 1777829074.1049342,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.4666425,
+      "generation_id": "gen-1777829074-qoQFthiHZ3e4hxKHyMjE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777829081628.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777829081628.json",
+      "timestamp": 1777829081.6380324,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.083351,
+      "generation_id": "gen-1777829081-PSFU2WRvuGvaIpmtAn0t"
     }
   ],
   "messages": [
@@ -3190,6 +3210,79 @@
         {
           "commit": "d2efc99d66fc",
           "message": "Committed: 4 file(s) modified/created",
+          "side_effects": [
+            "mid_turn_commit"
+          ],
+          "success": true
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: d1425095",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "huh. what was it?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 100] Honestly, I'm not 100% sure \u2014 the output just says \"Formatted 1 files: forge/runtime/events.py\" with no detail on what the formatter changed. My best guess: it was a missing trailing newline at end of file. The `<write>` tag content ends with `filepath: str\\n` followed by my literal `</write>` \u2014 depending on how the parser strips, that may have produced a file with no final newline, or the wrong line-ending count between the `from typing import Any` line and the first `@dataclass`. Ruff's I001 reports as \"unsorted\" but covers any whitespace-around-imports issue too, which is misleading.\n\nTo actually find out I'd need to `git show d2efc99d -- forge/runtime/events.py` and look at the diff. Want me to?\n\nEither way \u2014 Phase 1 step 2 is **done and committed** (d2efc99d). Now let me clean up context for what's next.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"remove\": [\"forge/session/manager.py\", \"forge/session/live_session.py\", \"forge/runtime/__init__.py\", \"forge/runtime/events.py\", \"forge/runtime/tasks.py\", \"forge/ui/chat_workers.py\", \"tests/test_task_runner.py\"], \"add\": [\"TEST_REFACTOR_TODO.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_016cjCACKWxKes4t5pMaZhvw",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_016cjCACKWxKes4t5pMaZhvw",
+      "content": "{\"action\": \"update_context\", \"add\": [\"TEST_REFACTOR_TODO.md\"], \"message\": \"Added 1 files, removed 7 files from context\", \"remove\": [\"forge/session/manager.py\", \"forge/session/live_session.py\", \"forge/runtime/__init__.py\", \"forge/runtime/events.py\", \"forge/runtime/tasks.py\", \"forge/ui/chat_workers.py\", \"tests/test_task_runner.py\"], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 102] Let me update the plan and queue up Phase 1 step 3 (`tests/test_task_runner.py` smoke coverage of the production `QtTaskRunner`) \u2014 but actually, looking at TEST_REFACTOR_TODO, there's no separate \"step 3\" for Phase 1. The phase is **done** as far as the plan defines it.\n\nLet me update the status and decide what's next.",
+      "tool_calls": [
+        {
+          "function": {
+            "arguments": "{\"add\": [\"TEST_REFACTOR_TODO.md\"]}",
+            "name": "update_context"
+          },
+          "id": "toolu_vrtx_01GhGL6hwUKHNHs2MCuf797L",
+          "type": "function"
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01GhGL6hwUKHNHs2MCuf797L",
+      "content": "{\"action\": \"update_context\", \"add\": [\"TEST_REFACTOR_TODO.md\"], \"message\": \"Added 1 files, removed 0 files from context\", \"remove\": [], \"success\": true}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 102] Updating the plan to mark Phase 1 complete, then I'll surface options for what's next.\n\n<replace file=\"TEST_REFACTOR_TODO.md\">\n<old>\n## Status\n\n- [~] Phase 1 \u2014 TaskRunner (in progress)\n- [ ] Phase 2 \u2014 LLMBackend\n- [ ] Phase 3 \u2014 De-Qt workers\n- [ ] Phase 4 \u2014 Harness + DSL + migrations\n</old>\n<new>\n## Status\n\n- [x] Phase 1 \u2014 TaskRunner\n  - [x] step 1: `forge/runtime/tasks.py` (CancelToken / TaskHandle / TaskRunner protocol / SyncTaskRunner / QtTaskRunner) + `tests/test_task_runner.py`\n        Sync coverage in place; QtTaskRunner smoke tests deferred (SIGABRT in cross-thread Signal delivery \u2014 see TODO comment block in the test file).\n  - [x] step 2: `LiveSession` and `SessionManager` migrated. All four off-thread sites (LLM stream / inline commands / tool execution / summary generation) now go through `TaskRunner.submit`. Event dispatch via `forge/runtime/events.py` dataclasses (StreamChunk, StreamToolCallDelta, ToolStarted, ToolFinished, SummaryProgress).\n- [ ] Phase 2 \u2014 LLMBackend\n- [ ] Phase 3 \u2014 De-Qt workers\n- [ ] Phase 4 \u2014 Harness + DSL + migrations\n\n### Carried-over follow-ups\n\n- **QtTaskRunner smoke tests** \u2014 deferred behind a TODO in `tests/test_task_runner.py`. Three suspected causes (Signal(object) closures, deleteLater race, thread.quit ordering); three investigation paths noted. Production path is exercised by the running app, just not by tests yet. Worth revisiting once we have an end-to-end harness in Phase 4 because that may expose the symptoms differently.\n\n- **`chat_workers.py` is now dead-ish** \u2014 `LiveSession` and `SessionManager` no longer import from it. The four worker classes (`StreamWorker`, `InlineCommandWorker`, `ToolExecutionWorker`, `SummaryWorker`) are reachable from nothing in production. We could delete the file *now* but Phase 3 plans to do it as part of the de-Qt sweep, so leaving it for now keeps the diff focused per phase.\n</new>\n</replace>\n\n<commit message=\"Update TEST_REFACTOR_TODO: mark Phase 1 complete\"/>\n\nPhase 1 done. Where to go next:\n\n**The interesting realization** \u2014 both follow-ups above point at the same thing: `chat_workers.py` is already orphan code. Nothing imports from it. So either:\n\n1. **Phase 2 next** (per the plan) \u2014 extract `LLMBackend`, get the `ScriptedBackend` seam, write the first end-to-end test using `SyncTaskRunner` + `ScriptedBackend`. This unlocks the harness, which is the actual *goal*.\n\n2. **Phase 3 first as a quick cleanup** \u2014 delete `chat_workers.py` and its `from forge.ui.chat_workers import ...` references (there shouldn't be any left in production code now). The plan's Phase 3 is bigger than that (\"rewrite as plain functions\") but the key part \u2014 *deleting the dead Qt-coupled code* \u2014 is now trivial because we already inlined the worker bodies into LiveSession's submit calls. So Phase 3 collapses to \"delete dead code and grep for stragglers.\"\n\n3. **QtTaskRunner smoke tests** \u2014 investigate the SIGABRT now while the code is fresh, before it gets stale.\n\nMy recommendation: **(2) then (1)**. Doing the cleanup deletion now is ~10 minutes and shrinks the codebase. Then Phase 2 is the next meaningful step toward the harness.\n\nBut if you want to be strict about \"one phase per session\" and call it here, that's also fine \u2014 Phase 1 was a chunky session.\n\nWhich way?",
+      "_inline_results": [
+        {
+          "filepath": "TEST_REFACTOR_TODO.md",
+          "modified_files": [
+            "TEST_REFACTOR_TODO.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ],
+          "success": true
+        },
+        {
+          "commit": "0ea4e55dd978",
+          "message": "Committed: 1 file(s) modified/created",
           "side_effects": [
             "mid_turn_commit"
           ],

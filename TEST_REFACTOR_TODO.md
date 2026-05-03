@@ -295,40 +295,39 @@ literal `<replace>` tags.
 
 ---
 
-## Open questions to resolve as we go
+## Resolved design decisions
 
-1. **`QtTaskRunner` cancellation semantics.** Today `LiveSession.cancel()`
-   calls `_cleanup_threads()` which `quit()`s and `wait()`s with a 3s
-   timeout, then `terminate()`s. Should `TaskRunner.cancel_all()` mirror
-   this, or do we want a softer "request stop" flag the work function
-   checks? Decide in Phase 1.
+1. **Cancellation: cooperative.** Forget the hard `terminate()` path —
+   it never reliably worked anyway. `TaskRunner` exposes a soft
+   "stop requested" flag the work function can check. Work that doesn't
+   check just runs to completion; `cancel_all()` then drops the result
+   on the floor instead of delivering it. Concretely:
+   - `Handle` has `.request_stop()` and `.stop_requested` (a thread-safe
+     flag). Work functions are passed the handle (or a `CancelToken`
+     view of it) and can poll `.stop_requested` at safe points.
+   - `TaskRunner.cancel_all()` calls `request_stop()` on every live
+     handle and marks them as "results discarded" so any callbacks
+     that fire after cancel become no-ops.
+   - `LiveSession.cancel()` becomes: `self._tasks.cancel_all()` plus
+     the existing VFS reset and message cleanup.
 
-2. **`ScriptedBackend` strictness.** Should an unmet expectation (queued
-   response never consumed) raise at fixture teardown? Default yes;
-   provide opt-out for tests that intentionally bail mid-flow. Decide in
-   Phase 2.
+2. **`ScriptedBackend` strictness: per-expectation flag.** Each
+   `queue_response(...)` accepts an optional `optional=True` flag for
+   responses that may or may not be consumed. Default behavior: at
+   fixture teardown, any non-`optional` queued response that wasn't
+   consumed raises `AssertionError`. This catches the common "test
+   queues 3 responses but pipeline only used 2" bug.
 
-3. **DSL multi-line bodies.** What if `old:` text contains a line that
-   starts with `@`? Need an escape or a fenced form. Probably:
-   ```
-   @edit a.py
-       old:::
-       multi-line body
-       can contain @ at-signs and anything else
-       :::
-       new:::
-       likewise
-       :::
-   ```
-   triple-colon as the fence. Decide in Phase 4 when writing the DSL
-   parser, before users hit the limitation.
+3. **DSL multi-line bodies: no escape needed.** Tests are in our
+   control. If you need a body that starts with `@`, restructure the
+   test or use the raw inline-XML escape hatch. Keep the DSL simple.
 
-4. **`ai_says` and tool calls.** If the scripted response has tool calls
-   (not inline commands), the harness needs to actually run the tools.
-   The TaskRunner is already `SyncTaskRunner` so this works for free —
-   but tests need a way to script the tool *result* too if a tool would
-   normally call out to network/disk. Probably: `session.given_tool_stub("grep_open", returns={...})`.
-   Decide in Phase 4.
+4. **Scripting tool results.** The harness exposes
+   `session.given_tool_result("tool_name", **result_fields)` to inject
+   fake results for specific tool names. Real tools that don't need
+   stubbing (like `edit`, which works against the VFS) just run for
+   real via `SyncTaskRunner`. Stubs take precedence over real
+   execution.
 
 ## Order of operations summary
 
@@ -344,7 +343,7 @@ and revertible.
 
 ## Status
 
-- [ ] Phase 1 — TaskRunner
+- [~] Phase 1 — TaskRunner (in progress)
 - [ ] Phase 2 — LLMBackend
 - [ ] Phase 3 — De-Qt workers
 - [ ] Phase 4 — Harness + DSL + migrations

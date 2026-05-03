@@ -29,8 +29,10 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QObject, Signal
 
 from forge.runtime import (
+    LLMBackend,
     QtTaskRunner,
     StreamChunk,
+    StreamFinished,
     StreamToolCallDelta,
     TaskHandle,
     TaskRunner,
@@ -180,6 +182,7 @@ class LiveSession(QObject):
         session_manager: "SessionManager",
         messages: list[dict[str, Any]] | None = None,
         task_runner: TaskRunner | None = None,
+        llm_backend: LLMBackend | None = None,
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
@@ -187,6 +190,13 @@ class LiveSession(QObject):
         # Off-thread work goes through this seam. Tests inject SyncTaskRunner
         # so the entire pipeline runs straight-line.
         self._tasks: TaskRunner = task_runner if task_runner is not None else QtTaskRunner()
+
+        # LLM access goes through this seam. Tests inject ScriptedBackend so
+        # the network is never touched. Default constructed lazily in
+        # _process_llm_request() because instantiating LLMClient requires the
+        # API key from settings, which may not be set when LiveSession is
+        # built (e.g. when restoring from disk).
+        self._llm_backend: LLMBackend | None = llm_backend
 
         # === AUTHORITATIVE SESSION STATE ===
         # These are the source of truth - UI reads from here
@@ -563,12 +573,8 @@ class LiveSession(QObject):
         self._inline_handle = None
 
     def _process_llm_request(self) -> None:
-        """Start an LLM request with streaming."""
-        from forge.llm.client import LLMClient
-
-        api_key = self.session_manager.settings.get_api_key()
-        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        client = LLMClient(api_key, model)
+        """Start an LLM request with streaming via the LLMBackend seam."""
+        backend = self._get_llm_backend()
 
         # Flush any pending file updates BEFORE building the prompt.
         # This must happen here (not in _on_inline_commands_finished) so that
@@ -585,46 +591,22 @@ class LiveSession(QObject):
         self.start_streaming()
 
         def stream_work(emit: Any, token: Any) -> dict[str, Any]:
-            current_content = ""
-            current_tool_calls: list[dict[str, Any]] = []
+            # The backend yields StreamChunk / StreamToolCallDelta events as
+            # the stream progresses, then a final StreamFinished carrying
+            # the complete assembled content+tool_calls. We forward the
+            # incremental events to the UI thread via `emit` and use
+            # StreamFinished as the work function's return value.
+            content: str | None = None
+            tool_calls: list[dict[str, Any]] | None = None
 
-            for chunk in client.chat_stream(messages, tools or None):
-                if "choices" not in chunk or not chunk["choices"]:
-                    continue
-                delta = chunk["choices"][0].get("delta", {})
+            for event in backend.stream(messages, tools or None):
+                if isinstance(event, StreamFinished):
+                    content = event.content
+                    tool_calls = event.tool_calls
+                else:
+                    emit(event)
 
-                if "content" in delta and delta["content"]:
-                    text = delta["content"]
-                    current_content += text
-                    emit(StreamChunk(text))
-
-                if "tool_calls" in delta:
-                    for tc_delta in delta["tool_calls"]:
-                        idx = tc_delta.get("index", 0)
-                        while len(current_tool_calls) <= idx:
-                            current_tool_calls.append(
-                                {
-                                    "id": "",
-                                    "type": "function",
-                                    "function": {"name": "", "arguments": ""},
-                                }
-                            )
-                        if "id" in tc_delta:
-                            current_tool_calls[idx]["id"] = tc_delta["id"]
-                        if "function" in tc_delta:
-                            func = tc_delta["function"]
-                            if "name" in func:
-                                current_tool_calls[idx]["function"]["name"] = func["name"]
-                            if "arguments" in func:
-                                current_tool_calls[idx]["function"]["arguments"] += func[
-                                    "arguments"
-                                ]
-                        emit(StreamToolCallDelta(idx, current_tool_calls[idx].copy()))
-
-            return {
-                "content": current_content if current_content else None,
-                "tool_calls": current_tool_calls if current_tool_calls else None,
-            }
+            return {"content": content, "tool_calls": tool_calls}
 
         def on_stream_event(event: Any) -> None:
             if isinstance(event, StreamChunk):
@@ -638,6 +620,24 @@ class LiveSession(QObject):
             on_error=self._on_stream_error,
             on_event=on_stream_event,
         )
+
+    def _get_llm_backend(self) -> LLMBackend:
+        """Lazily construct the default OpenRouterBackend if not injected.
+
+        Done lazily so tests that inject a backend never trigger
+        LLMClient construction (which reads settings.get_api_key()).
+        """
+        if self._llm_backend is not None:
+            return self._llm_backend
+
+        from forge.llm.client import LLMClient
+        from forge.runtime.llm_backend import OpenRouterBackend
+
+        api_key = self.session_manager.settings.get_api_key()
+        model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
+        client = LLMClient(api_key, model)
+        self._llm_backend = OpenRouterBackend(client)
+        return self._llm_backend
 
     def _on_stream_chunk(self, chunk: str) -> None:
         """Handle streaming text chunk."""

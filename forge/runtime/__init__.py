@@ -13,6 +13,13 @@ from forge.runtime.events import (
     ToolFinished,
     ToolStarted,
 )
+from forge.runtime.llm_backend import (
+    LLMBackend,
+    OpenRouterBackend,
+    ScriptedBackend,
+    StreamEvent,
+    StreamFinished,
+)
 from forge.runtime.tasks import (
     CancelToken,
     QtTaskRunner,
@@ -23,8 +30,13 @@ from forge.runtime.tasks import (
 
 __all__ = [
     "CancelToken",
+    "LLMBackend",
+    "OpenRouterBackend",
     "QtTaskRunner",
+    "ScriptedBackend",
     "StreamChunk",
+    "StreamEvent",
+    "StreamFinished",
     "StreamToolCallDelta",
     "SummaryProgress",
     "SyncTaskRunner",

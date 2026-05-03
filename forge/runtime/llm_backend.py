@@ -238,10 +238,14 @@ class ScriptedBackend:
                 break
 
         if response is None:
-            raise _ScriptDrainedError(
-                f"ScriptedBackend.stream() called but no responses queued "
-                f"(this is call #{len(self._stream_calls)})"
-            )
+            # Friendly default: yield an empty finished marker so the
+            # session pipeline naturally terminates the turn instead of
+            # going through the _on_stream_error retry path (which would
+            # call stream() again and infinite-loop). Tests catch
+            # under-queueing via assert_drained() at teardown — by then
+            # the stream_calls log shows the over-call.
+            yield StreamFinished(content=None, tool_calls=None)
+            return
 
         response.consumed = True
 

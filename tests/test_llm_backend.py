@@ -112,11 +112,19 @@ class TestScriptedBackendStrictness:
         list(backend.stream([], None))
         backend.assert_drained()
 
-    def test_calling_stream_with_empty_queue_raises(self) -> None:
+    def test_calling_stream_with_empty_queue_yields_empty_finished(self) -> None:
+        # Friendlier than raising: the session pipeline's _on_stream_error
+        # path retries on exception, which would infinite-loop under
+        # SyncTaskRunner. assert_drained() at fixture teardown is what
+        # catches under-queueing instead.
         backend = ScriptedBackend()
 
-        with pytest.raises(AssertionError, match="no responses queued"):
-            list(backend.stream([], None))
+        events = list(backend.stream([], None))
+
+        assert len(events) == 1
+        assert isinstance(events[0], StreamFinished)
+        assert events[0].content is None
+        assert events[0].tool_calls is None
 
 
 class TestScriptedBackendInspection:

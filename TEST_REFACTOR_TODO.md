@@ -355,7 +355,13 @@ and revertible.
   - `forge/runtime/tool_executor.py::execute_tool_calls(tool_calls, tool_manager, session_manager, emit) -> list[dict]` + `tests/test_tool_executor.py`
   - LiveSession's three closures shrunk to one-line wrappers around the helpers.
   - **Deviation from original plan:** The summary-generation closure in `SessionManager.start_summary_generation` was *not* extracted into `forge/runtime/summarizer.py`. Reason: it's already a 5-line wrapper around `SessionManager.generate_repo_summaries` (no Qt, no tricky logic), and pulling it out would create a `runtime → session` import edge that I want to avoid (runtime should be a leaf package). `generate_repo_summaries` is itself directly testable as a plain method. If we want a `summarizer.py` later for symmetry, it can wrap a `Callable[..., None]` with a progress callback rather than depending on SessionManager.
-- [ ] Phase 4 — Harness + DSL + migrations
+- [x] Phase 4 — Harness + DSL + migrations
+  - `tests/harness/repo.py` — `bootstrap_repo()` plus `PASSING_MAKEFILE` / `FAILING_MAKEFILE` constants for hermetic test commands.
+  - `tests/harness/dsl.py` — `compile_dsl()` translating `@edit`/`@write`/`@delete`/`@rename`/`@run_tests`/`@check`/`@commit`/`@think` directives into the inline-XML the parser understands. Indentation-significant body parsing; non-directive lines pass through as prose.
+  - `tests/harness/session.py` — `SessionTestHarness` + `TurnResult` dataclass. Lazy session construction; chainable `given_*` setup; `user_says`/`ai_says` queueing; explicit `run_turn()` trigger; `vfs[path]`/`next_prompt_text()`/`prompt_blocks` inspection.
+  - `tests/conftest.py` — `session` fixture + auto `assert_drained()` at teardown.
+  - Migrated `tests/test_inline_pipeline_vfs.py` (149 → ~55 lines) and `tests/test_prompt_manager_inline_failure.py` (232 → ~150 lines).
+  - **Bonus fix:** `ScriptedBackend.stream()` now yields `StreamFinished(None, None)` when the queue is empty rather than raising. The previous behavior caused `_on_stream_error` to retry indefinitely under SyncTaskRunner; `assert_drained()` at teardown still catches under-queueing.
 
 ### Carried-over follow-ups
 

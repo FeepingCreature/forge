@@ -13,6 +13,7 @@ from forge.runtime.events import (
     ToolFinished,
     ToolStarted,
 )
+from forge.runtime.inline_executor import run_inline_commands
 from forge.runtime.llm_backend import (
     LLMBackend,
     OpenRouterBackend,
@@ -20,6 +21,7 @@ from forge.runtime.llm_backend import (
     StreamEvent,
     StreamFinished,
 )
+from forge.runtime.streaming import stream_to_events
 from forge.runtime.tasks import (
     CancelToken,
     QtTaskRunner,
@@ -27,6 +29,7 @@ from forge.runtime.tasks import (
     TaskHandle,
     TaskRunner,
 )
+from forge.runtime.tool_executor import execute_tool_calls
 
 __all__ = [
     "CancelToken",
@@ -44,4 +47,7 @@ __all__ = [
     "TaskRunner",
     "ToolFinished",
     "ToolStarted",
+    "execute_tool_calls",
+    "run_inline_commands",
+    "stream_to_events",
 ]

@@ -347,12 +347,18 @@ and revertible.
   - [x] step 1: `forge/runtime/tasks.py` (CancelToken / TaskHandle / TaskRunner protocol / SyncTaskRunner / QtTaskRunner) + `tests/test_task_runner.py`
         Sync coverage in place; QtTaskRunner smoke tests deferred (SIGABRT in cross-thread Signal delivery — see TODO comment block in the test file).
   - [x] step 2: `LiveSession` and `SessionManager` migrated. All four off-thread sites (LLM stream / inline commands / tool execution / summary generation) now go through `TaskRunner.submit`. Event dispatch via `forge/runtime/events.py` dataclasses (StreamChunk, StreamToolCallDelta, ToolStarted, ToolFinished, SummaryProgress).
-- [ ] Phase 2 — LLMBackend
-- [ ] Phase 3 — De-Qt workers
+- [x] Phase 2 — LLMBackend
+  - `forge/runtime/llm_backend.py` (LLMBackend protocol, OpenRouterBackend, ScriptedBackend, StreamFinished, StreamEvent) + `tests/test_llm_backend.py`. `LiveSession._get_llm_backend()` lazily constructs the default backend so injected backends bypass the API-key fetch.
+- [x] Phase 3 — De-Qt workers (extract closures into runtime helpers)
+  - `forge/runtime/streaming.py::stream_to_events(backend, messages, tools, emit) -> dict` + `tests/test_streaming_helper.py`
+  - `forge/runtime/inline_executor.py::run_inline_commands(vfs, content, commands) -> tuple[list, int|None]` + `tests/test_inline_executor.py`
+  - `forge/runtime/tool_executor.py::execute_tool_calls(tool_calls, tool_manager, session_manager, emit) -> list[dict]` + `tests/test_tool_executor.py`
+  - LiveSession's three closures shrunk to one-line wrappers around the helpers.
+  - **Deviation from original plan:** The summary-generation closure in `SessionManager.start_summary_generation` was *not* extracted into `forge/runtime/summarizer.py`. Reason: it's already a 5-line wrapper around `SessionManager.generate_repo_summaries` (no Qt, no tricky logic), and pulling it out would create a `runtime → session` import edge that I want to avoid (runtime should be a leaf package). `generate_repo_summaries` is itself directly testable as a plain method. If we want a `summarizer.py` later for symmetry, it can wrap a `Callable[..., None]` with a progress callback rather than depending on SessionManager.
 - [ ] Phase 4 — Harness + DSL + migrations
 
 ### Carried-over follow-ups
 
 - **QtTaskRunner smoke tests** — deferred behind a TODO in `tests/test_task_runner.py`. Three suspected causes (Signal(object) closures, deleteLater race, thread.quit ordering); three investigation paths noted. Production path is exercised by the running app, just not by tests yet. Worth revisiting once we have an end-to-end harness in Phase 4 because that may expose the symptoms differently.
 
-- **`chat_workers.py` is now dead-ish** — `LiveSession` and `SessionManager` no longer import from it. The four worker classes (`StreamWorker`, `InlineCommandWorker`, `ToolExecutionWorker`, `SummaryWorker`) are reachable from nothing in production. We could delete the file *now* but Phase 3 plans to do it as part of the de-Qt sweep, so leaving it for now keeps the diff focused per phase.
+- **`chat_workers.py`** — already deleted in Phase 1 (was orphan after the migration). No follow-up needed.

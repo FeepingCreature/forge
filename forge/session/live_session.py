@@ -32,7 +32,6 @@ from forge.runtime import (
     LLMBackend,
     QtTaskRunner,
     StreamChunk,
-    StreamFinished,
     StreamToolCallDelta,
     TaskHandle,
     TaskRunner,
@@ -590,23 +589,10 @@ class LiveSession(QObject):
         # Start streaming
         self.start_streaming()
 
+        from forge.runtime import stream_to_events
+
         def stream_work(emit: Any, token: Any) -> dict[str, Any]:
-            # The backend yields StreamChunk / StreamToolCallDelta events as
-            # the stream progresses, then a final StreamFinished carrying
-            # the complete assembled content+tool_calls. We forward the
-            # incremental events to the UI thread via `emit` and use
-            # StreamFinished as the work function's return value.
-            content: str | None = None
-            tool_calls: list[dict[str, Any]] | None = None
-
-            for event in backend.stream(messages, tools or None):
-                if isinstance(event, StreamFinished):
-                    content = event.content
-                    tool_calls = event.tool_calls
-                else:
-                    emit(event)
-
-            return {"content": content, "tool_calls": tool_calls}
+            return stream_to_events(backend, messages, tools or None, emit)
 
         def on_stream_event(event: Any) -> None:
             if isinstance(event, StreamChunk):
@@ -693,7 +679,7 @@ class LiveSession(QObject):
 
     def _start_inline_command_execution(self, commands: list) -> None:
         """Start executing inline commands via the task runner."""
-        from forge.tools.invocation import execute_inline_commands_with_parse_check
+        from forge.runtime import run_inline_commands
 
         # Pass the streamed assistant content so the inline executor can detect
         # <edit> blocks that *looked* like commands but failed to parse, and
@@ -702,11 +688,7 @@ class LiveSession(QObject):
         vfs = self.session_manager.vfs
 
         def work(emit: Any, token: Any) -> tuple[list, int | None]:
-            vfs.claim_thread()
-            try:
-                return execute_inline_commands_with_parse_check(vfs, content, commands)
-            finally:
-                vfs.release_thread()
+            return run_inline_commands(vfs, content, commands)
 
         def on_result(payload: tuple[list, int | None]) -> None:
             results, failed_index = payload
@@ -938,7 +920,7 @@ class LiveSession(QObject):
         (success=False), remaining tools are aborted. Per-tool progress is
         emitted as ToolStarted/ToolFinished events so the UI updates live.
         """
-        import json as _json
+        from forge.runtime import execute_tool_calls
 
         self._pending_tools = self.session_manager.tool_manager.discover_tools()
 
@@ -946,52 +928,7 @@ class LiveSession(QObject):
         session_manager = self.session_manager
 
         def work(emit: Any, token: Any) -> list[dict[str, Any]]:
-            results: list[dict[str, Any]] = []
-            session_manager.vfs.claim_thread()
-            try:
-                for tool_call in tool_calls:
-                    tool_name = tool_call["function"]["name"]
-                    arguments_str = tool_call["function"]["arguments"]
-                    tool_call_id = tool_call.get("id", "")
-
-                    # Parse arguments. Mirror ToolExecutionWorker semantics:
-                    # invalid JSON wraps as INVALID_JSON, doubly-encoded JSON
-                    # values get unwrapped, and parse failure aborts the chain.
-                    try:
-                        tool_args = _json.loads(arguments_str) if arguments_str else {}
-                        for key, value in tool_args.items():
-                            if isinstance(value, str) and value.startswith(("[", "{")):
-                                try:
-                                    parsed = _json.loads(value)
-                                    if isinstance(parsed, (list, dict)):
-                                        tool_args[key] = parsed
-                                except _json.JSONDecodeError:
-                                    pass
-                    except _json.JSONDecodeError as e:
-                        tool_args = {"INVALID_JSON": arguments_str}
-                        result = {"success": False, "error": f"Invalid JSON arguments: {e}"}
-                        emit(ToolFinished(tool_call_id, tool_name, tool_args, result))
-                        results.append(
-                            {
-                                "tool_call": tool_call,
-                                "args": tool_args,
-                                "result": result,
-                                "parse_error": True,
-                            }
-                        )
-                        break
-
-                    emit(ToolStarted(tool_name, tool_args))
-                    result = tool_manager.execute_tool(tool_name, tool_args, session_manager)
-                    emit(ToolFinished(tool_call_id, tool_name, tool_args, result))
-                    results.append({"tool_call": tool_call, "args": tool_args, "result": result})
-
-                    # Stop on first failure — same chain semantics as before.
-                    if not result.get("success", True):
-                        break
-            finally:
-                session_manager.vfs.release_thread()
-            return results
+            return execute_tool_calls(tool_calls, tool_manager, session_manager, emit)
 
         def on_event(event: Any) -> None:
             if isinstance(event, ToolStarted):

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from forge.config.settings import Settings
     from forge.vfs.work_in_progress import WorkInProgressVFS
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Signal
 
 from forge.constants import SESSION_FILE
 from forge.git_backend.commit_types import CommitType
@@ -23,6 +23,7 @@ from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
 from forge.llm.request_log import REQUEST_LOG, RequestLogEntry
 from forge.prompts.manager import PromptManager
+from forge.runtime import QtTaskRunner, SummaryProgress, TaskHandle, TaskRunner
 from forge.tools.manager import ToolManager
 
 
@@ -46,10 +47,19 @@ class SessionManager(QObject):
     # Signal for mid-turn commits (git graph needs to refresh)
     mid_turn_commit = Signal(str)  # commit_oid
 
-    def __init__(self, repo: ForgeRepository, branch_name: str, settings: "Settings") -> None:
+    def __init__(
+        self,
+        repo: ForgeRepository,
+        branch_name: str,
+        settings: "Settings",
+        task_runner: TaskRunner | None = None,
+    ) -> None:
         super().__init__()
         self.branch_name = branch_name
         self.settings = settings
+
+        # Off-thread work goes through this seam. Tests inject SyncTaskRunner.
+        self._tasks: TaskRunner = task_runner if task_runner is not None else QtTaskRunner()
 
         # Tool manager owns the VFS - all file access goes through it
         self.tool_manager = ToolManager(repo, branch_name)
@@ -77,8 +87,7 @@ class SessionManager(QObject):
 
         # Summary generation state
         self._summaries_ready = False
-        self._summary_thread: QThread | None = None
-        self._summary_worker: Any = None  # SummaryWorker, but imported lazily to avoid cycles
+        self._summary_handle: TaskHandle | None = None
 
         # Auto-start summary generation (session infrastructure, not UI concern)
         # This runs in background - UI can connect to signals for progress feedback
@@ -610,7 +619,7 @@ Keep it under 72 characters."""
 
     def start_summary_generation(self, force_refresh: bool = False) -> None:
         """
-        Start generating repository summaries in a background thread.
+        Start generating repository summaries via the task runner.
 
         Emits signals:
         - summary_progress(current, total, filepath) during generation
@@ -619,35 +628,32 @@ Keep it under 72 characters."""
 
         The summaries_ready signal is also emitted with the full dict on completion.
         """
-        from forge.ui.chat_workers import SummaryWorker
-
-        if self._summary_thread is not None:
+        if self._summary_handle is not None:
             return  # Already running
 
-        self._summary_thread = QThread()
-        self._summary_worker = SummaryWorker(self, force_refresh)
-        self._summary_worker.moveToThread(self._summary_thread)
+        def work(emit: Any, token: Any) -> int:
+            self.generate_repo_summaries(
+                force_refresh=force_refresh,
+                progress_callback=lambda cur, total, fp: emit(SummaryProgress(cur, total, fp)),
+            )
+            return len(self.repo_summaries)
 
-        # Connect worker signals to our signals
-        self._summary_worker.progress.connect(self.summary_progress.emit)
-        self._summary_worker.finished.connect(self._on_summary_finished)
-        self._summary_worker.error.connect(self._on_summary_error)
-        self._summary_thread.started.connect(self._summary_worker.run)
+        def on_event(event: Any) -> None:
+            if isinstance(event, SummaryProgress):
+                self.summary_progress.emit(event.current, event.total, event.filepath)
 
-        self._summary_thread.start()
+        self._summary_handle = self._tasks.submit(
+            work,
+            on_result=self._on_summary_finished,
+            on_error=self._on_summary_error,
+            on_event=on_event,
+        )
 
     def _on_summary_finished(self, count: int) -> None:
         """Handle summary generation completion."""
-        # Clean up thread
-        if self._summary_thread:
-            self._summary_thread.quit()
-            self._summary_thread.wait()
-            self._summary_thread = None
-            self._summary_worker = None
-
+        self._summary_handle = None
         self._summaries_ready = True
 
-        # Emit signals
         self.summary_finished.emit(count)
         self.summaries_ready.emit(self.repo_summaries)
 
@@ -661,12 +667,7 @@ Keep it under 72 characters."""
 
     def _on_summary_error(self, error_msg: str) -> None:
         """Handle summary generation error."""
-        if self._summary_thread:
-            self._summary_thread.quit()
-            self._summary_thread.wait()
-            self._summary_thread = None
-            self._summary_worker = None
-
+        self._summary_handle = None
         self.summary_error.emit(error_msg)
 
     def generate_repo_summaries(

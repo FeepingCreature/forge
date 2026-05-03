@@ -26,7 +26,17 @@ from collections import deque
 from threading import Lock
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Signal
+
+from forge.runtime import (
+    QtTaskRunner,
+    StreamChunk,
+    StreamToolCallDelta,
+    TaskHandle,
+    TaskRunner,
+    ToolFinished,
+    ToolStarted,
+)
 
 if TYPE_CHECKING:
     from forge.session.manager import SessionManager
@@ -169,9 +179,14 @@ class LiveSession(QObject):
         self,
         session_manager: "SessionManager",
         messages: list[dict[str, Any]] | None = None,
+        task_runner: TaskRunner | None = None,
     ) -> None:
         super().__init__()
         self.session_manager = session_manager
+
+        # Off-thread work goes through this seam. Tests inject SyncTaskRunner
+        # so the entire pipeline runs straight-line.
+        self._tasks: TaskRunner = task_runner if task_runner is not None else QtTaskRunner()
 
         # === AUTHORITATIVE SESSION STATE ===
         # These are the source of truth - UI reads from here
@@ -207,13 +222,10 @@ class LiveSession(QObject):
         # Newly created files (for summary generation)
         self._newly_created_files: set[str] = set()
 
-        # Worker threads
-        self._stream_thread: QThread | None = None
-        self._stream_worker: Any = None  # StreamWorker
-        self._tool_thread: QThread | None = None
-        self._tool_worker: Any = None  # ToolExecutionWorker
-        self._inline_thread: QThread | None = None
-        self._inline_worker: Any = None  # InlineCommandWorker
+        # In-flight task handles. None when no task running for that slot.
+        self._stream_handle: TaskHandle | None = None
+        self._tool_handle: TaskHandle | None = None
+        self._inline_handle: TaskHandle | None = None
 
         # === PARENT/CHILD RELATIONSHIPS ===
         # These are authoritative - registry queries these, not the other way around
@@ -538,25 +550,21 @@ class LiveSession(QObject):
         self._emit_event(ErrorEvent("Cancelled by user"))
 
     def _cleanup_threads(self) -> None:
-        """Clean up all worker threads."""
-        for thread_attr, worker_attr in [
-            ("_stream_thread", "_stream_worker"),
-            ("_tool_thread", "_tool_worker"),
-            ("_inline_thread", "_inline_worker"),
-        ]:
-            thread = getattr(self, thread_attr)
-            if thread and thread.isRunning():
-                thread.quit()
-                thread.wait(3000)
-                if thread.isRunning():
-                    thread.terminate()
-            setattr(self, thread_attr, None)
-            setattr(self, worker_attr, None)
+        """Cancel all in-flight tasks (cooperative).
+
+        Name kept for backwards compat with call sites; the new model is
+        cooperative cancellation via TaskRunner.cancel_all(). Tasks that
+        don't poll their cancel token still finish — but their callbacks
+        become no-ops, so from this object's view they're done.
+        """
+        self._tasks.cancel_all()
+        self._stream_handle = None
+        self._tool_handle = None
+        self._inline_handle = None
 
     def _process_llm_request(self) -> None:
         """Start an LLM request with streaming."""
         from forge.llm.client import LLMClient
-        from forge.ui.chat_workers import StreamWorker
 
         api_key = self.session_manager.settings.get_api_key()
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
@@ -576,19 +584,60 @@ class LiveSession(QObject):
         # Start streaming
         self.start_streaming()
 
-        # Start streaming in thread
-        self._stream_thread = QThread()
-        self._stream_worker = StreamWorker(client, messages, tools or None)
-        self._stream_worker.moveToThread(self._stream_thread)
+        def stream_work(emit: Any, token: Any) -> dict[str, Any]:
+            current_content = ""
+            current_tool_calls: list[dict[str, Any]] = []
 
-        # Connect signals
-        self._stream_worker.chunk_received.connect(self._on_stream_chunk)
-        self._stream_worker.tool_call_delta.connect(self._on_tool_call_delta)
-        self._stream_worker.finished.connect(self._on_stream_finished)
-        self._stream_worker.error.connect(self._on_stream_error)
-        self._stream_thread.started.connect(self._stream_worker.run)
+            for chunk in client.chat_stream(messages, tools or None):
+                if "choices" not in chunk or not chunk["choices"]:
+                    continue
+                delta = chunk["choices"][0].get("delta", {})
 
-        self._stream_thread.start()
+                if "content" in delta and delta["content"]:
+                    text = delta["content"]
+                    current_content += text
+                    emit(StreamChunk(text))
+
+                if "tool_calls" in delta:
+                    for tc_delta in delta["tool_calls"]:
+                        idx = tc_delta.get("index", 0)
+                        while len(current_tool_calls) <= idx:
+                            current_tool_calls.append(
+                                {
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
+                            )
+                        if "id" in tc_delta:
+                            current_tool_calls[idx]["id"] = tc_delta["id"]
+                        if "function" in tc_delta:
+                            func = tc_delta["function"]
+                            if "name" in func:
+                                current_tool_calls[idx]["function"]["name"] = func["name"]
+                            if "arguments" in func:
+                                current_tool_calls[idx]["function"]["arguments"] += func[
+                                    "arguments"
+                                ]
+                        emit(StreamToolCallDelta(idx, current_tool_calls[idx].copy()))
+
+            return {
+                "content": current_content if current_content else None,
+                "tool_calls": current_tool_calls if current_tool_calls else None,
+            }
+
+        def on_stream_event(event: Any) -> None:
+            if isinstance(event, StreamChunk):
+                self._on_stream_chunk(event.text)
+            elif isinstance(event, StreamToolCallDelta):
+                self._on_tool_call_delta(event.index, event.tool_call)
+
+        self._stream_handle = self._tasks.submit(
+            stream_work,
+            on_result=self._on_stream_finished,
+            on_error=self._on_stream_error,
+            on_event=on_stream_event,
+        )
 
     def _on_stream_chunk(self, chunk: str) -> None:
         """Handle streaming text chunk."""
@@ -600,12 +649,7 @@ class LiveSession(QObject):
 
     def _on_stream_finished(self, result: dict[str, Any]) -> None:
         """Handle stream completion."""
-        # Clean up thread
-        if self._stream_thread:
-            self._stream_thread.quit()
-            self._stream_thread.wait()
-            self._stream_thread = None
-            self._stream_worker = None
+        self._stream_handle = None
 
         # Finalize streaming
         self.finish_streaming(result.get("content"), result.get("tool_calls"))
@@ -625,11 +669,7 @@ class LiveSession(QObject):
 
     def _on_stream_error(self, error_msg: str) -> None:
         """Handle streaming error."""
-        if self._stream_thread:
-            self._stream_thread.quit()
-            self._stream_thread.wait()
-            self._stream_thread = None
-            self._stream_worker = None
+        self._stream_handle = None
 
         self.is_streaming = False
         self.streaming_content = ""
@@ -652,23 +692,32 @@ class LiveSession(QObject):
         self._process_llm_request()
 
     def _start_inline_command_execution(self, commands: list) -> None:
-        """Start executing inline commands in background thread."""
-        from forge.ui.chat_workers import InlineCommandWorker
+        """Start executing inline commands via the task runner."""
+        from forge.tools.invocation import execute_inline_commands_with_parse_check
 
-        # Pass the streamed assistant content so the worker can detect
-        # <edit> blocks that *looked* like commands but failed to parse,
-        # and surface them as errors instead of silently dropping them.
+        # Pass the streamed assistant content so the inline executor can detect
+        # <edit> blocks that *looked* like commands but failed to parse, and
+        # surface them as errors instead of silently dropping them.
         content = getattr(self, "_pending_stream_result", {}).get("content", "")
-        self._inline_thread = QThread()
-        self._inline_worker = InlineCommandWorker(self.session_manager.vfs, commands, content)
-        self._inline_worker.moveToThread(self._inline_thread)
+        vfs = self.session_manager.vfs
 
-        self._inline_worker.finished.connect(self._on_inline_commands_finished)
-        self._inline_worker.error.connect(self._on_inline_commands_error)
-        self._inline_thread.started.connect(self._inline_worker.run)
+        def work(emit: Any, token: Any) -> tuple[list, int | None]:
+            vfs.claim_thread()
+            try:
+                return execute_inline_commands_with_parse_check(vfs, content, commands)
+            finally:
+                vfs.release_thread()
+
+        def on_result(payload: tuple[list, int | None]) -> None:
+            results, failed_index = payload
+            self._on_inline_commands_finished(results, failed_index)
 
         self._pending_inline_commands = commands
-        self._inline_thread.start()
+        self._inline_handle = self._tasks.submit(
+            work,
+            on_result=on_result,
+            on_error=self._on_inline_commands_error,
+        )
 
     def _on_inline_commands_finished(self, results: list, failed_index: int | None) -> None:
         """Handle inline command completion.
@@ -682,11 +731,7 @@ class LiveSession(QObject):
         """
         from forge.tools.invocation import PARSE_CHECK_FAILED
 
-        if self._inline_thread:
-            self._inline_thread.quit()
-            self._inline_thread.wait()
-        self._inline_thread = None
-        self._inline_worker = None
+        self._inline_handle = None
 
         commands = getattr(self, "_pending_inline_commands", [])
         result = getattr(self, "_pending_stream_result", {})
@@ -815,11 +860,7 @@ class LiveSession(QObject):
 
     def _on_inline_commands_error(self, error_msg: str) -> None:
         """Handle inline command execution error."""
-        if self._inline_thread:
-            self._inline_thread.quit()
-            self._inline_thread.wait()
-        self._inline_thread = None
-        self._inline_worker = None
+        self._inline_handle = None
 
         self.state = SessionState.ERROR
         self._emit_event(ErrorEvent(f"Inline command error: {error_msg}"))
@@ -891,26 +932,81 @@ class LiveSession(QObject):
             SESSION_REGISTRY.notify_child_updated(self.branch_name)
 
     def _execute_tool_calls(self, tool_calls: list[dict[str, Any]]) -> None:
-        """Execute tool calls in background thread."""
-        from forge.ui.chat_workers import ToolExecutionWorker
+        """Execute tool calls via the task runner.
+
+        Tools execute SEQUENTIALLY as a pipeline. If any tool fails
+        (success=False), remaining tools are aborted. Per-tool progress is
+        emitted as ToolStarted/ToolFinished events so the UI updates live.
+        """
+        import json as _json
 
         self._pending_tools = self.session_manager.tool_manager.discover_tools()
 
-        self._tool_thread = QThread()
-        self._tool_worker = ToolExecutionWorker(
-            tool_calls,
-            self.session_manager.tool_manager,
-            self.session_manager,
+        tool_manager = self.session_manager.tool_manager
+        session_manager = self.session_manager
+
+        def work(emit: Any, token: Any) -> list[dict[str, Any]]:
+            results: list[dict[str, Any]] = []
+            session_manager.vfs.claim_thread()
+            try:
+                for tool_call in tool_calls:
+                    tool_name = tool_call["function"]["name"]
+                    arguments_str = tool_call["function"]["arguments"]
+                    tool_call_id = tool_call.get("id", "")
+
+                    # Parse arguments. Mirror ToolExecutionWorker semantics:
+                    # invalid JSON wraps as INVALID_JSON, doubly-encoded JSON
+                    # values get unwrapped, and parse failure aborts the chain.
+                    try:
+                        tool_args = _json.loads(arguments_str) if arguments_str else {}
+                        for key, value in tool_args.items():
+                            if isinstance(value, str) and value.startswith(("[", "{")):
+                                try:
+                                    parsed = _json.loads(value)
+                                    if isinstance(parsed, (list, dict)):
+                                        tool_args[key] = parsed
+                                except _json.JSONDecodeError:
+                                    pass
+                    except _json.JSONDecodeError as e:
+                        tool_args = {"INVALID_JSON": arguments_str}
+                        result = {"success": False, "error": f"Invalid JSON arguments: {e}"}
+                        emit(ToolFinished(tool_call_id, tool_name, tool_args, result))
+                        results.append(
+                            {
+                                "tool_call": tool_call,
+                                "args": tool_args,
+                                "result": result,
+                                "parse_error": True,
+                            }
+                        )
+                        break
+
+                    emit(ToolStarted(tool_name, tool_args))
+                    result = tool_manager.execute_tool(tool_name, tool_args, session_manager)
+                    emit(ToolFinished(tool_call_id, tool_name, tool_args, result))
+                    results.append({"tool_call": tool_call, "args": tool_args, "result": result})
+
+                    # Stop on first failure — same chain semantics as before.
+                    if not result.get("success", True):
+                        break
+            finally:
+                session_manager.vfs.release_thread()
+            return results
+
+        def on_event(event: Any) -> None:
+            if isinstance(event, ToolStarted):
+                self._on_tool_started(event.tool_name, event.tool_args)
+            elif isinstance(event, ToolFinished):
+                self._on_tool_finished(
+                    event.tool_call_id, event.tool_name, event.tool_args, event.result
+                )
+
+        self._tool_handle = self._tasks.submit(
+            work,
+            on_result=self._on_tools_all_finished,
+            on_error=self._on_tool_error,
+            on_event=on_event,
         )
-        self._tool_worker.moveToThread(self._tool_thread)
-
-        self._tool_worker.tool_started.connect(self._on_tool_started)
-        self._tool_worker.tool_finished.connect(self._on_tool_finished)
-        self._tool_worker.all_finished.connect(self._on_tools_all_finished)
-        self._tool_worker.error.connect(self._on_tool_error)
-        self._tool_thread.started.connect(self._tool_worker.run)
-
-        self._tool_thread.start()
 
     def _on_tool_started(self, tool_name: str, tool_args: dict[str, Any]) -> None:
         """Handle tool execution starting."""
@@ -971,11 +1067,7 @@ class LiveSession(QObject):
 
     def _on_tools_all_finished(self, results: list[dict[str, Any]]) -> None:
         """Handle all tools completed."""
-        if self._tool_thread:
-            self._tool_thread.quit()
-            self._tool_thread.wait()
-            self._tool_thread = None
-            self._tool_worker = None
+        self._tool_handle = None
 
         # Track executed IDs
         batch_executed_ids = {r["tool_call"]["id"] for r in results}
@@ -1060,11 +1152,7 @@ class LiveSession(QObject):
 
     def _on_tool_error(self, error_msg: str) -> None:
         """Handle tool execution error."""
-        if self._tool_thread:
-            self._tool_thread.quit()
-            self._tool_thread.wait()
-            self._tool_thread = None
-            self._tool_worker = None
+        self._tool_handle = None
 
         self.state = SessionState.ERROR
         self._emit_event(ErrorEvent(f"Tool execution error: {error_msg}"))

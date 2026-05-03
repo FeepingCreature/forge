@@ -6,6 +6,13 @@ These boundaries exist so tests can substitute synchronous, scripted
 implementations without touching production code paths.
 """
 
+from forge.runtime.events import (
+    StreamChunk,
+    StreamToolCallDelta,
+    SummaryProgress,
+    ToolFinished,
+    ToolStarted,
+)
 from forge.runtime.tasks import (
     CancelToken,
     QtTaskRunner,
@@ -17,7 +24,12 @@ from forge.runtime.tasks import (
 __all__ = [
     "CancelToken",
     "QtTaskRunner",
+    "StreamChunk",
+    "StreamToolCallDelta",
+    "SummaryProgress",
     "SyncTaskRunner",
     "TaskHandle",
     "TaskRunner",
+    "ToolFinished",
+    "ToolStarted",
 ]

@@ -186,7 +186,7 @@ class MoodBar(QWidget):
             # Cast to QHelpEvent for tooltip-specific methods
             help_event = event if isinstance(event, QHelpEvent) else None
             if help_event is None:
-                return bool(super().event(event))  # noqa: trailing
+                return bool(super().event(event))
 
             # Find which segment the mouse is over
             pos = help_event.pos()

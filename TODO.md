@@ -60,15 +60,15 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [x] Ctrl+E: Quick open (fuzzy file search)
 - [x] Ctrl+Shift+P: Command palette
 - [x] ActionRegistry for centralized keybinding management
-- [ ] Ctrl+G: Go to line
-- [ ] Ctrl+F: Find in file
+- [x] Ctrl+F: Find in file (EditorWidget.SearchBar)
 - [x] Ctrl+Shift+F: Find in project (global search)
-- [ ] Search in webview (chat history)
+- [x] Search in webview chat history (AIChatWidget._show_search)
+- [ ] Ctrl+G: Go to line (EditorWidget.go_to_line exists, just needs shortcut wired)
 - [ ] Ctrl+Return in search to ask model "find code that does X" (AI-assisted search)
 - [ ] Search + AI hybrid: normal search, then "explain these results"
 
 ### Startup & Bundling
-- [ ] JS files for webview should be bundled in app (no HTTP requests on startup)
+- [x] JS files for webview bundled in app (js_cache.JS_CACHE_DIR / get_script_src)
 
 ### File Explorer
 - [ ] Global search results shown as icons/markers in explorer view
@@ -76,11 +76,11 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 
 ### UI Layout & Theming
 - [ ] Make UI panels arrangeable/dockable
-- [ ] Configurable syntax highlighting/theming (how deep?)
+- [ ] Configurable syntax highlighting/theming (PythonHighlighter exists but colors are hardcoded)
 - [ ] Performance audit at some point
 
 ### Code Completion
-- [ ] Improve ghost text rendering (currently uses tooltip)
+- [ ] Improve ghost text rendering (currently QToolTip; want true in-editor inline)
 
 ### AI Turn Interaction
 - [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)
@@ -89,14 +89,14 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [ ] User-defined tools need a hook for custom pretty rendering
 
 ### Session Forking UX
-- [ ] "Fork conversation here" button in chat history
-- [ ] Creates new branch from that commit
-- [ ] Try two approaches in parallel
+- [x] "Fork conversation here" button in chat history (fork_requested signal)
+- [x] Creates new branch from that commit (MainWindow._fork_from_turn)
+- [ ] Try two approaches in parallel (workflow polish on top of the above)
 
 ### Project Configuration
-- [ ] `.forge/config.toml` for project-specific settings
+- [ ] `.forge/config.toml` for project-specific settings (only `.forge/config.json` for tool approval today)
 - [ ] Model preferences per-project
-- [ ] Custom test/build commands (read-only to AI - cannot modify autonomously)
+- [ ] Custom test/build commands (run_tests auto-discovers but isn't user-configurable)
 - [ ] Note: Config affects AI capabilities, so AI must not be able to write it
 
 ---
@@ -109,12 +109,12 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [ ] Prevents "stale instruction" confusion
 
 ### File Tab Persistence
-- [ ] Remember open files per-branch across restarts
-- [ ] Store in XDG config (not session data)
+- [x] Remember open files per-branch across restarts (BranchTabWidget save/restore_open_files)
+- [ ] Verify storage location is XDG config (not session data)
 
 ### Editor Improvements
-- [ ] Ctrl+O: Open file dialog
-- [ ] Find/replace in file
+- [ ] Ctrl+O: Open file dialog (Ctrl+E quick open exists; question is whether a native dialog is wanted too)
+- [ ] Find/replace in file (find exists, replace UI does not)
 - [ ] Go to definition (for Python)
 - [ ] Show references
 
@@ -128,12 +128,12 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [ ] Show dangling/recent commits not on any branch (reflog-based?)
 
 ### Drag-and-Drop Operations
-- [ ] Drag commits for merge/rebase
-- [ ] Visual feedback during drag
+- [x] Drag commits for merge/rebase (MergeDragSpline + drag handlers in git_graph/scene.py)
+- [x] Visual feedback during drag (merge check icons, panel graying)
 
 ### Git Operations
-- [ ] Squash commit into parent
-- [ ] Undo support (reflog-based)
+- [x] Squash commit into parent (squash_requested signal in git_graph/panel.py)
+- [ ] Undo support (reflog-based) — GitActionLog exists but no reflog integration yet
 
 ---
 
@@ -160,7 +160,7 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 
 - [ ] Too many try/except blocks (violates "no fallbacks")
 - [ ] Some `Any` type hints should be proper types
-- [ ] Consolidate similar tool code (grep_open/grep_context share logic)
+- [x] Consolidate similar tool code (grep_open/grep_context now share grep_utils.get_files_to_search)
 
 ---
 

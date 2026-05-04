@@ -2698,6 +2698,24 @@
       "streaming": true,
       "actual_cost": 0.11608025,
       "generation_id": "gen-1777861675-nSh6HKG9O37CecJNGbsy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777861715912.json",
+      "response_file": "/tmp/forge_debug/response_1777861715912.json",
+      "timestamp": 1777861715.91745,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000158,
+      "generation_id": "gen-1777861716-L9hlVb4x9PvhHkMiv2YZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777861932469.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777861932469.json",
+      "timestamp": 1777861932.4704938,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.086646,
+      "generation_id": "gen-1777861932-MvGmp3Aua3CNK1fKTxrj"
     }
   ],
   "messages": [
@@ -2958,6 +2976,31 @@
       "role": "system",
       "content": "\ud83d\udd27 **Tool call:** `scout`\n```json\n{\n  \"files\": [\n    \"forge/ui/main_window.py\",\n    \"forge/ui/editor_widget.py\",\n    \"forge/ui/file_explorer_widget.py\",\n    \"forge/ui/search_widget.py\",\n    \"forge/ui/quick_open.py\",\n    \"forge/ui/command_palette.py\",\n    \"forge/ui/actions.py\",\n    \"forge/ui/code_completion.py\",\n    \"forge/ui/markdown_preview.py\",\n    \"forge/ui/git_graph/panel.py\",\n    \"forge/ui/git_graph/scene.py\",\n    \"forge/ui/git_graph/widget.py\",\n    \"forge/tools/builtin/run_tests.py\",\n    \"forge/tools/manager.py\",\n    \"forge/tools/builtin/grep_open.py\",\n    \"forge/tools/builtin/grep_context.py\",\n    \"forge/tools/builtin/grep_utils.py\",\n    \"forge/ui/chat_helpers.py\",\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"question\": \"I'm auditing a TODO.md to see which items are actually already implemented. For EACH item below, tell me DONE / PARTIAL / NOT DONE based on actual code evidence. Be terse \\u2014 one line per item, cite the file/symbol if DONE.\\n\\n**Quick Actions / Search:**\\n1. Ctrl+G: Go to line\\n2. Ctrl+F: Find in file\\n3. Search in webview (chat history)\\n4. Ctrl+Return in search to ask model \\\"find code that does X\\\" (AI-assisted search)\\n5. Search + AI hybrid: search then \\\"explain results\\\"\\n\\n**Startup & Bundling:**\\n6. JS files for webview bundled in app (no HTTP requests on startup)\\n\\n**File Explorer:**\\n7. Global search results shown as icons/markers in explorer view\\n8. Explorer as generic \\\"tool view\\\" with tabs\\n\\n**UI Layout & Theming:**\\n9. Make UI panels arrangeable/dockable\\n10. Configurable syntax highlighting/theming\\n11. Performance audit\\n\\n**Code Completion:**\\n12. Improve ghost text rendering (currently uses tooltip)\\n\\n**AI Turn Interaction:**\\n13. Pause button\\n\\n**Tool Rendering:**\\n14. User-defined tools have hook for custom pretty rendering\\n\\n**Session Forking UX:**\\n15. \\\"Fork conversation here\\\" button in chat history\\n16. Creates new branch from that commit\\n\\n**Project Configuration:**\\n17. .forge/config.toml for project-specific settings\\n18. Custom test/build commands\\n\\n**User Task Tracking:**\\n19. AI add_user_task tool, tasks shown in UI\\n\\n**File Tab Persistence:**\\n20. Remember open files per-branch across restarts\\n\\n**Editor Improvements:**\\n21. Ctrl+O: Open file dialog\\n22. Find/replace in file\\n23. Go to definition (Python)\\n24. Show references\\n\\n**Git Graph:**\\n25. Search box (filter by message/author/SHA)\\n26. Jump to commit by partial SHA\\n27. Show dangling/recent commits not on any branch\\n28. Drag commits for merge/rebase\\n29. Visual feedback during drag\\n30. Squash commit into parent\\n31. Undo support (reflog-based)\\n\\n**Build Tool:**\\n32. `build` tool (run project's build command)\\n\\n**Tech Debt:**\\n33. Consolidate grep_open/grep_context shared logic (note: grep_utils.py exists)\\n\\nFor each: number, status (DONE/PARTIAL/NOT DONE), brief evidence.\"\n}\n```\n**Result:**\n```json\n{\n  \"answer\": \"1. Ctrl+G: Go to line \\u2014 PARTIAL. `EditorWidget.go_to_line()` exists (editor_widget.py line 558) but no Ctrl+G shortcut registered.\\n\\n2. Ctrl+F: Find in file \\u2014 DONE. `EditorWidget` with `SearchBar` and `_find_shortcut` (editor_widget.py lines 180-185, 443-453).\\n\\n3. Search in webview (chat history) \\u2014 DONE. `AIChatWidget._show_search()` with `QWebEngineView.findText()` (ai_chat_widget.py lines 1265-1275).\\n\\n4. Ctrl+Return in search to ask model \\u2014 NOT DONE. No such handler in SearchBar or chat widget.\\n\\n5. Search + AI hybrid \\u2014 NOT DONE. No \\\"explain results\\\" feature in search implementations.\\n\\n6. JS files bundled in app \\u2014 DONE. `JS_CACHE_DIR` and `get_script_src()` used throughout (js_cache references in ai_chat_widget.py, markdown_preview.py).\\n\\n7. Global search results as explorer icons/markers \\u2014 NOT DONE. SearchWidget exists but doesn't integrate with FileExplorerWidget.\\n\\n8. Explorer as generic \\\"tool view\\\" with tabs \\u2014 NOT DONE. FileExplorerWidget is hardcoded, no tab system for tools.\\n\\n9. Make UI panels dockable \\u2014 NOT DONE. No QDockWidget usage anywhere.\\n\\n10. Configurable syntax highlighting/theming \\u2014 PARTIAL. `PythonHighlighter` exists but hardcoded colors; no user config (editor_widget.py lines 56-90).\\n\\n11. Performance audit \\u2014 NOT DONE. No evidence of profiling or optimization focus.\\n\\n12. Improve ghost text rendering \\u2014 PARTIAL. Ghost text uses `QToolTip.showText()` (code_completion.py line 308), not in-editor display.\\n\\n13. Pause button \\u2014 NOT DONE. Only Cancel button exists (`ai_chat_widget.py` line 1078).\\n\\n14. User tools custom rendering hook \\u2014 NOT DONE. No rendering customization points in tool execution.\\n\\n15. \\\"Fork conversation here\\\" button \\u2014 DONE. `fork_requested` signal and `_handle_fork_from_turn()` (ai_chat_widget.py lines 1254-1280).\\n\\n16. Creates new branch from commit \\u2014 DONE. `MainWindow._fork_from_turn()` creates branch and copies session (main_window.py lines 540-564).\\n\\n17. .forge/config.toml for settings \\u2014 PARTIAL. `.forge/config.json` exists for conditional tools (manager.py line 217), but no TOML or comprehensive config.\\n\\n18. Custom test/build commands \\u2014 PARTIAL. `run_tests` tool auto-discovers but hardcoded logic (run_tests.py lines 86-125); no generic build tool.\\n\\n19. AI add_user_task tool \\u2014 NOT DONE. No task tracking tool or UI.\\n\\n20. File tab persistence \\u2014 DONE. `BranchTabWidget.save_open_files_to_cache()` and `restore_open_files()` (branch_tab_widget references in main_window.py lines 459-461).\\n\\n21. Ctrl+O: Open file dialog \\u2014 NOT DONE. No open file dialog; uses quick_open (Ctrl+E) instead.\\n\\n22. Find/replace in file \\u2014 NOT DONE. SearchBar is find-only; no replace UI.\\n\\n23. Go to definition (Python) \\u2014 NOT DONE. No LSP or definition lookup.\\n\\n24. Show references \\u2014 NOT DONE. No reference finding.\\n\\n25. Git graph search box \\u2014 NOT DONE. BranchListWidget exists but no search.\\n\\n26. Jump to commit by SHA \\u2014 PARTIAL. `BranchListWidget` exists but search not implemented (git_graph/branches.py).\\n\\n27. Show dangling commits \\u2014 NOT DONE. Graph only shows branch-reachable commits.\\n\\n28. Drag commits for merge/rebase \\u2014 DONE. `MergeDragSpline` and merge/rebase drag handlers (git_graph/scene.py, panel.py).\\n\\n29. Visual feedback during drag \\u2014 DONE. Merge check icons, grayed-out panels (git_graph/panel.py lines 177-192).\\n\\n30. Squash commit into parent \\u2014 DONE. `squash_requested` signal connected (git_graph/panel.py line 47).\\n\\n31. Undo support (reflog-based) \\u2014 PARTIAL. `GitActionLog` exists but no reflog integration visible.\\n\\n32. `build` tool \\u2014 NOT DONE. Only `run_tests` tool; no generic build.\\n\\n33. Consolidate grep shared logic \\u2014 DONE. `grep_utils.py` with `get_files_to_search()` (grep_open.py and grep_context.py both import it).\",\n  \"files_examined\": 19,\n  \"model\": \"anthropic/claude-haiku-4.5\",\n  \"success\": true\n}\n```",
       "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 1ea1247a",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "ah slight correction: drag for merge is in, drag for rebase is not."
+    },
+    {
+      "role": "assistant",
+      "content": "Good catch \u2014 let me split that line.\n\n<replace file=\"TODO.md\">\n<old>### Drag-and-Drop Operations\n- [x] Drag commits for merge/rebase (MergeDragSpline + drag handlers in git_graph/scene.py)\n- [x] Visual feedback during drag (merge check icons, panel graying)</old>\n<new>### Drag-and-Drop Operations\n- [x] Drag commits for merge (MergeDragSpline + drag handlers in git_graph/scene.py)\n- [x] Visual feedback during drag (merge check icons, panel graying)\n- [ ] Drag commits for rebase</new>\n</replace>\n\nFixed \u2014 merge stays checked, rebase split out as its own pending item.",
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "TODO.md",
+          "modified_files": [
+            "TODO.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        }
+      ]
     }
   ],
   "parent_session": null,

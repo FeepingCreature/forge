@@ -128,8 +128,9 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [ ] Show dangling/recent commits not on any branch (reflog-based?)
 
 ### Drag-and-Drop Operations
-- [x] Drag commits for merge/rebase (MergeDragSpline + drag handlers in git_graph/scene.py)
+- [x] Drag commits for merge (MergeDragSpline + drag handlers in git_graph/scene.py)
 - [x] Visual feedback during drag (merge check icons, panel graying)
+- [ ] Drag commits for rebase
 
 ### Git Operations
 - [x] Squash commit into parent (squash_requested signal in git_graph/panel.py)

@@ -1,16 +1,11 @@
 {
   "active_files": [
     "TODO.md",
-    "README.md",
     "LIVESESSION_REFACTOR.md",
-    "CLAUDE.md",
-    "DESIGN.md",
     "tests/test_inline_pipeline_vfs.py",
-    "GRAPH_COMMIT_ORDERING.md",
     "POLISH_TODO.md",
     "REFACTORING.md",
-    "REVIEW.md",
-    "REVIEW2.md"
+    "REVIEW.md"
   ],
   "request_log_entries": [
     {
@@ -2640,6 +2635,33 @@
       "streaming": true,
       "actual_cost": 0.048505,
       "generation_id": "gen-1777861568-YfdNJpS0eMt40kE2HtdO"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1777861570428.json",
+      "response_file": "/tmp/forge_debug/response_1777861570428.json",
+      "timestamp": 1777861570.4452,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000139,
+      "generation_id": "gen-1777861570-w67EN9Hip9D7FbVJsezA"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777861594405.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777861594405.json",
+      "timestamp": 1777861594.406626,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.20087,
+      "generation_id": "gen-1777861594-VtPILkwtN43d5XLmAEvg"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1777861604712.json",
+      "response_file": "/tmp/forge_debug/response_stream_1777861604712.json",
+      "timestamp": 1777861604.7167706,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.23973375,
+      "generation_id": "gen-1777861604-VSF0EwhgAcUf0xiLjhtN"
     }
   ],
   "messages": [
@@ -2739,6 +2761,81 @@
           "message": "Deleted REVIEW.md",
           "modified_files": [
             "REVIEW.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: b0d4c62e",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "ah and can we merge the real stuff in POLISH_TODO into TODO?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll merge the still-pending items from POLISH_TODO into TODO, then delete POLISH_TODO. Let me look at what's actually unchecked in POLISH_TODO and find good homes for each in TODO.\n\nUnchecked items in POLISH_TODO:\n- **CLI & Startup**: bundle JS files for webview\n- **File Explorer**: search results as markers; explorer as generic tool view\n- **Search**: search in webview chat history; Ctrl+Return AI-assisted search\n- **Editor & UI**: dockable panels; configurable theming; performance audit\n- **Code Completion**: improve ghost text rendering\n- **Branch & Session**: git graph dangling/reflog commits\n- **AI Behavior**: AI kicks off autonomous work on branches\n- **AI Turn Interaction**: pause button (probably not feasible)\n- **Tool Rendering**: user-defined tool rendering hook\n- **Model Integration**: AI-assisted global search\n- **Random Ideas**: search + AI hybrid\n\nNow let me fold these into TODO.md in matching sections, then delete POLISH_TODO.md.",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01Nrix1e3kPV2DRyLgu5Agep",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"remove\": [\"CLAUDE.md\", \"DESIGN.md\", \"GRAPH_COMMIT_ORDERING.md\", \"README.md\", \"REVIEW2.md\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Nrix1e3kPV2DRyLgu5Agep",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"CLAUDE.md\", \"DESIGN.md\", \"GRAPH_COMMIT_ORDERING.md\", \"README.md\", \"REVIEW2.md\"], \"message\": \"Added 0 files, removed 5 files from context\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Now I'll merge the pending items into TODO.md and delete POLISH_TODO.md.\n\n<replace file=\"TODO.md\">\n<old>### Quick Actions\n- [x] Ctrl+E: Quick open (fuzzy file search)\n- [x] Ctrl+Shift+P: Command palette\n- [x] ActionRegistry for centralized keybinding management\n- [ ] Ctrl+G: Go to line\n- [ ] Ctrl+F: Find in file\n- [x] Ctrl+Shift+F: Find in project (global search)</old>\n<new>### Quick Actions\n- [x] Ctrl+E: Quick open (fuzzy file search)\n- [x] Ctrl+Shift+P: Command palette\n- [x] ActionRegistry for centralized keybinding management\n- [ ] Ctrl+G: Go to line\n- [ ] Ctrl+F: Find in file\n- [x] Ctrl+Shift+F: Find in project (global search)\n- [ ] Search in webview (chat history)\n- [ ] Ctrl+Return in search to ask model \"find code that does X\" (AI-assisted search)\n- [ ] Search + AI hybrid: normal search, then \"explain these results\"\n\n### Startup & Bundling\n- [ ] JS files for webview should be bundled in app (no HTTP requests on startup)\n\n### File Explorer\n- [ ] Global search results shown as icons/markers in explorer view\n- [ ] Explorer could become generic \"tool view\" with tabs (files, search results, etc.)\n\n### UI Layout & Theming\n- [ ] Make UI panels arrangeable/dockable\n- [ ] Configurable syntax highlighting/theming (how deep?)\n- [ ] Performance audit at some point\n\n### Code Completion\n- [ ] Improve ghost text rendering (currently uses tooltip)\n\n### AI Turn Interaction\n- [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)\n\n### Tool Rendering\n- [ ] User-defined tools need a hook for custom pretty rendering</new>\n</replace>\n\n<replace file=\"TODO.md\">\n<old>## Git Graph Improvements\n\n### Search & Navigation\n- [ ] Search box (filter by message, author, SHA)\n- [ ] Jump to commit by partial SHA</old>\n<new>## Git Graph Improvements\n\n### Search & Navigation\n- [ ] Search box (filter by message, author, SHA)\n- [ ] Jump to commit by partial SHA\n- [ ] Show dangling/recent commits not on any branch (reflog-based?)</new>\n</replace>\n\n<replace file=\"TODO.md\">\n<old>**Forge can develop itself!** The git-first workflow is complete.\n\n---\n\n## High Priority: Scoped Capability Tools</old>\n<new>**Forge can develop itself!** The git-first workflow is complete.\n\n---\n\n## Long-Term / Speculative\n\n- [ ] AI can kick off autonomous work on separate branches via tool call\n- [ ] Integrate AI with global search for AI-assisted code discovery\n\n---\n\n## High Priority: Scoped Capability Tools</new>\n</replace>\n\n<delete file=\"POLISH_TODO.md\"/>\n\nDone. All pending POLISH_TODO items folded into TODO.md under appropriate sections (Quick Actions got a sibling group for search/UI/completion polish, Git Graph picked up the reflog item, and a new \"Long-Term / Speculative\" section absorbed the autonomous-branch and AI-search ideas). POLISH_TODO.md deleted.",
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "TODO.md",
+          "modified_files": [
+            "TODO.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "TODO.md",
+          "modified_files": [
+            "TODO.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "TODO.md",
+          "modified_files": [
+            "TODO.md"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "message": "Deleted POLISH_TODO.md",
+          "modified_files": [
+            "POLISH_TODO.md"
           ],
           "side_effects": [
             "files_modified"

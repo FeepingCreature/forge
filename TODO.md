@@ -25,6 +25,13 @@ The branch-first architecture is **complete**:
 
 ---
 
+## Long-Term / Speculative
+
+- [ ] AI can kick off autonomous work on separate branches via tool call
+- [ ] Integrate AI with global search for AI-assisted code discovery
+
+---
+
 ## High Priority: Scoped Capability Tools
 
 The tool system is Forge's security model. NO arbitrary command execution.
@@ -56,6 +63,30 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 - [ ] Ctrl+G: Go to line
 - [ ] Ctrl+F: Find in file
 - [x] Ctrl+Shift+F: Find in project (global search)
+- [ ] Search in webview (chat history)
+- [ ] Ctrl+Return in search to ask model "find code that does X" (AI-assisted search)
+- [ ] Search + AI hybrid: normal search, then "explain these results"
+
+### Startup & Bundling
+- [ ] JS files for webview should be bundled in app (no HTTP requests on startup)
+
+### File Explorer
+- [ ] Global search results shown as icons/markers in explorer view
+- [ ] Explorer could become generic "tool view" with tabs (files, search results, etc.)
+
+### UI Layout & Theming
+- [ ] Make UI panels arrangeable/dockable
+- [ ] Configurable syntax highlighting/theming (how deep?)
+- [ ] Performance audit at some point
+
+### Code Completion
+- [ ] Improve ghost text rendering (currently uses tooltip)
+
+### AI Turn Interaction
+- [ ] Pause button (only if OpenRouter supports pause/resume streaming - probably not)
+
+### Tool Rendering
+- [ ] User-defined tools need a hook for custom pretty rendering
 
 ### Session Forking UX
 - [ ] "Fork conversation here" button in chat history
@@ -94,6 +125,7 @@ See DESIGN.md "Tool System: Security Through Capability Design".
 ### Search & Navigation
 - [ ] Search box (filter by message, author, SHA)
 - [ ] Jump to commit by partial SHA
+- [ ] Show dangling/recent commits not on any branch (reflog-based?)
 
 ### Drag-and-Drop Operations
 - [ ] Drag commits for merge/rebase

@@ -214,6 +214,50 @@ class SessionTestHarness:
         self.last_turn = result
         return result
 
+    # --- White-box state pokes ---
+    #
+    # These bypass the normal send_message / run_turn flow to set up
+    # specific internal session states that are otherwise hard to reach
+    # synchronously. They build the session lazily if needed.
+
+    def given_state(self, state: str) -> SessionTestHarness:
+        """Force the LiveSession into a given state (e.g. RUNNING).
+
+        Useful for tests that exercise behaviour conditional on state
+        without driving a real partial turn (which SyncTaskRunner can't
+        easily pause mid-flight).
+        """
+        self.session._state = state
+        return self
+
+    def given_queued_message(self, text: str) -> SessionTestHarness:
+        """Simulate 'user typed a message while the AI was running'.
+
+        This sets _queued_message directly. In production this slot is
+        only filled by send_message() called while state is RUNNING.
+        Tests that just want to verify the consume-the-queue branches
+        should use this instead of orchestrating a real mid-turn send.
+        """
+        self.session._queued_message = text
+        return self
+
+    def track_file_summaries(self) -> SessionTestHarness:
+        """Opt-in: record every generate_summary_for_file call.
+
+        The harness stubs this method by default to keep the network
+        out of tests. Tests that specifically care about the
+        new-files-trigger-summaries behaviour can opt in here and read
+        `harness.summarized_files` afterward.
+        """
+        self.summarized_files: list[str] = []
+
+        def _record(filepath: str) -> str | None:
+            self.summarized_files.append(filepath)
+            return None
+
+        self.session_manager.generate_summary_for_file = _record  # type: ignore[method-assign]
+        return self
+
     # --- Inspection ---
 
     @property

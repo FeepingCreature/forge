@@ -37,7 +37,15 @@ def execute_tool_calls(
     """
     results: list[dict[str, Any]] = []
 
-    session_manager.vfs.claim_thread()
+    # Capture the VFS reference ONCE so claim and release target the
+    # same object. `session_manager.vfs` is a property that returns
+    # `self.tool_manager.vfs`, and that attribute can be reassigned
+    # mid-turn by `commit_ai_turn` (which swaps in a fresh VFS pointing
+    # at the new commit). If we re-resolve `session_manager.vfs` in the
+    # `finally`, we'd try to release a *different* VFS than the one we
+    # claimed, and the new one's owner is None — assertion failure.
+    vfs = session_manager.vfs
+    vfs.claim_thread()
     try:
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
@@ -88,6 +96,6 @@ def execute_tool_calls(
             if not result.get("success", True):
                 break
     finally:
-        session_manager.vfs.release_thread()
+        vfs.release_thread()
 
     return results

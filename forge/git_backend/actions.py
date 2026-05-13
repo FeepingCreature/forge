@@ -125,9 +125,7 @@ class RebaseAction(GitAction):
                     files_str += f", ... ({len(conflict_paths) - 5} more)"
                 # Roll back: reset branch to original
                 source_branch_ref.set_target(pygit2.Oid(hex=self.previous_source_oid))
-                raise ValueError(
-                    f"Rebase conflict at {str(original.id)[:7]} in: {files_str}"
-                )
+                raise ValueError(f"Rebase conflict at {str(original.id)[:7]} in: {files_str}")
 
             new_tree_oid = merge_result.write_tree(repo)
 

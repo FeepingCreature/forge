@@ -149,7 +149,7 @@ def _extract_with_llm(url: str, html_text: str, question: str) -> str | None:
     settings = Settings()
     api_key = settings.get_api_key()
     model = settings.get_summarization_model()
-    base_url = settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+    base_url = settings.get_base_url()
 
     if not api_key:
         return None

@@ -104,6 +104,15 @@ class Settings:
             api_key = os.environ.get("OPENROUTER_API_KEY", "")
         return api_key
 
+    def get_base_url(self) -> str:
+        """Get the LLM API base URL.
+
+        Defaults to OpenRouter, but can be pointed at any OpenAI-compatible
+        endpoint (e.g. a local llama-server, vLLM, or Ollama's compat shim).
+        """
+        url: str = str(self.get("llm.base_url", "https://openrouter.ai/api/v1"))
+        return url
+
     def get_summarization_model(self) -> str:
         """Get the model to use for summarization, commits, asks, and completions.
 

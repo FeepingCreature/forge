@@ -286,7 +286,7 @@ class AskWidget(QWidget):
 
         # Get model and base URL from settings
         model = self.workspace._settings.get_summarization_model()
-        base_url = self.workspace._settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+        base_url = self.workspace._settings.get_base_url()
 
         # Setup and start worker (pass VFS for file content fetching)
         self._worker.set_query(

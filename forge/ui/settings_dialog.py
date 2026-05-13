@@ -423,7 +423,7 @@ class SettingsDialog(QDialog):
             return
 
         self.model_thread = QThread()
-        base_url = self.settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+        base_url = self.settings.get_base_url()
         self.model_worker = ModelFetchWorker(api_key, base_url)
         self.model_worker.moveToThread(self.model_thread)
 

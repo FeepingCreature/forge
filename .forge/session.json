@@ -2792,6 +2792,33 @@
       "streaming": true,
       "actual_cost": 0.444732,
       "generation_id": "gen-1778639683-RYDtTDfb3OwlSwWln6G6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1778639725355.json",
+      "response_file": "/tmp/forge_debug/response_1778639725355.json",
+      "timestamp": 1778639725.3609266,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.000266,
+      "generation_id": "gen-1778639725-Ly2QS7iIh1cxzihRvpqp"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1778639734836.json",
+      "response_file": "/tmp/forge_debug/response_stream_1778639734836.json",
+      "timestamp": 1778639734.8401277,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.82628625,
+      "generation_id": "gen-1778639735-xpyNMztFXl4CaLsIlSCX"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1778639742248.json",
+      "response_file": "/tmp/forge_debug/response_stream_1778639742248.json",
+      "timestamp": 1778639742.252328,
+      "model": "anthropic/claude-opus-4.7",
+      "streaming": true,
+      "actual_cost": 0.915945,
+      "generation_id": "gen-1778639742-uJ8yDgYYCHxjCgcKZcdW"
     }
   ],
   "messages": [
@@ -3005,6 +3032,149 @@
           ]
         }
       ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 4ed82c51",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yes I was about to ask, can you add that please"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 12] I'll add a `get_base_url()` helper to `Settings` and update all call sites to use it.\n\n<replace file=\"forge/config/settings.py\">\n<old>\n    def get_summarization_model(self) -> str:\n</old>\n<new>\n    def get_base_url(self) -> str:\n        \"\"\"Get the LLM API base URL.\n\n        Defaults to OpenRouter, but can be pointed at any OpenAI-compatible\n        endpoint (e.g. a local llama-server, vLLM, or Ollama's compat shim).\n        \"\"\"\n        url: str = str(self.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\"))\n        return url\n\n    def get_summarization_model(self) -> str:\n</old_x>\n</new>\n</replace>\n\nWait, that has a stray `</old_x>`. Let me redo it cleanly:",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_012M7SbsghoLxnj6KzGuQcyh",
+          "type": "function",
+          "function": {
+            "name": "undo_edit",
+            "arguments": "{\"filepath\": \"forge/config/settings.py\"}"
+          }
+        }
+      ],
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "forge/config/settings.py",
+          "modified_files": [
+            "forge/config/settings.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_012M7SbsghoLxnj6KzGuQcyh",
+      "content": "{\"success\": true, \"action\": \"reverted\", \"message\": \"Reverted to base commit version: forge/config/settings.py\"}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 14] My previous edit got mangled by a stray `</old_x>` tag and the file is now broken. Let me restore it cleanly and then add the helper properly.\n\n<write file=\"forge/config/settings.py\">\n\"\"\"\nSettings management for Forge\n\"\"\"\n\nimport json\nimport os\nfrom pathlib import Path\nfrom typing import Any\n\nfrom forge.constants import DEFAULT_SUMMARIZATION_MODEL\n\n\nclass Settings:\n    \"\"\"Manages application settings\"\"\"\n\n    DEFAULT_SETTINGS = {\n        \"llm\": {\n            \"api_key\": \"\",\n            \"model\": \"anthropic/claude-3.5-sonnet\",\n            \"base_url\": \"https://openrouter.ai/api/v1\",\n            \"parallel_summarization\": 8,  # Number of parallel requests for summarization\n            \"summary_token_budget\": 10000,  # Max tokens for file summaries before listing only\n        },\n        \"editor\": {\n            \"font_size\": 10,\n            \"tab_width\": 4,\n            \"show_line_numbers\": True,\n            \"highlight_current_line\": True,\n        },\n        \"ui\": {\n            \"theme\": \"light\",\n            \"editor_ai_split\": [2, 1],  # Ratio for splitter\n        },\n        \"git\": {\"auto_commit\": False},\n    }\n\n    def __init__(self, config_path: Path | None = None) -> None:\n        \"\"\"Initialize settings\"\"\"\n        if config_path is None:\n            config_path = Path.home() / \".config\" / \"forge\" / \"settings.json\"\n\n        self.config_path = config_path\n        self.settings = self.DEFAULT_SETTINGS.copy()\n        self.load()\n\n    def load(self) -> None:\n        \"\"\"Load settings from file\"\"\"\n        if self.config_path.exists():\n            with open(self.config_path) as f:\n                loaded = json.load(f)\n                # Merge with defaults to handle new settings\n                self._merge_settings(self.settings, loaded)\n\n    def save(self) -> None:\n        \"\"\"Save settings to file\"\"\"\n        self.config_path.parent.mkdir(parents=True, exist_ok=True)\n        with open(self.config_path, \"w\") as f:\n            json.dump(self.settings, f, indent=2)\n\n    def _merge_settings(self, base: dict[str, Any], updates: dict[str, Any]) -> None:\n        \"\"\"Recursively merge settings dictionaries\"\"\"\n        for key, value in updates.items():\n            if key in base and isinstance(base[key], dict) and isinstance(value, dict):\n                # Both are dicts, safe to recurse\n                base_dict: dict[str, Any] = base[key]\n                value_dict: dict[str, Any] = value\n                self._merge_settings(base_dict, value_dict)\n            else:\n                base[key] = value\n\n    def get(self, path: str, default: Any = None) -> Any:\n        \"\"\"Get a setting by dot-separated path (e.g., 'llm.api_key')\"\"\"\n        parts = path.split(\".\")\n        value: Any = self.settings\n\n        for part in parts:\n            if isinstance(value, dict):\n                value_dict: dict[str, Any] = value\n                if part in value_dict:\n                    value = value_dict[part]\n                else:\n                    return default\n            else:\n                return default\n\n        return value\n\n    def set(self, path: str, value: Any) -> None:\n        \"\"\"Set a setting by dot-separated path\"\"\"\n        parts = path.split(\".\")\n        target: Any = self.settings\n\n        for part in parts[:-1]:\n            if part not in target:\n                target[part] = {}\n            target = target[part]\n\n        target[parts[-1]] = value\n\n    def get_api_key(self) -> str:\n        \"\"\"Get API key from settings or environment\"\"\"\n        api_key: str = str(self.get(\"llm.api_key\", \"\"))\n        if not api_key:\n            api_key = os.environ.get(\"OPENROUTER_API_KEY\", \"\")\n        return api_key\n\n    def get_base_url(self) -> str:\n        \"\"\"Get the LLM API base URL.\n\n        Defaults to OpenRouter, but can be pointed at any OpenAI-compatible\n        endpoint (e.g. a local llama-server, vLLM, or Ollama's compat shim).\n        \"\"\"\n        url: str = str(self.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\"))\n        return url\n\n    def get_summarization_model(self) -> str:\n        \"\"\"Get the model to use for summarization, commits, asks, and completions.\n\n        This is the 'cheap/fast' model used for everything except the main agentic flow.\n        Falls back to haiku if not configured.\n        \"\"\"\n        model: str = str(self.get(\"llm.summarization_model\", DEFAULT_SUMMARIZATION_MODEL))\n        return model\n\n    def get_parallel_summarization(self) -> int:\n        \"\"\"Get the number of parallel requests to use for summarization.\n\n        Controls how many LLM requests run concurrently when generating file summaries.\n        Higher values speed up initial summarization but use more API quota.\n        \"\"\"\n        parallel: int = int(self.get(\"llm.parallel_summarization\", 8))\n        return max(1, parallel)  # At least 1\n\n    def get_summary_token_budget(self) -> int:\n        \"\"\"Get the token budget for file summaries.\n\n        Summaries are generated in breadth-first order (by path depth) until\n        this budget is reached. Files beyond the budget are listed without\n        summaries, with a note to use scout for investigation.\n        \"\"\"\n        budget: int = int(self.get(\"llm.summary_token_budget\", 10000))\n        return max(1000, budget)  # At least 1k\n</write>\n\nNow update all the call sites to use `get_base_url()`:\n\n<replace file=\"forge/session/live_session.py\">\n<old>\n        base_url = self.session_manager.settings.get(\n            \"llm.base_url\", \"https://openrouter.ai/api/v1\"\n        )\n        client = LLMClient(api_key, model, base_url)\n</old>\n<new>\n        base_url = self.session_manager.settings.get_base_url()\n        client = LLMClient(api_key, model, base_url)\n</new>\n</replace>\n\n<replace file=\"forge/session/manager.py\">\n<old>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n\n        client = LLMClient(api_key, model, base_url)\n\n        # Build prompt - filter out session file for description purposes\n</old>\n<new>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get_base_url()\n\n        client = LLMClient(api_key, model, base_url)\n\n        # Build prompt - filter out session file for description purposes\n</new>\n</replace>\n\n<replace file=\"forge/session/manager.py\">\n<old>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n        client = LLMClient(api_key, model, base_url)\n        token_budget = self.settings.get_summary_token_budget()\n</old>\n<new>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get_base_url()\n        client = LLMClient(api_key, model, base_url)\n        token_budget = self.settings.get_summary_token_budget()\n</new>\n</replace>\n\n<replace file=\"forge/session/manager.py\">\n<old>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n        client = LLMClient(api_key, model, base_url)\n\n        # Truncate very large files for summary generation\n</old>\n<new>\n        model = self.settings.get_summarization_model()\n        api_key = self.settings.get_api_key()\n        base_url = self.settings.get_base_url()\n        client = LLMClient(api_key, model, base_url)\n\n        # Truncate very large files for summary generation\n</new>\n</replace>\n\n<replace file=\"forge/tools/builtin/scout.py\">\n<old>\n    settings = Settings()\n    api_key = settings.get_api_key()\n    model = settings.get_summarization_model()\n    base_url = settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n\n    if not api_key:\n        return {\"success\": False, \"error\": \"No API key configured\"}\n\n    client = LLMClient(api_key, model, base_url)\n</old>\n<new>\n    settings = Settings()\n    api_key = settings.get_api_key()\n    model = settings.get_summarization_model()\n    base_url = settings.get_base_url()\n\n    if not api_key:\n        return {\"success\": False, \"error\": \"No API key configured\"}\n\n    client = LLMClient(api_key, model, base_url)\n</new>\n</replace>\n\n<replace file=\"forge/tools/builtin/web_read.py\">\n<old>\n    settings = Settings()\n    api_key = settings.get_api_key()\n    model = settings.get_summarization_model()\n    base_url = settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n\n    if not api_key:\n        return None\n\n    client = LLMClient(api_key, model, base_url)\n</old>\n<new>\n    settings = Settings()\n    api_key = settings.get_api_key()\n    model = settings.get_summarization_model()\n    base_url = settings.get_base_url()\n\n    if not api_key:\n        return None\n\n    client = LLMClient(api_key, model, base_url)\n</new>\n</replace>\n\n<replace file=\"forge/ui/ask_widget.py\">\n<old>\n        # Get model and base URL from settings\n        model = self.workspace._settings.get_summarization_model()\n        base_url = self.workspace._settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n</old>\n<new>\n        # Get model and base URL from settings\n        model = self.workspace._settings.get_summarization_model()\n        base_url = self.workspace._settings.get_base_url()\n</new>\n</replace>\n\n<replace file=\"forge/ui/settings_dialog.py\">\n<old>\n        self.model_thread = QThread()\n        base_url = self.settings.get(\"llm.base_url\", \"https://openrouter.ai/api/v1\")\n        self.model_worker = ModelFetchWorker(api_key, base_url)\n</old>\n<new>\n        self.model_thread = QThread()\n        base_url = self.settings.get_base_url()\n        self.model_worker = ModelFetchWorker(api_key, base_url)\n</new>\n</replace>\n\nDone. Summary:\n\n- **`Settings.get_base_url()`** added alongside `get_api_key()` / `get_summarization_model()`. Defaults to `https://openrouter.ai/api/v1`.\n- All 7 call sites now use the helper instead of the inline `settings.get(\"llm.base_url\", \"...\")` pattern. The default URL string now lives in exactly one place (the helper), plus `DEFAULT_SETTINGS` and the placeholder text in the settings dialog UI.\n\nSide note: I'm closing the conversation here since context is at 116k tokens \u2014 if you want to actually try the llama proxy now, do you want me to clear context and you can come back with results? Or is there something else you want to tweak first?",
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "forge/config/settings.py",
+          "created": false,
+          "modified_files": [
+            "forge/config/settings.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/session/live_session.py",
+          "modified_files": [
+            "forge/session/live_session.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/session/manager.py",
+          "modified_files": [
+            "forge/session/manager.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/tools/builtin/scout.py",
+          "modified_files": [
+            "forge/tools/builtin/scout.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/tools/builtin/web_read.py",
+          "modified_files": [
+            "forge/tools/builtin/web_read.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/ui/ask_widget.py",
+          "modified_files": [
+            "forge/ui/ask_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/ui/settings_dialog.py",
+          "modified_files": [
+            "forge/ui/settings_dialog.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `undo_edit`\n```json\n{\n  \"filepath\": \"forge/config/settings.py\"\n}\n```\n**Result:**\n```json\n{\n  \"action\": \"reverted\",\n  \"message\": \"Reverted to base commit version: forge/config/settings.py\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
     }
   ],
   "parent_session": null,

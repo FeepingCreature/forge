@@ -621,9 +621,7 @@ class LiveSession(QObject):
 
         api_key = self.session_manager.settings.get_api_key()
         model = self.session_manager.settings.get("llm.model", "anthropic/claude-3.5-sonnet")
-        base_url = self.session_manager.settings.get(
-            "llm.base_url", "https://openrouter.ai/api/v1"
-        )
+        base_url = self.session_manager.settings.get_base_url()
         client = LLMClient(api_key, model, base_url)
         self._llm_backend = OpenRouterBackend(client)
         return self._llm_backend

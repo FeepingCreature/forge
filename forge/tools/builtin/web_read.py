@@ -149,11 +149,12 @@ def _extract_with_llm(url: str, html_text: str, question: str) -> str | None:
     settings = Settings()
     api_key = settings.get_api_key()
     model = settings.get_summarization_model()
+    base_url = settings.get("llm.base_url", "https://openrouter.ai/api/v1")
 
     if not api_key:
         return None
 
-    client = LLMClient(api_key, model)
+    client = LLMClient(api_key, model, base_url)
 
     instruction = (
         f"Extract the relevant information from this webpage to answer: {question}\n\n"

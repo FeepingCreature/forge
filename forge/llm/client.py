@@ -16,10 +16,15 @@ from forge.llm.request_log import REQUEST_LOG
 class LLMClient:
     """Client for OpenRouter API"""
 
-    def __init__(self, api_key: str, model: str = "anthropic/claude-3.5-sonnet") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "anthropic/claude-3.5-sonnet",
+        base_url: str = "https://openrouter.ai/api/v1",
+    ) -> None:
         self.api_key = api_key
         self.model = model
-        self.base_url = "https://openrouter.ai/api/v1"
+        self.base_url = base_url
 
     def get_available_models(self) -> list[dict[str, Any]]:
         """Fetch list of available models from OpenRouter"""

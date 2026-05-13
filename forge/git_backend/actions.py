@@ -35,6 +35,138 @@ class GitAction(ABC):
 
 
 @dataclass
+class RebaseAction(GitAction):
+    """
+    Rebase a branch onto a new base commit.
+
+    Replays commits from merge_base(source_branch, target)..source_branch_tip
+    onto target_oid, then moves source_branch to point at the last replayed commit.
+    """
+
+    repo: ForgeRepository
+    source_branch: str  # Branch to rebase
+    target_oid: str  # Commit to rebase onto
+    previous_source_oid: str = ""  # For undo
+    new_source_oid: str = ""  # Filled after perform()
+    timestamp: datetime = field(default_factory=datetime.now)
+
+    def perform(self) -> None:
+        """Execute the rebase by cherry-picking commits one at a time."""
+        repo = self.repo.repo
+
+        source_branch_ref = self.repo.repo.branches[self.source_branch]
+        source_tip = source_branch_ref.peel(pygit2.Commit)
+        self.previous_source_oid = str(source_tip.id)
+
+        target_commit = repo[self.target_oid]
+        if not isinstance(target_commit, pygit2.Commit):
+            raise ValueError(f"Target {self.target_oid} is not a commit")
+
+        # Find merge base between source branch tip and target
+        merge_base_oid = repo.merge_base(source_tip.id, target_commit.id)
+        if not merge_base_oid:
+            raise ValueError("No common ancestor - cannot rebase unrelated histories")
+
+        # If source is already on top of target (target is ancestor of source), no-op
+        if str(merge_base_oid) == str(target_commit.id):
+            # Already rebased
+            self.new_source_oid = str(source_tip.id)
+            return
+
+        # If source is ancestor of target, this is a fast-forward (just move branch)
+        if str(merge_base_oid) == str(source_tip.id):
+            source_branch_ref.set_target(target_commit.id)
+            self.new_source_oid = str(target_commit.id)
+            return
+
+        # Collect commits to replay: those reachable from source_tip but not from merge_base
+        # Walk source_tip back to merge_base, collecting commits in topological order.
+        commits_to_replay: list[pygit2.Commit] = []
+        walker = repo.walk(source_tip.id, pygit2.enums.SortMode.TOPOLOGICAL)
+        walker.hide(merge_base_oid)
+        for c in walker:
+            commits_to_replay.append(c)
+
+        # walker yields newest first; we want to replay oldest first
+        commits_to_replay.reverse()
+
+        if not commits_to_replay:
+            self.new_source_oid = str(target_commit.id)
+            source_branch_ref.set_target(target_commit.id)
+            return
+
+        # Cherry-pick each commit onto the new base
+        committer_sig = pygit2.Signature(FORGE_AUTHOR_NAME, FORGE_AUTHOR_EMAIL)
+        current_parent = target_commit
+
+        for original in commits_to_replay:
+            # Skip merge commits - bail out (we don't handle interactive merge rebases)
+            if len(original.parents) > 1:
+                raise ValueError(
+                    f"Cannot rebase across merge commit {str(original.id)[:7]} "
+                    "- merge commits are not supported"
+                )
+
+            # Three-way merge: ancestor=original.parent, ours=current_parent, theirs=original
+            original_parent = original.parents[0] if original.parents else None
+            if original_parent is None:
+                raise ValueError("Cannot rebase root commit")
+
+            merge_result = repo.merge_trees(
+                ancestor=original_parent.tree,
+                ours=current_parent.tree,
+                theirs=original.tree,
+            )
+
+            if merge_result.conflicts:
+                conflict_paths = _get_conflict_paths(merge_result)
+                files_str = ", ".join(conflict_paths[:5])
+                if len(conflict_paths) > 5:
+                    files_str += f", ... ({len(conflict_paths) - 5} more)"
+                # Roll back: reset branch to original
+                source_branch_ref.set_target(pygit2.Oid(hex=self.previous_source_oid))
+                raise ValueError(
+                    f"Rebase conflict at {str(original.id)[:7]} in: {files_str}"
+                )
+
+            new_tree_oid = merge_result.write_tree(repo)
+
+            # Preserve original author, set Forge as committer
+            new_commit_oid = repo.create_commit(
+                None,  # Don't update any ref yet
+                original.author,
+                committer_sig,
+                original.message,
+                new_tree_oid,
+                [current_parent.id],
+            )
+            new_commit = repo[new_commit_oid]
+            assert isinstance(new_commit, pygit2.Commit)
+            current_parent = new_commit
+
+        # Move source branch to point at last replayed commit
+        source_branch_ref.set_target(current_parent.id)
+        self.new_source_oid = str(current_parent.id)
+
+        # If this is the currently checked-out branch, update working dir
+        if self.repo.get_checked_out_branch() == self.source_branch:
+            self.repo.checkout_branch_head(self.source_branch)
+
+    def undo(self) -> None:
+        """Undo by resetting source branch to its previous tip."""
+        if not self.previous_source_oid:
+            raise ValueError("Cannot undo: no previous state recorded")
+        branch = self.repo.repo.branches[self.source_branch]
+        branch.set_target(pygit2.Oid(hex=self.previous_source_oid))
+        if self.repo.get_checked_out_branch() == self.source_branch:
+            self.repo.checkout_branch_head(self.source_branch)
+
+    def description(self) -> str:
+        """Human-readable description."""
+        return f"Rebase '{self.source_branch}' onto {self.target_oid[:7]}"
+
+
+@dataclass
 class MergeAction(GitAction):
     """
     Merge a commit into a target branch.

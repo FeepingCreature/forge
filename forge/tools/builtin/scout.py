@@ -132,11 +132,12 @@ QUESTION: {question}"""
     settings = Settings()
     api_key = settings.get_api_key()
     model = settings.get_summarization_model()
+    base_url = settings.get("llm.base_url", "https://openrouter.ai/api/v1")
 
     if not api_key:
         return {"success": False, "error": "No API key configured"}
 
-    client = LLMClient(api_key, model)
+    client = LLMClient(api_key, model, base_url)
 
     # Call the model
     messages = [{"role": "user", "content": prompt}]

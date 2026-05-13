@@ -40,14 +40,15 @@ class ModelFetchWorker(QObject):
     finished = Signal(list)  # Emits list of model dicts
     error = Signal(str)  # Emits error message
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, base_url: str) -> None:
         super().__init__()
         self.api_key = api_key
+        self.base_url = base_url
 
     def run(self) -> None:
-        """Fetch models from OpenRouter"""
+        """Fetch models from configured backend"""
         try:
-            client = LLMClient(self.api_key)
+            client = LLMClient(self.api_key, base_url=self.base_url)
             models = client.get_available_models()
             self.finished.emit(models)
         except Exception as e:
@@ -422,7 +423,8 @@ class SettingsDialog(QDialog):
             return
 
         self.model_thread = QThread()
-        self.model_worker = ModelFetchWorker(api_key)
+        base_url = self.settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+        self.model_worker = ModelFetchWorker(api_key, base_url)
         self.model_worker.moveToThread(self.model_thread)
 
         # Connect signals

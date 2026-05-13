@@ -43,28 +43,36 @@ class AskWorker(QObject):
         self._summaries = ""
         self._api_key = ""
         self._model = ""
+        self._base_url = "https://openrouter.ai/api/v1"
         self._vfs: VFS | None = None
 
     def set_query(
-        self, question: str, summaries: str, api_key: str, model: str, vfs: VFS | None = None
+        self,
+        question: str,
+        summaries: str,
+        api_key: str,
+        model: str,
+        base_url: str,
+        vfs: VFS | None = None,
     ) -> None:
         """Set the query to execute."""
         self._question = question
         self._summaries = summaries
         self._api_key = api_key
         self._model = model
+        self._base_url = base_url
         self._vfs = vfs
 
     def _call_llm(self, prompt: str) -> str:
         """Make a non-streaming LLM call."""
-        client = LLMClient(self._api_key, model=self._model)
+        client = LLMClient(self._api_key, model=self._model, base_url=self._base_url)
         messages = [{"role": "user", "content": prompt}]
         response = client.chat(messages)
         return str(response["choices"][0]["message"]["content"])
 
     def _stream_llm(self, prompt: str) -> None:
         """Make a streaming LLM call, emitting chunks."""
-        client = LLMClient(self._api_key, model=self._model)
+        client = LLMClient(self._api_key, model=self._model, base_url=self._base_url)
         messages = [{"role": "user", "content": prompt}]
 
         full_response = ""
@@ -276,11 +284,14 @@ class AskWidget(QWidget):
         # Get file summaries from workspace
         summaries = self._get_summaries()
 
-        # Get model from settings (same as summarization model)
+        # Get model and base URL from settings
         model = self.workspace._settings.get_summarization_model()
+        base_url = self.workspace._settings.get("llm.base_url", "https://openrouter.ai/api/v1")
 
         # Setup and start worker (pass VFS for file content fetching)
-        self._worker.set_query(question, summaries, self._api_key, model, self.workspace.vfs)
+        self._worker.set_query(
+            question, summaries, self._api_key, model, base_url, self.workspace.vfs
+        )
 
         # Need to recreate thread if it was already run
         if self._worker_thread.isFinished():

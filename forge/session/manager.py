@@ -581,8 +581,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Generate commit message using cheap LLM"""
         model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
+        base_url = self.settings.get("llm.base_url", "https://openrouter.ai/api/v1")
 
-        client = LLMClient(api_key, model)
+        client = LLMClient(api_key, model, base_url)
 
         # Build prompt - filter out session file for description purposes
         # (it always changes but isn't interesting to mention)
@@ -688,7 +689,8 @@ Keep it under 72 characters."""
         """
         model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
-        client = LLMClient(api_key, model)
+        base_url = self.settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+        client = LLMClient(api_key, model, base_url)
         token_budget = self.settings.get_summary_token_budget()
 
         # List files through VFS (includes any pending new files)
@@ -930,7 +932,8 @@ Keep it under 72 characters."""
 
         model = self.settings.get_summarization_model()
         api_key = self.settings.get_api_key()
-        client = LLMClient(api_key, model)
+        base_url = self.settings.get("llm.base_url", "https://openrouter.ai/api/v1")
+        client = LLMClient(api_key, model, base_url)
 
         # Truncate very large files for summary generation
         max_chars = 10000

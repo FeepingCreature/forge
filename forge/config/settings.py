@@ -20,6 +20,13 @@ class Settings:
             "base_url": "https://openrouter.ai/api/v1",
             "parallel_summarization": 8,  # Number of parallel requests for summarization
             "summary_token_budget": 10000,  # Max tokens for file summaries before listing only
+            # When True, a turn does NOT end after a text-only assistant
+            # response. The AI must emit the built-in `done` inline tool
+            # to hand control back to the user; otherwise a reminder is
+            # injected and the LLM is called again. Useful for models that
+            # want to "think between edits" and would otherwise break the
+            # one-long-response pattern.
+            "require_done_tag": False,
         },
         "editor": {
             "font_size": 10,

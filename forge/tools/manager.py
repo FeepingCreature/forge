@@ -411,21 +411,51 @@ class ToolManager:
         # Detect API version and execute appropriately
         api_version = get_tool_api_version(tool_module.execute)
 
-        if api_version == 2:
-            # v2: Pass ToolContext with full access
-            from forge.session.registry import SESSION_REGISTRY
+        # Tool execution is a trust boundary: the model (especially small/local
+        # models) may pass arguments that violate the schema and trigger
+        # exceptions deep in the tool. We catch those here and return them as
+        # tool-error results so the model can self-correct, instead of letting
+        # them tear down the worker thread and the UI with it.
+        #
+        # This is one of the few sanctioned try/except sites in the codebase
+        # (see CLAUDE.md "No fallbacks") - it exists specifically to translate
+        # tool-internal failures into model-visible feedback.
+        try:
+            if api_version == 2:
+                # v2: Pass ToolContext with full access
+                from forge.session.registry import SESSION_REGISTRY
 
-            ctx = ToolContext(
-                vfs=self.vfs,
-                repo=self._repo,
-                branch_name=self.branch_name,
-                session_manager=session_manager,
-                registry=SESSION_REGISTRY,
+                ctx = ToolContext(
+                    vfs=self.vfs,
+                    repo=self._repo,
+                    branch_name=self.branch_name,
+                    session_manager=session_manager,
+                    registry=SESSION_REGISTRY,
+                )
+                result: dict[str, Any] = tool_module.execute(ctx, args)
+            else:
+                # v1: Pass VFS only (backwards compatible)
+                result = tool_module.execute(self.vfs, args)
+        except Exception as e:
+            import traceback
+
+            tb = traceback.format_exc()
+            # Still print to stderr so the developer sees it in the terminal -
+            # we're translating it for the model, not hiding it.
+            print(
+                f"⚠️  Tool {tool_name!r} raised {type(e).__name__}; "
+                f"returning as tool-error result:\n{tb}",
+                file=sys.stderr,
             )
-            result: dict[str, Any] = tool_module.execute(ctx, args)
-        else:
-            # v1: Pass VFS only (backwards compatible)
-            result = tool_module.execute(self.vfs, args)
+            return {
+                "success": False,
+                "error": (
+                    f"Tool {tool_name!r} raised {type(e).__name__}: {e}. "
+                    "This usually means the arguments did not match the tool's schema. "
+                    "Check the schema and retry with corrected arguments."
+                ),
+                "traceback": tb,
+            }
 
         # Handle context management actions
         if session_manager and "action" in result:

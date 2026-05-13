@@ -37,3 +37,11 @@ class SideEffect(str, Enum):
     # Use for tools that return large results used for immediate decision-making
     # (e.g., grep_context snippets that help decide what files to load).
     EPHEMERAL_RESULT = "ephemeral_result"
+
+    # Marks that the assistant is voluntarily ending the current turn.
+    # Only consulted when `llm.require_done_tag` is enabled: in that mode, a
+    # turn does NOT end automatically after a text-only response; the AI must
+    # emit a tool with this side effect (the built-in `done` tool, invoked
+    # inline) to hand control back to the user. Without it, a reminder is
+    # injected and the LLM is called again.
+    END_TURN = "end_turn"

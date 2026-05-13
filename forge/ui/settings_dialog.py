@@ -171,6 +171,24 @@ class SettingsDialog(QDialog):
         info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", info)
 
+        # Require explicit <done/> to end turn
+        self.require_done_tag_input = QCheckBox()
+        self.require_done_tag_input.setToolTip(
+            "When enabled, the AI must invoke <done/> to hand control back. "
+            "Otherwise a reminder is injected and the LLM is called again. "
+            "Useful for models that think between edits and would otherwise "
+            "break the one-long-response pattern."
+        )
+        layout.addRow("Require <done/> to end turn:", self.require_done_tag_input)
+
+        require_done_info = QLabel(
+            "Forces the AI to keep working until it explicitly signals it is done.\n"
+            "Helps with models that want to 'think between edits'."
+        )
+        require_done_info.setWordWrap(True)
+        require_done_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", require_done_info)
+
         # Connect click events using event filter or subclass approach
         self.model_input.installEventFilter(self)
 
@@ -629,6 +647,9 @@ class SettingsDialog(QDialog):
         )
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
+        self.require_done_tag_input.setChecked(
+            self.settings.get("llm.require_done_tag", False)
+        )
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
@@ -651,6 +672,9 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.api_key", self.api_key_input.text())
         self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
+        self.settings.set(
+            "llm.require_done_tag", self.require_done_tag_input.isChecked()
+        )
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

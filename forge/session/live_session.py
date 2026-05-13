@@ -231,6 +231,12 @@ class LiveSession(QObject):
         # Newly created files (for summary generation)
         self._newly_created_files: set[str] = set()
 
+        # Whether any tool in this turn declared SideEffect.END_TURN.
+        # Only consulted when settings "llm.require_done_tag" is True; in that
+        # mode a text-only response will NOT end the turn unless this flag is
+        # set (i.e. the assistant invoked the `done` inline tool).
+        self._turn_saw_end_turn: bool = False
+
         # In-flight task handles. None when no task running for that slot.
         self._stream_handle: TaskHandle | None = None
         self._tool_handle: TaskHandle | None = None
@@ -480,6 +486,7 @@ class LiveSession(QObject):
 
         # Reset turn tracking
         self._turn_executed_tool_ids = set()
+        self._turn_saw_end_turn = False
         self._cancel_requested = False
 
         # Start processing
@@ -863,6 +870,9 @@ class LiveSession(QObject):
                 if filepath not in self.session_manager.repo_summaries:
                     self._newly_created_files.add(filepath)
 
+        if SideEffect.END_TURN in side_effects:
+            self._turn_saw_end_turn = True
+
         is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (
             cmd and cmd.tool_name == "commit" and result.get("success")
         )
@@ -896,6 +906,30 @@ class LiveSession(QObject):
             self.add_message({"role": "user", "content": queued, "_mid_turn": True})
             self.session_manager.append_user_message(queued)
             self._continue_after_tools()
+            return
+
+        # Strict mode: a text-only response is NOT enough to end a turn.
+        # The assistant must explicitly invoke the `done` inline tool, which
+        # declares SideEffect.END_TURN. Without it, inject a reminder user
+        # message and loop back to the LLM. The user can still cancel from
+        # the UI to break out.
+        require_done = bool(
+            self.session_manager.settings.get("llm.require_done_tag", False)
+        )
+        if require_done and not self._turn_saw_end_turn:
+            reminder = (
+                "[Forge harness message] "
+                "You didn't output `<done/>` in your last response. "
+                "If you want to hand control back to the user, emit "
+                "`<done/>` and the turn will end. Otherwise you will"
+                "be called again. If you still have work to do, "
+                "that's fine too."
+            )
+            self.add_message(
+                {"role": "user", "content": reminder, "_mid_turn": True, "_ui_only": True}
+            )
+            self.session_manager.append_user_message(reminder)
+            self._process_llm_request()
             return
 
         # Set state to IDLE before committing so it's persisted correctly
@@ -993,6 +1027,9 @@ class LiveSession(QObject):
         if SideEffect.MID_TURN_COMMIT in side_effects:
             commit_oid = result.get("commit", "")
             self.session_manager.mark_mid_turn_commit(commit_oid)
+
+        if SideEffect.END_TURN in side_effects:
+            self._turn_saw_end_turn = True
 
         # Handle compact tool
         if result.get("compact") and result.get("success"):

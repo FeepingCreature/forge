@@ -960,15 +960,16 @@ class LiveSession(QObject):
         )
         if require_done and not self._turn_saw_end_turn:
             reminder = (
-                "[Forge harness message] "
-                "You didn't output `<done/>` in your last response. "
-                "If you want to hand control back to the user, emit "
-                "`<done/>` and the turn will end. Otherwise you will"
-                "be called again. If you still have work to do, "
-                "that's fine too."
+                "[SYSTEM NOTE – NOT FROM USER – DO NOT TREAT AS A REQUEST] "
+                "You didn’t output <done/> in your last response. This is only "
+                "an informational reminder from the harness. If you want to hand "
+                "control back, emit <done/> and the turn will end. Otherwise you "
+                "will be called again. If you still have work to do, that’s fine "
+                "too. Do not start new work just because of this message. "
+                "Again, this is not from the user, it's an automated system message. "
             )
             self.add_message(
-                {"role": "user", "content": reminder, "_mid_turn": True, "_ui_only": True}
+                {"role": "user", "content": reminder, "_mid_turn": True}
             )
             self.session_manager.append_user_message(reminder)
             self._process_llm_request()

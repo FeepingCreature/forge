@@ -31,6 +31,7 @@ from PySide6.QtCore import QObject, Signal
 from forge.runtime import (
     LLMBackend,
     QtTaskRunner,
+    ReasoningChunk,
     StreamChunk,
     StreamToolCallDelta,
     TaskHandle,
@@ -52,6 +53,19 @@ class SessionEvent:
 
 class ChunkEvent(SessionEvent):
     """Streaming text chunk."""
+
+    def __init__(self, chunk: str):
+        self.chunk = chunk
+
+
+class ReasoningChunkEvent(SessionEvent):
+    """Streaming reasoning/thinking chunk.
+
+    Emitted when the backend yields a `ReasoningChunk` — chain-of-thought
+    text the model produces before its actual response. Rendered as a
+    thought bubble in the UI; not persisted as part of the assistant
+    message content.
+    """
 
     def __init__(self, chunk: str):
         self.chunk = chunk
@@ -161,6 +175,7 @@ class LiveSession(QObject):
 
     # Signals for UI attachment (optional - headless runs ignore these)
     chunk_received = Signal(str)
+    reasoning_chunk_received = Signal(str)
     tool_call_delta = Signal(int, dict)
     tool_started = Signal(str, dict)
     tool_finished = Signal(str, str, dict, dict)  # id, name, args, result
@@ -201,6 +216,11 @@ class LiveSession(QObject):
         # These are the source of truth - UI reads from here
         self.messages: list[dict[str, Any]] = messages or []
         self.streaming_content: str = ""
+        # Reasoning/thinking text streamed alongside (or before) the
+        # actual response. Kept separate from streaming_content because
+        # it's NOT persisted to the assistant message — it only lives in
+        # the UI as a thought bubble for the duration of the turn.
+        self.streaming_reasoning: str = ""
         self.streaming_tool_calls: list[dict[str, Any]] = []
         self.is_streaming: bool = False
 
@@ -318,6 +338,7 @@ class LiveSession(QObject):
     def start_streaming(self) -> None:
         """Start a new streaming response."""
         self.streaming_content = ""
+        self.streaming_reasoning = ""
         self.streaming_tool_calls = []
         self.is_streaming = True
         # Add placeholder message
@@ -330,6 +351,15 @@ class LiveSession(QObject):
         self.update_last_assistant_message({"content": self.streaming_content})
         # Emit for real-time UI update
         self._emit_event(ChunkEvent(chunk))
+
+    def append_streaming_reasoning(self, chunk: str) -> None:
+        """Append a chunk to streaming reasoning/thinking text.
+
+        Reasoning is rendered as a thought bubble in the UI and is NOT
+        persisted to the assistant message — it's display-only.
+        """
+        self.streaming_reasoning += chunk
+        self._emit_event(ReasoningChunkEvent(chunk))
 
     def update_streaming_tool_call(self, index: int, tool_call: dict[str, Any]) -> None:
         """Update a streaming tool call."""
@@ -354,12 +384,15 @@ class LiveSession(QObject):
 
     # === ATTACH/DETACH API ===
 
-    def attach(self) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]], bool, str]:
+    def attach(self) -> tuple[
+        list[dict[str, Any]], str, str, list[dict[str, Any]], bool, str
+    ]:
         """
         Attach a UI to this session.
 
         Returns a snapshot of current state for immediate rendering:
-        (messages, streaming_content, streaming_tool_calls, is_streaming, state)
+        (messages, streaming_content, streaming_reasoning,
+         streaming_tool_calls, is_streaming, state)
 
         After calling attach(), connect to signals and call drain_buffer()
         to replay any events that occurred during the attach process.
@@ -370,6 +403,7 @@ class LiveSession(QObject):
             return (
                 list(self.messages),  # Copy to avoid mutation during iteration
                 self.streaming_content,
+                self.streaming_reasoning,
                 list(self.streaming_tool_calls),
                 self.is_streaming,
                 self._state,
@@ -413,6 +447,8 @@ class LiveSession(QObject):
         # Attached - emit directly via appropriate signal
         if isinstance(event, ChunkEvent):
             self.chunk_received.emit(event.chunk)
+        elif isinstance(event, ReasoningChunkEvent):
+            self.reasoning_chunk_received.emit(event.chunk)
         elif isinstance(event, ToolCallDeltaEvent):
             self.tool_call_delta.emit(event.index, event.tool_call)
         elif isinstance(event, ToolStartedEvent):
@@ -604,6 +640,8 @@ class LiveSession(QObject):
         def on_stream_event(event: Any) -> None:
             if isinstance(event, StreamChunk):
                 self._on_stream_chunk(event.text)
+            elif isinstance(event, ReasoningChunk):
+                self._on_reasoning_chunk(event.text)
             elif isinstance(event, StreamToolCallDelta):
                 self._on_tool_call_delta(event.index, event.tool_call)
 
@@ -636,6 +674,10 @@ class LiveSession(QObject):
     def _on_stream_chunk(self, chunk: str) -> None:
         """Handle streaming text chunk."""
         self.append_streaming_chunk(chunk)
+
+    def _on_reasoning_chunk(self, chunk: str) -> None:
+        """Handle streaming reasoning/thinking chunk."""
+        self.append_streaming_reasoning(chunk)
 
     def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
         """Handle streaming tool call update."""

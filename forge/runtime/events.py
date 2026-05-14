@@ -17,6 +17,19 @@ class StreamChunk:
 
 
 @dataclass
+class ReasoningChunk:
+    """A piece of streamed reasoning/thinking text.
+
+    Emitted when the model returns a `reasoning_content` (or `reasoning`)
+    delta — i.e. the chain-of-thought scratchpad some providers expose before
+    the actual assistant response. Rendered as a thought bubble in the UI,
+    not persisted as part of the assistant message content.
+    """
+
+    text: str
+
+
+@dataclass
 class StreamToolCallDelta:
     """An update to a tool call being assembled mid-stream."""
 

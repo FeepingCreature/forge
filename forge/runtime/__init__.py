@@ -7,6 +7,7 @@ implementations without touching production code paths.
 """
 
 from forge.runtime.events import (
+    ReasoningChunk,
     StreamChunk,
     StreamToolCallDelta,
     SummaryProgress,
@@ -36,6 +37,7 @@ __all__ = [
     "LLMBackend",
     "OpenRouterBackend",
     "QtTaskRunner",
+    "ReasoningChunk",
     "ScriptedBackend",
     "StreamChunk",
     "StreamEvent",

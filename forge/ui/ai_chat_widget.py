@@ -209,7 +209,25 @@ class AIChatWidget(QWidget):
 
     def _on_runner_chunk(self, chunk: str) -> None:
         """Handle streaming chunk from runner."""
+        # First real content chunk after reasoning — collapse the thought
+        # bubble so it shrinks to a click-to-expand affordance. Tracked
+        # per-turn so we only do it once.
+        if self.runner.streaming_reasoning and not getattr(
+            self, "_thought_collapsed_this_turn", False
+        ):
+            self.chat_view.page().runJavaScript(build_collapse_thought_js())
+            self._thought_collapsed_this_turn = True
         self._append_streaming_chunk(chunk)
+
+    def _on_runner_reasoning_chunk(self, chunk: str) -> None:
+        """Handle reasoning/thinking chunk from runner.
+
+        Renders the accumulated reasoning into a thought bubble at the top
+        of the streaming message. The bubble auto-collapses when the actual
+        response begins (see `_on_runner_chunk`).
+        """
+        js_code = build_reasoning_chunk_js(self.runner.streaming_reasoning)
+        self.chat_view.page().runJavaScript(js_code)
 
     def _on_runner_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:
         """Handle streaming tool call update from runner."""

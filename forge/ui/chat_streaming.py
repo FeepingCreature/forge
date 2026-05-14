@@ -254,6 +254,83 @@ def _render_streaming_mermaid_html(segments: list[dict]) -> str:
     return "".join(parts)
 
 
+def build_reasoning_chunk_js(reasoning_content: str) -> str:
+    """Build JavaScript to update the thought-bubble for reasoning content.
+
+    Inserts (or updates) a `.thought-bubble` element at the TOP of the
+    streaming message, above the response content. The bubble shows the
+    accumulated reasoning text plus a blinking cursor while the model is
+    still thinking. Once the actual response begins streaming, the caller
+    can call `build_collapse_thought_js()` to collapse it.
+
+    Args:
+        reasoning_content: The accumulated reasoning text so far
+
+    Returns:
+        JavaScript code to execute in the web view
+    """
+    escaped = escape_for_js(reasoning_content)
+
+    return f"""
+    (function() {{
+        var streamingMsg = document.getElementById('streaming-message');
+        if (!streamingMsg) return;
+
+        var scrollThreshold = 50;
+        var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);
+
+        var bubble = streamingMsg.querySelector('.thought-bubble');
+        if (!bubble) {{
+            bubble = document.createElement('div');
+            bubble.className = 'thought-bubble';
+            bubble.setAttribute('onclick', 'toggleThought(this)');
+            bubble.innerHTML = '<span class="thought-content"></span><span class="thought-cursor">▋</span>';
+            // Insert as the FIRST child of the streaming message, so it sits
+            // above the response content.
+            var firstChild = streamingMsg.firstChild;
+            // Skip past the .role label if present
+            if (firstChild && firstChild.classList && firstChild.classList.contains('role')) {{
+                streamingMsg.insertBefore(bubble, firstChild.nextSibling);
+            }} else {{
+                streamingMsg.insertBefore(bubble, firstChild);
+            }}
+        }}
+
+        var contentSpan = bubble.querySelector('.thought-content');
+        if (contentSpan) {{
+            contentSpan.innerText = `{escaped}`;
+        }}
+
+        // Auto-scroll bubble to bottom so latest reasoning is visible.
+        bubble.scrollTop = bubble.scrollHeight;
+
+        if (wasAtBottom) {{
+            window.scrollTo(0, document.body.scrollHeight);
+        }}
+    }})();
+    """
+
+
+def build_collapse_thought_js() -> str:
+    """Build JavaScript to collapse the thought bubble.
+
+    Called once the actual response begins streaming, to shrink the bubble
+    to a thin "💭 Thought (click to expand)" affordance and remove the
+    blinking cursor.
+    """
+    return """
+    (function() {
+        var streamingMsg = document.getElementById('streaming-message');
+        if (!streamingMsg) return;
+        var bubble = streamingMsg.querySelector('.thought-bubble');
+        if (!bubble) return;
+        var cursor = bubble.querySelector('.thought-cursor');
+        if (cursor) cursor.remove();
+        bubble.classList.add('collapsed');
+    })();
+    """
+
+
 def build_streaming_chunk_js(streaming_content: str) -> str:
     """Build JavaScript to update the streaming message with new content.
 

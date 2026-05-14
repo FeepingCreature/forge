@@ -249,6 +249,54 @@ def get_chat_styles() -> str:
         .streaming-text {
             white-space: pre-wrap;
         }
+        /* Thought bubble: reasoning/chain-of-thought from the model.
+           Rendered above the streaming response while the model is thinking,
+           collapses to a thin "💭 Thought" affordance once the response begins. */
+        .thought-bubble {
+            position: relative;
+            margin: 8px 20% 16px 0;
+            padding: 12px 16px 12px 40px;
+            background: #f9f6ff;
+            border: 1px dashed #c7b8e8;
+            border-radius: 14px;
+            color: #5a4a7a;
+            font-size: 13px;
+            font-style: italic;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .thought-bubble::before {
+            content: "💭";
+            position: absolute;
+            left: 12px;
+            top: 10px;
+            font-size: 16px;
+            font-style: normal;
+        }
+        .thought-bubble.collapsed {
+            max-height: 32px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            opacity: 0.75;
+        }
+        .thought-bubble.collapsed::after {
+            content: "Thought (click to expand)";
+            color: #8878a8;
+            font-style: normal;
+            font-size: 12px;
+        }
+        .thought-bubble.collapsed > .thought-content {
+            display: none;
+        }
+        .thought-bubble .thought-cursor {
+            animation: blink 1s step-end infinite;
+            color: #8878a8;
+            font-style: normal;
+        }
     """
     )
 
@@ -262,6 +310,13 @@ def get_chat_scripts() -> str:
         new QWebChannel(qt.webChannelTransport, function(channel) {
             bridge = channel.objects.bridge;
         });
+
+        function toggleThought(el) {
+            // Toggle collapsed state on a thought bubble (click handler).
+            if (el && el.classList) {
+                el.classList.toggle('collapsed');
+            }
+        }
 
         function approveTool(toolName, buttonElement) {
             // Disable the button immediately

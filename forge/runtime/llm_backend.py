@@ -26,7 +26,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from forge.runtime.events import StreamChunk, StreamToolCallDelta
+from forge.runtime.events import ReasoningChunk, StreamChunk, StreamToolCallDelta
 
 
 @dataclass
@@ -40,7 +40,7 @@ class StreamFinished:
 # Union type for events yielded by LLMBackend.stream(). Plain isinstance
 # dispatch on the consumer side. Kept as a comment-style alias because
 # Python doesn't have real sum types.
-StreamEvent = StreamChunk | StreamToolCallDelta | StreamFinished
+StreamEvent = StreamChunk | ReasoningChunk | StreamToolCallDelta | StreamFinished
 
 
 class LLMBackend(Protocol):
@@ -91,6 +91,16 @@ class OpenRouterBackend:
             if "choices" not in chunk or not chunk["choices"]:
                 continue
             delta = chunk["choices"][0].get("delta", {})
+
+            # Reasoning/thinking deltas: some providers emit chain-of-thought
+            # scratchpad text under `reasoning_content` (OpenAI o-series) or
+            # `reasoning` (OpenRouter normalized). Surface these as a separate
+            # event so the UI can render them in a thought bubble; they are
+            # NOT accumulated into `content` because that field is what gets
+            # persisted as the assistant message.
+            reasoning_text = delta.get("reasoning_content") or delta.get("reasoning")
+            if reasoning_text:
+                yield ReasoningChunk(reasoning_text)
 
             if "content" in delta and delta["content"]:
                 text = delta["content"]

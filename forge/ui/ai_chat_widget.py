@@ -27,7 +27,9 @@ from forge.ui.chat_message import (
     group_messages_into_turns,
 )
 from forge.ui.chat_streaming import (
+    build_collapse_thought_js,
     build_queued_message_js,
+    build_reasoning_chunk_js,
     build_streaming_chunk_js,
     build_streaming_tool_calls_js,
 )
@@ -111,9 +113,14 @@ class AIChatWidget(QWidget):
     def _attach_to_runner(self) -> None:
         """Attach to the SessionRunner and sync state."""
         # Get snapshot of current state
-        messages, streaming_content, streaming_tool_calls, is_streaming, state = (
-            self.runner.attach()
-        )
+        (
+            messages,
+            streaming_content,
+            streaming_reasoning,
+            streaming_tool_calls,
+            is_streaming,
+            state,
+        ) = self.runner.attach()
 
         # Connect signals BEFORE draining buffer
         self._connect_runner_signals()
@@ -131,6 +138,7 @@ class AIChatWidget(QWidget):
         """Connect SessionRunner signals to our UI handlers."""
         # Streaming signals
         self.runner.chunk_received.connect(self._on_runner_chunk)
+        self.runner.reasoning_chunk_received.connect(self._on_runner_reasoning_chunk)
         self.runner.tool_call_delta.connect(self._on_runner_tool_call_delta)
 
         # Tool execution signals
@@ -155,6 +163,7 @@ class AIChatWidget(QWidget):
             MessageAddedEvent,
             MessagesTruncatedEvent,
             MessageUpdatedEvent,
+            ReasoningChunkEvent,
             StateChangedEvent,
             ToolCallDeltaEvent,
             ToolFinishedEvent,
@@ -164,6 +173,8 @@ class AIChatWidget(QWidget):
 
         if isinstance(event, ChunkEvent):
             self._on_runner_chunk(event.chunk)
+        elif isinstance(event, ReasoningChunkEvent):
+            self._on_runner_reasoning_chunk(event.chunk)
         elif isinstance(event, ToolCallDeltaEvent):
             self._on_runner_tool_call_delta(event.index, event.tool_call)
         elif isinstance(event, ToolStartedEvent):
@@ -193,6 +204,9 @@ class AIChatWidget(QWidget):
             # Disconnect signals
             try:
                 self.runner.chunk_received.disconnect(self._on_runner_chunk)
+                self.runner.reasoning_chunk_received.disconnect(
+                    self._on_runner_reasoning_chunk
+                )
                 self.runner.tool_call_delta.disconnect(self._on_runner_tool_call_delta)
                 self.runner.tool_started.disconnect(self._on_runner_tool_started)
                 self.runner.tool_finished.disconnect(self._on_runner_tool_finished)
@@ -250,6 +264,8 @@ class AIChatWidget(QWidget):
         from forge.session.live_session import SessionState
 
         if state == SessionState.RUNNING:
+            # Reset per-turn UI state for the thought bubble
+            self._thought_collapsed_this_turn = False
             self.ai_turn_started.emit()
             self._set_processing_ui(True)
         elif state in (SessionState.IDLE, SessionState.ERROR):

@@ -297,7 +297,7 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
             "success": False,
             "error": (
                 f"'skill' must be a string, got {type(skill).__name__}: {skill!r}. "
-                "Pass the skill name directly, e.g. {\"skill\": \"create_tool\"}."
+                'Pass the skill name directly, e.g. {"skill": "create_tool"}.'
             ),
             "available_skills": list(all_skills.keys()),
         }

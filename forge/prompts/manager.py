@@ -1106,16 +1106,14 @@ class PromptManager:
 API tool call. Don't put it inside a `<function_calls>` block, and don't try to invoke it
 through `update_context` or any other function. Just write the tag in your message.
 
-The shape of a `<replace>` block — closing tag of the second child is `</new>`, mirroring `<new>`:
+The shape of a `<replace>` block — text to find, a self-closing `<with/>` separator, the
+replacement, then a single `</replace>`:
 
 ```
 <replace file="path">
-<old>
 text to find
-</old>
-<new>
+<with/>
 replacement text
-</new>
 </replace>
 ```
 

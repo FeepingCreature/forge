@@ -647,9 +647,7 @@ class SettingsDialog(QDialog):
         )
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
-        self.require_done_tag_input.setChecked(
-            self.settings.get("llm.require_done_tag", False)
-        )
+        self.require_done_tag_input.setChecked(self.settings.get("llm.require_done_tag", False))
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
@@ -672,9 +670,7 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.api_key", self.api_key_input.text())
         self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
-        self.settings.set(
-            "llm.require_done_tag", self.require_done_tag_input.isChecked()
-        )
+        self.settings.set("llm.require_done_tag", self.require_done_tag_input.isChecked())
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

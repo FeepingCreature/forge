@@ -1566,11 +1566,10 @@ def _render_partial_inline_command(
 
 def _render_partial_replace(content: str) -> str | None:
     """
-    Try to render a partial/incomplete <replace> block during streaming.
+    Try to render a partial/incomplete replace block during streaming.
 
-    Handles both plain <replace> / <old> / <new> tags and the nonced
-    form <replace_NONCE> / <old_NONCE> / <new_NONCE> — the suffix is
-    captured from the opening tag and reused for the inner tags.
+    Handles the plain and nonced forms; the suffix is captured from the
+    opening tag and reused for the separator and close tag.
 
     Returns HTML if a partial replace is detected, None otherwise.
     """
@@ -1583,11 +1582,9 @@ def _render_partial_replace(content: str) -> str | None:
     suffix = replace_match.group(1) or ""
     filepath = replace_match.group(2) if replace_match.group(2) else ""
 
-    # Build the inner tag literals based on the suffix.
-    old_open = f"<old{suffix}>"
-    old_close = f"</old{suffix}>"
-    new_open = f"<new{suffix}>"
-    new_close = f"</new{suffix}>"
+    # Build the separator literal based on the suffix.
+    with_sep = f"<with{suffix}/>"
+    close_tag = f"</replace{suffix}>"
 
     # The opening-tag pattern only consumed up through the closing quote of
     # file="..."; the opening tag may still have a trailing ">" we need to
@@ -1603,72 +1600,48 @@ def _render_partial_replace(content: str) -> str | None:
             is_streaming=True,
             streaming_phase="search",
         )
-    after_replace = rest[gt_idx + 1 :]
-
-    # Look for the <old> opening tag.
-    old_start_idx = after_replace.find(old_open)
-    if old_start_idx == -1:
-        return render_diff_html(
-            filepath=filepath,
-            search="",
-            replace="",
-            is_streaming=True,
-            streaming_phase="search",
-        )
-    after_old_tag = after_replace[old_start_idx + len(old_open) :]
+    body = rest[gt_idx + 1 :]
     # Strip a single leading newline (matches "\n?" in the parser regex).
-    if after_old_tag.startswith("\n"):
-        after_old_tag = after_old_tag[1:]
+    if body.startswith("\n"):
+        body = body[1:]
 
-    # Look for the </old> closing tag.
-    old_end_idx = after_old_tag.find(old_close)
-    if old_end_idx == -1:
-        # Still streaming old content
-        old_content = after_old_tag.rstrip("\n")
+    # Look for the with-separator.
+    sep_idx = body.find(with_sep)
+    if sep_idx == -1:
+        # Still streaming the "to find" half
+        search_content = body.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
-            search=old_content,
+            search=search_content,
             replace="",
             is_streaming=True,
             streaming_phase="search",
         )
 
-    old_content = after_old_tag[:old_end_idx].rstrip("\n")
-    after_old = after_old_tag[old_end_idx + len(old_close) :]
+    search_content = body[:sep_idx].rstrip("\n")
+    after_sep = body[sep_idx + len(with_sep) :]
+    if after_sep.startswith("\n"):
+        after_sep = after_sep[1:]
 
-    # Look for the <new> opening tag.
-    new_start_idx = after_old.find(new_open)
-    if new_start_idx == -1:
+    # Look for the close tag.
+    close_idx = after_sep.find(close_tag)
+    if close_idx == -1:
+        # Still streaming the replacement
+        replace_content = after_sep.rstrip("\n")
         return render_diff_html(
             filepath=filepath,
-            search=old_content,
-            replace="",
-            is_streaming=True,
-            streaming_phase="replace",
-        )
-    after_new_tag = after_old[new_start_idx + len(new_open) :]
-    if after_new_tag.startswith("\n"):
-        after_new_tag = after_new_tag[1:]
-
-    # Look for the </new> closing tag.
-    new_end_idx = after_new_tag.find(new_close)
-    if new_end_idx == -1:
-        # Still streaming new content
-        new_content = after_new_tag.rstrip("\n")
-        return render_diff_html(
-            filepath=filepath,
-            search=old_content,
-            replace=new_content,
+            search=search_content,
+            replace=replace_content,
             is_streaming=True,
             streaming_phase="replace",
         )
 
-    # Complete new but no </replace{suffix}> yet — still render as streaming.
-    new_content = after_new_tag[:new_end_idx].rstrip("\n")
+    # Complete block but render still considered streaming until executed.
+    replace_content = after_sep[:close_idx].rstrip("\n")
     return render_diff_html(
         filepath=filepath,
-        search=old_content,
-        replace=new_content,
+        search=search_content,
+        replace=replace_content,
         is_streaming=True,
         streaming_phase="replace",
     )

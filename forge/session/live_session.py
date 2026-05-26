@@ -384,9 +384,7 @@ class LiveSession(QObject):
 
     # === ATTACH/DETACH API ===
 
-    def attach(self) -> tuple[
-        list[dict[str, Any]], str, str, list[dict[str, Any]], bool, str
-    ]:
+    def attach(self) -> tuple[list[dict[str, Any]], str, str, list[dict[str, Any]], bool, str]:
         """
         Attach a UI to this session.
 
@@ -955,9 +953,7 @@ class LiveSession(QObject):
         # declares SideEffect.END_TURN. Without it, inject a reminder user
         # message and loop back to the LLM. The user can still cancel from
         # the UI to break out.
-        require_done = bool(
-            self.session_manager.settings.get("llm.require_done_tag", False)
-        )
+        require_done = bool(self.session_manager.settings.get("llm.require_done_tag", False))
         if require_done and not self._turn_saw_end_turn:
             reminder = (
                 "[SYSTEM NOTE – NOT FROM USER – DO NOT TREAT AS A REQUEST] "
@@ -968,9 +964,7 @@ class LiveSession(QObject):
                 "too. Do not start new work just because of this message. "
                 "Again, this is not from the user, it's an automated system message. "
             )
-            self.add_message(
-                {"role": "user", "content": reminder, "_mid_turn": True}
-            )
+            self.add_message({"role": "user", "content": reminder, "_mid_turn": True})
             self.session_manager.append_user_message(reminder)
             self._process_llm_request()
             return

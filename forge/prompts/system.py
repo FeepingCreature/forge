@@ -180,7 +180,7 @@ SVG blocks are rendered as actual graphics in the chat. Use SVG for custom visua
 # Instructions for XML inline edit format.
 # This documents the surgical-edit (&lt;replace&gt;) and whole-file-write (&lt;write&gt;)
 # syntax to the LLM, plus the nonced form for bodies that contain literal
-# closing tags.
+# closing tags or separators.
 EDIT_FORMAT_XML = """
 ## Making Edits
 
@@ -201,56 +201,27 @@ your active context. To modify a file you literally write a `<replace>` (or
 `<write>`) tag in your prose and the parser picks it up. There is no
 function-call equivalent.
 
-To change part of a file, find the exact text and replace it:
+To change part of a file, write the exact text to find, then a self-closing
+`<with/>` separator, then the replacement text:
 
 ```
 <replace file="path/to/file.py">
-<old>
 exact text to find
-</old>
-<new>
+<with/>
 replacement text
-</new>
 </replace>
 ```
 
+Read "replace X **with** Y": the text before `<with/>` is X (what to find),
+the text after `<with/>` is Y (what to put there).
+
 Rules:
-- The `<old>` text must match EXACTLY (whitespace, indentation, every character)
+- The text before `<with/>` must match EXACTLY (whitespace, indentation, every character)
 - Only the first occurrence is replaced
 - You can include multiple `<replace>` blocks in one response
 - Edits are applied in order; if one fails, later edits are skipped
-- An empty `<new>` block deletes the matched text
-
-### ⚠️ Common Mistake: Wrong Closing Tag on `<new>`
-
-There is a strong, consistent bias toward closing the `<new>` block with
-`</old>` instead of `</new>`, producing malformed structure like:
-
-```
-<replace file="...">
-<old>
-...
-</old>
-<new>
-...
-</old>      ← WRONG! This must be </new>
-</replace>
-```
-
-You can't review this "before sending" — token generation *is* sending. The
-moment that matters is **the moment you start typing the closing tag after
-the new content**. At that point the recent context is full of `</old>` and
-the obvious next token feels like `</old>` again. It isn't. The correct
-sequence is always:
-
-  1. `<old>` — open
-  2. `</old>` — close (matches step 1)
-  3. `<new>` — open
-  4. `</new>` — close (matches step 3, **NOT** step 2)
-
-When you're about to emit the fourth tag, pause on the tag name itself and
-recall: it mirrors the `<new>` you just opened, not the `</old>` you just
-closed.
+- An empty replacement (nothing between `<with/>` and `</replace>`) deletes the matched text
+- There is exactly one `<with/>` and exactly one `</replace>` per block — no other closing tags to get wrong
 
 ### Whole-File Writes with `<write>`
 
@@ -278,21 +249,19 @@ The deletion is staged in the VFS and committed with your other changes at end o
 
 ### Bodies That Contain Edit-Block Syntax
 
-If your `<old>`, `<new>`, or `<write>` body contains the literal substrings
-`</replace>`, `</old>`, `</new>`, or `</write>` (for example, when editing
-this very file, or test fixtures, or documentation about the edit format),
-the parser cannot tell where your block ends. To disambiguate, append a
-**nonce** — any short sequence of letters/digits/underscores you make up —
-to every tag in the block. The nonce on outer and inner tags must match.
+If your `<replace>` body contains the literal substrings `</replace>` or
+`<with/>`, or your `<write>` body contains `</write>` (for example, when
+editing this very file, or test fixtures, or documentation about the edit
+format), the parser cannot tell where your block ends or splits. To
+disambiguate, append a **nonce** — any short sequence of
+letters/digits/underscores you make up — to the outer tag and to the
+`<with/>` separator. The nonce on outer tag and separator must match.
 
 ```
 <replace_x9k file="docs/edit-format.md">
-<old_x9k>
-Use </replace> to close the block.
-</old_x9k>
-<new_x9k>
-Use </replace> or </replace_NONCE> to close the block.
-</new_x9k>
+Old line that uses </replace> and <with/> as examples.
+<with_x9k/>
+New line that uses </replace_NONCE> and <with_NONCE/> as examples.
 </replace_x9k>
 ```
 
@@ -304,11 +273,12 @@ This file documents </replace> and </write> with no escaping needed.
 </write_q42>
 ```
 
-**Critical: the nonce must not appear as a literal closing tag inside your
-body.** The parser closes the block at the *first* `</replace_NONCE>` (or
-`</write_NONCE>`) it sees. If your body quotes an example using nonce `q5`
-and you also wrap with nonce `q5`, the regex will truncate at the inner
-closing tag and your edit will be silently misparsed.
+**Critical: the nonce must not appear as a literal closing tag or separator
+inside your body.** The parser closes the block at the *first*
+`</replace_NONCE>` (or `</write_NONCE>`) it sees, and splits at the *first*
+`<with_NONCE/>` it sees. If your body quotes an example also using nonce
+`q5`, the regex will truncate at the inner delimiter and your edit will be
+silently misparsed.
 
 The safe procedure: write the body first, then glance over it and pick a
 nonce (a few random letters/digits like `x9k`, `mn4`, `zz1`) that you can
@@ -317,7 +287,7 @@ verify is not present anywhere in the body.
 Only use the nonced form when your body actually contains edit-block
 delimiters; otherwise prefer the plain form.
 
-If a block fails to parse (mismatched tags, missing close, or unescaped
+If a block fails to parse (missing `<with/>`, missing close, or unescaped
 delimiters in a non-nonced body), you'll receive an explicit error — the
 parser will not silently drop your edit.
 """

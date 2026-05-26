@@ -204,9 +204,7 @@ class AIChatWidget(QWidget):
             # Disconnect signals
             try:
                 self.runner.chunk_received.disconnect(self._on_runner_chunk)
-                self.runner.reasoning_chunk_received.disconnect(
-                    self._on_runner_reasoning_chunk
-                )
+                self.runner.reasoning_chunk_received.disconnect(self._on_runner_reasoning_chunk)
                 self.runner.tool_call_delta.disconnect(self._on_runner_tool_call_delta)
                 self.runner.tool_started.disconnect(self._on_runner_tool_started)
                 self.runner.tool_finished.disconnect(self._on_runner_tool_finished)

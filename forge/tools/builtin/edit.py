@@ -4,31 +4,40 @@ edit tool — Edit files via search/replace or whole-file write.
 Inline syntax (what the LLM emits):
 
     Surgical edit:
-        <replace file="path/to/file.py">
-        <old>
+        REPLACE_OPEN file="path/to/file.py" >
         exact text to find
-        </old>
-        <new>
+        WITH_SEP
         replacement text
-        </new>
-        </replace>
+        REPLACE_CLOSE
+
+    where REPLACE_OPEN, WITH_SEP, REPLACE_CLOSE are the literal tags
+    shown in the system prompt: <replace ...>, <with/>, </replace>.
 
     Whole-file write (create or overwrite):
         <write file="path/to/new_file.py">
         complete file content here
         </write>
 
-Nonced form (use when body contains literal </replace>, </old>, </new>, </write>):
+Nonced form (use when body contains the literal closing tag or separator):
     <replace_NONCE file="path/to/file.py">
-    <old_NONCE>...</old_NONCE>
-    <new_NONCE>...</new_NONCE>
+    text to find
+    <with_NONCE />     (self-closing separator)
+    replacement text
     </replace_NONCE>
 
     <write_NONCE file="...">...</write_NONCE>
 
 NONCE is any sequence of word characters (letters/digits/underscore). The same
-nonce must appear on the outer tag and all inner tags within one block. Pick a
-nonce that does not appear as a literal closing tag inside the body.
+nonce must appear on the outer tag and on the with-separator within one block.
+Pick a nonce that does not appear as a literal closing tag or separator inside
+the body.
+
+Why this shape: an earlier design used paired old/new children. Models had a
+strong, persistent bias toward closing the second child with the first child's
+closing tag (mirroring the most recent close they'd just emitted), producing
+malformed blocks. Replacing the paired children with a single self-closing
+separator removes the failure mode structurally: there is only one closing tag
+in the whole block.
 """
 
 import difflib
@@ -102,22 +111,23 @@ class EditBlock:
 # Regex patterns for the inline XML syntax.
 #
 # REPLACE_PATTERN matches surgical edits:
-#     <replace file="..."><old>...</old><new>...</new></replace>
+#     <replace file="...">old<with/>new</replace>
 # WRITE_PATTERN matches whole-file writes:
 #     <write file="...">...</write>
 #
-# Both support an optional nonce suffix on every tag. The nonce is captured
-# in group 1 and backreferenced (\1) into every closing tag, so the parser
-# matches `<replace_x9k>...</replace_x9k>` but not `<replace_x9k>...</replace>`.
+# Both support an optional nonce suffix on the outer tag. The nonce is
+# captured in group 1 and backreferenced (\1) into the with-separator and
+# the closing tag, so the parser matches a nonced open only against its
+# matching nonced separator and close.
 #
-# The body lookahead in REPLACE_PATTERN uses `</replace\1>` which is unique
-# enough that body content rarely collides — but the nonce-collision rule
-# from the system prompt still applies.
+# The body lookaheads ensure the "to find" half stops at the first
+# <with\1/> and the "replacement" half stops at the first </replace\1>.
 
 REPLACE_PATTERN = re.compile(
-    r'<replace(_\w+|)\s+file="([^"]+)"\s*>\s*'
-    r"<old\1>\n?((?:(?!</replace\1>).)*?)\n?</old\1>\s*"
-    r"<new\1>\n?((?:(?!</replace\1>).)*?)\n?</new\1>\s*"
+    r'<replace(_\w+|)\s+file="([^"]+)"\s*>\n?'
+    r"((?:(?!<with\1/>)(?!</replace\1>).)*?)\n?"
+    r"<with\1/>\n?"
+    r"((?:(?!</replace\1>).)*?)\n?"
     r"</replace\1>",
     re.DOTALL,
 )

@@ -1,8 +1,8 @@
 """
 Tests for inline edit parsing and execution.
 
-Covers the new <replace>/<old>/<new> surgical-edit syntax and the
-<write> whole-file syntax, plus the nonced forms and code-block skipping.
+Covers the surgical-edit syntax (with self-closing <with/> separator) and
+the <write> whole-file syntax, plus the nonced forms and code-block skipping.
 """
 
 from unittest.mock import MagicMock
@@ -22,20 +22,17 @@ from forge.tools.builtin.edit import (
 
 
 class TestParseReplace:
-    """Test <replace>/<old>/<new> block parsing from assistant message text."""
+    """Test surgical-edit block parsing from assistant text."""
 
     def test_parse_simple_replace(self):
         content = '''Here's the fix:
 
 <replace file="test.py">
-<old>
 def foo():
     return 1
-</old>
-<new>
+<with/>
 def foo():
     return 2
-</new>
 </replace>
 
 That should work!'''
@@ -49,23 +46,17 @@ That should work!'''
 
     def test_parse_multiple_replaces(self):
         content = '''<replace file="a.py">
-<old>
 old_a
-</old>
-<new>
+<with/>
 new_a
-</new>
 </replace>
 
 And also:
 
 <replace file="b.py">
-<old>
 old_b
-</old>
-<new>
+<with/>
 new_b
-</new>
 </replace>'''
 
         edits = parse_edits(content)
@@ -74,14 +65,11 @@ new_b
         assert edits[0].file == "a.py"
         assert edits[1].file == "b.py"
 
-    def test_parse_empty_new_means_deletion(self):
-        """An empty <new> block means delete the matched text."""
+    def test_parse_empty_replacement_means_deletion(self):
+        """An empty replacement (nothing between <with/> and </replace>) deletes."""
         content = '''<replace file="test.py">
-<old>
 # Remove this comment
-</old>
-<new>
-</new>
+<with/>
 </replace>'''
 
         edits = parse_edits(content)
@@ -95,8 +83,9 @@ new_b
         content = (
             "Some text\n"
             '<replace file="x.py">\n'
-            "<old>\na\n</old>\n"
-            "<new>\nb\n</new>\n"
+            "a\n"
+            "<with/>\n"
+            "b\n"
             "</replace>\n"
             "More text"
         )
@@ -116,28 +105,22 @@ new_b
 
 
 class TestMalformedReplace:
-    """Test handling of malformed <replace> syntax."""
+    """Test handling of malformed surgical-edit syntax."""
 
     def test_does_not_match_across_replace_boundaries(self):
         """The non-greedy regex must not span two <replace> blocks."""
         content = '''<replace file="first.py">
-<old>
 aaa
-</old>
-<new>
+<with/>
 bbb
-</new>
 </replace>
 
 Some text in between.
 
 <replace file="second.py">
-<old>
 ccc
-</old>
-<new>
+<with/>
 ddd
-</new>
 </replace>'''
 
         edits = parse_edits(content)
@@ -151,25 +134,20 @@ ddd
     def test_missing_closing_replace_tag(self):
         """A <replace> with no </replace> should not match."""
         content = '''<replace file="test.py">
-<old>
 foo
-</old>
-<new>
+<with/>
 bar
-</new>
 
 I forgot to close the replace tag.'''
 
         edits = parse_edits(content)
         assert len(edits) == 0
 
-    def test_missing_new_block(self):
-        """A <replace> without <new>...</new> should not match."""
+    def test_missing_with_separator(self):
+        """A <replace>...</replace> with no separator should not match."""
         content = '''<replace file="test.py">
-<old>
 foo
-</old>
-I forgot the new section
+no separator here at all
 </replace>'''
 
         edits = parse_edits(content)
@@ -178,16 +156,13 @@ I forgot the new section
     def test_nested_angle_brackets_in_content(self):
         """Bodies containing HTML/XML tags should still parse correctly."""
         content = '''<replace file="template.html">
-<old>
 <div class="old">
   <span>text</span>
 </div>
-</old>
-<new>
+<with/>
 <div class="new">
   <span>updated</span>
 </div>
-</new>
 </replace>'''
 
         edits = parse_edits(content)
@@ -203,7 +178,7 @@ I forgot the new section
 
 
 class TestExecuteReplace:
-    """Test execute() against a mock VFS for a single <replace>."""
+    """Test execute() against a mock VFS for a single replace."""
 
     def test_execute_simple_replace(self):
         vfs = MagicMock()
@@ -253,7 +228,7 @@ class TestExecuteReplace:
         assert "filepath" in result["error"].lower()
 
     def test_execute_empty_search_rejected(self):
-        """An empty search text on <replace> is invalid — must use <write>."""
+        """An empty search is invalid for replace — must use <write>."""
         vfs = MagicMock()
         vfs.read_file.return_value = "anything"
 
@@ -317,8 +292,9 @@ class TestCodeBlockSkipping:
             "Here's an example:\n\n"
             "```\n"
             '<replace file="test.py">\n'
-            "<old>\nold\n</old>\n"
-            "<new>\nnew\n</new>\n"
+            "old\n"
+            "<with/>\n"
+            "new\n"
             "</replace>\n"
             "```\n\n"
             "That was just an example."
@@ -334,8 +310,9 @@ class TestCodeBlockSkipping:
             "Example:\n\n"
             "~~~\n"
             '<replace file="test.py">\n'
-            "<old>\nold\n</old>\n"
-            "<new>\nnew\n</new>\n"
+            "old\n"
+            "<with/>\n"
+            "new\n"
             "</replace>\n"
             "~~~\n\n"
             "Done."
@@ -376,8 +353,9 @@ class TestCodeBlockSkipping:
             "Example:\n\n"
             "```python\n"
             '<replace file="test.py">\n'
-            "<old>\nold\n</old>\n"
-            "<new>\nnew\n</new>\n"
+            "old\n"
+            "<with/>\n"
+            "new\n"
             "</replace>\n"
             "```\n"
         )
@@ -407,17 +385,14 @@ class TestCodeBlockSkipping:
 
 
 class TestNoncedReplace:
-    """Test the nonced <replace_NONCE>/<old_NONCE>/<new_NONCE> form."""
+    """Test the nonced surgical-edit form."""
 
     def test_simple_nonced_replace(self):
         content = (
             '<replace_abc123 file="test.py">\n'
-            "<old_abc123>\n"
             "old\n"
-            "</old_abc123>\n"
-            "<new_abc123>\n"
+            "<with_abc123/>\n"
             "new\n"
-            "</new_abc123>\n"
             "</replace_abc123>"
         )
         edits = parse_edits(content)
@@ -427,34 +402,41 @@ class TestNoncedReplace:
         assert edits[0].replace == "new"
 
     def test_nonced_body_can_contain_replace_delimiters(self):
-        """The whole point: a nonced body may contain </replace>, </old>, etc."""
+        """The whole point: a nonced body may contain </replace> and <with/>."""
         content = (
             '<replace_n1 file="parser_docs.md">\n'
-            "<old_n1>\n"
-            "Close with </replace> and </old>.\n"
-            "</old_n1>\n"
-            "<new_n1>\n"
-            "Close with </replace_NONCE> or </replace>.\n"
-            "</new_n1>\n"
+            "Close with </replace>, split with <with/>.\n"
+            "<with_n1/>\n"
+            "Close with </replace_NONCE>, split with <with_NONCE/>.\n"
             "</replace_n1>"
         )
         edits = parse_edits(content)
         assert len(edits) == 1
         assert "</replace>" in edits[0].search
-        assert "</old>" in edits[0].search
+        assert "<with/>" in edits[0].search
         assert "</replace_NONCE>" in edits[0].replace
+        assert "<with_NONCE/>" in edits[0].replace
 
     def test_mismatched_nonce_does_not_match(self):
-        """replace_aaa with old_bbb should not match."""
+        """replace_aaa with with_bbb/ should not match."""
         content = (
             '<replace_aaa file="test.py">\n'
-            "<old_bbb>\n"
             "x\n"
-            "</old_bbb>\n"
-            "<new_bbb>\n"
+            "<with_bbb/>\n"
             "y\n"
-            "</new_bbb>\n"
             "</replace_aaa>"
+        )
+        edits = parse_edits(content)
+        assert len(edits) == 0
+
+    def test_plain_replace_does_not_pair_with_nonced_with(self):
+        """A plain <replace> requires a plain <with/>, not <with_NONCE/>."""
+        content = (
+            '<replace file="test.py">\n'
+            "x\n"
+            "<with_zz/>\n"
+            "y\n"
+            "</replace>"
         )
         edits = parse_edits(content)
         assert len(edits) == 0
@@ -462,22 +444,24 @@ class TestNoncedReplace:
     def test_nonced_and_plain_in_same_message(self):
         content = (
             '<replace file="a.py">\n'
-            "<old>\nfoo\n</old>\n"
-            "<new>\nbar\n</new>\n"
+            "foo\n"
+            "<with/>\n"
+            "bar\n"
             "</replace>\n"
             "\n"
             "And a tricky one:\n"
             '<replace_z file="b.md">\n'
-            "<old_z>\nuse </replace>\n</old_z>\n"
-            "<new_z>\nuse </replace_NONCE>\n</new_z>\n"
+            "use </replace> and <with/>\n"
+            "<with_z/>\n"
+            "use </replace_NONCE>\n"
             "</replace_z>"
         )
         edits = parse_edits(content)
         assert len(edits) == 2
-        # parse_edits returns in source order
         assert edits[0].file == "a.py"
         assert edits[1].file == "b.md"
         assert "</replace>" in edits[1].search
+        assert "<with/>" in edits[1].search
 
 
 # ---------------------------------------------------------------------------
@@ -491,47 +475,47 @@ class TestStreamingPartialReplace:
     def test_partial_plain_replace_search_phase(self):
         from forge.ui.tool_rendering import _render_partial_replace
 
-        # Mid-stream: opened <replace>, partial <old> body
-        content = '<replace file="foo.py">\n<old>\nold cont'
+        # Mid-stream: opened <replace>, streaming the "to find" half
+        content = '<replace file="foo.py">\nold cont'
         rendered = _render_partial_replace(content)
         assert rendered is not None
         assert "foo.py" in rendered
         assert "old cont" in rendered
 
-    def test_partial_nonced_replace_old_phase(self):
+    def test_partial_nonced_replace_search_phase(self):
         from forge.ui.tool_rendering import _render_partial_replace
 
-        # Mid-stream nonced replace: still receiving the old body
-        content = '<replace_x9 file="parser.py">\n<old_x9>\nclose with </replace'
+        # Mid-stream nonced replace: still receiving the "to find" half,
+        # body contains a literal </replace which must NOT terminate the block
+        content = '<replace_x9 file="parser.py">\nclose with </replace'
         rendered = _render_partial_replace(content)
         assert rendered is not None
         assert "parser.py" in rendered
-        # The body contains a literal </replace which must NOT terminate the block
         assert "close with" in rendered
 
-    def test_partial_nonced_replace_new_phase(self):
+    def test_partial_nonced_replace_after_separator(self):
         from forge.ui.tool_rendering import _render_partial_replace
 
-        # Mid-stream nonced replace: old complete, mid-new
+        # Mid-stream nonced replace: separator seen, mid-replacement
         content = (
             '<replace_abc file="docs.md">\n'
-            "<old_abc>\nold </replace> text\n</old_abc>\n"
-            "<new_abc>\nnew </replace> tex"
+            "old </replace> text\n"
+            "<with_abc/>\n"
+            "new </replace> tex"
         )
         rendered = _render_partial_replace(content)
         assert rendered is not None
         assert "docs.md" in rendered
-        assert "old" in rendered
-        assert "new" in rendered
 
     def test_partial_full_block_pre_close(self):
-        """new body complete, but </replace_NONCE> not yet streamed."""
+        """Replacement complete, but </replace_NONCE> not yet streamed."""
         from forge.ui.tool_rendering import _render_partial_replace
 
         content = (
             '<replace_z file="x.py">\n'
-            "<old_z>\nold\n</old_z>\n"
-            "<new_z>\nnew\n</new_z>\n"
+            "old\n"
+            "<with_z/>\n"
+            "new\n"
         )
         rendered = _render_partial_replace(content)
         assert rendered is not None
@@ -602,17 +586,17 @@ class TestParseCheckFailureContract:
         # First edit block is well-formed and parses. Second is malformed
         # (missing close tag) so parse-check should reject the whole batch.
         good = (
-            "<replace_t1 "
-            'file="good.py">\n'
-            "<old_t1>\nfoo\n</old_t1>\n"
-            "<new_t1>\nbar\n</new_t1>\n"
+            '<replace_t1 file="good.py">\n'
+            "foo\n"
+            "<with_t1/>\n"
+            "bar\n"
             "</replace_t1>"
         )
         broken = (
-            "<replace_t2 "
-            'file="broken.py">\n'
-            "<old_t2>\nbaz\n</old_t2>\n"
-            "<new_t2>\nqux\n</new_t2>\n"
+            '<replace_t2 file="broken.py">\n'
+            "baz\n"
+            "<with_t2/>\n"
+            "qux\n"
             "(missing close tag here)\n"
         )
         content = good + "\n\nThen a broken one:\n" + broken
@@ -652,10 +636,10 @@ class TestParseCheckFailureContract:
         )
 
         content = (
-            "<replace_t3 "
-            'file="x.py">\n'
-            "<old_t3>\nfoo\n</old_t3>\n"
-            "<new_t3>\nbar\n</new_t3>\n"
+            '<replace_t3 file="x.py">\n'
+            "foo\n"
+            "<with_t3/>\n"
+            "bar\n"
             "</replace_t3>"
         )
         commands = parse_inline_commands(content)
@@ -684,10 +668,11 @@ class TestUnparsedBlockDetection:
 
     def test_detects_orphan_replace_open_tag(self):
         content = (
-            "<replace_t4 "
-            'file="oops.py">\n'
-            "<old_t4>\nfoo\n</old_t4>\n"
-            "I forgot the new and the close.\n"
+            '<replace_t4 file="oops.py">\n'
+            "foo\n"
+            "<with_t4/>\n"
+            "bar\n"
+            "I forgot to close.\n"
         )
         unparsed = detect_unparsed_edit_blocks(content, parsed_spans=[])
         assert len(unparsed) == 1
@@ -707,8 +692,9 @@ class TestUnparsedBlockDetection:
     def test_successful_parse_is_not_flagged(self):
         content = (
             '<replace file="ok.py">\n'
-            "<old>\nfoo\n</old>\n"
-            "<new>\nbar\n</new>\n"
+            "foo\n"
+            "<with/>\n"
+            "bar\n"
             "</replace>"
         )
         edits = parse_edits(content)

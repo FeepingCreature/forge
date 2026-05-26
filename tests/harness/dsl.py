@@ -226,7 +226,7 @@ def _self_closing(name: str, attrs: str = "") -> str:
 
 
 def _render_edit(d: _Directive) -> str:
-    """@edit <path> with old:/new: sub-blocks."""
+    """@edit <path> with old:/new: sub-blocks → <replace>...<with/>...</replace>."""
     path = d.head.strip()
     if not path:
         raise ValueError("@edit requires a file path")
@@ -243,15 +243,13 @@ def _render_edit(d: _Directive) -> str:
 
     open_replace = _open_tag("replace", f'file="{path}"')
     close_replace = _close_tag("replace")
-    open_old = _open_tag("old")
-    close_old = _close_tag("old")
-    open_new = _open_tag("new")
-    close_new = _close_tag("new")
+    with_sep = _self_closing("with")
 
     return (
         f"{open_replace}\n"
-        f"{open_old}\n{old_text}\n{close_old}\n"
-        f"{open_new}\n{new_text}\n{close_new}\n"
+        f"{old_text}\n"
+        f"{with_sep}\n"
+        f"{new_text}\n"
         f"{close_replace}"
     )
 

@@ -316,16 +316,46 @@ class QtTaskRunner(QObject):
         worker.finished.connect(safe_result)
         worker.failed.connect(safe_error)
 
-        # Cleanup on completion: quit the thread, schedule deletions,
-        # remove from tracking list.
-        def cleanup() -> None:
-            thread.quit()
+        # Thread teardown follows the documented Qt pattern:
+        #
+        #   worker.done   ─► thread.quit         (ask exec() to return)
+        #   thread.finished ─► worker.deleteLater (worker lives on thread,
+        #                                          deleted via thread's loop
+        #                                          before it actually exits)
+        #   thread.finished ─► thread.deleteLater (only after the OS thread
+        #                                          has fully finished)
+        #
+        # Previously we ran a `cleanup` closure directly off `worker.done`,
+        # which is emitted from inside `_QtWorker.run` — i.e. while the
+        # thread is *still* executing. That closure posted
+        # `thread.deleteLater()` to the main event loop immediately, and if
+        # main got back to its event loop before the native OS thread had
+        # finished winding down, Qt would destroy the QThread C++ object
+        # while the thread was still running:
+        #
+        #     QThread: Destroyed while thread '' is still running
+        #     Aborted
+        #
+        # The race is widest on the first tool call of a turn, where stream
+        # completion immediately submits a tool task synchronously, then
+        # returns to the event loop with Thread S's DeferredDelete already
+        # queued and only microseconds of OS-level teardown done.
+        #
+        # `thread.finished` fires *after* `QThread::run()` has returned, so
+        # connecting deleteLater to it is safe.
+        worker.done.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+
+        # Bookkeeping: drop our strong reference once the thread is really
+        # done. Runs on the main thread (the runner's affinity), so the
+        # list mutation doesn't need the lock for thread-safety — but we
+        # keep it for symmetry with the append side.
+        def _forget_thread() -> None:
             with self._lock:
                 self._threads = [t for t in self._threads if t[0] is not thread]
-            worker.deleteLater()
-            thread.deleteLater()
 
-        worker.done.connect(cleanup)
+        thread.finished.connect(_forget_thread)
         thread.started.connect(worker.run)
 
         with self._lock:

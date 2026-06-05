@@ -57,7 +57,12 @@ These tools solve specific problems where loading files one-by-one isn't practic
 
 **`scout`** — Ask a question across many files at once. Use this when you need to scan more files than you can practically load — "which of these 20 files handles authentication?" or "what patterns do these modules use?" Scout sends files to a smaller model, so it's for triage and understanding, not for files you're about to edit.
 
-**Decision rule:** the expensive thing in Forge is the *round-trip*, not context size (loaded files are cached and effectively free across turns). So the default is **load the file** (`update_context` / `grep_open`). Reach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance — never as a reflex before loading a file you already know you need.
+**Decision rule:** the expensive thing in Forge is the *round-trip*, not context size (loaded files are cached and effectively free across turns). So the default is **load the file** (`update_context` / `grep_open`). 
+### Batch Operations
+<with/>
+Reach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance — never as a reflex before loading a file you already know you need.
+
+### Batch Operations
 <with/>
 
 ### Batch Operations

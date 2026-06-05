@@ -1117,6 +1117,12 @@ replacement text
 </replace>
 ```
 
+**The closing tag MUST be `</replace>`.** Not `</argument>`, not `</parameter>`, not
+`</with>`. A `<replace>` block is opened by `<replace ...>` and closed by `</replace>` —
+the same word. (`<parameter>`/`</parameter>` belongs to API tool calls, which are a
+*different* mechanism — never use that closer for an inline `<replace>`.) Likewise
+`<write ...>` is closed by `</write>`. Mismatched closers are a parse error.
+
 Inline commands (`<replace>`, `<write>`, `<run_tests/>`, `<commit/>`, etc.) execute as a pipeline.
 If any command fails, execution stops and you get control back with the error.
 

@@ -1,11 +1,7 @@
 {
   "active_files": [
-    "CLAUDE.md",
-    "forge/runtime/tasks.py",
-    "forge/runtime/tool_executor.py",
-    "forge/llm/client.py",
-    "forge/runtime/streaming.py",
-    "forge/session/live_session.py"
+    "forge/prompts/manager.py",
+    "REVIEW2.md"
   ],
   "request_log_entries": [
     {
@@ -3445,277 +3441,140 @@
       "streaming": true,
       "actual_cost": 0.42748375,
       "generation_id": "gen-1779888020-4Wc4C1ZEagytAyemv6Zl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780662704092.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780662704092.json",
+      "timestamp": 1780662704.0965645,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.157375,
+      "generation_id": "gen-1780662704-mE8FcC4KoOxykOGPVPou"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780662746300.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780662746300.json",
+      "timestamp": 1780662746.3012984,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.0377755,
+      "generation_id": "gen-1780662746-iqGGdRjaRgQ4XwDtqvtH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780662811409.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780662811409.json",
+      "timestamp": 1780662811.410141,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.0408245,
+      "generation_id": "gen-1780662811-jBzGnztVJbCWdXZwgrZ4"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780662862100.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780662862100.json",
+      "timestamp": 1780662862.1020844,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.023991,
+      "generation_id": "gen-1780662862-3b0UwMaiONDAPx6Fmihy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780662865068.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780662865068.json",
+      "timestamp": 1780662865.0695515,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.18798075,
+      "generation_id": "gen-1780662865-xlDWM9EOw7smD64uYSVw"
     }
   ],
   "messages": [
     {
+      "role": "user",
+      "content": "hi! what's the current guidance like? like, there's a ... uh, I've straight up forgotten everything we've put in the context. there's system prompt, project summary, conversations, context snippets, conversation summary and final notes, right?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me clarify what's actually in your context right now \u2014 I can see the live breakdown in the stats. Here's the real picture:\n\n```\ntotal_tokens: 14.6k\n  system        4.5k   \u2190 the system prompt (Forge guidance, tool docs)\n  summaries     10.0k  \u2190 repository file summaries (snapshot from session start)\n  files         0.0k   \u2190 active file contents (0 files loaded right now)\n  conversation  0.1k   \u2190 this chat (just your one message + my reply)\n```\n\nSo the actual layered context model is:\n\n1. **System prompt** (~4.5k) \u2014 the standing guidance: how to use tools, the load/read/edit/unload loop, inline-command syntax (`<replace>`, `<write>`, etc.), batching, the \"be optimistic, do everything in one response\" rules.\n\n2. **Repository file summaries** (~10k) \u2014 a one-paragraph-ish summary of every file in the repo, generated when the session started. This is your *map*. It does **not** update mid-session. Right now it's the single biggest chunk.\n\n3. **Active file contents** (0k / 0 files) \u2014 full current text of any file I `update_context`-load. Empty right now because I haven't loaded anything.\n\n4. **Conversation** (~0.1k) \u2014 the actual back-and-forth messages.\n\nOn the two things you half-remembered:\n\n- **\"context snippets\"** \u2014 that's the *active file contents* layer (#3), plus ephemeral peeks from `grep_context` / `get_lines` (those vanish after one turn and don't persist in context).\n- **\"conversation summary and final notes\"** \u2014 there's no separate stored \"summary\" or \"final notes\" block sitting in context. What you might be thinking of:\n  - The **conversation recap** (`recap_tokens: 0.1k`) \u2014 a compact list of prior messages with `[id N]` labels, used so I can reference messages for the `compact` tool.\n  - **Compaction** \u2014 if the conversation gets big, I can *replace* old messages with a summary via the `compact` tool. But that's an action I take, not a permanent layer. Nothing's been compacted yet.\n  - The **reminder block** appended to your message (the \"Be Optimistic\" notes) \u2014 that's a standing nudge re-injected each turn, not stored history.\n\nSo your mental model is close \u2014 five-ish layers \u2014 but the precise list is: **system prompt \u2192 repo summaries \u2192 active files \u2192 conversation (+ recap) \u2192 standing reminders**. No persistent \"summary/notes\" layer exists unless I actively compact.\n\nWant me to load anything or dig into a specific file? Right now I'm flying on summaries alone."
+    },
+    {
       "role": "system",
-      "content": "\u2705 Generated summaries for 92 files",
+      "content": "\u2705 Changes committed: 74849f26",
       "_ui_only": true
     },
     {
       "role": "user",
-      "content": "hi! there's an open bug where \ud83c\udf10 LLM Request: Qwen3.6-27B-NEO-CODE-HERE-2T-OT-Q5_K_M.gguf (streaming, 2 messages) Tools available: 11 \ud83d\udcdd Request dumped to: /tmp/forge_debug/request_stream_1779887572065.json \ud83d\udce1 Streaming response started \ud83d\udcb0 WARNING: No cost data found in stream chunks \ud83d\udd27 PromptManager: Appending tool call #2 (1 calls) QThread: Destroyed while thread '' is still running Aborted forge happens on the first toolcall in a conversation. just open all related files first. this *only* happens on the first toolcall. I'll prefer a solid explanation over a quick fix, please."
+      "content": "hm is it visible now? there shouuuld be a convo summary at the end"
     },
     {
       "role": "assistant",
-      "content": "Looking at this carefully. The symptom: `QThread: Destroyed while thread '' is still running` followed by abort, happening specifically on the **first tool call** of a conversation.\n\nLet me trace what happens on the first tool call.",
-      "tool_calls": [
-        {
-          "id": "toolu_01Nim5vY4Mm8wMpizUHZw8kR",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"add\": [\"forge/runtime/tool_executor.py\", \"forge/runtime/streaming.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01Nim5vY4Mm8wMpizUHZw8kR",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/runtime/tool_executor.py\", \"forge/runtime/streaming.py\"], \"remove\": [], \"message\": \"Added 2 files, removed 0 files from context\"}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "Let me look at the worker cleanup logic carefully. The error message \"QThread: Destroyed while thread '' is still running\" comes from Qt \u2014 it means a `QThread` object got garbage-collected (its C++ object destroyed) while the underlying OS thread was still executing.",
-      "tool_calls": [
-        {
-          "id": "toolu_01DRucwwsiozNEPintCfQXDw",
-          "type": "function",
-          "function": {
-            "name": "grep_context",
-            "arguments": "{\"pattern\": \"claim_thread|release_thread\", \"context_before\": 2, \"context_after\": 5}"
-          }
-        },
-        {
-          "id": "toolu_01H963McKwSj9crY43ivi3tR",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"add\": [\"forge/vfs/work_in_progress.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01DRucwwsiozNEPintCfQXDw",
-      "content": "{\"success\": true, \"message\": \"Found 10 matches\", \"output\": \"\\u2500\\u2500 forge/runtime/inline_executor.py:9 \\u2500\\u2500\\n       7 | This module is intentionally a thin wrapper around\\n       8 | `forge.tools.invocation.execute_inline_commands_with_parse_check`. The\\n>>>    9 | only thing it owns is the `vfs.claim_thread()` / `release_thread()`\\n      10 | bracket so a worker thread can use the VFS safely. With SyncTaskRunner\\n      11 | those calls are no-ops; with QtTaskRunner they hand the VFS off from\\n      12 | the caller's thread to the worker thread for the duration of execution.\\n      13 | \\\"\\\"\\\"\\n      14 | \\n\\n\\u2500\\u2500 forge/runtime/inline_executor.py:38 \\u2500\\u2500\\n      36 |         later commands were skipped.\\n      37 |     \\\"\\\"\\\"\\n>>>   38 |     vfs.claim_thread()\\n      39 |     try:\\n      40 |         return execute_inline_commands_with_parse_check(vfs, content, commands)\\n      41 |     finally:\\n      42 |         vfs.release_thread()\\n      43 | \\n\\n\\u2500\\u2500 forge/runtime/inline_executor.py:42 \\u2500\\u2500\\n      40 |         return execute_inline_commands_with_parse_check(vfs, content, commands)\\n      41 |     finally:\\n>>>   42 |         vfs.release_thread()\\n      43 | \\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:9 \\u2500\\u2500\\n       7 | function.\\n       8 | \\n>>>    9 | VFS hand-off (`claim_thread` / `release_thread`) is owned here, same as\\n      10 | `run_inline_commands`. With SyncTaskRunner those are no-ops; with\\n      11 | QtTaskRunner they bracket the worker-thread access window.\\n      12 | \\n      13 | The result list mirrors what `LiveSession._on_tools_all_finished`\\n      14 | expects: each entry is\\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:48 \\u2500\\u2500\\n      46 |     # claimed, and the new one's owner is None \\u2014 assertion failure.\\n      47 |     vfs = session_manager.vfs\\n>>>   48 |     vfs.claim_thread()\\n      49 |     try:\\n      50 |         for tool_call in tool_calls:\\n      51 |             tool_name = tool_call[\\\"function\\\"][\\\"name\\\"]\\n      52 |             arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n      53 |             tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:99 \\u2500\\u2500\\n      97 |                 break\\n      98 |     finally:\\n>>>   99 |         vfs.release_thread()\\n     100 | \\n     101 |     return results\\n     102 | \\n\\n\\u2500\\u2500 forge/vfs/base.py:13 \\u2500\\u2500\\n      11 | \\n      12 |     VFS instances are NOT thread-safe and must only be accessed from one thread\\n>>>   13 |     at a time. Use claim_thread() before accessing from a new thread, and\\n      14 |     release_thread() when done. All operations assert the current thread owns\\n      15 |     the VFS.\\n      16 |     \\\"\\\"\\\"\\n      17 | \\n      18 |     def __init__(self) -> None:\\n\\n\\u2500\\u2500 forge/vfs/base.py:14 \\u2500\\u2500\\n      12 |     VFS instances are NOT thread-safe and must only be accessed from one thread\\n      13 |     at a time. Use claim_thread() before accessing from a new thread, and\\n>>>   14 |     release_thread() when done. All operations assert the current thread owns\\n      15 |     the VFS.\\n      16 |     \\\"\\\"\\\"\\n      17 | \\n      18 |     def __init__(self) -> None:\\n      19 |         # Thread that currently owns this VFS (None = unclaimed)\\n\\n\\u2500\\u2500 forge/vfs/base.py:22 \\u2500\\u2500\\n      20 |         self._owner_thread_id: int | None = None\\n      21 | \\n>>>   22 |     def claim_thread(self) -> None:\\n      23 |         \\\"\\\"\\\"Claim this VFS for the current thread.\\n      24 | \\n      25 |         Must be called before accessing VFS from a background thread.\\n      26 |         Asserts that the VFS is not already claimed by another thread.\\n      27 |         \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/vfs/base.py:36 \\u2500\\u2500\\n      34 |         self._owner_thread_id = current\\n      35 | \\n>>>   36 |     def release_thread(self) -> None:\\n      37 |         \\\"\\\"\\\"Release thread ownership of this VFS.\\n      38 | \\n      39 |         Must be called when done accessing VFS from a background thread.\\n      40 |         Asserts that the current thread is the owner.\\n      41 |         \\\"\\\"\\\"\", \"total_matches\": 10, \"side_effects\": [\"ephemeral_result\"]}",
-      "_skip_display": true
+      "content": "[id 4] Yes! Now I can see it. At the very top of this turn there's a **`## Conversation Recap`** block \u2014 that's the thing you're remembering. It showed up now because there's actual history to recap (your two messages + my reply), whereas on the first turn there was nothing prior to recap.\n\nHere's what it currently contains:\n\n```\n## Conversation Recap\n**User**: hi! what's the current guidance like? ...\n**Assistant**: Let me clarify what's actually in your context ...\n**User**: hm is it visible now? there shouuuld be a convo summary at the end\n```\n\nA few things worth noting about it:\n\n- **It's a recap, not a stored summary.** Right now it's just truncated copies of the recent messages (note my long reply got cut off at \"the system prompt (F...\"). It's lightweight \u2014 `recap_tokens: 0.2k`.\n- **It carries the `[id N]` labels** so I can reference specific messages when calling the `compact` tool. (Though interestingly, in this view the messages show as plain **User**/**Assistant** without visible IDs \u2014 the IDs are what I use internally to target compaction ranges.)\n- **It's distinct from true compaction.** If the conversation grew large, I'd actively run `compact` to *replace* old messages with a real hand-written summary. That hasn't happened \u2014 what you see is the automatic recap, not a compacted summary.\n\nSo to update the mental model from my last message: the recap **is** that \"conversation summary at the end\" you were picturing. It lives at the *top* of the incoming turn (alongside `<context_stats>`), and it grows/updates as the conversation does. The \"final notes\" you half-remembered is most likely the **REMINDER block** appended at the very end of your message \u2014 the \"Be Optimistic, Do Everything In One Response\" nudge.\n\nSo the full ordering you actually see in a turn is roughly:\n\n1. **Repo summaries** + **active files** (the big context payload)\n2. **Conversation Recap** (top of turn \u2014 the \"summary\")\n3. The actual **conversation messages**\n4. **`<context_stats>`**\n5. **REMINDER block** (end \u2014 the \"final notes\")\n\nThat's the whole skeleton. Mystery solved? \ud83c\udf89"
     },
     {
       "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 5,\n  \"context_before\": 2,\n  \"pattern\": \"claim_thread|release_thread\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches\",\n  \"output\": \"\\u2500\\u2500 forge/runtime/inline_executor.py:9 \\u2500\\u2500\\n       7 | This module is intentionally a thin wrapper around\\n       8 | `forge.tools.invocation.execute_inline_commands_with_parse_check`. The\\n>>>    9 | only thing it owns is the `vfs.claim_thread()` / `release_thread()`\\n      10 | bracket so a worker thread can use the VFS safely. With SyncTaskRunner\\n      11 | those calls are no-ops; with QtTaskRunner they hand the VFS off from\\n      12 | the caller's thread to the worker thread for the duration of execution.\\n      13 | \\\"\\\"\\\"\\n      14 | \\n\\n\\u2500\\u2500 forge/runtime/inline_executor.py:38 \\u2500\\u2500\\n      36 |         later commands were skipped.\\n      37 |     \\\"\\\"\\\"\\n>>>   38 |     vfs.claim_thread()\\n      39 |     try:\\n      40 |         return execute_inline_commands_with_parse_check(vfs, content, commands)\\n      41 |     finally:\\n      42 |         vfs.release_thread()\\n      43 | \\n\\n\\u2500\\u2500 forge/runtime/inline_executor.py:42 \\u2500\\u2500\\n      40 |         return execute_inline_commands_with_parse_check(vfs, content, commands)\\n      41 |     finally:\\n>>>   42 |         vfs.release_thread()\\n      43 | \\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:9 \\u2500\\u2500\\n       7 | function.\\n       8 | \\n>>>    9 | VFS hand-off (`claim_thread` / `release_thread`) is owned here, same as\\n      10 | `run_inline_commands`. With SyncTaskRunner those are no-ops; with\\n      11 | QtTaskRunner they bracket the worker-thread access window.\\n      12 | \\n      13 | The result list mirrors what `LiveSession._on_tools_all_finished`\\n      14 | expects: each entry is\\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:48 \\u2500\\u2500\\n      46 |     # claimed, and the new one's owner is None \\u2014 assertion failure.\\n      47 |     vfs = session_manager.vfs\\n>>>   48 |     vfs.claim_thread()\\n      49 |     try:\\n      50 |         for tool_call in tool_calls:\\n      51 |             tool_name = tool_call[\\\"function\\\"][\\\"name\\\"]\\n      52 |             arguments_str = tool_call[\\\"function\\\"][\\\"arguments\\\"]\\n      53 |             tool_call_id = tool_call.get(\\\"id\\\", \\\"\\\")\\n\\n\\u2500\\u2500 forge/runtime/tool_executor.py:99 \\u2500\\u2500\\n      97 |                 break\\n      98 |     finally:\\n>>>   99 |         vfs.release_thread()\\n     100 | \\n     101 |     return results\\n     102 | \\n\\n\\u2500\\u2500 forge/vfs/base.py:13 \\u2500\\u2500\\n      11 | \\n      12 |     VFS instances are NOT thread-safe and must only be accessed from one thread\\n>>>   13 |     at a time. Use claim_thread() before accessing from a new thread, and\\n      14 |     release_thread() when done. All operations assert the current thread owns\\n      15 |     the VFS.\\n      16 |     \\\"\\\"\\\"\\n      17 | \\n      18 |     def __init__(self) -> None:\\n\\n\\u2500\\u2500 forge/vfs/base.py:14 \\u2500\\u2500\\n      12 |     VFS instances are NOT thread-safe and must only be accessed from one thread\\n      13 |     at a time. Use claim_thread() before accessing from a new thread, and\\n>>>   14 |     release_thread() when done. All operations assert the current thread owns\\n      15 |     the VFS.\\n      16 |     \\\"\\\"\\\"\\n      17 | \\n      18 |     def __init__(self) -> None:\\n      19 |         # Thread that currently owns this VFS (None = unclaimed)\\n\\n\\u2500\\u2500 forge/vfs/base.py:22 \\u2500\\u2500\\n      20 |         self._owner_thread_id: int | None = None\\n      21 | \\n>>>   22 |     def claim_thread(self) -> None:\\n      23 |         \\\"\\\"\\\"Claim this VFS for the current thread.\\n      24 | \\n      25 |         Must be called before accessing VFS from a background thread.\\n      26 |         Asserts that the VFS is not already claimed by another thread.\\n      27 |         \\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/vfs/base.py:36 \\u2500\\u2500\\n      34 |         self._owner_thread_id = current\\n      35 | \\n>>>   36 |     def release_thread(self) -> None:\\n      37 |         \\\"\\\"\\\"Release thread ownership of this VFS.\\n      38 | \\n      39 |         Must be called when done accessing VFS from a background thread.\\n      40 |         Asserts that the current thread is the owner.\\n      41 |         \\\"\\\"\\\"\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 10\n}\n```",
-      "_ui_only": true
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01H963McKwSj9crY43ivi3tR",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/vfs/work_in_progress.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 4] Let me look at the VFS base class and how the session manager creates VFS instances:",
-      "tool_calls": [
-        {
-          "id": "toolu_012CgDCCMC7YcZnip6d67Tn1",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"add\": [\"forge/vfs/base.py\"]}"
-          }
-        },
-        {
-          "id": "toolu_01F9K5QWMZrWfjfF8bYHmgCM",
-          "type": "function",
-          "function": {
-            "name": "grep_context",
-            "arguments": "{\"pattern\": \"_create_fresh_vfs|self\\\\.vfs\\\\s*=|tool_manager\\\\.vfs\\\\s*=\", \"context_before\": 3, \"context_after\": 6}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_012CgDCCMC7YcZnip6d67Tn1",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/vfs/base.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
-      "_skip_display": true
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01F9K5QWMZrWfjfF8bYHmgCM",
-      "content": "{\"success\": true, \"message\": \"Found 6 matches\", \"output\": \"\\u2500\\u2500 forge/session/live_session.py:589 \\u2500\\u2500\\n     586 |         self._cleanup_threads()\\n     587 | \\n     588 |         # Discard pending VFS changes\\n>>>  589 |         self.session_manager.tool_manager.vfs = self.session_manager._create_fresh_vfs()\\n     590 | \\n     591 |         # Remove incomplete assistant message\\n     592 |         if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\":\\n     593 |             self.pop_last_message()\\n     594 | \\n     595 |         self.is_streaming = False\\n\\n\\u2500\\u2500 forge/session/manager.py:350 \\u2500\\u2500\\n     347 |             self.tool_manager.vfs.commit(\\\"save active files\\\", commit_type=CommitType.PREPARE)\\n     348 | \\n     349 |             # Refresh VFS so the committed state is the new baseline\\n>>>  350 |             self.tool_manager.vfs = self._create_fresh_vfs()\\n     351 |         except Exception:\\n     352 |             # Never crash the UI over a persistence failure\\n     353 |             pass\\n     354 | \\n     355 |     def _emit_context_stats(self) -> None:\\n     356 |         \\\"\\\"\\\"Emit context stats signal for UI updates\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/session/manager.py:570 \\u2500\\u2500\\n     567 |         self._had_mid_turn_commit = False\\n     568 | \\n     569 |         # Refresh VFS to point to new commit (so next turn sees committed state)\\n>>>  570 |         self.tool_manager.vfs = self._create_fresh_vfs()\\n     571 | \\n     572 |         return commit_oid\\n     573 | \\n     574 |     def _create_fresh_vfs(self) -> \\\"WorkInProgressVFS\\\":\\n     575 |         \\\"\\\"\\\"Create a fresh VFS pointing to current branch HEAD\\\"\\\"\\\"\\n     576 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/session/manager.py:574 \\u2500\\u2500\\n     571 | \\n     572 |         return commit_oid\\n     573 | \\n>>>  574 |     def _create_fresh_vfs(self) -> \\\"WorkInProgressVFS\\\":\\n     575 |         \\\"\\\"\\\"Create a fresh VFS pointing to current branch HEAD\\\"\\\"\\\"\\n     576 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n     577 | \\n     578 |         return WorkInProgressVFS(self._repo, self.branch_name)\\n     579 | \\n     580 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n\\n\\u2500\\u2500 forge/ui/branch_workspace.py:122 \\u2500\\u2500\\n     119 |         \\\"\\\"\\\"\\n     120 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n     121 | \\n>>>  122 |         self.session_manager.tool_manager.vfs = WorkInProgressVFS(self._repo, self.branch_name)\\n     123 | \\n     124 |     def load_session_data(self) -> dict[str, Any] | None:\\n     125 |         \\\"\\\"\\\"Load session data from .forge/session.json in this branch\\\"\\\"\\\"\\n     126 |         import json\\n     127 | \\n     128 |         try:\\n\\n\\u2500\\u2500 tests/test_tool_executor.py:37 \\u2500\\u2500\\n      34 | \\n      35 | class _FakeSessionManager:\\n      36 |     def __init__(self) -> None:\\n>>>   37 |         self.vfs = _FakeVFS()\\n      38 | \\n      39 | \\n      40 | class _FakeToolManager:\\n      41 |     \\\"\\\"\\\"Returns canned results keyed by (tool_name, call index).\\n      42 | \\n      43 |     The 'calls' list records every (tool_name, args, session_manager)\", \"total_matches\": 6, \"side_effects\": [\"ephemeral_result\"]}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 6] I have enough to reason about this now. Let me trace the lifecycle very carefully.\n\n## What happens on the first tool call\n\n1. User sends a message \u2192 `_process_llm_request()` runs.\n2. `self._tasks.submit(stream_work, ...)` spawns **Thread A** (`QThread` #1, the streaming thread). The handle is stored in `self._stream_handle`.\n3. Thread A runs `stream_to_events()`, finishes, emits `finished` signal.\n4. Back on the main thread, `_on_stream_finished(result)` runs:\n   - Sets `self._stream_handle = None`. **This drops the last Python reference to TaskHandle, but the QThread is held by `QtTaskRunner._threads` \u2014 fine.**\n   - Tool calls were streamed, no inline commands, so it falls through to `_finish_stream_processing(result)` \u2192 `_execute_tool_calls(result[\"tool_calls\"])`.\n5. `_execute_tool_calls` calls `self._tasks.submit(work, ...)` again \u2014 spawns **Thread B** (`QThread` #2, the tool execution thread).\n\nNow \u2014 here's the critical part. Thread A's `_QtWorker.run()` emitted `finished` (which queued `safe_result` on the main thread) and then emitted `done`. The `done` signal is connected to `cleanup`:\n\n```python\ndef cleanup() -> None:\n    thread.quit()\n    with self._lock:\n        self._threads = [t for t in self._threads if t[0] is not thread]\n    worker.deleteLater()\n    thread.deleteLater()\n```\n\nThe `cleanup` slot for Thread A's worker is queued on **the main thread** (because `_QtWorker` lives on the worker thread, but the `QtTaskRunner` itself was constructed on the main thread, and `done` is connected with auto-connection\u2026 actually wait, let me think about this again).",
-      "tool_calls": [
-        {
-          "id": "toolu_018gmiXwFVWm4v6x7r3VHTGG",
-          "type": "function",
-          "function": {
-            "name": "grep_context",
-            "arguments": "{\"pattern\": \"moveToThread|QObject\\\\.__init__|class QtTaskRunner\", \"file\": \"forge/runtime/tasks.py\", \"context_after\": 3}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 6,\n  \"context_before\": 3,\n  \"pattern\": \"_create_fresh_vfs|self\\\\.vfs\\\\s*=|tool_manager\\\\.vfs\\\\s*=\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 6 matches\",\n  \"output\": \"\\u2500\\u2500 forge/session/live_session.py:589 \\u2500\\u2500\\n     586 |         self._cleanup_threads()\\n     587 | \\n     588 |         # Discard pending VFS changes\\n>>>  589 |         self.session_manager.tool_manager.vfs = self.session_manager._create_fresh_vfs()\\n     590 | \\n     591 |         # Remove incomplete assistant message\\n     592 |         if self.messages and self.messages[-1].get(\\\"role\\\") == \\\"assistant\\\":\\n     593 |             self.pop_last_message()\\n     594 | \\n     595 |         self.is_streaming = False\\n\\n\\u2500\\u2500 forge/session/manager.py:350 \\u2500\\u2500\\n     347 |             self.tool_manager.vfs.commit(\\\"save active files\\\", commit_type=CommitType.PREPARE)\\n     348 | \\n     349 |             # Refresh VFS so the committed state is the new baseline\\n>>>  350 |             self.tool_manager.vfs = self._create_fresh_vfs()\\n     351 |         except Exception:\\n     352 |             # Never crash the UI over a persistence failure\\n     353 |             pass\\n     354 | \\n     355 |     def _emit_context_stats(self) -> None:\\n     356 |         \\\"\\\"\\\"Emit context stats signal for UI updates\\\"\\\"\\\"\\n\\n\\u2500\\u2500 forge/session/manager.py:570 \\u2500\\u2500\\n     567 |         self._had_mid_turn_commit = False\\n     568 | \\n     569 |         # Refresh VFS to point to new commit (so next turn sees committed state)\\n>>>  570 |         self.tool_manager.vfs = self._create_fresh_vfs()\\n     571 | \\n     572 |         return commit_oid\\n     573 | \\n     574 |     def _create_fresh_vfs(self) -> \\\"WorkInProgressVFS\\\":\\n     575 |         \\\"\\\"\\\"Create a fresh VFS pointing to current branch HEAD\\\"\\\"\\\"\\n     576 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n\\n\\u2500\\u2500 forge/session/manager.py:574 \\u2500\\u2500\\n     571 | \\n     572 |         return commit_oid\\n     573 | \\n>>>  574 |     def _create_fresh_vfs(self) -> \\\"WorkInProgressVFS\\\":\\n     575 |         \\\"\\\"\\\"Create a fresh VFS pointing to current branch HEAD\\\"\\\"\\\"\\n     576 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n     577 | \\n     578 |         return WorkInProgressVFS(self._repo, self.branch_name)\\n     579 | \\n     580 |     def generate_commit_message(self, changes: dict[str, str]) -> str:\\n\\n\\u2500\\u2500 forge/ui/branch_workspace.py:122 \\u2500\\u2500\\n     119 |         \\\"\\\"\\\"\\n     120 |         from forge.vfs.work_in_progress import WorkInProgressVFS\\n     121 | \\n>>>  122 |         self.session_manager.tool_manager.vfs = WorkInProgressVFS(self._repo, self.branch_name)\\n     123 | \\n     124 |     def load_session_data(self) -> dict[str, Any] | None:\\n     125 |         \\\"\\\"\\\"Load session data from .forge/session.json in this branch\\\"\\\"\\\"\\n     126 |         import json\\n     127 | \\n     128 |         try:\\n\\n\\u2500\\u2500 tests/test_tool_executor.py:37 \\u2500\\u2500\\n      34 | \\n      35 | class _FakeSessionManager:\\n      36 |     def __init__(self) -> None:\\n>>>   37 |         self.vfs = _FakeVFS()\\n      38 | \\n      39 | \\n      40 | class _FakeToolManager:\\n      41 |     \\\"\\\"\\\"Returns canned results keyed by (tool_name, call index).\\n      42 | \\n      43 |     The 'calls' list records every (tool_name, args, session_manager)\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 6\n}\n```",
-      "_ui_only": true
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_018gmiXwFVWm4v6x7r3VHTGG",
-      "content": "{\"success\": true, \"message\": \"Found 2 matches\", \"output\": \"\\u2500\\u2500 forge/runtime/tasks.py:269 \\u2500\\u2500\\n     266 |         self.done.emit()\\n     267 | \\n     268 | \\n>>>  269 | class QtTaskRunner(QObject):\\n     270 |     \\\"\\\"\\\"TaskRunner that runs work on background QThreads.\\n     271 | \\n     272 |     Each `submit()` call creates a new `QThread` and a `_QtWorker` that\\n\\n\\u2500\\u2500 forge/runtime/tasks.py:297 \\u2500\\u2500\\n     294 | \\n     295 |         thread = QThread()\\n     296 |         worker = _QtWorker(work, token)\\n>>>  297 |         worker.moveToThread(thread)\\n     298 | \\n     299 |         # Wrap callbacks so they no-op once the handle is cancelled.\\n     300 |         def safe_event(ev: object) -> None:\", \"total_matches\": 2, \"side_effects\": [\"ephemeral_result\"]}",
-      "_skip_display": true
-    },
-    {
-      "role": "user",
-      "content": "just open the files",
-      "_mid_turn": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 7] Got it \u2014 let me open the files I need to fully verify my hypothesis.",
-      "tool_calls": [
-        {
-          "id": "toolu_01KbhkArBcSZ3EWwkeF3ZFNC",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"add\": [\"forge/runtime/tasks.py\"], \"remove\": [\"forge/vfs/base.py\", \"forge/vfs/work_in_progress.py\", \"forge/runtime/streaming.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"context_after\": 3,\n  \"file\": \"forge/runtime/tasks.py\",\n  \"pattern\": \"moveToThread|QObject\\\\.__init__|class QtTaskRunner\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 2 matches\",\n  \"output\": \"\\u2500\\u2500 forge/runtime/tasks.py:269 \\u2500\\u2500\\n     266 |         self.done.emit()\\n     267 | \\n     268 | \\n>>>  269 | class QtTaskRunner(QObject):\\n     270 |     \\\"\\\"\\\"TaskRunner that runs work on background QThreads.\\n     271 | \\n     272 |     Each `submit()` call creates a new `QThread` and a `_QtWorker` that\\n\\n\\u2500\\u2500 forge/runtime/tasks.py:297 \\u2500\\u2500\\n     294 | \\n     295 |         thread = QThread()\\n     296 |         worker = _QtWorker(work, token)\\n>>>  297 |         worker.moveToThread(thread)\\n     298 | \\n     299 |         # Wrap callbacks so they no-op once the handle is cancelled.\\n     300 |         def safe_event(ev: object) -> None:\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 2\n}\n```",
-      "_ui_only": true
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01KbhkArBcSZ3EWwkeF3ZFNC",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/runtime/tasks.py\"], \"remove\": [\"forge/vfs/base.py\", \"forge/vfs/work_in_progress.py\", \"forge/runtime/streaming.py\"], \"message\": \"Added 1 files, removed 3 files from context\"}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "Now I can fully verify the lifecycle. Let me trace through carefully.\n\n## The bug: a race between `cleanup()` and the next `submit()`\n\nReading `QtTaskRunner.submit()` carefully:\n\n```python\nthread = QThread()\nworker = _QtWorker(work, token)\nworker.moveToThread(thread)\n...\nworker.done.connect(cleanup)\nthread.started.connect(worker.run)\n\nwith self._lock:\n    self._threads.append((thread, worker, handle))\n\nthread.start()\n```\n\nAnd `cleanup`:\n\n```python\ndef cleanup() -> None:\n    thread.quit()\n    with self._lock:\n        self._threads = [t for t in self._threads if t[0] is not thread]\n    worker.deleteLater()\n    thread.deleteLater()\n```\n\nHere's the lifecycle on the first tool call:\n\n### Step 1 \u2014 Streaming submit\n\n- `submit(stream_work, ...)` creates **Thread A** (the streaming QThread) and an `_QtWorker` A. The worker is moved to Thread A. The `(thread, worker, handle)` tuple is appended to `self._threads`.\n- `worker.done` is connected to `cleanup`. **The connection type is auto.** Since the *signal* is emitted from Thread A (the worker thread, because `_QtWorker` lives on Thread A after `moveToThread`), and the *receiver* of the connection is the `cleanup` closure \u2014 a plain Python callable, **not a QObject slot** \u2014 Qt treats it as a [direct connection](https://doc.qt.io/qt-6/qt.html#ConnectionType-enum). The closure runs on the **emitting thread, i.e. Thread A itself.**\n- Thread A's worker finishes, emits `finished` (queued to main thread \u2192 `_on_stream_finished` will run later), then emits `done`. `cleanup` runs **synchronously on Thread A**.\n\n### Step 2 \u2014 `cleanup` on Thread A\n\n```python\ndef cleanup() -> None:\n    thread.quit()                  # tells Thread A's event loop to exit when it returns\n    with self._lock:\n        self._threads = [...]      # drops the runner's reference\n    worker.deleteLater()           # safe \u2014 schedules deletion\n    thread.deleteLater()           # \u26a0\ufe0f schedules QThread deletion on Thread A's event loop\n```\n\n`thread.deleteLater()` posts a `DeferredDelete` event to the *thread that owns* the QThread object. The `QThread` *object itself* lives on whatever thread created it \u2014 the main thread. So the deletion event is posted to the main thread's event loop.\n\nBut here's the subtle bit: after `self._threads = [...]` runs on Thread A, **the only remaining strong Python reference to the QThread is the `thread` cell captured by the closures `cleanup` and `safe_event`/`safe_result`/`safe_error`.** Once `cleanup` returns, only the callback closures hold it. And those closures are only kept alive by Qt's signal-slot connection table.\n\n### Step 3 \u2014 main thread runs `_on_stream_finished`\n\nThis was queued earlier (Qt::QueuedConnection because signal-emitting thread \u2260 receiver thread). It runs after `cleanup` returns. It eventually calls `_execute_tool_calls`, which calls `self._tasks.submit(...)` again \u2014 **and this is the critical moment.**\n\nBy the time we get back to `_execute_tool_calls`, Thread A:\n- Has had `thread.quit()` called.\n- Has been removed from `self._threads`.\n- May or may not have actually finished its event loop yet.\n\nNow, the call to `self._tasks.submit(work, ...)` for the tool execution:\n\n```python\nwith self._lock:\n    self._threads.append((thread, worker, handle))\n\nthread.start()\n```\n\nThis new submission is for **Thread B**, completely separate. So far, fine.\n\n### Step 4 \u2014 where it actually crashes\n\nNow I look at the cleanup signal chain again. The `worker.done.connect(safe_event)` etc. all reference `handle` \u2014 but `handle` is what the *caller* stored in `self._stream_handle`. In `_on_stream_finished` the first line is:\n\n```python\nself._stream_handle = None\n```\n\nThat drops Python's reference to TaskHandle for Thread A. The `_QtWorker` A itself was scheduled for `deleteLater()` from inside `cleanup` running on Thread A. **But `deleteLater()` posts the DeferredDelete event to the thread the *object* lives on** \u2014 and `_QtWorker` A lives on **Thread A** (because `moveToThread(thread)` was called on it). So the worker can only be deleted by Thread A's own event loop.\n\nThread A's event loop was told to `quit()` by `cleanup`. So Thread A will:\n1. Process any remaining queued events (including the `DeferredDelete` for the worker).\n2. Exit its event loop.\n3. The native OS thread terminates.\n\n**But the `QThread` Python object** lives on the main thread (whoever called `QThread()`). Its `deleteLater()` was posted to the main thread's event loop. The main thread is now busy running `_on_stream_finished` \u2192 `_execute_tool_calls` \u2192 `submit()` \u2192 which doesn't return to the event loop until the entire synchronous chain finishes.\n\nThis actually *should* be fine \u2014 `deleteLater` events are processed when the event loop next spins.\n\nSo why does it crash specifically on the **first tool call**?\n\nLet me re-read `cleanup` once more, focusing on what it does *while running on Thread A*:\n\n```python\ndef cleanup() -> None:\n    thread.quit()                  # Thread A: schedule own quit\n    with self._lock:\n        self._threads = [...]\n    worker.deleteLater()\n    thread.deleteLater()\n```\n\n**`thread.deleteLater()` called from inside Thread A** asks for the QThread object (which lives on main) to be deleted via main's event loop. Fine in principle.\n\nBut here's the killer: **`cleanup` returns, then Thread A's `run()` continues processing events until `quit()` takes effect**. The OS thread does *not* immediately stop. There's a window where:\n- `self._threads` has dropped its reference.\n- The closure-captured `thread` reference in the connection slot is technically still alive (the connection isn't broken).\n- A `DeferredDelete` for the QThread is sitting on the main event loop.\n\nIf the main event loop runs `DeferredDelete` for the QThread **before Thread A's OS thread has actually finished**, Qt destroys the QThread C++ object while the native thread is still running \u2192 **\"QThread: Destroyed while thread '' is still running\" \u2192 Aborted.**\n\n### Why specifically the first tool call\n\nThis is the part the user emphasized. Looking at it now: the main thread does *not* return to the event loop between `cleanup`'s `thread.deleteLater()` posting and... oh, wait. Yes it does \u2014 between the `finished` signal being delivered (which is what runs `_on_stream_finished`) and the next event being processed. The `DeferredDelete` event was posted from Thread A *after* `cleanup` ran. The `safe_result` slot (delivering `finished`) was posted *before* `cleanup` ran (because `finished` was emitted before `done` in `_QtWorker.run`).\n\nSo when the main thread spins the event loop:\n1. It processes `safe_result` \u2192 calls `_on_stream_finished` \u2192 runs the whole chain synchronously, ending in `thread.start()` for Thread B and returning.\n2. It then processes the `DeferredDelete` for QThread A.\n\nIf by step 2, Thread A's OS thread *still hasn't fully exited* (because event loop processing on Thread A and OS thread teardown is asynchronous), we get the abort.\n\n**Why \"first tool call only\":**\n\nI think the actual reason is more specific than the general race description. Look at `_QtWorker.run()`:\n\n```python\ndef run(self) -> None:\n    try:\n        result = self._work(self.event.emit, self._token)\n    except ...\n    self.finished.emit(result)\n    self.done.emit()\n```\n\n`run()` returns directly after emitting `done`. **It does not call `self.thread().exec()`** \u2014 there's no event loop on Thread A at all. `thread.started.connect(worker.run)` runs `run` once and then... Thread A's `run()` (the QThread's run method) does whatever it does when nothing else keeps it busy.\n\nActually \u2014 `QThread.start()` by default calls `QThread::run()` which calls `exec()` (an event loop). When that event loop has no events and no one calls `quit()`, it just sits there. When you call `quit()`, it returns.\n\nSo the timeline on Thread A really is:\n1. `worker.run` (slot, started by `thread.started` signal) runs.\n2. Emits `finished` (queued to main).\n3. Emits `done` (direct connection, runs `cleanup` synchronously on Thread A).\n4. `cleanup` calls `thread.quit()` \u2014 this sets a flag on Thread A's event loop.\n5. `cleanup` calls `thread.deleteLater()` \u2014 posts a DeferredDelete event for QThread to main's event loop.\n6. `cleanup` returns. `worker.run` returns.\n7. Thread A's event loop notices `quit()`, exits `exec()`.\n8. `QThread::run()` returns. OS thread is about to terminate, but hasn't yet \u2014 there's cleanup C++ does before the OS thread is gone.\n\nMeanwhile on the main thread:\n- A. Processes `safe_result` for the stream finish.\n- B. `_on_stream_finished` \u2192 `_finish_stream_processing` \u2192 `_execute_tool_calls` \u2192 `self._tasks.submit()`.\n- C. `submit()` returns. The chain unwinds back to the event loop.\n- D. Main event loop processes the next event \u2014 which could be the `DeferredDelete` for QThread A.\n- E. If at this instant the OS thread for Thread A isn't fully terminated \u2192 **abort**.\n\nThis race exists on **every** tool call, not just the first \u2014 *but the first one has the worst timing margin* because:\n- Stream completion (`safe_result`) and `done` (`cleanup`) happen very close together \u2014 typically within the same chunk delivery on the main loop's queue.\n- On subsequent tool calls, by the time another tool completes, Thread A is long dead, so its `DeferredDelete` has long since been processed.\n\nActually, thinking about it harder: it's the **first** one specifically because every tool call submission creates this pattern, but each one's race is independent. The first tool call after a *streaming* response is unique in that *both* threads' completion events are racing on the main loop. After the first tool call, subsequent submits are just \"tool completion \u2192 next stream submit \u2192 stream completion \u2192 next tool submit\", and the same race would still occur... unless the stream just happens to take long enough that the previous thread is gone.\n\nHmm, actually no. The user says reliably first-tool-call only. Let me look at one more thing \u2014 whether `submit()` itself has different behavior the first time:",
-      "tool_calls": [
-        {
-          "id": "toolu_01P95yvVt5y65xAqY9w1nZKp",
-          "type": "function",
-          "function": {
-            "name": "get_lines",
-            "arguments": "{\"filepath\": \"forge/runtime/tasks.py\", \"line\": 300, \"context\": 25}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01P95yvVt5y65xAqY9w1nZKp",
-      "content": "{\"success\": true, \"filepath\": \"forge/runtime/tasks.py\", \"target_line\": 300, \"range\": \"275-325\", \"total_lines\": 367, \"content\": \"     275 | \\n     276 |     Threads are tracked and torn down when work finishes (or when\\n     277 |     `shutdown()` is called).\\n     278 |     \\\"\\\"\\\"\\n     279 | \\n     280 |     def __init__(self) -> None:\\n     281 |         super().__init__()\\n     282 |         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n     283 |         self._lock = threading.Lock()\\n     284 | \\n     285 |     def submit(\\n     286 |         self,\\n     287 |         work: Work[T],\\n     288 |         on_result: Callable[[T], None],\\n     289 |         on_error: Callable[[str], None],\\n     290 |         on_event: Callable[[Any], None] | None = None,\\n     291 |     ) -> TaskHandle:\\n     292 |         token = CancelToken()\\n     293 |         handle = TaskHandle(token)\\n     294 | \\n     295 |         thread = QThread()\\n     296 |         worker = _QtWorker(work, token)\\n     297 |         worker.moveToThread(thread)\\n     298 | \\n     299 |         # Wrap callbacks so they no-op once the handle is cancelled.\\n>>>  300 |         def safe_event(ev: object) -> None:\\n     301 |             if handle.cancelled or on_event is None:\\n     302 |                 return\\n     303 |             on_event(ev)\\n     304 | \\n     305 |         def safe_result(res: object) -> None:\\n     306 |             if handle.cancelled:\\n     307 |                 return\\n     308 |             on_result(res)  # type: ignore[arg-type]\\n     309 | \\n     310 |         def safe_error(msg: str) -> None:\\n     311 |             if handle.cancelled:\\n     312 |                 return\\n     313 |             on_error(msg)\\n     314 | \\n     315 |         worker.event.connect(safe_event)\\n     316 |         worker.finished.connect(safe_result)\\n     317 |         worker.failed.connect(safe_error)\\n     318 | \\n     319 |         # Cleanup on completion: quit the thread, schedule deletions,\\n     320 |         # remove from tracking list.\\n     321 |         def cleanup() -> None:\\n     322 |             thread.quit()\\n     323 |             with self._lock:\\n     324 |                 self._threads = [t for t in self._threads if t[0] is not thread]\\n     325 |             worker.deleteLater()\", \"side_effects\": [\"ephemeral_result\"]}",
-      "_skip_display": true
-    },
-    {
-      "role": "user",
-      "content": "try opening all the affected files to see if you can spot something",
-      "_mid_turn": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 10] Let me open the files for streaming and the LiveSession's full picture in one go.",
-      "tool_calls": [
-        {
-          "id": "toolu_01K5egb36ZkWkpPAETNbmwJr",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"add\": [\"forge/runtime/streaming.py\", \"forge/llm/client.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01K5egb36ZkWkpPAETNbmwJr",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/runtime/streaming.py\", \"forge/llm/client.py\"], \"remove\": [], \"message\": \"Added 2 files, removed 0 files from context\"}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 11] I've got everything I need now. Let me state the explanation clearly.\n\n## The bug\n\nThis is a classic Qt thread-lifetime race, and the reason it shows up specifically on the **first tool call** falls out of the lifecycle once you stare at it.\n\n### The pipeline on a streaming-then-tool turn\n\nWhen the AI responds with a tool call (no prior tool calls in the conversation), we run two `QtTaskRunner.submit()`s back-to-back:\n\n1. **Stream submit** (Thread S): spawned in `_process_llm_request`. Runs `stream_to_events`. When the SSE stream ends, the worker emits `finished` \u2192 main thread queues `safe_result` \u2192 eventually runs `_on_stream_finished`. Then the worker emits `done` \u2192 runs `cleanup`.\n2. **Tool submit** (Thread T): spawned synchronously from inside `_on_stream_finished` \u2192 `_finish_stream_processing` \u2192 `_execute_tool_calls`.\n\n### Where `cleanup` actually runs\n\nThis is the part I want to nail down because it's the heart of it. From `QtTaskRunner.submit`:\n\n```python\nworker = _QtWorker(work, token)\nworker.moveToThread(thread)\n...\nworker.done.connect(cleanup)         # cleanup is a plain Python closure\n```\n\n`worker.done` is emitted from inside `_QtWorker.run`, which executes on Thread S (because the worker was `moveToThread`'d to Thread S). The receiver, `cleanup`, is a **bare Python callable** \u2014 not a slot on a QObject \u2014 so Qt uses a **direct connection**. `cleanup` therefore runs **on Thread S itself, synchronously inside the worker's `run()` call.**\n\nNow look at what `cleanup` does *while running on Thread S*:\n\n```python\ndef cleanup() -> None:\n    thread.quit()           # ask Thread S's event loop to exit\n    with self._lock:\n        self._threads = [...]   # drop runner's strong ref to (thread, worker, handle)\n    worker.deleteLater()    # posted to Thread S \u2014 fine, it owns worker\n    thread.deleteLater()    # posted to MAIN \u2014 main owns the QThread object\n```\n\nCrucially: `thread.deleteLater()` schedules the destruction of the `QThread` C++ object on **the main thread's event loop**, because that's where the `QThread` object lives (it was constructed on main inside `submit()`).\n\n### Now the timeline of the first tool call\n\nMain thread, emitting `_QtWorker` on Thread S:\n\n1. Thread S finishes SSE parsing, calls `self.finished.emit(result)` \u2192 queues `safe_result` to main (queued connection, since signal-emitter and slot-target are on different threads).\n2. Thread S calls `self.done.emit()` \u2192 **direct connection**, runs `cleanup` immediately on Thread S.\n3. `cleanup` calls `thread.quit()` (Thread S's exec loop will exit on next iteration), removes the tuple from `self._threads`, posts `deleteLater` for both worker (to Thread S) and `thread` (to main).\n4. `cleanup` returns. `_QtWorker.run` returns. Thread S's event loop notices the quit, exits `exec()`. Thread S's `QThread::run()` returns. **The native OS thread starts winding down \u2014 but this teardown is asynchronous and takes nonzero time.**\n\nMeanwhile main is processing the `safe_result` posted in step 1:\n\n5. `safe_result` \u2192 `_on_stream_finished` \u2192 (no inline commands) \u2192 `_finish_stream_processing` \u2192 `_execute_tool_calls` \u2192 `self._tasks.submit(work, ...)` for Thread T.\n6. `submit` for Thread T returns (it just spawns and starts a new QThread). Control returns up the stack to main's event loop.\n7. **Main's event loop now processes the next event: the `DeferredDelete` for Thread S's QThread object that step 3 posted.**\n\nQt's `DeferredDelete` handler calls `~QThread()`. `~QThread` checks `isRunning()`. **If the native OS thread for Thread S hasn't fully exited yet, Qt prints `QThread: Destroyed while thread '' is still running` and aborts.**\n\nThis is exactly the message and the abort the user reported.\n\n### Why specifically the *first* tool call\n\nThis is the part I want to be honest about, because the race exists structurally on every tool call. But it manifests reliably on the *first* one for two compounding reasons:\n\n**Reason 1 \u2014 The empty name (`thread ''`).**\nWe never call `thread.setObjectName(...)` anywhere. Qt's diagnostic prints whatever `QThread::objectName()` returns at the moment it complains. Both Thread S and Thread T are unnamed, so the message itself doesn't distinguish them. The user is seeing \"first tool call\" in terms of *visible behavior* (this is the first tool the assistant runs), but the QThread being destroyed prematurely is **Thread S, the streaming thread**, not the tool thread. That's why the print right before the abort is `\ud83d\udd27 PromptManager: Appending tool call #2 (1 calls)` \u2014 that line runs from `append_tool_call` inside `_finish_stream_processing`, which is exactly the work the main thread is doing *between* posting Thread S's `DeferredDelete` and returning to the event loop.\n\n**Reason 2 \u2014 The race window is widest right after stream completion.**\nStream finish and `done` are emitted back-to-back from the same `_QtWorker.run`. The first one is a queued post to main; the second runs `cleanup` *immediately* on Thread S. So `thread.deleteLater()` for Thread S is posted to main's queue **before main has even started executing `_on_stream_finished`**. By the time main returns to its event loop after running the whole `_on_stream_finished \u2192 _execute_tool_calls \u2192 submit` chain, the deletion is *next in line*, and Thread S has had only the duration of that synchronous chain to finish tearing down \u2014 typically just a few microseconds.\n\nOn *subsequent* tool calls, the same pattern repeats (stream finishes, tool submits), but Thread S has already been gone long enough that *its* QThread deletion has already been processed during some earlier event-loop spin. So you only get unlucky once per conversation \u2014 and that once is reliably the first tool call, because that's the first time the pattern fires after the conversation starts.\n\n### Why the SyncTaskRunner doesn't show this\n\n`SyncTaskRunner.submit` runs `work` inline on the calling thread, no QThread at all. None of the lifetime gymnastics apply, which is why all the tests pass cleanly.\n\n### Why current `cleanup` is structurally wrong\n\nTwo specific problems, in priority order:\n\n1. **`thread.deleteLater()` is called before the QThread has actually finished.** `quit()` only *requests* exit; it does not wait. The correct Qt pattern is to connect `QThread::finished` to `QThread::deleteLater` so the deletion only fires once the OS thread is actually done. Right now we post the deletion immediately from the worker, with no guarantee the thread's exec loop has even returned.\n\n2. **`worker.done` is a direct connection to a closure that calls `thread.quit()` from inside the thread itself.** That's fine on its own, but coupled with the deleteLater above, it means we're posting \"delete this QThread\" while the thread is *still inside `_QtWorker.run`*, which is *still on the stack*, which means `QThread::isRunning()` will absolutely return true when the DeferredDelete fires on main.\n\n### The fix shape (not applying yet \u2014 just stating it)\n\nThe idiomatic Qt pattern would be:\n\n```python\n# On worker thread, after work completes:\nthread.quit()                                    # request exec() to return\n# Don't call thread.deleteLater() here.\n\n# Wire up at submit time, on the main thread:\nworker.done.connect(thread.quit)                 # ask thread to stop\nthread.finished.connect(worker.deleteLater)      # delete worker once thread is done\nthread.finished.connect(thread.deleteLater)      # delete thread once it's actually finished\n```\n\n`QThread::finished` fires *after* `QThread::run()` has returned, which is *after* the OS thread is essentially done. Connecting `deleteLater` to `finished` is the documented safe pattern. Our current code skips that step and deletes from inside `cleanup`, which runs while the thread is still very much alive.\n\nThe current `cleanup` closure also juggles the runner's `_threads` bookkeeping; that part can stay, but the deletion of the QThread itself must move to a `thread.finished` handler.\n\n---\n\nDo you want me to apply the fix, or would you rather look at the explanation first and confirm the diagnosis? I'd lean toward fixing because the change is small and surgical, but you asked for explanation over fix so I'll wait."
-    },
-    {
-      "role": "system",
-      "content": "\u2705 Changes committed: 6013455b",
+      "content": "\u2705 Changes committed: 745055fc",
       "_ui_only": true
     },
     {
       "role": "user",
-      "content": "ah so your position is \"how could this ever have worked...?\" fair enough, if you think there's an obvious and correct fix let's do that and see if it comes back"
+      "content": "the reminder block has the replace syntax, right? I'm chasing a bug where you like to use the wrong replace syntax- <replace><with/></argument>."
     },
     {
       "role": "assistant",
-      "content": "[id 13] Yeah \u2014 \"how could this ever have worked\" is exactly my position. My honest guess is it *did* sometimes crash on shutdown or under valgrind/ASAN before, but the timing was usually generous enough that Thread S finished tearing down before main reached the DeferredDelete. Whatever changed (slower handler chain? more work in `append_tool_call`? different Qt version?) tightened the window.\n\nApplying the documented Qt pattern: connect `worker.done` \u2192 `thread.quit`, and connect `thread.finished` \u2192 both `deleteLater`s. That way the QThread C++ object only gets destroyed after the native thread has actually exited.\n\n<replace file=\"forge/runtime/tasks.py\">\n        worker.event.connect(safe_event)\n        worker.finished.connect(safe_result)\n        worker.failed.connect(safe_error)\n\n        # Cleanup on completion: quit the thread, schedule deletions,\n        # remove from tracking list.\n        def cleanup() -> None:\n            thread.quit()\n            with self._lock:\n                self._threads = [t for t in self._threads if t[0] is not thread]\n            worker.deleteLater()\n            thread.deleteLater()\n\n        worker.done.connect(cleanup)\n        thread.started.connect(worker.run)\n<with/>\n        worker.event.connect(safe_event)\n        worker.finished.connect(safe_result)\n        worker.failed.connect(safe_error)\n\n        # Thread teardown follows the documented Qt pattern:\n        #\n        #   worker.done   \u2500\u25ba thread.quit         (ask exec() to return)\n        #   thread.finished \u2500\u25ba worker.deleteLater (worker lives on thread,\n        #                                          deleted via thread's loop\n        #                                          before it actually exits)\n        #   thread.finished \u2500\u25ba thread.deleteLater (only after the OS thread\n        #                                          has fully finished)\n        #\n        # Previously we ran a `cleanup` closure directly off `worker.done`,\n        # which is emitted from inside `_QtWorker.run` \u2014 i.e. while the\n        # thread is *still* executing. That closure posted\n        # `thread.deleteLater()` to the main event loop immediately, and if\n        # main got back to its event loop before the native OS thread had\n        # finished winding down, Qt would destroy the QThread C++ object\n        # while the thread was still running:\n        #\n        #     QThread: Destroyed while thread '' is still running\n        #     Aborted\n        #\n        # The race is widest on the first tool call of a turn, where stream\n        # completion immediately submits a tool task synchronously, then\n        # returns to the event loop with Thread S's DeferredDelete already\n        # queued and only microseconds of OS-level teardown done.\n        #\n        # `thread.finished` fires *after* `QThread::run()` has returned, so\n        # connecting deleteLater to it is safe.\n        worker.done.connect(thread.quit)\n        thread.finished.connect(worker.deleteLater)\n        thread.finished.connect(thread.deleteLater)\n\n        # Bookkeeping: drop our strong reference once the thread is really\n        # done. Runs on the main thread (the runner's affinity), so the\n        # list mutation doesn't need the lock for thread-safety \u2014 but we\n        # keep it for symmetry with the append side.\n        def _forget_thread() -> None:\n            with self._lock:\n                self._threads = [t for t in self._threads if t[0] is not thread]\n\n        thread.finished.connect(_forget_thread)\n        thread.started.connect(worker.run)\n</replace>\n\nNow let me double-check there are no tests that depend on the exact cleanup timing, and run the suite:",
+      "content": "[id 6] Yes \u2014 that's exactly it. The REMINDER block at the end of your message carries a worked example of the `<replace>` syntax, and it shows the **correct** shape:\n\n```\n<replace file=\"path\">\ntext to find\n<with/>\nreplacement text\n</replace>\n```\n\nSo the canonical closing tags are `<with/>` (self-closing separator) and `</replace>` (block close).\n\nThe bug you're chasing \u2014 me emitting something like `<replace>...<with/>...</argument>` \u2014 is the wrong closer: `</argument>` instead of `</replace>`. That's almost certainly contamination from the **API tool-call mental model**, where parameters are wrapped in `<parameter name=\"...\">...</parameter>` (note the `</parameter>` closer). When the two schemas blur together, the inline `<replace>` block can get \"finished\" with a `</parameter>`/`</argument>`-style closer instead of the correct `</replace>`.\n\nA couple of observations that might help you pin it down:\n\n- **The system prompt and the REMINDER agree** on the correct syntax (`<with/>` + `</replace>`), so the guidance isn't self-contradictory. The wrong-closer bug is a generation slip, not a docs problem.\n- **The trigger is likely proximity to `<function_calls>` blocks.** When I've just made API tool calls (which use `<parameter>`/`</parameter>`), the very next `<replace>` is at higher risk of borrowing that closing-tag style. The \"`<replace>` is NOT an API tool call\" warning in the reminder is there precisely to fight this.\n- **Failure mode is loud, not silent** \u2014 per the system prompt, a malformed block (missing `<with/>`, wrong/missing closer) returns an explicit parse error rather than silently dropping the edit. So if the bug fires, the pipeline should stop and surface it.\n\nIf you want, I can help in a few concrete ways:\n1. **Stress-test the parser** \u2014 load `forge/tools/inline.py` (or wherever `parse_inline_commands` lives) and check whether a stray `</argument>`/`</parameter>` closer produces a clear error vs. some confusing partial parse.\n2. **Tighten the error message** so a wrong-closer mistake names the expected `</replace>` explicitly \u2014 that would make my own self-correction faster when I slip.\n3. **Check the reminder/system wording** to see if anything is nudging toward the `<parameter>` style.\n\nWant me to load the parser and the inline-edit tests and dig in?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: a38fc7e3",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hang on, can you change the reminder text to emphasize that inline replace calls need to be closed with </replace>? That might help already."
+    },
+    {
+      "role": "assistant",
+      "content": "I need to find where the reminder text is defined. Let me search for it.",
       "tool_calls": [
         {
-          "id": "toolu_01WDMR1VBpSuZ5TfJdjDjN9Y",
+          "id": "toolu_01EMTRRECwb3U8pKh4cHrW3M",
           "type": "function",
           "function": {
-            "name": "grep_context",
-            "arguments": "{\"pattern\": \"cleanup|_threads\", \"file\": \"tests/test_task_runner.py\", \"max_matches\": 5}"
+            "name": "grep_open",
+            "arguments": "{\"pattern\": \"Be Optimistic, Do Everything In One Response\"}"
           }
         }
-      ],
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EMTRRECwb3U8pKh4cHrW3M",
+      "content": "{\"success\": true, \"message\": \"Found 2 files matching 'Be Optimistic, Do Everything In One Response'\", \"matches\": [{\"filepath\": \"REVIEW2.md\", \"match_count\": 1, \"first_match\": \"Be Optimistic, Do Everything In One Response\"}, {\"filepath\": \"forge/prompts/manager.py\", \"match_count\": 1, \"first_match\": \"Be Optimistic, Do Everything In One Response\"}], \"action\": \"update_context\", \"add\": [\"REVIEW2.md\", \"forge/prompts/manager.py\"], \"remove\": []}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "I found it \u2014 `_format_inline_command_reminder()` in `forge/prompts/manager.py`. Let me update it to emphasize the closing tag. The reminder body itself contains `<replace>`/`<with/>`/`</replace>` literals, so I'll use a nonce on the edit block.\n\n<replace_zq7 file=\"forge/prompts/manager.py\">\nThe shape of a `<replace>` block \u2014 text to find, a self-closing `<with/>` separator, the\nreplacement, then a single `</replace>`:\n\n```\n<replace file=\"path\">\ntext to find\n<with/>\nreplacement text\n</replace>\n```\n<with_zq7/>\nThe shape of a `<replace>` block \u2014 text to find, a self-closing `<with/>` separator, the\nreplacement, then a single `</replace>`:\n\n```\n<replace file=\"path\">\ntext to find\n<with/>\nreplacement text\n</replace>\n```\n\n**The closing tag MUST be `</replace>`.** Not `</argument>`, not `</parameter>`, not\n`</with>`. A `<replace>` block is opened by `<replace ...>` and closed by `</replace>` \u2014\nthe same word. (`<parameter>`/`</parameter>` belongs to API tool calls, which are a\n*different* mechanism \u2014 never use that closer for an inline `<replace>`.) Likewise\n`<write ...>` is closed by `</write>`. Mismatched closers are a parse error.\n</replace_zq7>\n\n<commit message=\"Emphasize correct </replace> closing tag in inline command reminder\"/>\n\nDone. The reminder now explicitly calls out that the closer must be `</replace>` (not `</argument>`/`</parameter>`/`</with>`), explains *why* the confusion happens (the `</parameter>` closer belongs to the separate API tool-call mechanism), and adds the parallel note for `</write>`.\n\nThis directly targets the bug you described \u2014 the `<replace>...<with/>...</argument>` slip \u2014 by naming the wrong closers as anti-patterns right where the syntax is demonstrated. Worth seeing if it reduces the frequency before we consider hardening the parser's error message too.",
       "_inline_results": [
         {
           "success": true,
-          "filepath": "forge/runtime/tasks.py",
+          "filepath": "forge/prompts/manager.py",
           "modified_files": [
-            "forge/runtime/tasks.py"
+            "forge/prompts/manager.py"
           ],
           "side_effects": [
             "files_modified"
           ]
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01WDMR1VBpSuZ5TfJdjDjN9Y",
-      "content": "{\"success\": true, \"message\": \"No matches found for pattern: cleanup|_threads\", \"snippets\": [], \"total_matches\": 0, \"side_effects\": [\"ephemeral_result\"]}",
-      "_skip_display": true
-    },
-    {
-      "role": "assistant",
-      "content": "[id 15] Good \u2014 no tests reference `cleanup` or `_threads` internals, so the rename of bookkeeping logic won't break anything. Let me run the test suite to confirm nothing else regresses:\n\n<run_tests/>\n\nThe edit looks clean in the file content shown. The change in summary:\n\n- **Before:** A `cleanup` closure ran synchronously on the worker thread (via direct connection to `worker.done`), and it called `thread.deleteLater()` while the QThread's `run()` was still on the stack.\n- **After:** `worker.done` only asks the thread to quit. `thread.finished` (which fires *after* `QThread::run()` returns) drives both `deleteLater`s and the bookkeeping unregister.\n\nThis is the canonical Qt pattern documented at https://doc.qt.io/qt-6/qthread.html under \"Managing threads\" \u2014 exactly because of this class of race.\n\nTry a turn with a tool call and see if the abort comes back. If it does, the next thing I'd want to look at is whether anything *else* is constructing a `QThread` for the LLM pipeline (e.g. summary generation or request-log writes) that could be the actual culprit \u2014 but I'd bet on this being it.",
-      "_inline_results": [
+        },
         {
           "success": true,
-          "passed": false,
-          "test_command": "pytest",
-          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_qiv0_ih7\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollected 291 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py ..................                           [  7%]\ntests/test_code_regions.py ....................                          [ 14%]\ntests/test_compact_replay.py ......                                      [ 16%]\ntests/test_inline_edit.py ..........................................     [ 30%]\ntests/test_inline_executor.py ...                                        [ 31%]\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\ntests/test_llm_backend.py ................                               [ 37%]\ntests/test_markdown_renumber.py .......................                  [ 45%]\ntests/test_mermaid_repair.py .................                           [ 51%]\ntests/test_prompt_manager.py ........................................... [ 65%]\n..........                                                               [ 69%]\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\ntests/test_queued_messages.py ..........                                 [ 73%]\ntests/test_session_spawn.py .................                            [ 79%]\ntests/test_streaming_helper.py .......                                   [ 82%]\ntests/test_summary_exclusions.py ..........................              [ 91%]\ntests/test_task_runner.py ............                                   [ 95%]\ntests/test_tool_executor.py ..............                               [100%]\n\n============================= 291 passed in 1.76s ==============================\n",
-          "summary": "\u2713 Tests passed (pytest)",
-          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_qiv0_ih7\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollected 291 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py ..................                           [  7%]\ntests/test_code_regions.py ....................                          [ 14%]\ntests/test_compact_replay.py ......                                      [ 16%]\ntests/test_inline_edit.py ..........................................     [ 30%]\ntests/test_inline_executor.py ...                                        [ 31%]\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\ntests/test_llm_backend.py ................                               [ 37%]\ntests/test_markdown_renumber.py .......................                  [ 45%]\ntests/test_mermaid_repair.py .................                           [ 51%]\ntests/test_prompt_manager.py ........................................... [ 65%]\n..........                                                               [ 69%]\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\ntests/test_queued_messages.py ..........                                 [ 73%]\ntests/test_session_spawn.py .................                            [ 79%]\ntests/test_streaming_helper.py .......                                   [ 82%]\ntests/test_summary_exclusions.py ..........................              [ 91%]\ntests/test_task_runner.py ............                                   [ 95%]\ntests/test_tool_executor.py ..............                               [100%]\n\n============================= 291 passed in 1.76s ==============================\n",
+          "message": "Committed: 1 file(s) modified/created",
+          "commit": "814ff0fbad28",
           "side_effects": [
-            "has_display_output"
+            "mid_turn_commit"
           ]
         }
       ]
-    },
-    {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"tests/test_task_runner.py\",\n  \"max_matches\": 5,\n  \"pattern\": \"cleanup|_threads\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"No matches found for pattern: cleanup|_threads\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"snippets\": [],\n  \"success\": true,\n  \"total_matches\": 0\n}\n```",
-      "_ui_only": true
     }
   ],
   "parent_session": null,

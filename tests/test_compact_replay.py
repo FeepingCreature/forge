@@ -26,7 +26,9 @@ def mock_session_manager():
     sm.append_user_message = lambda content: pm.append_user_message(content)
     sm.append_assistant_message = lambda content: pm.append_assistant_message(content)
     sm.append_tool_call = lambda tc, content="": pm.append_tool_call(tc, content)
-    sm.append_tool_result = lambda tc_id, content: pm.append_tool_result(tc_id, content)
+    sm.append_tool_result = lambda tc_id, content, is_ephemeral=False: pm.append_tool_result(
+        tc_id, content, is_ephemeral
+    )
     sm.compact_messages = lambda from_id, to_id, summary: pm.compact_messages(
         from_id, to_id, summary
     )

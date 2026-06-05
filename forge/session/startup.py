@@ -77,7 +77,12 @@ def replay_messages_to_prompt_manager(
                 session_manager.append_assistant_message(content)
         elif role == "tool":
             tool_call_id = msg.get("tool_call_id", "")
-            session_manager.append_tool_result(tool_call_id, content)
+            # Restore ephemeral status persisted on the message dict. Without
+            # this, reloaded ephemeral tool results are never re-marked, so
+            # expire_ephemeral_results() can never replace them with a
+            # placeholder and they bloat context forever.
+            is_ephemeral = bool(msg.get("_ephemeral", False))
+            session_manager.append_tool_result(tool_call_id, content, is_ephemeral)
 
     # Now apply all compactions - all messages (including tool results) are in place
     for from_id, to_id, summary in deferred_compactions:

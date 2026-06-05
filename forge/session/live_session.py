@@ -1069,7 +1069,12 @@ class LiveSession(QObject):
             # Don't add to messages or prompt_manager - handled in _on_tools_all_finished
             pass
         else:
-            # Add tool result to messages
+            # Check if this is an ephemeral result
+            is_ephemeral = SideEffect.EPHEMERAL_RESULT in side_effects
+            # Add tool result to messages. Persist `_ephemeral` on the message
+            # dict so that on session reload, replay_messages_to_prompt_manager()
+            # can re-mark it ephemeral — otherwise reloaded ephemeral results
+            # would never be expired and would live in context permanently.
             result_json = json.dumps(result)
             self.add_message(
                 {
@@ -1077,10 +1082,9 @@ class LiveSession(QObject):
                     "tool_call_id": tool_call_id,
                     "content": result_json,
                     "_skip_display": True,
+                    "_ephemeral": is_ephemeral,
                 }
             )
-            # Check if this is an ephemeral result
-            is_ephemeral = SideEffect.EPHEMERAL_RESULT in side_effects
             self.session_manager.append_tool_result(tool_call_id, result_json, is_ephemeral)
 
         if SideEffect.FILES_MODIFIED in side_effects:

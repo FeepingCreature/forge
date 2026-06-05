@@ -1,7 +1,8 @@
 {
   "active_files": [
-    "forge/session/live_session.py",
     "CLAUDE.md",
+    "forge/session/live_session.py",
+    "forge/ui/ai_chat_widget.py",
     "forge/prompts/system.py"
   ],
   "request_log_entries": [
@@ -3631,6 +3632,33 @@
       "streaming": true,
       "actual_cost": 0.56047625,
       "generation_id": "gen-1780663516-TC8cIkLgd9plRKCsP1cE"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1780663582996.json",
+      "response_file": "/tmp/forge_debug/response_1780663582996.json",
+      "timestamp": 1780663582.99663,
+      "model": "~anthropic/claude-haiku-latest",
+      "streaming": false,
+      "actual_cost": 0.002799,
+      "generation_id": "gen-1780663583-c7wMubjk0cBU6NgaUO7l"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780663615372.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780663615372.json",
+      "timestamp": 1780663615.3755167,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.5481525,
+      "generation_id": "gen-1780663615-gFGMxxxlPEf13Glzwkho"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780663621197.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780663621197.json",
+      "timestamp": 1780663621.1998572,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.18493825,
+      "generation_id": "gen-1780663621-7l4uFY1eVfNvYxUKmYjI"
     }
   ],
   "messages": [
@@ -4196,6 +4224,72 @@
           "reason": "Testing the new terminate tool at the user's request \u2014 verifying it cleanly closes the session and blocks further input.",
           "side_effects": [
             "terminate_session"
+          ]
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 90 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "okay I've manually removed the state: completed from the session so we can keep going- a bug is when I tried to send a message, it said \"session is busy\" instead of \"session is terminated\"."
+    },
+    {
+      "role": "assistant",
+      "content": "Good \u2014 terminate clearly *worked* (it did land you in COMPLETED), so the discovery/wiring is sound. The bug you found is a UX/message ordering issue: when the session is terminated, `send_message` should say \"terminated,\" not \"busy.\"\n\nLet me look at where that user-facing message comes from. The `send_message` method itself just returns `False` \u2014 the \"session is busy\" string must be in the UI layer (the chat widget). Let me find it.",
+      "tool_calls": [
+        {
+          "id": "toolu_01GowdDBQNYopPtkJFsBDVZS",
+          "type": "function",
+          "function": {
+            "name": "grep_open",
+            "arguments": "{\"pattern\": \"[Ss]ession is busy|is busy|busy\", \"include_extensions\": [\".py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01GowdDBQNYopPtkJFsBDVZS",
+      "content": "{\"success\": true, \"message\": \"Found 2 files matching '[Ss]ession is busy|is busy|busy'\", \"matches\": [{\"filepath\": \"forge/session/live_session.py\", \"match_count\": 2, \"first_match\": \"session is busy\"}, {\"filepath\": \"forge/ui/ai_chat_widget.py\", \"match_count\": 1, \"first_match\": \"session is busy\"}], \"action\": \"update_context\", \"add\": [\"forge/session/live_session.py\", \"forge/ui/ai_chat_widget.py\"], \"remove\": []}",
+      "_skip_display": true
+    },
+    {
+      "role": "assistant",
+      "content": "Found it. The \"session is busy\" message is in `_send_message()` in `ai_chat_widget.py`. The problem: it has its *own* RUNNING check that queues, then calls `send_message()`, and if that returns `False` it blindly says \"busy\" \u2014 it has no idea the real reason was termination.\n\nThe fix: before the generic \"busy\" fallback, check whether the session is actually terminated/completed and show the right message. Let me also fix the stray `<with/>` lines in `system.py` while I'm here, since they're still live in the file.\n\nFirst, the chat widget message:\n\n<replace file=\"forge/ui/ai_chat_widget.py\">\n        # Send message through runner - it handles everything\n        # Skip workdir check since we already did it above with UI\n        if not self.runner.send_message(text, _skip_workdir_check=True):\n            self._add_system_message(\"\u26a0\ufe0f Cannot send message - session is busy\")\n            return\n<with/>\n        # Send message through runner - it handles everything\n        # Skip workdir check since we already did it above with UI\n        if not self.runner.send_message(text, _skip_workdir_check=True):\n            from forge.session.live_session import SessionState\n\n            if (\n                self.runner._turn_saw_terminate\n                or self.runner.state == SessionState.COMPLETED\n            ):\n                self._add_system_message(\n                    \"\ud83d\uded1 Session terminated \u2014 no further input accepted.\"\n                )\n            else:\n                self._add_system_message(\"\u26a0\ufe0f Cannot send message - session is busy\")\n            return\n</replace>\n\nNow fix the stray `<with/>` lines that are still live in `system.py`. The current broken region reads:\n\n<replace_fix1 file=\"forge/prompts/system.py\">\n**`scout`** \u2014 Ask a question across many files at once. Use this when you need to scan more files than you can practically load \u2014 \"which of these 20 files handles authentication?\" or \"what patterns do these modules use?\" Scout sends files to a smaller model, so it's for triage and understanding, not for files you're about to edit.\n\nReach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance \u2014 never as a reflex before loading a file you already know you need.\n\n### Batch Operations\n<with/>\n\n### Batch Operations\n<with/>\n**Decision rule:** the expensive thing in Forge is the *round-trip*, not context size (loaded files are cached and effectively free across turns). So the default is **load the file** (`update_context` / `grep_open`). Reach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance \u2014 never as a reflex before loading a file you already know you need.\n\n### Batch Operations\n<with/>\nReach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance \u2014 never as a reflex before loading a file you already know you need.\n\n### Batch Operations\n<with/>\n\n### Batch Operations\n<with_fix1/>\n**`scout`** \u2014 Ask a question across many files at once. Use this when you need to scan more files than you can practically load \u2014 \"which of these 20 files handles authentication?\" or \"what patterns do these modules use?\" Scout sends files to a smaller model, so it's for triage and understanding, not for files you're about to edit.\n\n**Decision rule:** the expensive thing in Forge is the *round-trip*, not context size (loaded files are cached and effectively free across turns). So the default is **load the file** (`update_context` / `grep_open`). Reach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance \u2014 never as a reflex before loading a file you already know you need.\n\n### Batch Operations\n</replace_fix1>\n\n<run_tests/>\n\nDone. Two fixes in this turn:\n\n**1. The terminate-vs-busy message bug** (`forge/ui/ai_chat_widget.py`)\n\nThe root cause: `_send_message()` treats *any* `False` from `send_message()` as \"busy.\" It had no way to distinguish \"RUNNING, try later\" from \"COMPLETED, never again.\" Now, when `send_message()` returns `False`, it checks the session state first:\n- terminated/`COMPLETED` \u2192 \"\ud83d\uded1 Session terminated \u2014 no further input accepted.\"\n- anything else \u2192 the original \"busy\" message.\n\nNote there's a subtlety worth flagging: `_send_message()` has its *own* `state == RUNNING` early-return that queues the message before ever calling `runner.send_message()`. That's fine for terminate (a terminated session is `COMPLETED`, not `RUNNING`, so it falls through to the real call and gets the new message). But it does mean the UI's queue-on-RUNNING path duplicates logic that also lives in `send_message()` \u2014 not something to fix now, just noting the two-layered check.\n\n**2. The stray `<with/>` lines** (`forge/prompts/system.py`)\n\nThese were left over from message [id 24]'s edit and survived the failed cleanup in [id 27]. I collapsed the whole mangled region \u2014 four literal `<with/>` lines and three duplicate \"### Batch Operations\" headers \u2014 back into a single clean `scout` paragraph \u2192 `Decision rule` \u2192 `### Batch Operations`. I used a nonced block (`_fix1`) here precisely because the body contains literal `<with/>` tokens, which is the case the nonce mechanism exists for.\n\n---\n\nOne heads-up: **context is at 88.3k and the stats flag compaction as strongly recommended** \u2014 conversation alone is 28.4k. If you want, I can `compact` the early messages (the terminate-tool build, [id 8] through ~[id 19]) into a summary, since that work is done and committed. Want me to do that, or keep going as-is?",
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "forge/ui/ai_chat_widget.py",
+          "modified_files": [
+            "forge/ui/ai_chat_widget.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "filepath": "forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        },
+        {
+          "success": true,
+          "passed": false,
+          "test_command": "pytest",
+          "output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_0d572qok\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollected 291 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py ..................                           [  7%]\ntests/test_code_regions.py ....................                          [ 14%]\ntests/test_compact_replay.py ......                                      [ 16%]\ntests/test_inline_edit.py ..........................................     [ 30%]\ntests/test_inline_executor.py ...                                        [ 31%]\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\ntests/test_llm_backend.py ................                               [ 37%]\ntests/test_markdown_renumber.py .......................                  [ 45%]\ntests/test_mermaid_repair.py .................                           [ 51%]\ntests/test_prompt_manager.py ........................................... [ 65%]\n..........                                                               [ 69%]\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\ntests/test_queued_messages.py ..........                                 [ 73%]\ntests/test_session_spawn.py .................                            [ 79%]\ntests/test_streaming_helper.py .......                                   [ 82%]\ntests/test_summary_exclusions.py ..........................              [ 91%]\ntests/test_task_runner.py ............                                   [ 95%]\ntests/test_tool_executor.py ..............                               [100%]\n\n============================= 291 passed in 1.57s ==============================\n",
+          "summary": "\u2713 Tests passed (pytest)",
+          "display_output": "============================= test session starts ==============================\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\nrootdir: /tmp/forge_vfs_0d572qok\nconfigfile: pyproject.toml\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\ncollected 291 items\n\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\ntests/test_clear_session.py ..................                           [  7%]\ntests/test_code_regions.py ....................                          [ 14%]\ntests/test_compact_replay.py ......                                      [ 16%]\ntests/test_inline_edit.py ..........................................     [ 30%]\ntests/test_inline_executor.py ...                                        [ 31%]\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\ntests/test_llm_backend.py ................                               [ 37%]\ntests/test_markdown_renumber.py .......................                  [ 45%]\ntests/test_mermaid_repair.py .................                           [ 51%]\ntests/test_prompt_manager.py ........................................... [ 65%]\n..........                                                               [ 69%]\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\ntests/test_queued_messages.py ..........                                 [ 73%]\ntests/test_session_spawn.py .................                            [ 79%]\ntests/test_streaming_helper.py .......                                   [ 82%]\ntests/test_summary_exclusions.py ..........................              [ 91%]\ntests/test_task_runner.py ............                                   [ 95%]\ntests/test_tool_executor.py ..............                               [100%]\n\n============================= 291 passed in 1.57s ==============================\n",
+          "side_effects": [
+            "has_display_output"
           ]
         }
       ]

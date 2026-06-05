@@ -702,7 +702,17 @@ class AIChatWidget(QWidget):
         # Send message through runner - it handles everything
         # Skip workdir check since we already did it above with UI
         if not self.runner.send_message(text, _skip_workdir_check=True):
-            self._add_system_message("⚠️ Cannot send message - session is busy")
+            from forge.session.live_session import SessionState
+
+            if (
+                self.runner._turn_saw_terminate
+                or self.runner.state == SessionState.COMPLETED
+            ):
+                self._add_system_message(
+                    "🛑 Session terminated — no further input accepted."
+                )
+            else:
+                self._add_system_message("⚠️ Cannot send message - session is busy")
             return
 
     def _update_streaming_tool_calls(self) -> None:

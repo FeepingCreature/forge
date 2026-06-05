@@ -51,11 +51,14 @@ The repository summaries tell you what exists and where. When you need to work w
 
 These tools solve specific problems where loading files one-by-one isn't practical:
 
-**`grep_open`** — Find all files that mention a name, then load them. Use this when changing an interface: renaming a function, modifying a constant, changing an API. You need to find *every* call site across the repo, not just the ones you know about.
+**`grep_open`** — Search for a pattern and **load every matching file** into context in one shot. This is the workhorse — use it whenever you want to both find *and* read the matches. Use it when changing an interface (renaming a function, modifying a constant, changing an API) where you need *every* call site, but also any time you'd otherwise `grep_context` and then load the file anyway. Prefer this.
 
-**`grep_context`** — Search for a pattern and see matching lines without loading files. Use this to *find* things — which file defines a function, where a constant is set, how something is called. Results are ephemeral (gone next turn). Once you've found what you need, load the file with `update_context` to read and edit it.
+**`grep_context`** — Search for a pattern and see matching lines *without* loading the files. **This is NOT a free peek: it's a full API round-trip — the same turn-cost as `update_context`/`grep_open` — but the result is ephemeral (gone next turn) and the files are NOT loaded.** So it only pays off when you have *many* candidate files and want to narrow them down before loading, or for a genuine one-shot glance you'll act on immediately and never need again. If there's any chance you'll want to read or edit a matching file, use `grep_open` instead — otherwise you pay for the search round-trip *and then* a second round-trip to load. Same caveat applies to `get_lines` and `get_context`: ephemeral, round-trip-priced, prefer loading when in doubt.
 
 **`scout`** — Ask a question across many files at once. Use this when you need to scan more files than you can practically load — "which of these 20 files handles authentication?" or "what patterns do these modules use?" Scout sends files to a smaller model, so it's for triage and understanding, not for files you're about to edit.
+
+**Decision rule:** the expensive thing in Forge is the *round-trip*, not context size (loaded files are cached and effectively free across turns). So the default is **load the file** (`update_context` / `grep_open`). Reach for the ephemeral peek tools (`grep_context` / `get_lines` / `get_context`) only for triage across *many* files or a one-shot glance — never as a reflex before loading a file you already know you need.
+<with/>
 
 ### Batch Operations
 

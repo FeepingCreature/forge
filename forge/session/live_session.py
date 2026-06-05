@@ -257,6 +257,12 @@ class LiveSession(QObject):
         # set (i.e. the assistant invoked the `done` inline tool).
         self._turn_saw_end_turn: bool = False
 
+        # Whether any tool in this turn declared SideEffect.TERMINATE_SESSION.
+        # When set, the turn finishes into SessionState.COMPLETED instead of
+        # IDLE, and send_message() refuses further input. This is a hard stop
+        # invoked via the built-in `terminate` tool.
+        self._turn_saw_terminate: bool = False
+
         # In-flight task handles. None when no task running for that slot.
         self._stream_handle: TaskHandle | None = None
         self._tool_handle: TaskHandle | None = None
@@ -485,6 +491,11 @@ class LiveSession(QObject):
                           (used when message is already in loaded session.json)
             _skip_workdir_check: If True, skip workdir state check (for internal use)
         """
+        # A terminated session is COMPLETED and refuses all further input,
+        # including messages that would otherwise queue during RUNNING.
+        if self._turn_saw_terminate or self._state == SessionState.COMPLETED:
+            return False
+
         if self._state == SessionState.RUNNING:
             # Queue the message
             self._queued_message = text
@@ -521,6 +532,7 @@ class LiveSession(QObject):
         # Reset turn tracking
         self._turn_executed_tool_ids = set()
         self._turn_saw_end_turn = False
+        self._turn_saw_terminate = False
         self._cancel_requested = False
 
         # Start processing
@@ -913,6 +925,9 @@ class LiveSession(QObject):
         if SideEffect.END_TURN in side_effects:
             self._turn_saw_end_turn = True
 
+        if SideEffect.TERMINATE_SESSION in side_effects:
+            self._turn_saw_terminate = True
+
         is_mid_turn_commit = SideEffect.MID_TURN_COMMIT in side_effects or (
             cmd and cmd.tool_name == "commit" and result.get("success")
         )
@@ -936,6 +951,22 @@ class LiveSession(QObject):
             for filepath in self._newly_created_files:
                 self.session_manager.generate_summary_for_file(filepath)
             self._newly_created_files.clear()
+
+        # If terminate was requested, end the session now: skip queued-message
+        # injection and the require-done loop, commit, and finish into
+        # COMPLETED so no further input is accepted.
+        if self._turn_saw_terminate:
+            self._queued_message = None
+            self.state = SessionState.COMPLETED
+            commit_oid = self.session_manager.commit_ai_turn(
+                self.messages, session_metadata=self.get_session_metadata()
+            )
+            self._emit_event(TurnFinishedEvent(commit_oid))
+            if self.parent_session:
+                from forge.session.registry import SESSION_REGISTRY
+
+                SESSION_REGISTRY.notify_child_updated(self.branch_name)
+            return
 
         # Check for queued message before finishing the turn.
         # Without this, text-only responses (no tool calls) would commit
@@ -1068,6 +1099,9 @@ class LiveSession(QObject):
         if SideEffect.END_TURN in side_effects:
             self._turn_saw_end_turn = True
 
+        if SideEffect.TERMINATE_SESSION in side_effects:
+            self._turn_saw_terminate = True
+
         # Handle compact tool
         if result.get("compact") and result.get("success"):
             from_id = result.get("from_id", "")
@@ -1193,6 +1227,22 @@ class LiveSession(QObject):
         place for this check — all paths that continue the conversation
         after inline commands or API tools funnel through here.
         """
+        # If terminate was requested at any point this turn, stop now: don't
+        # loop back to the LLM or inject queued input. Commit and finish into
+        # COMPLETED so no further input is accepted.
+        if self._turn_saw_terminate:
+            self._queued_message = None
+            self.state = SessionState.COMPLETED
+            commit_oid = self.session_manager.commit_ai_turn(
+                self.messages, session_metadata=self.get_session_metadata()
+            )
+            self._emit_event(TurnFinishedEvent(commit_oid))
+            if self.parent_session:
+                from forge.session.registry import SESSION_REGISTRY
+
+                SESSION_REGISTRY.notify_child_updated(self.branch_name)
+            return
+
         if self._queued_message:
             queued = self._queued_message
             self._queued_message = None

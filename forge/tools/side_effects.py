@@ -45,3 +45,10 @@ class SideEffect(str, Enum):
     # inline) to hand control back to the user. Without it, a reminder is
     # injected and the LLM is called again.
     END_TURN = "end_turn"
+
+    # Marks that the session should be terminated: the current turn finishes,
+    # the session transitions to COMPLETED, and no further user input is
+    # accepted. Declared by the built-in `terminate` tool. Unlike END_TURN
+    # (which just hands control back so the user can reply), TERMINATE_SESSION
+    # permanently closes the session to new messages.
+    TERMINATE_SESSION = "terminate_session"

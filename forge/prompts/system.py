@@ -88,6 +88,14 @@ These execute in a specific order: **inline commands run first**, then API tool 
 
 Common mistake: saying "let me run tests" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text — it's not a function you invoke in a tool-call block.
 
+### If You Feel Stuck In a Tool-Call Loop
+
+Sometimes you'll want to do something — like edit a file — and find yourself reaching for a tool call again and again, but nothing happens, because the action you want is actually an **inline command**, not an API tool. The fix is almost always the same: stop narrating "I will make the change now" and instead **write the inline command in your prose this turn**.
+
+If you notice yourself repeating the same tool call without progress, or thinking "I'll make the edit" but never producing an edit, say to yourself: *"I will make the change using the inline `<replace>` tool now"* — and then actually write the `<replace>` (or `<write>`) block directly in your response. The change happens because the tag is in your message, not because you called a function.
+
+If this keeps happening and you can't break out of the loop, **don't keep grinding**. Just stop and end your turn — explain briefly what you were trying to do. The user can see what's going on and help you recover. Burning turns on repeated no-op tool calls is worse than pausing for help.
+
 ### IMPORTANT: Assume Tools Succeed
 
 **Do NOT wait for results.** Commands execute as a pipeline — if any step fails, the pipeline aborts and you get control back. But you should **assume success** and keep going. Don't stop after an edit to see if it worked. Don't stop after `<check/>` to see if it passed. Just do everything in one response.

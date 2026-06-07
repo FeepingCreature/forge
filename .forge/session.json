@@ -1,5 +1,8 @@
 {
-  "active_files": [],
+  "active_files": [
+    "forge/prompts/system.py",
+    "CLAUDE.md"
+  ],
   "request_log_entries": [
     {
       "request_file": "/tmp/forge_debug/request_stream_1776891819499.json",
@@ -3816,6 +3819,109 @@
       "streaming": false,
       "actual_cost": 0.003767,
       "generation_id": "gen-1780663852-H9DGPkP74GMstwBsMk8J"
+<<<<<<< HEAD
+=======
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780871531803.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780871531803.json",
+      "timestamp": 1780871531.8069437,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.2933725,
+      "generation_id": "gen-1780871532-n52GoCvehQfKchqDJnZQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780871535124.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780871535124.json",
+      "timestamp": 1780871535.1253312,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.20135875,
+      "generation_id": "gen-1780871535-fzHKQwWVejt9dDA07sw2"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1780871538619.json",
+      "response_file": "/tmp/forge_debug/response_stream_1780871538619.json",
+      "timestamp": 1780871538.620957,
+      "model": "anthropic/claude-opus-4.8",
+      "streaming": true,
+      "actual_cost": 0.0763725,
+      "generation_id": "gen-1780871538-wHWiyMoIdSbVifNBIHLF"
+    }
+  ],
+  "messages": [
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 89 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hi! can you add some guidance to the system prompt... there's an issue where the llm can get looped into tool calls but there are no tool calls to do what it wants because the action is an inline command.\nSomething like, If you notice yourself repeating pointless toolcalls, try to say \"I will make the change using the inline replace tool now\" instead of \"I will make the change now\". If it keeps happening, don't worry and just end your turn; the user can help you recover.\""
+    },
+    {
+      "role": "assistant",
+      "content": "Let me look at the system prompt to find the right place to add this guidance.",
+      "tool_calls": [
+        {
+          "id": "toolu_01S3Wa7soKLkANbchRGWYUF4",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"add\": [\"forge/prompts/system.py\"], \"remove\": [\"forge/session/live_session.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01S3Wa7soKLkANbchRGWYUF4",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/prompts/system.py\"], \"remove\": [\"forge/session/live_session.py\"], \"message\": \"Added 1 files, removed 1 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "I'll add this guidance to the system prompt. The \"Work In Progress\" section is a natural place, but I think it fits best near the \"Inline Commands vs API Tool Calls\" section since that's where the confusion arises. Let me add a focused subsection there.",
+      "tool_calls": [
+        {
+          "id": "toolu_01L3Q4YN23oXSRBPyiMBNsFB",
+          "type": "function",
+          "function": {
+            "name": "grep_context",
+            "arguments": "{\"pattern\": \"Common mistake: saying \\\"let me run tests\\\"\", \"file\": \"forge/prompts/system.py\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01L3Q4YN23oXSRBPyiMBNsFB",
+      "content": "{\"success\": true, \"message\": \"Found 1 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/system.py:89 \\u2500\\u2500\\n      86 | \\n      87 | These execute in a specific order: **inline commands run first**, then API tool calls. When you want to do both in one response, put inline commands in your prose, then make API calls.\\n      88 | \\n>>>   89 | Common mistake: saying \\\"let me run tests\\\" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text \\u2014 it's not a function you invoke in a tool-call block.\\n      90 | \\n      91 | ### IMPORTANT: Assume Tools Succeed\\n      92 | \", \"total_matches\": 1, \"side_effects\": [\"ephemeral_result\"]}",
+      "_skip_display": true,
+      "_ephemeral": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/prompts/system.py\",\n  \"pattern\": \"Common mistake: saying \\\"let me run tests\\\"\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 1 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/system.py:89 \\u2500\\u2500\\n      86 | \\n      87 | These execute in a specific order: **inline commands run first**, then API tool calls. When you want to do both in one response, put inline commands in your prose, then make API calls.\\n      88 | \\n>>>   89 | Common mistake: saying \\\"let me run tests\\\" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text \\u2014 it's not a function you invoke in a tool-call block.\\n      90 | \\n      91 | ### IMPORTANT: Assume Tools Succeed\\n      92 | \",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 1\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 4] I'll add the guidance right after the \"Common mistake\" line in the Inline Commands section.\n\n<replace file=\"forge/prompts/system.py\">\nCommon mistake: saying \"let me run tests\" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text \u2014 it's not a function you invoke in a tool-call block.\n<with/>\nCommon mistake: saying \"let me run tests\" while only making an `update_context` call. If you want `<run_tests/>`, you must write it in your response text \u2014 it's not a function you invoke in a tool-call block.\n\n### If You Feel Stuck In a Tool-Call Loop\n\nSometimes you'll want to do something \u2014 like edit a file \u2014 and find yourself reaching for a tool call again and again, but nothing happens, because the action you want is actually an **inline command**, not an API tool. The fix is almost always the same: stop narrating \"I will make the change now\" and instead **write the inline command in your prose this turn**.\n\nIf you notice yourself repeating the same tool call without progress, or thinking \"I'll make the edit\" but never producing an edit, say to yourself: *\"I will make the change using the inline `<replace>` tool now\"* \u2014 and then actually write the `<replace>` (or `<write>`) block directly in your response. The change happens because the tag is in your message, not because you called a function.\n\nIf this keeps happening and you can't break out of the loop, **don't keep grinding**. Just stop and end your turn \u2014 explain briefly what you were trying to do. The user can see what's going on and help you recover. Burning turns on repeated no-op tool calls is worse than pausing for help.\n</replace>\n\nAdded a new subsection \"If You Feel Stuck In a Tool-Call Loop\" right after the inline-vs-API \"Common mistake\" note. It tells the LLM to (1) reframe its intent as \"I will make the change using the inline `<replace>` tool now\" and actually emit the tag, and (2) if the loop persists, stop and end the turn so the user can help recover.",
+      "_inline_results": [
+        {
+          "success": true,
+          "filepath": "forge/prompts/system.py",
+          "modified_files": [
+            "forge/prompts/system.py"
+          ],
+          "side_effects": [
+            "files_modified"
+          ]
+        }
+      ]
     }
   ],
   "messages": [],

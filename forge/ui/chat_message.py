@@ -64,6 +64,7 @@ class ChatMessage:
         tool_results: dict[str, dict[str, Any]],
         handled_approvals: set[str],
         is_streaming: bool = False,
+        inline_enabled: bool = True,
     ) -> str:
         """Render this message as HTML.
 
@@ -71,6 +72,9 @@ class ChatMessage:
             tool_results: Map of tool_call_id -> parsed result dict
             handled_approvals: Set of tool names that have been approved/rejected
             is_streaming: Whether this is the currently streaming message
+            inline_enabled: When False, inline text-parsing is off — don't render
+                           `<replace>`/`<write>` blocks in prose as tool cards
+                           (they didn't execute); show them as literal text.
 
         Returns:
             HTML string for this message
@@ -83,7 +87,11 @@ class ChatMessage:
             tool_calls_html = self._render_tool_calls(tool_results)
 
         # Render content with markdown, handling any <edit> blocks as diffs
-        content = render_markdown(self.content, inline_results=self.inline_results)
+        content = render_markdown(
+            self.content,
+            inline_results=self.inline_results,
+            inline_enabled=inline_enabled,
+        )
 
         # Append approval buttons (rendered as raw HTML, outside markdown)
         approval_html = ""

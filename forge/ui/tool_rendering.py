@@ -1143,6 +1143,7 @@ def _preserve_ordered_list_numbers(markdown_src: str, html_out: str) -> str:
 def render_markdown(
     content: str,
     inline_results: list[dict[str, object]] | None = None,
+    inline_enabled: bool = True,
 ) -> str:
     """
     Render markdown content to HTML, handling inline commands as tool cards.
@@ -1156,6 +1157,11 @@ def render_markdown(
         content: Markdown text that may contain inline commands
         inline_results: Optional list of execution results for inline commands,
                        indexed by command order in the content
+        inline_enabled: When False, inline text-parsing is off — the model's
+                       `<replace>`/`<write>`/etc. blocks were NOT executed this
+                       turn, so we must NOT render them as tool cards (that would
+                       imply they ran). Instead render the whole message as plain
+                       markdown with the raw tags escaped to literal text.
 
     Returns:
         HTML string with markdown rendered and inline commands as tool cards
@@ -1182,6 +1188,17 @@ def render_markdown(
             "lang_prefix": "language-",
         }
     }
+
+    # When inline text-parsing is disabled, the inline commands in the prose
+    # never ran — so don't dress them up as tool cards. Render the whole
+    # message as plain markdown, escaping raw tags so they show as literal text.
+    if not inline_enabled:
+        rendered = md.markdown(
+            _escape_raw_html(content),
+            extensions=md_extensions,
+            extension_configs=md_extension_configs,
+        )
+        return _preserve_ordered_list_numbers(content, rendered)
 
     inline_tools = discover_inline_tools()
     code_regions = _build_code_regions(content)
@@ -1394,7 +1411,7 @@ def _render_generic_inline_html(
     """
 
 
-def render_streaming_edits(content: str) -> str:
+def render_streaming_edits(content: str, inline_enabled: bool = True) -> str:
     """
     Render streaming content with partial inline command support.
 
@@ -1405,10 +1422,18 @@ def render_streaming_edits(content: str) -> str:
 
     Args:
         content: Streaming text that may contain partial inline commands
+        inline_enabled: When False, inline parsing is off — don't render inline
+                       command tool cards (they won't execute). Just escape the
+                       streaming text and show it as-is.
 
     Returns:
         HTML with inline commands rendered as tool cards, other text escaped
     """
+    # Inline parsing disabled — the tags won't run, so show the raw streaming
+    # text escaped rather than rendering misleading tool cards.
+    if not inline_enabled:
+        return html.escape(content.rstrip())
+
     from forge.tools.invocation import (
         _build_code_regions,
         _inside_code_region,

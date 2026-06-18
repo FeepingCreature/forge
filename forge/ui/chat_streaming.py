@@ -331,11 +331,14 @@ def build_collapse_thought_js() -> str:
     """
 
 
-def build_streaming_chunk_js(streaming_content: str) -> str:
+def build_streaming_chunk_js(streaming_content: str, inline_enabled: bool = True) -> str:
     """Build JavaScript to update the streaming message with new content.
 
     Args:
         streaming_content: The accumulated streaming content so far
+        inline_enabled: When False, inline text-parsing is off — `<replace>`/
+                       `<write>` blocks won't execute, so don't render them as
+                       diff/write previews. Let them fall through to plain text.
 
     Returns:
         JavaScript code to execute in the web view
@@ -346,7 +349,9 @@ def build_streaming_chunk_js(streaming_content: str) -> str:
     # Check if we have any inline edit blocks (<replace> or <write>) in the
     # accumulated content. Catches both plain and nonced forms (e.g.
     # <replace_x9k>, <write_q42>) since both start with the bare tag prefix.
-    if "<replace" in display_content or "<write" in display_content:
+    # Skipped entirely when inline parsing is disabled — those tags won't run,
+    # so we render them as ordinary streaming text instead of edit previews.
+    if inline_enabled and ("<replace" in display_content or "<write" in display_content):
         # Render inline edits as diff views / write previews
         rendered_html = render_streaming_edits(display_content)
         escaped_html = escape_for_js(rendered_html)

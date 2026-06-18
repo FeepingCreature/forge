@@ -791,10 +791,22 @@ class AIChatWidget(QWidget):
         js_code = build_queued_message_js(text)
         self.chat_view.page().runJavaScript(js_code)
 
+    def _inline_enabled(self) -> bool:
+        """Whether inline XML command text-parsing is on for this session.
+
+        When off, `<replace>`/`<write>` blocks in assistant prose did NOT
+        execute, so we render them as literal text rather than tool cards.
+        """
+        return bool(
+            self.runner.session_manager.settings.get("llm.inline_tools_enabled", True)
+        )
+
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""
         # streaming_content is already updated in _on_stream_chunk before this is called
-        js_code = build_streaming_chunk_js(self.runner.streaming_content)
+        js_code = build_streaming_chunk_js(
+            self.runner.streaming_content, inline_enabled=self._inline_enabled()
+        )
         self.chat_view.page().runJavaScript(js_code)
 
     def _finalize_streaming_content(self) -> None:
@@ -805,7 +817,9 @@ class AIChatWidget(QWidget):
         # Convert markdown to HTML, preserving <edit> blocks as diff views
         from forge.ui.chat_streaming import escape_for_js
 
-        content_html = render_markdown(self.runner.streaming_content)
+        content_html = render_markdown(
+            self.runner.streaming_content, inline_enabled=self._inline_enabled()
+        )
         escaped_html = escape_for_js(content_html)
 
         # Replace streaming content with rendered markdown
@@ -946,7 +960,12 @@ class AIChatWidget(QWidget):
 
                 # Render the message
                 html_parts.append(
-                    msg.render_html(tool_results, self.handled_approvals, is_streaming_msg)
+                    msg.render_html(
+                        tool_results,
+                        self.handled_approvals,
+                        is_streaming_msg,
+                        inline_enabled=self._inline_enabled(),
+                    )
                 )
 
             # Add turn actions at bottom - but not for streaming turns or first turn

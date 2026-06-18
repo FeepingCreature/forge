@@ -677,11 +677,21 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
         full = json.loads(args_str)
         if isinstance(full, dict) and isinstance(full.get("edits"), list):
             return [e for e in full["edits"] if isinstance(e, dict)]
+        # Bare top-level array — some providers deliver the `edits` value
+        # directly as the arguments payload.
+        if isinstance(full, list):
+            return [e for e in full if isinstance(e, dict)]
         # Single-edit shape (inline dispatcher / legacy) — wrap it.
         if isinstance(full, dict) and ("search" in full or "content" in full):
             return [full]
     except json.JSONDecodeError:
         pass
+
+    # Partial path for a bare top-level array: no `"edits"` key to anchor on,
+    # so scan for balanced objects starting right after the leading `[`.
+    stripped = args_str.lstrip()
+    if stripped.startswith("[") and '"edits"' not in args_str:
+        return _scan_array_objects(args_str, args_str.find("[") + 1)
 
     # Partial path: find the `edits` array and parse complete `{...}` objects
     # out of it one at a time. We scan for balanced top-level braces (ignoring
@@ -693,8 +703,19 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
     if bracket == -1:
         return []
 
+    return _scan_array_objects(args_str, bracket + 1)
+
+
+def _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:
+    """Scan from `start` for balanced top-level `{...}` objects in an array.
+
+    Parses each complete object with json.loads, and extracts the trailing
+    still-streaming object's fields with the flat partial-JSON parser so the
+    user sees it forming live. Shared by the `{"edits": [...]}` and the bare
+    `[...]` argument shapes.
+    """
     entries: list[dict[str, object]] = []
-    i = bracket + 1
+    i = start
     depth = 0
     obj_start = -1
     in_string = False
@@ -892,8 +913,12 @@ def render_completed_tool_html(
     """
     if name == "edit":
         # Completed `edit` tool call — render each entry as a finished diff /
-        # write card. Accept both the `edits` array and the single-edit shape.
-        if isinstance(args.get("edits"), list):
+        # write card. Accept the `{"edits": [...]}` object, a bare top-level
+        # `[...]` array (some providers deliver the array directly), and the
+        # single-edit shape.
+        if isinstance(args, list):
+            entries = [e for e in args if isinstance(e, dict)]
+        elif isinstance(args.get("edits"), list):
             entries = [e for e in args["edits"] if isinstance(e, dict)]
         else:
             entries = [args]

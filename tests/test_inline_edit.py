@@ -528,6 +528,77 @@ class TestStreamingPartialReplace:
         assert _render_partial_replace("") is None
 
 
+class TestStreamingEditToolArguments:
+    """Test _parse_partial_edits across the argument shapes the provider sends.
+
+    The `edit` tool's arguments can arrive as:
+      - the `{"edits": [...]}` object the schema describes,
+      - a bare top-level `[...]` array (some providers deliver the array value
+        directly as the arguments payload), or
+      - a single-edit shape from the inline dispatcher.
+    All three must yield the same entries so the diff renderer shows content
+    instead of the "Waiting for content..." placeholder.
+    """
+
+    def test_complete_edits_object(self):
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = '{"edits": [{"filepath": "a.py", "search": "x", "replace": "y"}]}'
+        entries = _parse_partial_edits(args)
+        assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
+
+    def test_complete_bare_array(self):
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = '[{"filepath": "a.py", "search": "x", "replace": "y"}]'
+        entries = _parse_partial_edits(args)
+        assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
+
+    def test_complete_bare_array_multiple(self):
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = (
+            '[{"filepath": "a.py", "search": "x", "replace": "y"}, '
+            '{"filepath": "b.py", "content": "hi"}]'
+        )
+        entries = _parse_partial_edits(args)
+        assert len(entries) == 2
+        assert entries[0]["filepath"] == "a.py"
+        assert entries[1]["filepath"] == "b.py"
+        assert entries[1]["content"] == "hi"
+
+    def test_partial_bare_array_first_object_complete(self):
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        # Mid-stream: first object closed, second still forming.
+        args = (
+            '[{"filepath": "a.py", "search": "x", "replace": "y"}, '
+            '{"filepath": "b.py", "search": "par'
+        )
+        entries = _parse_partial_edits(args)
+        assert len(entries) == 2
+        assert entries[0] == {"filepath": "a.py", "search": "x", "replace": "y"}
+        assert entries[1]["filepath"] == "b.py"
+        assert entries[1]["search"] == "par"
+
+    def test_bare_array_renders_diff_not_placeholder(self):
+        from forge.ui.tool_rendering import render_completed_tool_html
+
+        # The completed path may receive a parsed list (bare array shape).
+        args = [{"filepath": "a.py", "search": "old", "replace": "new"}]
+        html_out = render_completed_tool_html("edit", args, result={"success": True})
+        assert html_out is not None
+        assert "Waiting for content" not in html_out
+        assert "a.py" in html_out
+
+    def test_single_edit_shape_still_wraps(self):
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = '{"filepath": "a.py", "search": "x", "replace": "y"}'
+        entries = _parse_partial_edits(args)
+        assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
+
+
 class TestStreamingPartialWrite:
     """Test the streaming partial-write renderer."""
 

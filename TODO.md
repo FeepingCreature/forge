@@ -21,7 +21,7 @@ The branch-first architecture is **complete**:
 - ✅ `check` tool (format + typecheck + lint)
 - ✅ Context compaction with nudge at threshold
 
-**Forge can develop itself!** The git-first workflow is complete.
+**Forge can develop itself!** The git-first workflow is complete. _(edit-tool render test — will be reverted)_
 
 ---
 

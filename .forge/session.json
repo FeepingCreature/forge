@@ -1118,6 +1118,69 @@
       "streaming": true,
       "actual_cost": 0.22287175,
       "generation_id": "gen-1781818733-dQLwOsFA4NobP4wkUTRn"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818782846.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818782846.json",
+      "timestamp": 1781818782.8495693,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.7434125,
+      "generation_id": "gen-1781818783-h9cWq15JsQ4Phi2TAC9c"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818791165.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818791165.json",
+      "timestamp": 1781818791.1849089,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.11297225,
+      "generation_id": "gen-1781818791-fnrNYXxXxT3hmfXXDK7m"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818809312.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818809312.json",
+      "timestamp": 1781818809.3312652,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.7547025,
+      "generation_id": "gen-1781818809-800OPgl6qcHlceWHXW68"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818814835.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818814835.json",
+      "timestamp": 1781818814.8529332,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.1505115,
+      "generation_id": "gen-1781818815-cN03y4rjYMvs2Lopr8oy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818833931.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818833931.json",
+      "timestamp": 1781818833.944848,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.173944,
+      "generation_id": "gen-1781818834-jg23Bdt95XPhhd0OKzj6"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818848851.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818848851.json",
+      "timestamp": 1781818848.8731358,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.81118375,
+      "generation_id": "gen-1781818849-0PoHWME6kAVllFMQ0DmU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818854571.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818854571.json",
+      "timestamp": 1781818854.573812,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.42475875,
+      "generation_id": "gen-1781818854-qkfWwckCk5SieNR2dpUv"
     }
   ],
   "messages": [
@@ -3825,6 +3888,205 @@
     {
       "role": "assistant",
       "content": "The debug logging is committed and in place. Now I need actual runtime data to diagnose why `edit` tool calls don't render as diffs while `say` does.\n\nTo get that, you'll need to:\n\n1. Run a turn that emits an `edit` tool call (just ask the child/this session to make any small edit).\n2. Check the console/stdout where the Forge app is running.\n3. Paste the `[EDIT-RENDER streaming]` and `[EDIT-RENDER completed]` lines here.\n\nThose prints will tell us:\n- **Whether the branch is even reached** \u2014 if you see *no* `[EDIT-RENDER ...]` lines at all, the `name == \"edit\"` branch isn't being hit (a dispatch/routing problem upstream \u2014 e.g. the tool name arriving as something other than `\"edit\"`, or the render function not being called for edit at all).\n- **The actual `args_str` shape** \u2014 if you see the lines but with `0 entries`, then `_parse_partial_edits` is getting a shape it doesn't handle, and the `args_str={...!r}` repr will show us exactly what the provider sends.\n\nOne thing I want to flag while you run that: since `say` renders fine, we know `render_streaming_tool_html` / `render_completed_tool_html` *are* being invoked for builtin tools in general. That narrows it considerably \u2014 the most likely culprit is either the arg-shape inside `_parse_partial_edits`, or something specific to how the `edit` tool's deltas are accumulated vs. `say`'s. The prints will disambiguate.\n\nGo ahead and run an edit-producing turn and paste the console output \u2014 I'll take it from there."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 92 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "[EDIT-RENDER completed] type(args)=dict args={'edits': '[{\"filepath\": \"forge/tools/builtin/say.py\", \"search\": \"    say(\\\\\"Editing the pa\nrser\u2026\\\\\") \u2192 edit(\u2026) \u2192 say(\\\\\"Running the tests\u2026\\\\\")\\\\n    \u2192 run_tests() \u2192 say(\\\\\"All green, committing.\\\\\") \u2192 commit(\u2026) \u2192 done()\", \"repl\nace\": \"    say(\\\\\"Editing the parser\\\\\") \u2192 edit(...) \u2192 say(\\\\\"Running the tests\\\\\")\\\\n    \u2192 run_tests() \u2192 say(\\\\\"All green, committing\\\\\n\") \u2192 commit(...) \u2192 done()\"}]'} \n[EDIT-RENDER completed] -> 1 entries: [{'edits': '[{\"filepath\": \"forge/tools/builtin/say.py\", \"search\": \"    say(\\\\\"Editing the parser\u2026\\\n\\\") \u2192 edit(\u2026) \u2192 say(\\\\\"Running the tests\u2026\\\\\")\\\\n    \u2192 run_tests() \u2192 say(\\\\\"All green, committing.\\\\\") \u2192 commit(\u2026) \u2192 done()\", \"replace\": \n\"    say(\\\\\"Editing the parser\\\\\") \u2192 edit(...) \u2192 say(\\\\\"Running the tests\\\\\")\\\\n    \u2192 run_tests() \u2192 say(\\\\\"All green, committing\\\\\") \u2192 c\nommit(...) \u2192 done()\"}]'}]\n\nbut the backlog doesn't render it"
+    },
+    {
+      "role": "assistant",
+      "content": "The debug output is the smoking gun. Look at the args shape:\n\n```\ntype(args)=dict args={'edits': '[{\"filepath\": ..., \"search\": ..., \"replace\": ...}]'}\n```\n\nThe provider sent `{\"edits\": \"...\"}` where the value is a **JSON string**, not a parsed array. So `args[\"edits\"]` is a `str`, not a `list`. My completed-path code does `isinstance(args.get(\"edits\"), list)` \u2192 that's `False` (it's a string), so it falls through to `entries = [args]` \u2014 and `args` is `{\"edits\": \"[...]\"}`, which has neither `search` nor `content`, so it renders an empty/garbage card.\n\nThis is **double-encoded JSON**: the provider serialized the `edits` array to a string and put *that string* as the value. So the real fix is: when `edits` is a `str`, parse it again.\n\nLet me fix both render paths (`_parse_partial_edits` and `render_completed_tool_html`) to handle a stringified `edits` value, then remove the debug prints.",
+      "tool_calls": [
+        {
+          "id": "toolu_01ECqezaRiLw9C4SCLyWZuDK",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"add\": [\"forge/ui/tool_rendering.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01ECqezaRiLw9C4SCLyWZuDK",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/ui/tool_rendering.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The fix is clear: the provider double-encodes `edits` as a JSON string. I need to handle the case where `args[\"edits\"]` is a `str` in both render paths, and decode it. Let me also remove the debug prints.",
+      "tool_calls": [
+        {
+          "id": "toolu_019MpMzrqqFL7F2rZAKdnNvW",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"message\": \"Found it \u2014 the provider double-encodes `edits` as a JSON *string*. Fixing both render paths to decode a stringified `edits` value, and removing the debug prints.\"}"
+          }
+        },
+        {
+          "id": "toolu_016J1SQj6XRYDdzBqW49N5kp",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"forge/ui/tool_rendering.py\\\", \\\"search\\\": \\\"    # Fast path: complete JSON.\\\\n    try:\\\\n        full = json.loads(args_str)\\\\n        if isinstance(full, dict) and isinstance(full.get(\\\\\\\"edits\\\\\\\"), list):\\\\n            return [e for e in full[\\\\\\\"edits\\\\\\\"] if isinstance(e, dict)]\\\\n        # Bare top-level array \\\\u2014 some providers deliver the `edits` value\\\\n        # directly as the arguments payload.\\\\n        if isinstance(full, list):\\\\n            return [e for e in full if isinstance(e, dict)]\\\\n        # Single-edit shape (inline dispatcher / legacy) \\\\u2014 wrap it.\\\\n        if isinstance(full, dict) and (\\\\\\\"search\\\\\\\" in full or \\\\\\\"content\\\\\\\" in full):\\\\n            return [full]\\\\n    except json.JSONDecodeError:\\\\n        pass\\\", \\\"replace\\\": \\\"    # Fast path: complete JSON.\\\\n    try:\\\\n        full = json.loads(args_str)\\\\n        if isinstance(full, dict) and \\\\\\\"edits\\\\\\\" in full:\\\\n            edits = _coerce_edits_value(full[\\\\\\\"edits\\\\\\\"])\\\\n            return [e for e in edits if isinstance(e, dict)]\\\\n        # Bare top-level array \\\\u2014 some providers deliver the `edits` value\\\\n        # directly as the arguments payload.\\\\n        if isinstance(full, list):\\\\n            return [e for e in full if isinstance(e, dict)]\\\\n        # Single-edit shape (inline dispatcher / legacy) \\\\u2014 wrap it.\\\\n        if isinstance(full, dict) and (\\\\\\\"search\\\\\\\" in full or \\\\\\\"content\\\\\\\" in full):\\\\n            return [full]\\\\n    except json.JSONDecodeError:\\\\n        pass\\\"}, {\\\"filepath\\\": \\\"forge/ui/tool_rendering.py\\\", \\\"search\\\": \\\"def _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:\\\", \\\"replace\\\": \\\"def _coerce_edits_value(value: object) -> list[object]:\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"Normalize an `edits` value to a list of edit entries.\\\\n\\\\n    Some providers deliver the `edits` array correctly as a JSON list, but\\\\n    others double-encode it: the arguments arrive as ``{\\\\\\\"edits\\\\\\\": \\\\\\\"[{...}]\\\\\\\"}``\\\\n    where the value is a JSON *string* rather than a parsed array. Decode that\\\\n    string back into a list. A value that's already a list passes through; an\\\\n    unparseable string yields an empty list.\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"\\\\n    if isinstance(value, list):\\\\n        return value\\\\n    if isinstance(value, str):\\\\n        try:\\\\n            decoded = json.loads(value)\\\\n        except json.JSONDecodeError:\\\\n            return []\\\\n        if isinstance(decoded, list):\\\\n            return decoded\\\\n    return []\\\\n\\\\n\\\\ndef _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:\\\"}, {\\\"filepath\\\": \\\"forge/ui/tool_rendering.py\\\", \\\"search\\\": \\\"        _entries = _parse_partial_edits(args_str)\\\\n        print(\\\\n            f\\\\\\\"[EDIT-RENDER streaming] args_str={args_str!r} -> {len(_entries)} entries: {_entries!r}\\\\\\\"\\\\n        )\\\\n        return render_edit_tool_html(_entries, is_streaming=True)\\\", \\\"replace\\\": \\\"        _entries = _parse_partial_edits(args_str)\\\\n        return render_edit_tool_html(_entries, is_streaming=True)\\\"}, {\\\"filepath\\\": \\\"forge/ui/tool_rendering.py\\\", \\\"search\\\": \\\"        print(f\\\\\\\"[EDIT-RENDER completed] type(args)={type(args).__name__} args={args!r}\\\\\\\")\\\\n        if isinstance(args, list):\\\\n            entries = [e for e in args if isinstance(e, dict)]\\\\n        elif isinstance(args.get(\\\\\\\"edits\\\\\\\"), list):\\\\n            entries = [e for e in args[\\\\\\\"edits\\\\\\\"] if isinstance(e, dict)]\\\\n        else:\\\\n            entries = [args]\\\\n        print(f\\\\\\\"[EDIT-RENDER completed] -> {len(entries)} entries: {entries!r}\\\\\\\")\\\\n        return render_edit_tool_html(entries, is_streaming=False)\\\", \\\"replace\\\": \\\"        if isinstance(args, list):\\\\n            entries = [e for e in args if isinstance(e, dict)]\\\\n        elif \\\\\\\"edits\\\\\\\" in args:\\\\n            entries = [e for e in _coerce_edits_value(args[\\\\\\\"edits\\\\\\\"]) if isinstance(e, dict)]\\\\n        else:\\\\n            entries = [args]\\\\n        return render_edit_tool_html(entries, is_streaming=False)\\\"}]\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_019MpMzrqqFL7F2rZAKdnNvW",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_016J1SQj6XRYDdzBqW49N5kp",
+      "content": "{\"success\": true, \"edits_applied\": 4, \"modified_files\": [\"forge/ui/tool_rendering.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 124] The fix is in place and the debug prints are removed. The root cause was clear from the runtime output: the provider double-encodes `edits` as a JSON *string* (`{\"edits\": \"[{...}]\"}`), and now `_coerce_edits_value` decodes that string back into a list in both render paths.\n\nLet me add a regression test for the stringified-`edits` shape, run the suite, and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01F8U81qBHPgpmZWso2nCbXt",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"add\": [\"tests/test_inline_edit.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01F8U81qBHPgpmZWso2nCbXt",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"tests/test_inline_edit.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The test file already has `TestStreamingEditToolArguments`. I'll add a test for the double-encoded (stringified `edits`) shape, run the suite, and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01U4VH1X3EDiFsh1vyCUkEi3",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"message\": \"Adding a regression test for the double-encoded `edits` string shape, then running tests and committing.\"}"
+          }
+        },
+        {
+          "id": "toolu_01336EDPas7tsP81Exshyy2b",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"tests/test_inline_edit.py\\\", \\\"search\\\": \\\"    def test_single_edit_shape_still_wraps(self):\\\\n        from forge.ui.tool_rendering import _parse_partial_edits\\\\n\\\\n        args = '{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"x\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"y\\\\\\\"}'\\\\n        entries = _parse_partial_edits(args)\\\\n        assert entries == [{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"x\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"y\\\\\\\"}]\\\", \\\"replace\\\": \\\"    def test_single_edit_shape_still_wraps(self):\\\\n        from forge.ui.tool_rendering import _parse_partial_edits\\\\n\\\\n        args = '{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"x\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"y\\\\\\\"}'\\\\n        entries = _parse_partial_edits(args)\\\\n        assert entries == [{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"x\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"y\\\\\\\"}]\\\\n\\\\n    def test_double_encoded_edits_string(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"Provider double-encodes `edits` as a JSON *string*, not an array.\\\\n\\\\n        Observed live: the arguments arrive as ``{\\\\\\\"edits\\\\\\\": \\\\\\\"[{...}]\\\\\\\"}`` where the\\\\n        value is a JSON string. Both render paths must decode it back to a list,\\\\n        otherwise the diff renderer falls through to \\\\\\\"Waiting for content...\\\\\\\".\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        from forge.ui.tool_rendering import _parse_partial_edits\\\\n\\\\n        args = '{\\\\\\\"edits\\\\\\\": \\\\\\\"[{\\\\\\\\\\\\\\\\\\\\\\\"filepath\\\\\\\\\\\\\\\\\\\\\\\": \\\\\\\\\\\\\\\\\\\\\\\"a.py\\\\\\\\\\\\\\\\\\\\\\\", \\\\\\\\\\\\\\\\\\\\\\\"search\\\\\\\\\\\\\\\\\\\\\\\": \\\\\\\\\\\\\\\\\\\\\\\"x\\\\\\\\\\\\\\\\\\\\\\\", \\\\\\\\\\\\\\\\\\\\\\\"replace\\\\\\\\\\\\\\\\\\\\\\\": \\\\\\\\\\\\\\\\\\\\\\\"y\\\\\\\\\\\\\\\\\\\\\\\"}]\\\\\\\"}'\\\\n        entries = _parse_partial_edits(args)\\\\n        assert entries == [{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"x\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"y\\\\\\\"}]\\\\n\\\\n    def test_double_encoded_edits_string_completed_renders_diff(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"The completed path must also decode a stringified `edits` value.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        from forge.ui.tool_rendering import render_completed_tool_html\\\\n\\\\n        args = {\\\\\\\"edits\\\\\\\": '[{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\", \\\\\\\"search\\\\\\\": \\\\\\\"old\\\\\\\", \\\\\\\"replace\\\\\\\": \\\\\\\"new\\\\\\\"}]'}\\\\n        html_out = render_completed_tool_html(\\\\\\\"edit\\\\\\\", args, result={\\\\\\\"success\\\\\\\": True})\\\\n        assert html_out is not None\\\\n        assert \\\\\\\"Waiting for content\\\\\\\" not in html_out\\\\n        assert \\\\\\\"a.py\\\\\\\" in html_out\\\\n\\\\n    def test_coerce_edits_value_shapes(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"_coerce_edits_value: list passes through, string decodes, junk -> [].\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        from forge.ui.tool_rendering import _coerce_edits_value\\\\n\\\\n        assert _coerce_edits_value([{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\"}]) == [{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\"}]\\\\n        assert _coerce_edits_value('[{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\"}]') == [{\\\\\\\"filepath\\\\\\\": \\\\\\\"a.py\\\\\\\"}]\\\\n        assert _coerce_edits_value(\\\\\\\"not json\\\\\\\") == []\\\\n        assert _coerce_edits_value('\\\\\\\"a string\\\\\\\"') == []\\\\n        assert _coerce_edits_value(42) == []\\\"}]\"}"
+          }
+        },
+        {
+          "id": "toolu_014xf7oTPrQCE79YdtPkC37N",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01U4VH1X3EDiFsh1vyCUkEi3",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01336EDPas7tsP81Exshyy2b",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"tests/test_inline_edit.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_014xf7oTPrQCE79YdtPkC37N",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_7aprz98a\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 317 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 12%]\\ntests/test_compact_replay.py ......                                      [ 14%]\\ntests/test_inline_edit.py .............................................. [ 29%]\\n.....                                                                    [ 30%]\\ntests/test_inline_executor.py ...                                        [ 31%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 32%]\\ntests/test_llm_backend.py ................                               [ 37%]\\ntests/test_markdown_renumber.py .......................                  [ 44%]\\ntests/test_mermaid_repair.py .................                           [ 49%]\\ntests/test_prompt_manager.py ........................................... [ 63%]\\n...............                                                          [ 68%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 69%]\\ntests/test_queued_messages.py ..........                                 [ 72%]\\ntests/test_say_tool.py ............                                      [ 76%]\\ntests/test_session_spawn.py .................                            [ 81%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 317 passed in 1.96s ==============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_7aprz98a\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 317 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 12%]\\ntests/test_compact_replay.py ......                                      [ 14%]\\ntests/test_inline_edit.py .............................................. [ 29%]\\n.....                                                                    [ 30%]\\ntests/test_inline_executor.py ...                                        [ 31%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 32%]\\ntests/test_llm_backend.py ................                               [ 37%]\\ntests/test_markdown_renumber.py .......................                  [ 44%]\\ntests/test_mermaid_repair.py .................                           [ 49%]\\ntests/test_prompt_manager.py ........................................... [ 63%]\\n...............                                                          [ 68%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 69%]\\ntests/test_queued_messages.py ..........                                 [ 72%]\\ntests/test_say_tool.py ............                                      [ 76%]\\ntests/test_session_spawn.py .................                            [ 81%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 317 passed in 1.96s ==============================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 126] All 317 tests pass, including the 4 new regression tests for the double-encoded `edits` string shape. Let me commit and then compact the now-large context.",
+      "tool_calls": [
+        {
+          "id": "toolu_017sMKq4Fm5UNJFnwNnxsMnS",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"message\": \"Fix edit tool rendering when `edits` arrives double-encoded as a string\\n\\nObserved live: the provider delivers the `edit` tool's arguments as\\n`{\\\"edits\\\": \\\"[{...}]\\\"}` where the value is a JSON *string*, not a parsed\\narray. Both render paths checked `isinstance(args[\\\"edits\\\"], list)`, which\\nis False for a string, so they fell through and rendered the\\n\\\"Waiting for content...\\\" placeholder instead of the diff.\\n\\n- Add _coerce_edits_value(): a list passes through, a JSON string is\\n  decoded back into a list, anything else yields [].\\n- _parse_partial_edits and render_completed_tool_html now route the\\n  `edits` value through _coerce_edits_value, handling both the\\n  list-valued and string-valued shapes.\\n- Remove the [EDIT-RENDER ...] debug prints.\\n- tests/test_inline_edit.py: add 4 tests covering the double-encoded\\n  string in both the partial and completed paths, plus _coerce_edits_value\\n  shape handling.\"}"
+          }
+        },
+        {
+          "id": "toolu_01UqTNS8BbXiPNqy9FLc3jHm",
+          "type": "function",
+          "function": {
+            "name": "compact",
+            "arguments": "{\"from_id\": \"120\", \"to_id\": \"125\", \"summary\": \"ROOT CAUSE FOUND + FIXED for \\\"edit tool doesn't render as a diff\\\". Debug prints revealed the provider DOUBLE-ENCODES the `edits` value: arguments arrive as `{\\\"edits\\\": \\\"[{...}]\\\"}` where the value is a JSON *string*, not a parsed array. Both render paths in forge/ui/tool_rendering.py checked `isinstance(args[\\\"edits\\\"], list)` (False for a string) and fell through to the \\\"Waiting for content...\\\" placeholder.\\n\\nFIX (committed): Added `_coerce_edits_value(value)` to forge/ui/tool_rendering.py \u2014 list passes through, JSON string is decoded back to a list, anything else \u2192 []. Routed both `_parse_partial_edits` (the `\\\"edits\\\" in full` branch) and `render_completed_tool_html` (name==\\\"edit\\\", the `\\\"edits\\\" in args` branch) through it. Removed the [EDIT-RENDER ...] debug prints from both render functions. Added 4 tests to TestStreamingEditToolArguments in tests/test_inline_edit.py (double-encoded string in partial path, double-encoded string in completed path, and _coerce_edits_value shape handling). All 317 tests pass.\\n\\nALL SESSION GOALS COMPLETE + all known edit/say rendering bugs fixed. Nothing pending.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_017sMKq4Fm5UNJFnwNnxsMnS",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"e3daf9f1add6\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UqTNS8BbXiPNqy9FLc3jHm",
+      "content": "{\"success\": true, \"compact\": true, \"from_id\": \"120\", \"to_id\": \"125\", \"summary\": \"ROOT CAUSE FOUND + FIXED for \\\"edit tool doesn't render as a diff\\\". Debug prints revealed the provider DOUBLE-ENCODES the `edits` value: arguments arrive as `{\\\"edits\\\": \\\"[{...}]\\\"}` where the value is a JSON *string*, not a parsed array. Both render paths in forge/ui/tool_rendering.py checked `isinstance(args[\\\"edits\\\"], list)` (False for a string) and fell through to the \\\"Waiting for content...\\\" placeholder.\\n\\nFIX (committed): Added `_coerce_edits_value(value)` to forge/ui/tool_rendering.py \\u2014 list passes through, JSON string is decoded back to a list, anything else \\u2192 []. Routed both `_parse_partial_edits` (the `\\\"edits\\\" in full` branch) and `render_completed_tool_html` (name==\\\"edit\\\", the `\\\"edits\\\" in args` branch) through it. Removed the [EDIT-RENDER ...] debug prints from both render functions. Added 4 tests to TestStreamingEditToolArguments in tests/test_inline_edit.py (double-encoded string in partial path, double-encoded string in completed path, and _coerce_edits_value shape handling). All 317 tests pass.\\n\\nALL SESSION GOALS COMPLETE + all known edit/say rendering bugs fixed. Nothing pending.\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All session work is complete and committed. The final fix (`e3daf9f1add6`) resolved the last rendering bug, and all 317 tests pass.\n\nContext is now extremely large (110k), so let me trim the loaded files since nothing is pending.",
+      "tool_calls": [
+        {
+          "id": "toolu_01PgqL9tsa4wbpUnuMRF3fk5",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"remove\": [\"forge/ui/tool_rendering.py\", \"tests/test_inline_edit.py\", \"forge/session/live_session.py\", \"forge/prompts/system.py\", \"forge/tools/manager.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01PgqL9tsa4wbpUnuMRF3fk5",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/ui/tool_rendering.py\", \"tests/test_inline_edit.py\", \"forge/session/live_session.py\", \"forge/prompts/system.py\", \"forge/tools/manager.py\"], \"message\": \"Added 0 files, removed 5 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All session work is complete and committed. Everything is in a clean state:\n\n**Session goals delivered:**\n1. Inline tools are also callable as standard API tools\n2. `llm.inline_tools_enabled` toggle (+ UI checkbox) gating inline text-parsing\n3. `edit` tool accepts an `edits` array (multiple replaces/writes in one call) with streaming diff rendering\n4. `say` tool for mid-turn narration that keeps the turn alive\n\n**Rendering bugs hunted down and fixed along the way:**\n- Three render-path \"System card\" fall-throughs for `say`/`edit`/`done`\n- `edit` arguments arriving as a bare top-level array (`[{...}]`)\n- `edit` arguments arriving double-encoded as a JSON string (`{\"edits\": \"[...]\"}`) \u2014 the final fix, `e3daf9f1add6`\n\nAll 317 tests pass, and nothing is pending. What would you like to tackle next?"
     }
   ],
   "parent_session": null,

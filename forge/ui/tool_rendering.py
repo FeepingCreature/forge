@@ -658,6 +658,137 @@ def render_get_lines_html(args: dict[str, object], is_streaming: bool = False) -
     """
 
 
+def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
+    """Extract edit entries from the `edit` tool's streaming JSON arguments.
+
+    The `edit` tool takes an ``edits`` array; while the tool call streams in,
+    that array's JSON is incomplete. We first try a full parse (works once the
+    arguments are complete), then fall back to extracting whatever array
+    entries are individually parseable from the partial text.
+
+    Each returned dict has the raw entry fields (filepath/search/replace or
+    filepath/content) — exactly what the diff/write renderers expect.
+    """
+    if not args_str:
+        return []
+
+    # Fast path: complete JSON.
+    try:
+        full = json.loads(args_str)
+        if isinstance(full, dict) and isinstance(full.get("edits"), list):
+            return [e for e in full["edits"] if isinstance(e, dict)]
+        # Single-edit shape (inline dispatcher / legacy) — wrap it.
+        if isinstance(full, dict) and ("search" in full or "content" in full):
+            return [full]
+    except json.JSONDecodeError:
+        pass
+
+    # Partial path: find the `edits` array and parse complete `{...}` objects
+    # out of it one at a time. We scan for balanced top-level braces (ignoring
+    # braces inside strings) and json.loads each complete object.
+    arr_start = args_str.find('"edits"')
+    if arr_start == -1:
+        return []
+    bracket = args_str.find("[", arr_start)
+    if bracket == -1:
+        return []
+
+    entries: list[dict[str, object]] = []
+    i = bracket + 1
+    depth = 0
+    obj_start = -1
+    in_string = False
+    escape = False
+    while i < len(args_str):
+        ch = args_str[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+        else:
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                if depth == 0:
+                    obj_start = i
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0 and obj_start != -1:
+                    chunk = args_str[obj_start : i + 1]
+                    try:
+                        obj = json.loads(chunk)
+                        if isinstance(obj, dict):
+                            entries.append(obj)
+                    except json.JSONDecodeError:
+                        pass
+                    obj_start = -1
+            elif ch == "]":
+                break
+        i += 1
+
+    # The trailing, still-streaming object (depth open) — extract its fields
+    # with the flat partial-JSON parser so the user sees it forming live.
+    if depth > 0 and obj_start != -1:
+        partial = parse_partial_json(args_str[obj_start:])
+        if partial:
+            entries.append(partial)
+
+    return entries
+
+
+def render_edit_tool_html(
+    edits: list[dict[str, object]], is_streaming: bool
+) -> str:
+    """Render the `edit` tool's entries as a stack of diff / write cards.
+
+    Each entry is rendered exactly like an inline ``<replace>``/``<write>``
+    block: replace entries (search/replace) become diff views, write entries
+    (content) become file-creation cards. This is what makes a streaming
+    ``edit`` tool call look identical to the in-flow XML edits.
+    """
+    if not edits:
+        return render_diff_html(
+            filepath="",
+            search="",
+            replace="",
+            is_streaming=is_streaming,
+            streaming_phase="search",
+        )
+
+    parts: list[str] = []
+    for entry in edits:
+        filepath = str(entry.get("filepath", ""))
+        # A write entry has "content" (and no "search").
+        if "content" in entry and "search" not in entry:
+            parts.append(
+                _render_write_card(
+                    filepath=filepath,
+                    body=str(entry.get("content", "")),
+                    is_streaming=is_streaming,
+                )
+            )
+        else:
+            search = str(entry.get("search", ""))
+            replace = str(entry.get("replace", ""))
+            # While streaming, phase is "replace" once we've started seeing
+            # the replacement, else "search".
+            streaming_phase = "replace" if "replace" in entry else "search"
+            parts.append(
+                render_diff_html(
+                    filepath=filepath,
+                    search=search,
+                    replace=replace,
+                    is_streaming=is_streaming,
+                    streaming_phase=streaming_phase,
+                )
+            )
+    return "".join(parts)
+
+
 def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
     """
     Render a streaming tool call as HTML.
@@ -693,7 +824,12 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         pass  # Use partial parse result
 
     # Route to appropriate renderer
-    if name == "search_replace":
+    if name == "edit":
+        # The edit tool takes an `edits` array (or a single-edit shape from the
+        # inline dispatcher). Render each entry as a diff / write card so a
+        # streaming tool call looks just like the in-flow XML edits.
+        return render_edit_tool_html(_parse_partial_edits(args_str), is_streaming=True)
+    elif name == "search_replace":
         filepath = parsed.get("filepath", "")
         search = parsed.get("search", "")
         replace = parsed.get("replace", "")
@@ -751,7 +887,15 @@ def render_completed_tool_html(
     Returns:
         HTML string for special rendering, or None for default
     """
-    if name == "search_replace":
+    if name == "edit":
+        # Completed `edit` tool call — render each entry as a finished diff /
+        # write card. Accept both the `edits` array and the single-edit shape.
+        if isinstance(args.get("edits"), list):
+            entries = [e for e in args["edits"] if isinstance(e, dict)]
+        else:
+            entries = [args]
+        return render_edit_tool_html(entries, is_streaming=False)
+    elif name == "search_replace":
         filepath = args.get("filepath", "")
         search = args.get("search", "")
         replace = args.get("replace", "")

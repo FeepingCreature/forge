@@ -277,7 +277,15 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
     try:
         parsed = json.loads(json_str)
         if isinstance(parsed, dict):
-            for key in ("filepath", "search", "replace", "scratchpad", "conclusion", "message"):
+            for key in (
+                "filepath",
+                "search",
+                "replace",
+                "content",
+                "scratchpad",
+                "conclusion",
+                "message",
+            ):
                 if key in parsed and isinstance(parsed[key], str):
                     result[key] = parsed[key]
         return result
@@ -286,7 +294,15 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
 
     # Incomplete JSON - extract what we can
     # Look for each field pattern: "fieldname": "value or "fieldname":"value
-    for field in ("filepath", "search", "replace", "scratchpad", "conclusion", "message"):
+    for field in (
+        "filepath",
+        "search",
+        "replace",
+        "content",
+        "scratchpad",
+        "conclusion",
+        "message",
+    ):
         # Find the start of this field
         patterns = [f'"{field}": "', f'"{field}":"']
         start_idx = -1

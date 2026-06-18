@@ -709,6 +709,33 @@ class TestStreamingPartialWrite:
         assert _render_partial_write("just some prose") is None
         assert _render_partial_write("") is None
 
+    def test_partial_write_entry_streams_content(self):
+        """A write entry's `content` must stream char-by-char, not pop in.
+
+        Regression: `parse_partial_json` didn't extract the `content` key, so a
+        streaming write entry's body was empty until the whole object closed —
+        the write card popped in complete instead of typing out. With `content`
+        extracted, the partial trailing object exposes its body live.
+        """
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        # Mid-stream double-encoded: write entry whose `content` is partway in.
+        args = '{"edits": "[{\\"filepath\\": \\"new.py\\", \\"content\\": \\"print(1)\\nprint(2'
+        entries = _parse_partial_edits(args)
+        assert len(entries) == 1
+        assert entries[0]["filepath"] == "new.py"
+        assert entries[0]["content"] == "print(1)\nprint(2"
+
+    def test_partial_write_entry_renders_body_not_placeholder(self):
+        """The streaming edit render shows the write body, not the empty card."""
+        from forge.ui.tool_rendering import render_edit_tool_html
+
+        entries = [{"filepath": "new.py", "content": "hello world body"}]
+        html_out = render_edit_tool_html(entries, is_streaming=True)
+        assert "new.py" in html_out
+        assert "hello world body" in html_out
+        assert "Receiving file content" not in html_out
+
 
 # ---------------------------------------------------------------------------
 # Unparsed-block detection

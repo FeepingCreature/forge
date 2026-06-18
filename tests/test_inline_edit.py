@@ -611,6 +611,54 @@ class TestStreamingEditToolArguments:
         entries = _parse_partial_edits(args)
         assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
 
+    def test_partial_double_encoded_edits_string_streams_incrementally(self):
+        """The double-encoded `edits` STRING value streams in char-by-char.
+
+        This is the real streaming shape: the provider sends
+        ``{"edits": "[{...}]"}`` where the array is a JSON string, and it
+        arrives incrementally. While the string value is still open (no
+        closing quote), the `[` and the objects inside it are escaped (\\"),
+        so a raw brace scan finds nothing — the diff would show
+        "Waiting for content..." until the WHOLE arg arrived. The partial
+        parser must decode the partial string body and scan the decoded text
+        so the user sees the edit forming live.
+        """
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        # Mid-stream: the `edits` string value is open and the first object is
+        # only partway through its `search` field. Escaped quotes (\\") as the
+        # provider sends them inside the JSON string.
+        args = '{"edits": "[{\\"filepath\\": \\"a.py\\", \\"search\\": \\"par'
+        entries = _parse_partial_edits(args)
+        assert len(entries) == 1
+        assert entries[0]["filepath"] == "a.py"
+        assert entries[0]["search"] == "par"
+
+    def test_partial_double_encoded_first_object_complete(self):
+        """First object closed inside the still-open double-encoded string."""
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = (
+            '{"edits": "[{\\"filepath\\": \\"a.py\\", \\"search\\": \\"x\\", '
+            '\\"replace\\": \\"y\\"}, {\\"filepath\\": \\"b.py\\", \\"search\\": \\"z'
+        )
+        entries = _parse_partial_edits(args)
+        assert len(entries) == 2
+        assert entries[0] == {"filepath": "a.py", "search": "x", "replace": "y"}
+        assert entries[1]["filepath"] == "b.py"
+        assert entries[1]["search"] == "z"
+
+    def test_decode_partial_json_string(self):
+        """_decode_partial_json_string resolves escapes and stops at close quote."""
+        from forge.ui.tool_rendering import _decode_partial_json_string
+
+        # Escaped quote and newline, no closing quote (still streaming).
+        assert _decode_partial_json_string('a\\"b\\nc') == 'a"b\nc'
+        # Stops at the first unescaped closing quote.
+        assert _decode_partial_json_string('done", "next') == "done"
+        # Dangling backslash (escape payload not yet streamed) is dropped.
+        assert _decode_partial_json_string("abc\\") == "abc"
+
     def test_double_encoded_edits_string_completed_renders_diff(self):
         """The completed path must also decode a stringified `edits` value."""
         from forge.ui.tool_rendering import render_completed_tool_html

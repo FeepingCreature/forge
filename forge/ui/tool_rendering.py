@@ -694,17 +694,79 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
     if stripped.startswith("[") and '"edits"' not in args_str:
         return _scan_array_objects(args_str, args_str.find("[") + 1)
 
-    # Partial path: find the `edits` array and parse complete `{...}` objects
-    # out of it one at a time. We scan for balanced top-level braces (ignoring
-    # braces inside strings) and json.loads each complete object.
+    # Partial path: find the `edits` value. Two sub-shapes during streaming:
+    #
+    #   (a) array-valued:  {"edits": [{...}, {...
+    #   (b) string-valued: {"edits": "[{\"filepath\":\"x\",\"sear
+    #
+    # The double-encoded (b) shape is what the provider actually sends. There
+    # the `[` and the objects live INSIDE a JSON string, escaped (\"), so a
+    # raw brace scan finds nothing until the whole string closes. Detect that
+    # case, decode the partial string body, and scan the DECODED text instead.
     arr_start = args_str.find('"edits"')
     if arr_start == -1:
         return []
-    bracket = args_str.find("[", arr_start)
+
+    # Locate the start of the value after the colon following "edits".
+    colon = args_str.find(":", arr_start + len('"edits"'))
+    if colon == -1:
+        return []
+    val = args_str[colon + 1 :].lstrip()
+
+    # (b) String-valued (double-encoded): decode the partial string, scan that.
+    if val.startswith('"'):
+        decoded = _decode_partial_json_string(val[1:])
+        bracket = decoded.find("[")
+        if bracket == -1:
+            return []
+        return _scan_array_objects(decoded, bracket + 1)
+
+    # (a) Array-valued: scan the raw arguments for the array's objects.
+    bracket = args_str.find("[", colon)
     if bracket == -1:
         return []
-
     return _scan_array_objects(args_str, bracket + 1)
+
+
+def _decode_partial_json_string(body: str) -> str:
+    """Decode the escape sequences in a partial (unterminated) JSON string body.
+
+    `body` is the text *after* the opening quote of a JSON string value, which
+    may be cut off mid-stream (no closing quote). We walk it, resolving the
+    escape sequences json uses (\\", \\\\, \\n, \\t, \\/, etc.), and stop at the
+    first unescaped closing quote if one is present. A trailing lone backslash
+    (an escape whose payload hasn't streamed yet) is dropped.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(body)
+    simple = {'"': '"', "\\": "\\", "/": "/", "n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f"}
+    while i < n:
+        ch = body[i]
+        if ch == "\\":
+            if i + 1 >= n:
+                # Dangling backslash: the escaped char hasn't arrived yet.
+                break
+            nxt = body[i + 1]
+            if nxt == "u":
+                # \uXXXX — only decode if all four hex digits have arrived.
+                if i + 6 <= n:
+                    try:
+                        out.append(chr(int(body[i + 2 : i + 6], 16)))
+                        i += 6
+                        continue
+                    except ValueError:
+                        pass
+                break
+            out.append(simple.get(nxt, nxt))
+            i += 2
+            continue
+        if ch == '"':
+            # Unescaped closing quote — end of the (now complete) string value.
+            break
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def _coerce_edits_value(value: object) -> list[object]:

@@ -1,13 +1,9 @@
 {
   "active_files": [
-    "forge/tools/builtin/edit.py",
-    "forge/ui/tool_rendering.py",
-    "forge/ui/ai_chat_widget.py",
+    "tests/test_prompt_manager.py",
+    "tests/test_inline_edit.py",
     "CLAUDE.md",
-    "forge/prompts/system.py",
-    "forge/ui/settings_dialog.py",
-    "forge/ui/chat_streaming.py",
-    "forge/ui/chat_message.py"
+    "forge/prompts/manager.py"
   ],
   "request_log_entries": [
     {
@@ -387,6 +383,78 @@
       "streaming": true,
       "actual_cost": 0.09132625,
       "generation_id": "gen-1781817409-hS9TfElK8geIqyXhPm2O"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817503994.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817503994.json",
+      "timestamp": 1781817504.0050335,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.74172125,
+      "generation_id": "gen-1781817504-LoEHfejZCXN45popsIxM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817514747.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817514747.json",
+      "timestamp": 1781817514.7491431,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.37245125,
+      "generation_id": "gen-1781817515-VXW4hwIbfDPPjBP92Rn0"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817526138.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817526138.json",
+      "timestamp": 1781817526.1557,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.24109825,
+      "generation_id": "gen-1781817526-VaVevj9AlMxDT5zQDfwH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817537621.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817537621.json",
+      "timestamp": 1781817537.6437833,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.25214075,
+      "generation_id": "gen-1781817537-fiwPrCWjcsPv2Ba4o6bG"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817553154.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817553154.json",
+      "timestamp": 1781817553.1721928,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.244127,
+      "generation_id": "gen-1781817553-bQ8GB5nSh0lRI5v1r1az"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817561681.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817561681.json",
+      "timestamp": 1781817561.6866276,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.47851675,
+      "generation_id": "gen-1781817562-LPnbc2c7DrGnqHBp1RIH"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817569275.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817569275.json",
+      "timestamp": 1781817569.2773883,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.35414825,
+      "generation_id": "gen-1781817569-vkSfozm2CEgADFAGeXsW"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781817586470.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781817586470.json",
+      "timestamp": 1781817586.4900258,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.38814575,
+      "generation_id": "gen-1781817586-wZBALDqYJfiPgtZbG3ZZ"
     }
   ],
   "messages": [
@@ -1265,6 +1333,231 @@
     {
       "role": "assistant",
       "content": "All three goals are now complete and committed. Here's the full summary of what was built across this session:\n\n## What was implemented\n\n**Goal 1 \u2014 Every inline tool is also a regular API tool call**\n- `forge/tools/manager.py`: `_filter_inline_tools()` is now a pass-through, so inline tools are always exposed in the API tool list.\n- `forge/tools/builtin/edit.py`: schema advertises the `edits` array form; `execute()` dispatches to multi-edit or single-edit paths.\n\n**Goal 2 \u2014 Toggle to turn inline text-parsing on/off**\n- `forge/config/settings.py`: added `llm.inline_tools_enabled` (default `True`).\n- `forge/session/live_session.py`: gates inline command text-parsing behind the setting.\n- `forge/prompts/system.py`: when off, swaps the XML edit docs for `EDIT_FORMAT_API_ONLY`.\n- `forge/ui/settings_dialog.py`: \"Parse inline XML commands\" checkbox on the LLM tab.\n\n**Goal 3 \u2014 `edit` tool accepts multiple edit blocks in one call**\n- `forge/tools/builtin/edit.py`: `edits` array, applied sequentially with stop-on-first-failure, mixing replaces and writes.\n\n**Plus, this turn \u2014 UI doesn't render inline tool cards when parsing is off**\n- Threaded an `inline_enabled` flag through `render_markdown()` / `render_streaming_edits()` (`tool_rendering.py`), `build_streaming_chunk_js()` (`chat_streaming.py`), `ChatMessage.render_html()` (`chat_message.py`), and the three render call sites in `ai_chat_widget.py` (via a new `_inline_enabled()` helper reading the setting). When off, `<replace>`/`<write>` blocks render as literal escaped text rather than misleading diff/write cards.\n\nAll 291 tests pass, committed as `45a8a4766c75`.\n\nOne thing worth flagging for you: this session itself runs with inline parsing **disabled** for me, and the system kept injecting an inline-syntax reminder at the end of each turn (telling me to use `<replace>`). That reminder shouldn't appear when `inline_tools_enabled` is off \u2014 it's the same class of \"telling the model to use a syntax that won't be parsed\" problem we just fixed in the system prompt. You may want to gate that end-of-turn reminder on the same setting. I didn't touch it since I'm not sure where it's injected from (it's not in the files I had loaded) \u2014 want me to track it down?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 636873f4",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "yep, please go ahead.\nopen tasks:\n- we need to re-implement tool call rendering.\n- it would be cool to push the model (hi) to make as many toolcalls as possible in one go, right now there's a tendency to say\n\"I will make the change :toolcall:\"\n\"Now I will make the other change :toolcall:\"\n\"Now I will run the tests :toolcall:\"\n\"Now I will commit :toolcall:\""
+    },
+    {
+      "role": "assistant",
+      "content": "There it is \u2014 that end-of-turn reminder is *exactly* the misleading inline-syntax injection we discussed (it's telling me to use `<replace>` when inline parsing is off for this session). Let me find where it's injected and gate it on `inline_tools_enabled`.\n\nLet me first compact this large conversation, then hunt down the reminder text.",
+      "tool_calls": [
+        {
+          "id": "toolu_01NmrBojj2diJcBHXZXmEJdP",
+          "type": "function",
+          "function": {
+            "name": "compact",
+            "arguments": "{\"from_id\": \"28\", \"to_id\": \"39\", \"summary\": \"Completed \\\"don't render inline tool cards when inline parsing off\\\" task. Threaded an `inline_enabled` flag through the chat rendering path: render_markdown()/render_streaming_edits() in forge/ui/tool_rendering.py (when False, render plain markdown with raw tags escaped via _escape_raw_html instead of parsing inline commands into tool cards); build_streaming_chunk_js() in forge/ui/chat_streaming.py (skip the inline-edit preview branch when False); ChatMessage.render_html() in forge/ui/chat_message.py (passes flag to render_markdown); and forge/ui/ai_chat_widget.py added a _inline_enabled() helper (reads self.runner.session_manager.settings.get(\\\"llm.inline_tools_enabled\\\", True)) wired into all three render call sites (_append_streaming_chunk, _finalize_streaming_content, _build_messages_html). All 291 tests pass. Committed as 45a8a4766c75.\"}"
+          }
+        },
+        {
+          "id": "toolu_01CreheNhiRJUJJGcT76yofA",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"remove\": [\"forge/ui/tool_rendering.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/chat_message.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/settings_dialog.py\", \"forge/prompts/system.py\", \"forge/tools/builtin/edit.py\"]}"
+          }
+        },
+        {
+          "id": "toolu_01NQ91vGq9um4iRqLa84fVaE",
+          "type": "function",
+          "function": {
+            "name": "grep_open",
+            "arguments": "{\"pattern\": \"Be Optimistic|Assume success|inline XML command written|Don't wait for results|REMINDER\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01NmrBojj2diJcBHXZXmEJdP",
+      "content": "{\"success\": true, \"compact\": true, \"from_id\": \"28\", \"to_id\": \"39\", \"summary\": \"Completed \\\"don't render inline tool cards when inline parsing off\\\" task. Threaded an `inline_enabled` flag through the chat rendering path: render_markdown()/render_streaming_edits() in forge/ui/tool_rendering.py (when False, render plain markdown with raw tags escaped via _escape_raw_html instead of parsing inline commands into tool cards); build_streaming_chunk_js() in forge/ui/chat_streaming.py (skip the inline-edit preview branch when False); ChatMessage.render_html() in forge/ui/chat_message.py (passes flag to render_markdown); and forge/ui/ai_chat_widget.py added a _inline_enabled() helper (reads self.runner.session_manager.settings.get(\\\"llm.inline_tools_enabled\\\", True)) wired into all three render call sites (_append_streaming_chunk, _finalize_streaming_content, _build_messages_html). All 291 tests pass. Committed as 45a8a4766c75.\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01CreheNhiRJUJJGcT76yofA",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/ui/tool_rendering.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/chat_message.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/settings_dialog.py\", \"forge/prompts/system.py\", \"forge/tools/builtin/edit.py\"], \"message\": \"Added 0 files, removed 7 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01NQ91vGq9um4iRqLa84fVaE",
+      "content": "{\"success\": true, \"message\": \"Found 2 files matching 'Be Optimistic|Assume success|inline XML command written|Don't wait for results|REMINDER'\", \"matches\": [{\"filepath\": \"REVIEW2.md\", \"match_count\": 2, \"first_match\": \"REMINDER\"}, {\"filepath\": \"forge/prompts/manager.py\", \"match_count\": 5, \"first_match\": \"REMINDER\"}], \"action\": \"update_context\", \"add\": [\"REVIEW2.md\", \"forge/prompts/manager.py\"], \"remove\": []}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "I found it. `_format_inline_command_reminder()` in `forge/prompts/manager.py` is the culprit \u2014 it's injected unconditionally in `to_messages()` and tells me to use `<replace>` inline syntax (which is parsed off for this session). This is exactly the misleading injection we discussed, AND it ties into your second open task: the reminder should be teaching \"do everything in one response via batched tool calls,\" not \"use inline XML.\"\n\nHere's my plan:\n\n1. **Make the reminder conditional on `inline_enabled`.** Thread `inline_enabled` into `PromptManager` (it's already a constructor param!) and store it, then branch in `_format_inline_command_reminder()`.\n\n2. **Write an API-tool-call version of the reminder** that pushes hard on your second goal: batch as many tool calls as possible in one response, don't narrate \"now I'll do X\" between single calls.\n\nLet me check how `inline_enabled` flows and whether it's stored. It's a constructor param but I need to see if it's saved as an attribute.",
+      "tool_calls": [
+        {
+          "id": "toolu_01K4XXg9V7KjeMrgyf3Kp4BB",
+          "type": "function",
+          "function": {
+            "name": "grep_context",
+            "arguments": "{\"pattern\": \"inline_enabled\", \"file\": \"forge/prompts/manager.py\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01K4XXg9V7KjeMrgyf3Kp4BB",
+      "content": "{\"success\": true, \"message\": \"Found 3 matches\", \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:55 \\u2500\\u2500\\n      52 |         self,\\n      53 |         system_prompt: str | None = None,\\n      54 |         tool_schemas: list[dict] | None = None,\\n>>>   55 |         inline_enabled: bool = True,\\n      56 |     ) -> None:\\n      57 |         self.blocks: list[ContentBlock] = []\\n      58 | \\n\\n\\u2500\\u2500 forge/prompts/manager.py:60 \\u2500\\u2500\\n      57 |         self.blocks: list[ContentBlock] = []\\n      58 | \\n      59 |         # Generate system prompt if not provided.\\n>>>   60 |         # inline_enabled controls whether the inline XML edit syntax is\\n      61 |         # documented; when off, the prompt tells the model to use API tools.\\n      62 |         if system_prompt is None:\\n      63 |             system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n\\n\\u2500\\u2500 forge/prompts/manager.py:63 \\u2500\\u2500\\n      60 |         # inline_enabled controls whether the inline XML edit syntax is\\n      61 |         # documented; when off, the prompt tells the model to use API tools.\\n      62 |         if system_prompt is None:\\n>>>   63 |             system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n      64 |         self.system_prompt = system_prompt\\n      65 | \\n      66 |         # Rolling counter for user-friendly tool call IDs\", \"total_matches\": 3, \"side_effects\": [\"ephemeral_result\"]}",
+      "_skip_display": true,
+      "_ephemeral": true
+    },
+    {
+      "role": "assistant",
+      "content": "[id 43] `inline_enabled` is a constructor param but **not stored as an attribute** \u2014 it's only used to build the system prompt. I need to store it so `_format_inline_command_reminder()` can branch on it. Let me make the edits:\n\n1. Store `self.inline_enabled = inline_enabled` in `__init__`.\n2. Rewrite `_format_inline_command_reminder()` to branch: inline version (existing) when on, and a new **API-tool-call** version when off that pushes hard on batching many tool calls in one response.",
+      "tool_calls": [
+        {
+          "id": "toolu_01XsEkUvgf6rcRZ8iFCceBeV",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"forge/prompts/manager.py\\\", \\\"search\\\": \\\"        if system_prompt is None:\\\\n            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\\\n        self.system_prompt = system_prompt\\\", \\\"replace\\\": \\\"        if system_prompt is None:\\\\n            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\\\n        self.system_prompt = system_prompt\\\\n\\\\n        # Whether inline XML commands are parsed from assistant prose. When off,\\\\n        # the model interacts purely through API tool calls, and the end-of-context\\\\n        # reminder is tailored accordingly.\\\\n        self.inline_enabled = inline_enabled\\\"}, {\\\"filepath\\\": \\\"forge/prompts/manager.py\\\", \\\"search\\\": \\\"    def _format_inline_command_reminder(self) -> str:\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        Format a reminder about optimistic chaining for inline commands.\\\\n\\\\n        This is injected at the very end of context so it's maximally salient.\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        return \\\\\\\"\\\\\\\"\\\\\\\"## REMINDER: Be Optimistic, Do Everything In One Response\\\", \\\"replace\\\": \\\"    def _format_inline_command_reminder(self) -> str:\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        Format a reminder about optimistic chaining at the end of context.\\\\n\\\\n        This is injected at the very end of context so it's maximally salient.\\\\n        Two variants: one for inline XML commands, one for pure API tool calls\\\\n        (selected by self.inline_enabled).\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        if not self.inline_enabled:\\\\n            return self._format_api_tool_reminder()\\\\n        return \\\\\\\"\\\\\\\"\\\\\\\"## REMINDER: Be Optimistic, Do Everything In One Response\\\"}]\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"file\": \"forge/prompts/manager.py\",\n  \"pattern\": \"inline_enabled\"\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 3 matches\",\n  \"output\": \"\\u2500\\u2500 forge/prompts/manager.py:55 \\u2500\\u2500\\n      52 |         self,\\n      53 |         system_prompt: str | None = None,\\n      54 |         tool_schemas: list[dict] | None = None,\\n>>>   55 |         inline_enabled: bool = True,\\n      56 |     ) -> None:\\n      57 |         self.blocks: list[ContentBlock] = []\\n      58 | \\n\\n\\u2500\\u2500 forge/prompts/manager.py:60 \\u2500\\u2500\\n      57 |         self.blocks: list[ContentBlock] = []\\n      58 | \\n      59 |         # Generate system prompt if not provided.\\n>>>   60 |         # inline_enabled controls whether the inline XML edit syntax is\\n      61 |         # documented; when off, the prompt tells the model to use API tools.\\n      62 |         if system_prompt is None:\\n      63 |             system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n\\n\\u2500\\u2500 forge/prompts/manager.py:63 \\u2500\\u2500\\n      60 |         # inline_enabled controls whether the inline XML edit syntax is\\n      61 |         # documented; when off, the prompt tells the model to use API tools.\\n      62 |         if system_prompt is None:\\n>>>   63 |             system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n      64 |         self.system_prompt = system_prompt\\n      65 | \\n      66 |         # Rolling counter for user-friendly tool call IDs\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 3\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01XsEkUvgf6rcRZ8iFCceBeV",
+      "content": "{\"success\": true, \"edits_applied\": 2, \"modified_files\": [\"forge/prompts/manager.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 44] Now I need to add the `_format_api_tool_reminder()` method. This is the version shown when inline parsing is off \u2014 it should push hard on your second goal: batch many tool calls in one response, don't narrate \"now I'll do X\" between single calls. Let me add it right before `_format_inline_command_reminder()`.",
+      "tool_calls": [
+        {
+          "id": "toolu_012oMc5w2v2fnVJrDsY6VcFB",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"forge/prompts/manager.py\\\", \\\"search\\\": \\\"    def _format_inline_command_reminder(self) -> str:\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        Format a reminder about optimistic chaining at the end of context.\\\", \\\"replace\\\": \\\"    def _format_api_tool_reminder(self) -> str:\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        Reminder shown when inline XML parsing is OFF (pure API-tool-call mode).\\\\n\\\\n        Pushes hard on batching: make as many tool calls as possible in a single\\\\n        response instead of one-call-per-turn narration.\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        return \\\\\\\"\\\\\\\"\\\\\\\"## REMINDER: Batch Your Tool Calls \u2014 Do Everything In One Response\\\\n\\\\nYou can make **multiple tool calls in a single response**. Do this whenever the calls\\\\ndon't depend on each other's results. One response with five tool calls is five times\\\\ncheaper and faster than five responses with one call each.\\\\n\\\\nThe `edit` tool takes an **`edits` array** \u2014 pass *all* your changes (across any number\\\\nof files, mixing replaces and whole-file writes) in **one** `edit` call. Don't call `edit`\\\\nonce per change.\\\\n\\\\n**Do this** \u2014 everything in one response:\\\\n\\\\n```\\\\n[edit call with several edits across files]\\\\n[run_tests call]\\\\n[commit call]\\\\n```\\\\nThen: \\\\\\\"Done! Added feature X, tests pass.\\\\\\\"\\\\n\\\\n**NOT this** \u2014 one call per response, narrating between each:\\\\n\\\\n> I'll make the first change.  \u2192  [edit]\\\\n> Now the second change.       \u2192  [edit]\\\\n> Now I'll run the tests.       \u2192  [run_tests]\\\\n> Now I'll commit.              \u2192  [commit]\\\\n\\\\nThat wastes four round-trips. Each \\\\\\\"Now I'll...\\\\\\\" sentence followed by a single tool call\\\\nis a turn you didn't need to spend.\\\\n\\\\n**Assume success and keep going.** Tool calls in a response execute as a pipeline: if one\\\\nfails, the rest abort and you get control back with the error. So you don't need to stop\\\\nand check after each call \u2014 batch them, and handle the rare failure when it surfaces.\\\\n\\\\nOnly split across responses when a later call genuinely needs the *result* of an earlier\\\\none (e.g. you must read a file's content before you know what to replace).\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\n    def _format_inline_command_reminder(self) -> str:\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"\\\\n        Format a reminder about optimistic chaining at the end of context.\\\"}]\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `edit`\n```json\n{\n  \"edits\": [\n    {\n      \"filepath\": \"forge/prompts/manager.py\",\n      \"replace\": \"        if system_prompt is None:\\n            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n        self.system_prompt = system_prompt\\n\\n        # Whether inline XML commands are parsed from assistant prose. When off,\\n        # the model interacts purely through API tool calls, and the end-of-context\\n        # reminder is tailored accordingly.\\n        self.inline_enabled = inline_enabled\",\n      \"search\": \"        if system_prompt is None:\\n            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)\\n        self.system_prompt = system_prompt\"\n    },\n    {\n      \"filepath\": \"forge/prompts/manager.py\",\n      \"replace\": \"    def _format_inline_command_reminder(self) -> str:\\n        \\\"\\\"\\\"\\n        Format a reminder about optimistic chaining at the end of context.\\n\\n        This is injected at the very end of context so it's maximally salient.\\n        Two variants: one for inline XML commands, one for pure API tool calls\\n        (selected by self.inline_enabled).\\n        \\\"\\\"\\\"\\n        if not self.inline_enabled:\\n            return self._format_api_tool_reminder()\\n        return \\\"\\\"\\\"## REMINDER: Be Optimistic, Do Everything In One Response\",\n      \"search\": \"    def _format_inline_command_reminder(self) -> str:\\n        \\\"\\\"\\\"\\n        Format a reminder about optimistic chaining for inline commands.\\n\\n        This is injected at the very end of context so it's maximally salient.\\n        \\\"\\\"\\\"\\n        return \\\"\\\"\\\"## REMINDER: Be Optimistic, Do Everything In One Response\"\n    }\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"edits_applied\": 2,\n  \"modified_files\": [\n    \"forge/prompts/manager.py\"\n  ],\n  \"side_effects\": [\n    \"files_modified\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_012oMc5w2v2fnVJrDsY6VcFB",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/prompts/manager.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 45] Both edits are in. The reminder now branches on `self.inline_enabled`, and the new `_format_api_tool_reminder()` pushes hard on batching tool calls.\n\nNow let me verify this is actually wired correctly \u2014 does `PromptManager` get constructed with `inline_enabled` from the setting? Let me check the construction site in the session manager, and check whether there's an existing test for the reminder I should extend.",
+      "tool_calls": [
+        {
+          "id": "toolu_018GohmysPsoanux2rnj9seW",
+          "type": "function",
+          "function": {
+            "name": "grep_open",
+            "arguments": "{\"pattern\": \"PromptManager\\\\(|inline_command_reminder|_format_api_tool_reminder|inline_tools_enabled\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `edit`\n```json\n{\n  \"edits\": [\n    {\n      \"filepath\": \"forge/prompts/manager.py\",\n      \"replace\": \"    def _format_api_tool_reminder(self) -> str:\\n        \\\"\\\"\\\"\\n        Reminder shown when inline XML parsing is OFF (pure API-tool-call mode).\\n\\n        Pushes hard on batching: make as many tool calls as possible in a single\\n        response instead of one-call-per-turn narration.\\n        \\\"\\\"\\\"\\n        return \\\"\\\"\\\"## REMINDER: Batch Your Tool Calls \\u2014 Do Everything In One Response\\n\\nYou can make **multiple tool calls in a single response**. Do this whenever the calls\\ndon't depend on each other's results. One response with five tool calls is five times\\ncheaper and faster than five responses with one call each.\\n\\nThe `edit` tool takes an **`edits` array** \\u2014 pass *all* your changes (across any number\\nof files, mixing replaces and whole-file writes) in **one** `edit` call. Don't call `edit`\\nonce per change.\\n\\n**Do this** \\u2014 everything in one response:\\n\\n```\\n[edit call with several edits across files]\\n[run_tests call]\\n[commit call]\\n```\\nThen: \\\"Done! Added feature X, tests pass.\\\"\\n\\n**NOT this** \\u2014 one call per response, narrating between each:\\n\\n> I'll make the first change.  \\u2192  [edit]\\n> Now the second change.       \\u2192  [edit]\\n> Now I'll run the tests.       \\u2192  [run_tests]\\n> Now I'll commit.              \\u2192  [commit]\\n\\nThat wastes four round-trips. Each \\\"Now I'll...\\\" sentence followed by a single tool call\\nis a turn you didn't need to spend.\\n\\n**Assume success and keep going.** Tool calls in a response execute as a pipeline: if one\\nfails, the rest abort and you get control back with the error. So you don't need to stop\\nand check after each call \\u2014 batch them, and handle the rare failure when it surfaces.\\n\\nOnly split across responses when a later call genuinely needs the *result* of an earlier\\none (e.g. you must read a file's content before you know what to replace).\\\"\\\"\\\"\\n\\n    def _format_inline_command_reminder(self) -> str:\\n        \\\"\\\"\\\"\\n        Format a reminder about optimistic chaining at the end of context.\",\n      \"search\": \"    def _format_inline_command_reminder(self) -> str:\\n        \\\"\\\"\\\"\\n        Format a reminder about optimistic chaining at the end of context.\"\n    }\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"edits_applied\": 1,\n  \"modified_files\": [\n    \"forge/prompts/manager.py\"\n  ],\n  \"side_effects\": [\n    \"files_modified\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_018GohmysPsoanux2rnj9seW",
+      "content": "{\"success\": true, \"message\": \"Found 9 files matching 'PromptManager\\\\(|inline_command_reminder|_format_api_tool_reminder|inline_tools_enabled'\", \"matches\": [{\"filepath\": \"REVIEW2.md\", \"match_count\": 1, \"first_match\": \"inline_command_reminder\"}, {\"filepath\": \"forge/config/settings.py\", \"match_count\": 1, \"first_match\": \"inline_tools_enabled\"}, {\"filepath\": \"forge/prompts/manager.py\", \"match_count\": 4, \"first_match\": \"_format_api_tool_reminder\"}, {\"filepath\": \"forge/session/live_session.py\", \"match_count\": 3, \"first_match\": \"inline_tools_enabled\"}, {\"filepath\": \"forge/session/manager.py\", \"match_count\": 2, \"first_match\": \"inline_tools_enabled\"}, {\"filepath\": \"forge/ui/ai_chat_widget.py\", \"match_count\": 1, \"first_match\": \"inline_tools_enabled\"}, {\"filepath\": \"forge/ui/settings_dialog.py\", \"match_count\": 7, \"first_match\": \"inline_tools_enabled\"}, {\"filepath\": \"tests/test_compact_replay.py\", \"match_count\": 1, \"first_match\": \"PromptManager(\"}, {\"filepath\": \"tests/test_prompt_manager.py\", \"match_count\": 54, \"first_match\": \"PromptManager(\"}], \"action\": \"update_context\", \"add\": [\"REVIEW2.md\", \"forge/config/settings.py\", \"forge/prompts/manager.py\", \"forge/session/live_session.py\", \"forge/session/manager.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/settings_dialog.py\", \"tests/test_compact_replay.py\", \"tests/test_prompt_manager.py\"], \"remove\": []}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Wiring is confirmed: both `SessionManager.__init__` and `clear_session()` construct `PromptManager` with `inline_enabled` from the setting. So my new branch will fire correctly.\n\nNow let me add a test for the new reminder behavior and run the suite. The context is very large (137k, files dominate at 112k), so let me unload the files I no longer need, add a test, and run tests.",
+      "tool_calls": [
+        {
+          "id": "toolu_01Ak1iaNLkgGSEoFXKaz5RNj",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"remove\": [\"REVIEW2.md\", \"forge/config/settings.py\", \"forge/session/live_session.py\", \"forge/session/manager.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/settings_dialog.py\", \"tests/test_compact_replay.py\"], \"add\": [\"tests/test_inline_edit.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Ak1iaNLkgGSEoFXKaz5RNj",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"tests/test_inline_edit.py\"], \"remove\": [\"REVIEW2.md\", \"forge/config/settings.py\", \"forge/session/live_session.py\", \"forge/session/manager.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/settings_dialog.py\", \"tests/test_compact_replay.py\"], \"message\": \"Added 1 files, removed 7 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 47] Now I'll add tests for the new reminder branching. These belong in `tests/test_prompt_manager.py` \u2014 a new test class verifying that `inline_enabled=True` yields the inline reminder and `inline_enabled=False` yields the API-batching reminder, and that it shows up in `to_messages()`.",
+      "tool_calls": [
+        {
+          "id": "toolu_01W73jkRJLEWmxZBadPqbf9v",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"tests/test_prompt_manager.py\\\", \\\"search\\\": \\\"class TestClearConversation:\\\", \\\"replace\\\": \\\"class TestInlineCommandReminder:\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"Test the end-of-context reminder branches on inline_enabled.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\n    def test_inline_enabled_uses_inline_reminder(self):\\\\n        pm = PromptManager(system_prompt=\\\\\\\"System\\\\\\\", inline_enabled=True)\\\\n        reminder = pm._format_inline_command_reminder()\\\\n        # Inline variant talks about <replace> XML tags written in prose\\\\n        assert \\\\\\\"<replace>\\\\\\\" in reminder\\\\n        assert \\\\\\\"inline XML command\\\\\\\" in reminder\\\\n\\\\n    def test_inline_disabled_uses_api_reminder(self):\\\\n        pm = PromptManager(system_prompt=\\\\\\\"System\\\\\\\", inline_enabled=False)\\\\n        reminder = pm._format_inline_command_reminder()\\\\n        # API variant pushes batching tool calls and the edits array\\\\n        assert \\\\\\\"Batch Your Tool Calls\\\\\\\" in reminder\\\\n        assert \\\\\\\"`edits` array\\\\\\\" in reminder\\\\n        # Must NOT instruct the model to write inline XML tags\\\\n        assert \\\\\\\"inline XML command\\\\\\\" not in reminder\\\\n\\\\n    def test_default_is_inline_enabled(self):\\\\n        pm = PromptManager(system_prompt=\\\\\\\"System\\\\\\\")\\\\n        assert pm.inline_enabled is True\\\\n        assert \\\\\\\"<replace>\\\\\\\" in pm._format_inline_command_reminder()\\\\n\\\\n    def test_api_reminder_appears_in_to_messages(self):\\\\n        pm = PromptManager(system_prompt=\\\\\\\"System\\\\\\\", inline_enabled=False)\\\\n        pm.append_user_message(\\\\\\\"Do something\\\\\\\")\\\\n        messages = pm.to_messages()\\\\n        # The reminder is injected as the last user content block\\\\n        last_user = next(m for m in reversed(messages) if m[\\\\\\\"role\\\\\\\"] == \\\\\\\"user\\\\\\\")\\\\n        full_text = \\\\\\\"\\\\\\\\n\\\\\\\".join(b[\\\\\\\"text\\\\\\\"] for b in last_user[\\\\\\\"content\\\\\\\"])\\\\n        assert \\\\\\\"Batch Your Tool Calls\\\\\\\" in full_text\\\\n\\\\n    def test_inline_reminder_appears_in_to_messages(self):\\\\n        pm = PromptManager(system_prompt=\\\\\\\"System\\\\\\\", inline_enabled=True)\\\\n        pm.append_user_message(\\\\\\\"Do something\\\\\\\")\\\\n        messages = pm.to_messages()\\\\n        last_user = next(m for m in reversed(messages) if m[\\\\\\\"role\\\\\\\"] == \\\\\\\"user\\\\\\\")\\\\n        full_text = \\\\\\\"\\\\\\\\n\\\\\\\".join(b[\\\\\\\"text\\\\\\\"] for b in last_user[\\\\\\\"content\\\\\\\"])\\\\n        assert \\\\\\\"<replace>\\\\\\\" in full_text\\\\n\\\\n\\\\nclass TestClearConversation:\\\"}]\"}"
+          }
+        },
+        {
+          "id": "toolu_01KjfLye4dAiYtZZeaUXTK8W",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01W73jkRJLEWmxZBadPqbf9v",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"tests/test_prompt_manager.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `edit`\n```json\n{\n  \"edits\": [\n    {\n      \"filepath\": \"tests/test_prompt_manager.py\",\n      \"replace\": \"class TestInlineCommandReminder:\\n    \\\"\\\"\\\"Test the end-of-context reminder branches on inline_enabled.\\\"\\\"\\\"\\n\\n    def test_inline_enabled_uses_inline_reminder(self):\\n        pm = PromptManager(system_prompt=\\\"System\\\", inline_enabled=True)\\n        reminder = pm._format_inline_command_reminder()\\n        # Inline variant talks about <replace> XML tags written in prose\\n        assert \\\"<replace>\\\" in reminder\\n        assert \\\"inline XML command\\\" in reminder\\n\\n    def test_inline_disabled_uses_api_reminder(self):\\n        pm = PromptManager(system_prompt=\\\"System\\\", inline_enabled=False)\\n        reminder = pm._format_inline_command_reminder()\\n        # API variant pushes batching tool calls and the edits array\\n        assert \\\"Batch Your Tool Calls\\\" in reminder\\n        assert \\\"`edits` array\\\" in reminder\\n        # Must NOT instruct the model to write inline XML tags\\n        assert \\\"inline XML command\\\" not in reminder\\n\\n    def test_default_is_inline_enabled(self):\\n        pm = PromptManager(system_prompt=\\\"System\\\")\\n        assert pm.inline_enabled is True\\n        assert \\\"<replace>\\\" in pm._format_inline_command_reminder()\\n\\n    def test_api_reminder_appears_in_to_messages(self):\\n        pm = PromptManager(system_prompt=\\\"System\\\", inline_enabled=False)\\n        pm.append_user_message(\\\"Do something\\\")\\n        messages = pm.to_messages()\\n        # The reminder is injected as the last user content block\\n        last_user = next(m for m in reversed(messages) if m[\\\"role\\\"] == \\\"user\\\")\\n        full_text = \\\"\\\\n\\\".join(b[\\\"text\\\"] for b in last_user[\\\"content\\\"])\\n        assert \\\"Batch Your Tool Calls\\\" in full_text\\n\\n    def test_inline_reminder_appears_in_to_messages(self):\\n        pm = PromptManager(system_prompt=\\\"System\\\", inline_enabled=True)\\n        pm.append_user_message(\\\"Do something\\\")\\n        messages = pm.to_messages()\\n        last_user = next(m for m in reversed(messages) if m[\\\"role\\\"] == \\\"user\\\")\\n        full_text = \\\"\\\\n\\\".join(b[\\\"text\\\"] for b in last_user[\\\"content\\\"])\\n        assert \\\"<replace>\\\" in full_text\\n\\n\\nclass TestClearConversation:\",\n      \"search\": \"class TestClearConversation:\"\n    }\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"edits_applied\": 1,\n  \"modified_files\": [\n    \"tests/test_prompt_manager.py\"\n  ],\n  \"side_effects\": [\n    \"files_modified\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KjfLye4dAiYtZZeaUXTK8W",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_faxgdkpz\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 296 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\\ntests/test_clear_session.py ..................                           [  7%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 30%]\\ntests/test_inline_executor.py ...                                        [ 31%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\\ntests/test_llm_backend.py ................                               [ 36%]\\ntests/test_markdown_renumber.py .......................                  [ 44%]\\ntests/test_mermaid_repair.py .................                           [ 50%]\\ntests/test_prompt_manager.py ........................................... [ 64%]\\n...............                                                          [ 69%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 74%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 82%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 296 passed in 1.66s ==============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_faxgdkpz\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 296 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  1%]\\ntests/test_clear_session.py ..................                           [  7%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 30%]\\ntests/test_inline_executor.py ...                                        [ 31%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 31%]\\ntests/test_llm_backend.py ................                               [ 36%]\\ntests/test_markdown_renumber.py .......................                  [ 44%]\\ntests/test_mermaid_repair.py .................                           [ 50%]\\ntests/test_prompt_manager.py ........................................... [ 64%]\\n...............                                                          [ 69%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 74%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 82%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 296 passed in 1.66s ==============================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All 296 tests pass (291 \u2192 296, the 5 new reminder tests). Both tasks from your message are now addressed:\n\n**Task 2 \u2014 push the model to batch tool calls** is done. The misleading inline-XML reminder that was getting injected at the end of every turn (the very text you can see at the bottom of this context, telling me to write `<replace>` tags) now branches on `inline_enabled`:\n\n- When inline parsing is **off** (this session's mode), the new `_format_api_tool_reminder()` fires instead. It explicitly pushes: *make as many tool calls as possible in one response*, use the `edit` tool's `edits` array for all changes at once, and calls out the exact \"I'll make the first change \u2192 Now the second \u2192 Now I'll run tests \u2192 Now I'll commit\" anti-pattern you described as wasting four round-trips.\n- When inline parsing is **on**, the original `<replace>`-syntax reminder still shows.\n\nChanges in `forge/prompts/manager.py`:\n- Store `self.inline_enabled` in `__init__` (was a constructor param used only to build the system prompt, never retained).\n- Add `_format_api_tool_reminder()` \u2014 the batching-focused reminder.\n- `_format_inline_command_reminder()` now returns the API variant when `inline_enabled` is False.\n\nPlus 5 tests in `TestInlineCommandReminder`.\n\nI didn't commit yet \u2014 want to do that now, but first:\n\n---\n\n**Task 1 \u2014 re-implement tool call rendering** is still open and is the bigger one. Before I dive in I want to make sure I understand the scope, because \"re-implement\" could mean a few things. The current state (from our earlier work): when inline parsing is off, the chat renderer falls back to plain markdown with raw tags escaped \u2014 so inline-edit *cards* don't render, but I'm not sure that's the gap you mean.\n\nWhat specifically is broken/missing in tool call rendering right now? Some possibilities:\n1. **API tool calls don't render as nice cards** the way inline `<replace>`/`<write>` blocks used to \u2014 e.g. an `edit` call with an `edits` array just shows as raw JSON instead of a diff view.\n2. The **multi-edit `edit` call** needs a custom renderer (show each edit as a separate diff/file panel).\n3. Something regressed in how tool calls display generally.\n\nWhich is it \u2014 or is it something else? And should I commit the reminder work first so it's banked separately from the rendering work?"
     }
   ],
   "parent_session": null,

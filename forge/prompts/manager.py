@@ -63,6 +63,11 @@ class PromptManager:
             system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)
         self.system_prompt = system_prompt
 
+        # Whether inline XML commands are parsed from assistant prose. When off,
+        # the model interacts purely through API tool calls, and the end-of-context
+        # reminder is tailored accordingly.
+        self.inline_enabled = inline_enabled
+
         # Rolling counter for user-friendly tool call IDs
         self._next_tool_id: int = 1
         # Mapping from user-friendly ID -> actual tool_call_id
@@ -1099,12 +1104,59 @@ class PromptManager:
 
         return "".join(lines)
 
+    def _format_api_tool_reminder(self) -> str:
+        """
+        Reminder shown when inline XML parsing is OFF (pure API-tool-call mode).
+
+        Pushes hard on batching: make as many tool calls as possible in a single
+        response instead of one-call-per-turn narration.
+        """
+        return """## REMINDER: Batch Your Tool Calls — Do Everything In One Response
+
+You can make **multiple tool calls in a single response**. Do this whenever the calls
+don't depend on each other's results. One response with five tool calls is five times
+cheaper and faster than five responses with one call each.
+
+The `edit` tool takes an **`edits` array** — pass *all* your changes (across any number
+of files, mixing replaces and whole-file writes) in **one** `edit` call. Don't call `edit`
+once per change.
+
+**Do this** — everything in one response:
+
+```
+[edit call with several edits across files]
+[run_tests call]
+[commit call]
+```
+Then: "Done! Added feature X, tests pass."
+
+**NOT this** — one call per response, narrating between each:
+
+> I'll make the first change.  →  [edit]
+> Now the second change.       →  [edit]
+> Now I'll run the tests.       →  [run_tests]
+> Now I'll commit.              →  [commit]
+
+That wastes four round-trips. Each "Now I'll..." sentence followed by a single tool call
+is a turn you didn't need to spend.
+
+**Assume success and keep going.** Tool calls in a response execute as a pipeline: if one
+fails, the rest abort and you get control back with the error. So you don't need to stop
+and check after each call — batch them, and handle the rare failure when it surfaces.
+
+Only split across responses when a later call genuinely needs the *result* of an earlier
+one (e.g. you must read a file's content before you know what to replace)."""
+
     def _format_inline_command_reminder(self) -> str:
         """
-        Format a reminder about optimistic chaining for inline commands.
+        Format a reminder about optimistic chaining at the end of context.
 
         This is injected at the very end of context so it's maximally salient.
+        Two variants: one for inline XML commands, one for pure API tool calls
+        (selected by self.inline_enabled).
         """
+        if not self.inline_enabled:
+            return self._format_api_tool_reminder()
         return """## REMINDER: Be Optimistic, Do Everything In One Response
 
 `<replace>` is an **inline XML command written directly in your response prose** — not an

@@ -1087,6 +1087,48 @@ class TestFileOrderingAfterEdits:
         ]
 
 
+class TestInlineCommandReminder:
+    """Test the end-of-context reminder branches on inline_enabled."""
+
+    def test_inline_enabled_uses_inline_reminder(self):
+        pm = PromptManager(system_prompt="System", inline_enabled=True)
+        reminder = pm._format_inline_command_reminder()
+        # Inline variant talks about <replace> XML tags written in prose
+        assert "<replace>" in reminder
+        assert "inline XML command" in reminder
+
+    def test_inline_disabled_uses_api_reminder(self):
+        pm = PromptManager(system_prompt="System", inline_enabled=False)
+        reminder = pm._format_inline_command_reminder()
+        # API variant pushes batching tool calls and the edits array
+        assert "Batch Your Tool Calls" in reminder
+        assert "`edits` array" in reminder
+        # Must NOT instruct the model to write inline XML tags
+        assert "inline XML command" not in reminder
+
+    def test_default_is_inline_enabled(self):
+        pm = PromptManager(system_prompt="System")
+        assert pm.inline_enabled is True
+        assert "<replace>" in pm._format_inline_command_reminder()
+
+    def test_api_reminder_appears_in_to_messages(self):
+        pm = PromptManager(system_prompt="System", inline_enabled=False)
+        pm.append_user_message("Do something")
+        messages = pm.to_messages()
+        # The reminder is injected as the last user content block
+        last_user = next(m for m in reversed(messages) if m["role"] == "user")
+        full_text = "\n".join(b["text"] for b in last_user["content"])
+        assert "Batch Your Tool Calls" in full_text
+
+    def test_inline_reminder_appears_in_to_messages(self):
+        pm = PromptManager(system_prompt="System", inline_enabled=True)
+        pm.append_user_message("Do something")
+        messages = pm.to_messages()
+        last_user = next(m for m in reversed(messages) if m["role"] == "user")
+        full_text = "\n".join(b["text"] for b in last_user["content"])
+        assert "<replace>" in full_text
+
+
 class TestClearConversation:
     """Test clearing conversation while preserving context"""
 

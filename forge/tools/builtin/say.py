@@ -6,7 +6,7 @@ call's results are returned. That means any prose written *after* the last
 tool call cannot keep the pipeline going — the turn is already over. `say`
 exists to solve exactly this: it is itself a tool call, so emitting it keeps
 the turn alive, and its `message` argument is rendered to the user as plain
-narration (not a tool card).
+narration (not a tool card). Use it to narrate progress between actions.
 
 This lets the model interleave narration with actions in a single turn:
 

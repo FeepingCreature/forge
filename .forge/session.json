@@ -803,6 +803,51 @@
       "streaming": false,
       "actual_cost": 0.001749,
       "generation_id": "gen-1781818211-90uXaEiwvf1YHVKS5qNj"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818235236.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818235236.json",
+      "timestamp": 1781818235.2399178,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.8957875,
+      "generation_id": "gen-1781818235-fjjLfqcUn2f9tD0cm8Km"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818246676.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818246676.json",
+      "timestamp": 1781818246.679531,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.72579,
+      "generation_id": "gen-1781818246-PXyGCjtNm4jTEezvl2Xk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818262159.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818262159.json",
+      "timestamp": 1781818262.1773772,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.17844075,
+      "generation_id": "gen-1781818262-yIOfhm3t7XtQSK9ylagW"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818273495.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818273495.json",
+      "timestamp": 1781818273.5183902,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.100162,
+      "generation_id": "gen-1781818273-WdQ9tje4ilh41vPJhels"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818286756.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818286756.json",
+      "timestamp": 1781818286.77841,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.33414125,
+      "generation_id": "gen-1781818286-1aw6uIgP03JG0Fg989Lf"
     }
   ],
   "messages": [
@@ -2684,6 +2729,138 @@
     {
       "role": "assistant",
       "content": "Everything's committed and working. The session is complete \u2014 all four goals are done and verified, including a live demonstration of the multi-call chain you just watched (`say` \u2192 `edit` \u2192 `say` \u2192 `run_tests` \u2192 `commit`, all in single responses).\n\nContext is at 127k, which is large. Since this is a clean stopping point with nothing pending, I'd recommend compacting the conversation before the next task. Here's a summary of where things stand:\n\n**Done this session (all committed):**\n1. **Inline tools also callable as API tools** \u2014 `_filter_inline_tools` is a pass-through.\n2. **`llm.inline_tools_enabled` toggle** \u2014 gates inline text-parsing across prompt, chat rendering, and command execution, with a UI checkbox.\n3. **`edit` accepts an `edits` array** \u2014 multiple replaces/writes in one call, with streaming diff rendering matching inline `<replace>`/`<write>`.\n4. **`say` tool** \u2014 narrate between tool calls without ending the turn; renders as prose; fixed the streaming-fallback bug (added `message` to `parse_partial_json` keys, made `say`/`done` empty renders \"handled\" via `is not None`); documented in the prompt; 12 tests in `test_say_tool.py`. All 308 tests pass.\n\nWant me to compact now, or is there a next task you'd like to start? If you've got another change in mind, just point me at it."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: c16e4863",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "Nice! But tool call 'say' and tool call 'edit' still produce their System cards, and 'edit' still doesn't show an in-flow diff. Though say() worked fine."
+    },
+    {
+      "role": "assistant",
+      "content": "Two different render paths are involved, and there's a key distinction: `say` worked when *executed as a real tool call* but you're saying `say` and `edit` *still* produce System cards. That tells me there's a render path I haven't actually fixed \u2014 the one that renders these from message history (not streaming, not the completed-tool path I edited).\n\nLet me think about what \"System card\" means. In `chat_message.py`, the fallback produces `\ud83d\udd27 {name}` cards \u2014 but those are labeled with the tool name, and they live inside the assistant message's tool-calls section, not a \"System\" message. A \"System page/card\" with its own role label suggests these tool calls are being rendered as **separate messages** somewhere, where the role shows as \"System\".\n\nLet me look at how the chat widget builds messages from history and where tool-call messages get their role. Let me load the chat widget and look at the message-building path.",
+      "tool_calls": [
+        {
+          "id": "toolu_01PAPTLE6y7JqMkk3jEQ3RoX",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"add\": [\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"tests/harness/session.py\", \"tests/test_inline_edit.py\", \"forge/session/live_session.py\", \"forge/tools/manager.py\", \"tests/test_say_tool.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01PAPTLE6y7JqMkk3jEQ3RoX",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/ui/ai_chat_widget.py\"], \"remove\": [\"tests/harness/session.py\", \"tests/test_inline_edit.py\", \"forge/session/live_session.py\", \"forge/tools/manager.py\", \"tests/test_say_tool.py\"], \"message\": \"Added 1 files, removed 5 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 86] Now I can see the actual render path. The key insight is in `_display_tool_result` (line ~340 in ai_chat_widget.py): when a tool finishes, it checks `builtin_tools_with_native_rendering` \u2014 and **`say`, `edit`, and `done` are NOT in that set**. So they fall into the final `else` branch \u2192 `_add_system_message` with the full JSON dump. **That's your \"System card\".**\n\nSo there are two completely separate rendering systems:\n1. **Tool *cards*** (in `chat_message.py` / `tool_rendering.py`) \u2014 what I fixed. These render the tool call inside the assistant message.\n2. **Tool *result* system messages** (`_display_tool_result`) \u2014 emits a separate `system` role message with a JSON dump for any tool not in the allowlist. **This is the bug.**\n\n`edit` not showing an in-flow diff is the same root cause: `edit` isn't in the allowlist, so instead of letting the native card render, it dumps a system message. The native `edit` card *does* render (in the assistant message), but it's drowned by the extra System JSON dump.\n\nThe fix: add `edit`, `say`, and `done` to the set of tools that don't emit a system message on success. Let me also rename that set since it's really \"tools that render natively / need no system message\". Let me make the fix.",
+      "tool_calls": [
+        {
+          "id": "toolu_011JzAiPYRfHbPPicWLq65d6",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"forge/ui/ai_chat_widget.py\\\", \\\"search\\\": \\\"        \\\\\\\"\\\\\\\"\\\\\\\"Display tool result in chat (system messages for failures, etc.).\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        # Built-in tools with native rendering don't need system messages on success\\\\n        builtin_tools_with_native_rendering = {\\\\n            \\\\\\\"search_replace\\\\\\\",\\\\n            \\\\\\\"delete_file\\\\\\\",\\\\n            \\\\\\\"update_context\\\\\\\",\\\\n            \\\\\\\"grep_open\\\\\\\",\\\\n            \\\\\\\"get_lines\\\\\\\",\\\\n            \\\\\\\"compact\\\\\\\",\\\\n            \\\\\\\"commit\\\\\\\",\\\\n            \\\\\\\"think\\\\\\\",\\\\n            \\\\\\\"run_tests\\\\\\\",\\\\n        }\\\", \\\"search_replace_unused\\\": \\\"\\\", \\\"replace\\\": \\\"        \\\\\\\"\\\\\\\"\\\\\\\"Display tool result in chat (system messages for failures, etc.).\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        # Built-in tools with native rendering don't need system messages on\\\\n        # success \u2014 their tool call is already shown inline as a card (or, for\\\\n        # `say`/`done`, as prose / nothing). Anything NOT in this set falls\\\\n        # through to a generic JSON \\\\\\\"system card\\\\\\\" dump below.\\\\n        builtin_tools_with_native_rendering = {\\\\n            \\\\\\\"search_replace\\\\\\\",\\\\n            \\\\\\\"edit\\\\\\\",\\\\n            \\\\\\\"delete_file\\\\\\\",\\\\n            \\\\\\\"update_context\\\\\\\",\\\\n            \\\\\\\"grep_open\\\\\\\",\\\\n            \\\\\\\"get_lines\\\\\\\",\\\\n            \\\\\\\"compact\\\\\\\",\\\\n            \\\\\\\"commit\\\\\\\",\\\\n            \\\\\\\"think\\\\\\\",\\\\n            \\\\\\\"run_tests\\\\\\\",\\\\n            \\\\\\\"say\\\\\\\",\\\\n            \\\\\\\"done\\\\\\\",\\\\n        }\\\"}]\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_011JzAiPYRfHbPPicWLq65d6",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/ui/ai_chat_widget.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 87] The fix is in. Both `say`/`edit` System-card dumps come from `_display_tool_result`, which I've now patched: `edit`, `say`, and `done` are in the native-rendering allowlist, so on success they no longer emit a JSON system message. That removes the System cards and lets `edit`'s native diff card stand on its own.\n\nThis is the last loose end \u2014 the bug was a *third* render path (tool-result system messages) separate from the two card paths I'd fixed earlier. Let me run the tests and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01Csd6aHbxWF39QVvmhokraG",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        },
+        {
+          "id": "toolu_01PkExnz357MkbPsw3kBqmtD",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"message\": \"Don't emit System-card JSON dumps for edit/say/done tool results\\n\\n_display_tool_result in ai_chat_widget dumped a generic JSON \\\"system\\ncard\\\" for any tool not in its native-rendering allowlist. edit, say, and\\ndone were missing from that set, so a successful edit/say/done tool call\\nproduced a redundant System card (and, for edit, buried the native diff\\ncard). Add them to the allowlist so successful calls render only their\\ninline card / prose / nothing.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `edit`\n```json\n{\n  \"edits\": [\n    {\n      \"filepath\": \"forge/ui/ai_chat_widget.py\",\n      \"replace\": \"        \\\"\\\"\\\"Display tool result in chat (system messages for failures, etc.).\\\"\\\"\\\"\\n        # Built-in tools with native rendering don't need system messages on\\n        # success \\u2014 their tool call is already shown inline as a card (or, for\\n        # `say`/`done`, as prose / nothing). Anything NOT in this set falls\\n        # through to a generic JSON \\\"system card\\\" dump below.\\n        builtin_tools_with_native_rendering = {\\n            \\\"search_replace\\\",\\n            \\\"edit\\\",\\n            \\\"delete_file\\\",\\n            \\\"update_context\\\",\\n            \\\"grep_open\\\",\\n            \\\"get_lines\\\",\\n            \\\"compact\\\",\\n            \\\"commit\\\",\\n            \\\"think\\\",\\n            \\\"run_tests\\\",\\n            \\\"say\\\",\\n            \\\"done\\\",\\n        }\",\n      \"search\": \"        \\\"\\\"\\\"Display tool result in chat (system messages for failures, etc.).\\\"\\\"\\\"\\n        # Built-in tools with native rendering don't need system messages on success\\n        builtin_tools_with_native_rendering = {\\n            \\\"search_replace\\\",\\n            \\\"delete_file\\\",\\n            \\\"update_context\\\",\\n            \\\"grep_open\\\",\\n            \\\"get_lines\\\",\\n            \\\"compact\\\",\\n            \\\"commit\\\",\\n            \\\"think\\\",\\n            \\\"run_tests\\\",\\n        }\",\n      \"search_replace_unused\": \"\"\n    }\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"edits_applied\": 1,\n  \"modified_files\": [\n    \"forge/ui/ai_chat_widget.py\"\n  ],\n  \"side_effects\": [\n    \"files_modified\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Csd6aHbxWF39QVvmhokraG",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs__4ju80e9\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 308 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 28%]\\ntests/test_inline_executor.py ...                                        [ 29%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 30%]\\ntests/test_llm_backend.py ................                               [ 35%]\\ntests/test_markdown_renumber.py .......................                  [ 42%]\\ntests/test_mermaid_repair.py .................                           [ 48%]\\ntests/test_prompt_manager.py ........................................... [ 62%]\\n...............                                                          [ 67%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 68%]\\ntests/test_queued_messages.py ..........                                 [ 71%]\\ntests/test_say_tool.py ............                                      [ 75%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 308 passed in 1.71s ==============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs__4ju80e9\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 308 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 28%]\\ntests/test_inline_executor.py ...                                        [ 29%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 30%]\\ntests/test_llm_backend.py ................                               [ 35%]\\ntests/test_markdown_renumber.py .......................                  [ 42%]\\ntests/test_mermaid_repair.py .................                           [ 48%]\\ntests/test_prompt_manager.py ........................................... [ 62%]\\n...............                                                          [ 67%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 68%]\\ntests/test_queued_messages.py ..........                                 [ 71%]\\ntests/test_say_tool.py ............                                      [ 75%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 308 passed in 1.71s ==============================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01PkExnz357MkbPsw3kBqmtD",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"b757ca63c203\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All three render paths are now fixed and committed (`b757ca63c203`), 308 tests pass. The bug you hit had a non-obvious cause worth recording: `say`/`edit`/`done` showing System cards came from a **third** render path \u2014 `_display_tool_result` in `ai_chat_widget.py`, which dumps a generic JSON \"system card\" for any tool not in its native-rendering allowlist. That was separate from the two card paths fixed earlier.\n\nContext is now extremely large (104k). This is a clean stopping point with nothing pending, so let me compact the conversation and drop the files I no longer need.",
+      "tool_calls": [
+        {
+          "id": "toolu_01997bnQyJYnPkaHW8YVjEbH",
+          "type": "function",
+          "function": {
+            "name": "compact",
+            "arguments": "{\"from_id\": \"79\", \"to_id\": \"87\", \"summary\": \"Tested the multi-call chain live (say\u2192edit\u2192say\u2192run_tests\u2192commit in single responses \u2014 works). Added tests/test_say_tool.py (12 tests: schema, no-op execute, rendering say\u2192prose / done\u2192empty / partial-json extracts message). Committed 9764f6fd63bb.\\n\\nThen user reported say/edit STILL produced \\\"System cards\\\" and edit showed no in-flow diff. ROOT CAUSE: a THIRD render path beyond the two card paths (chat_message.py / tool_rendering.py) fixed earlier \u2014 `_display_tool_result()` in forge/ui/ai_chat_widget.py dumps a generic JSON \\\"system card\\\" (via `_add_system_message`) for any tool NOT in its `builtin_tools_with_native_rendering` allowlist on success. `edit`, `say`, `done` were missing from that set. FIX: added \\\"edit\\\", \\\"say\\\", \\\"done\\\" to that allowlist set so successful calls render only their inline card/prose/nothing. Committed b757ca63c203. All 308 tests pass.\\n\\nALL SESSION GOALS COMPLETE: (1) inline tools also API-callable, (2) llm.inline_tools_enabled toggle + UI checkbox, (3) edit `edits` array + streaming diff rendering, (4) say tool (mid-turn narration). Nothing pending.\"}"
+          }
+        },
+        {
+          "id": "toolu_015WppdHYqdbz8fVffvbHXtv",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/tool_rendering.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/chat_message.py\", \"forge/prompts/system.py\", \"forge/tools/builtin/done.py\", \"forge/tools/builtin/say.py\", \"tools/check.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01997bnQyJYnPkaHW8YVjEbH",
+      "content": "{\"success\": true, \"compact\": true, \"from_id\": \"79\", \"to_id\": \"87\", \"summary\": \"Tested the multi-call chain live (say\\u2192edit\\u2192say\\u2192run_tests\\u2192commit in single responses \\u2014 works). Added tests/test_say_tool.py (12 tests: schema, no-op execute, rendering say\\u2192prose / done\\u2192empty / partial-json extracts message). Committed 9764f6fd63bb.\\n\\nThen user reported say/edit STILL produced \\\"System cards\\\" and edit showed no in-flow diff. ROOT CAUSE: a THIRD render path beyond the two card paths (chat_message.py / tool_rendering.py) fixed earlier \\u2014 `_display_tool_result()` in forge/ui/ai_chat_widget.py dumps a generic JSON \\\"system card\\\" (via `_add_system_message`) for any tool NOT in its `builtin_tools_with_native_rendering` allowlist on success. `edit`, `say`, `done` were missing from that set. FIX: added \\\"edit\\\", \\\"say\\\", \\\"done\\\" to that allowlist set so successful calls render only their inline card/prose/nothing. Committed b757ca63c203. All 308 tests pass.\\n\\nALL SESSION GOALS COMPLETE: (1) inline tools also API-callable, (2) llm.inline_tools_enabled toggle + UI checkbox, (3) edit `edits` array + streaming diff rendering, (4) say tool (mid-turn narration). Nothing pending.\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_015WppdHYqdbz8fVffvbHXtv",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/ui/ai_chat_widget.py\", \"forge/ui/tool_rendering.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/chat_message.py\", \"forge/prompts/system.py\", \"forge/tools/builtin/done.py\", \"forge/tools/builtin/say.py\", \"tools/check.py\"], \"message\": \"Added 0 files, removed 8 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All session goals are complete and committed (`b757ca63c203`), with 308 tests passing. Nothing is pending.\n\nTo recap what was built this session:\n\n1. **Inline tools are also API-callable** \u2014 `_filter_inline_tools` is now a pass-through, so every inline tool is exposed as a standard tool call too.\n2. **`llm.inline_tools_enabled` toggle** \u2014 gates inline text-parsing across the prompt, chat rendering, and command execution, with a UI checkbox in the LLM settings tab.\n3. **`edit` accepts an `edits` array** \u2014 multiple replaces/writes in one call, with streaming diff rendering matching the inline `<replace>`/`<write>` look.\n4. **`say` tool** \u2014 mid-turn narration that keeps the turn alive (since the provider ends the turn after the final tool call), rendered as prose rather than a tool card.\n\nThe trickiest part was rendering: `say`/`edit`/`done` were hitting **three** separate render paths that each needed to know these tools render specially (or invisibly) \u2014 the two card paths (`tool_rendering.py`, `chat_message.py`) plus the `_display_tool_result` system-card path in `ai_chat_widget.py`.\n\nWhat would you like to tackle next?"
     }
   ],
   "parent_session": null,

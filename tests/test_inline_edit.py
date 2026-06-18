@@ -598,6 +598,39 @@ class TestStreamingEditToolArguments:
         entries = _parse_partial_edits(args)
         assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
 
+    def test_double_encoded_edits_string(self):
+        """Provider double-encodes `edits` as a JSON *string*, not an array.
+
+        Observed live: the arguments arrive as ``{"edits": "[{...}]"}`` where the
+        value is a JSON string. Both render paths must decode it back to a list,
+        otherwise the diff renderer falls through to "Waiting for content...".
+        """
+        from forge.ui.tool_rendering import _parse_partial_edits
+
+        args = '{"edits": "[{\\"filepath\\": \\"a.py\\", \\"search\\": \\"x\\", \\"replace\\": \\"y\\"}]"}'
+        entries = _parse_partial_edits(args)
+        assert entries == [{"filepath": "a.py", "search": "x", "replace": "y"}]
+
+    def test_double_encoded_edits_string_completed_renders_diff(self):
+        """The completed path must also decode a stringified `edits` value."""
+        from forge.ui.tool_rendering import render_completed_tool_html
+
+        args = {"edits": '[{"filepath": "a.py", "search": "old", "replace": "new"}]'}
+        html_out = render_completed_tool_html("edit", args, result={"success": True})
+        assert html_out is not None
+        assert "Waiting for content" not in html_out
+        assert "a.py" in html_out
+
+    def test_coerce_edits_value_shapes(self):
+        """_coerce_edits_value: list passes through, string decodes, junk -> []."""
+        from forge.ui.tool_rendering import _coerce_edits_value
+
+        assert _coerce_edits_value([{"filepath": "a.py"}]) == [{"filepath": "a.py"}]
+        assert _coerce_edits_value('[{"filepath": "a.py"}]') == [{"filepath": "a.py"}]
+        assert _coerce_edits_value("not json") == []
+        assert _coerce_edits_value('"a string"') == []
+        assert _coerce_edits_value(42) == []
+
 
 class TestStreamingPartialWrite:
     """Test the streaming partial-write renderer."""

@@ -675,8 +675,9 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
     # Fast path: complete JSON.
     try:
         full = json.loads(args_str)
-        if isinstance(full, dict) and isinstance(full.get("edits"), list):
-            return [e for e in full["edits"] if isinstance(e, dict)]
+        if isinstance(full, dict) and "edits" in full:
+            edits = _coerce_edits_value(full["edits"])
+            return [e for e in edits if isinstance(e, dict)]
         # Bare top-level array — some providers deliver the `edits` value
         # directly as the arguments payload.
         if isinstance(full, list):
@@ -704,6 +705,27 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
         return []
 
     return _scan_array_objects(args_str, bracket + 1)
+
+
+def _coerce_edits_value(value: object) -> list[object]:
+    """Normalize an `edits` value to a list of edit entries.
+
+    Some providers deliver the `edits` array correctly as a JSON list, but
+    others double-encode it: the arguments arrive as ``{"edits": "[{...}]"}``
+    where the value is a JSON *string* rather than a parsed array. Decode that
+    string back into a list. A value that's already a list passes through; an
+    unparseable string yields an empty list.
+    """
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(decoded, list):
+            return decoded
+    return []
 
 
 def _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:
@@ -849,7 +871,8 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
         # The edit tool takes an `edits` array (or a single-edit shape from the
         # inline dispatcher). Render each entry as a diff / write card so a
         # streaming tool call looks just like the in-flow XML edits.
-        return render_edit_tool_html(_parse_partial_edits(args_str), is_streaming=True)
+        _entries = _parse_partial_edits(args_str)
+        return render_edit_tool_html(_entries, is_streaming=True)
     elif name == "search_replace":
         filepath = parsed.get("filepath", "")
         search = parsed.get("search", "")
@@ -918,8 +941,8 @@ def render_completed_tool_html(
         # single-edit shape.
         if isinstance(args, list):
             entries = [e for e in args if isinstance(e, dict)]
-        elif isinstance(args.get("edits"), list):
-            entries = [e for e in args["edits"] if isinstance(e, dict)]
+        elif "edits" in args:
+            entries = [e for e in _coerce_edits_value(args["edits"]) if isinstance(e, dict)]
         else:
             entries = [args]
         return render_edit_tool_html(entries, is_streaming=False)

@@ -277,7 +277,7 @@ class MainWindow(QMainWindow):
             content = self.repo.get_file_content(".forge/session.json", branch_name)
             result: dict[str, Any] = json.loads(content)
             return result
-        except (FileNotFoundError, KeyError):
+        except (FileNotFoundError, KeyError, json.decoder.JSONDecodeError):
             return None
 
     def _check_unsaved_before_ai(self, branch_widget: BranchTabWidget) -> bool:

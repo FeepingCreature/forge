@@ -1,13 +1,17 @@
 {
   "active_files": [
     "forge/tools/manager.py",
+    "tests/harness/session.py",
+    "forge/prompts/system.py",
     "CLAUDE.md",
     "forge/ui/chat_message.py",
-    "forge/prompts/system.py",
-    "forge/tools/builtin/done.py",
     "forge/ui/chat_streaming.py",
+    "forge/tools/builtin/say.py",
+    "tests/test_inline_edit.py",
+    "forge/tools/builtin/done.py",
     "forge/ui/tool_rendering.py",
-    "forge/tools/builtin/say.py"
+    "forge/session/live_session.py",
+    "tests/test_say_tool.py"
   ],
   "request_log_entries": [
     {
@@ -738,6 +742,78 @@
       "streaming": false,
       "actual_cost": 0.001204,
       "generation_id": "gen-1781818116-z0wqMbAUr6YGkLWBnyVF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1781818124108.json",
+      "response_file": "/tmp/forge_debug/response_1781818124108.json",
+      "timestamp": 1781818124.109023,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002769,
+      "generation_id": "gen-1781818124-DgGnCa2fycKlSlqDPAk8"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1781818124936.json",
+      "response_file": "/tmp/forge_debug/response_1781818124936.json",
+      "timestamp": 1781818124.9370737,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.002958,
+      "generation_id": "gen-1781818125-ymCiuaRZeQkxBUyaXpPt"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1781818126842.json",
+      "response_file": "/tmp/forge_debug/response_1781818126842.json",
+      "timestamp": 1781818126.8439875,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.003787,
+      "generation_id": "gen-1781818126-gpWHrCSHayL4wHVGIfwP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818151804.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818151804.json",
+      "timestamp": 1781818151.8075478,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.7715125,
+      "generation_id": "gen-1781818151-AOw4JXyfst1vpkeL23t7"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818162516.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818162516.json",
+      "timestamp": 1781818162.5347254,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.2015345,
+      "generation_id": "gen-1781818162-QzBAz4g8kWeAjUDcR6Te"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818196884.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818196884.json",
+      "timestamp": 1781818196.908811,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.2021105,
+      "generation_id": "gen-1781818197-BCbd2HCGCpTv7VT9hafc"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1781818202849.json",
+      "response_file": "/tmp/forge_debug/response_stream_1781818202849.json",
+      "timestamp": 1781818202.8688073,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.09174625,
+      "generation_id": "gen-1781818203-F8N1rYGo3Tyhh2gfYhD4"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1781818211629.json",
+      "response_file": "/tmp/forge_debug/response_1781818211629.json",
+      "timestamp": 1781818211.635624,
+      "model": "anthropic/claude-haiku-4.5",
+      "streaming": false,
+      "actual_cost": 0.001749,
+      "generation_id": "gen-1781818211-90uXaEiwvf1YHVKS5qNj"
     }
   ],
   "messages": [
@@ -2483,6 +2559,142 @@
     {
       "role": "assistant",
       "content": "The `say` tool is done and committed (`65990ba89458`). All four goals from this session are now complete:\n\n1. **Every inline tool is also a regular API tool** \u2014 `_filter_inline_tools` is a pass-through.\n2. **Toggle** \u2014 `llm.inline_tools_enabled` gates inline text-parsing (prompt, chat rendering, and command execution all respect it), with a UI checkbox.\n3. **`edit` accepts multiple edit blocks** \u2014 the `edits` array, with streaming diff rendering matching the inline `<replace>`/`<write>` look.\n4. **`say` tool** \u2014 narrate between tool calls without ending the turn; renders as prose, documented in the prompt.\n\nThe bug you spotted (\"\ud83d\udcdd ... Waiting for content...\" then a \"System page\") was the `say` streaming render falling through to a generic tool card because `parse_partial_json` didn't extract the `message` key. Fixed by adding `message` to the parsed keys, plus making both the streaming and completed fallback paths treat `say`/`done`'s empty render as \"handled\" (`is not None`) rather than falling through.\n\nContext is getting large (87k). Since this is a clean stopping point with everything committed, I'd suggest either compacting or starting fresh for the next task. What would you like to tackle next?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 95 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm, let me test this while you have your context at hand. what's a good task to test a multi call chain on?"
+    },
+    {
+      "role": "assistant",
+      "content": "A good multi-call test is one that exercises a real chain with `say` interleaving \u2014 and the natural candidate is **a `say`-tool test in the harness**, since `say` is the one new tool with zero test coverage right now. That tests the chain end-to-end (schema, no-op execute, rendering) *and* gives us a regression guard for the bug you just hit.\n\nBut for testing the *live multi-call chain* (the thing you actually want to eyeball), the best task is a small, self-contained edit with a verifiable outcome: **add a docstring or a tiny helper, run tests, commit** \u2014 all in one response, with `say` narration between each step. That way you see say\u2192edit\u2192say\u2192run_tests\u2192say\u2192commit render in order in the UI.\n\nLet me do the high-value version: add real test coverage for `say` (no existing test), narrating across the chain so you can watch the interleaving. First let me load the harness and an existing render/tool test to match style.",
+      "tool_calls": [
+        {
+          "id": "toolu_014x3SVymKZp3gQyA2spTNER",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"add\": [\"tests/harness/session.py\", \"tests/test_inline_edit.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_014x3SVymKZp3gQyA2spTNER",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"tests/harness/session.py\", \"tests/test_inline_edit.py\"], \"remove\": [], \"message\": \"Added 2 files, removed 0 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "I'll write a `say` test that uses a real multi-call chain so you can watch the interleaving. Files are loaded; here's everything in one response \u2014 add the test file, narrate between steps with `say`, run tests, commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01DX2j1MhBv1bTiSuaDSa2BH",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"message\": \"Writing `tests/test_say_tool.py` \u2014 schema, no-op execute, and rendering (say\u2192prose, done\u2192empty).\"}"
+          }
+        },
+        {
+          "id": "toolu_01KEhJYA5Tji3BoLbYE7asLY",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\": \"[{\\\"filepath\\\": \\\"tests/test_say_tool.py\\\", \\\"content\\\": \\\"\\\\\\\"\\\\\\\"\\\\\\\"\\\\nTests for the `say` tool.\\\\n\\\\n`say` lets the model narrate progress between tool calls without ending the\\\\nturn (the provider ends the turn after the final tool call's results return,\\\\nso prose written *after* tool calls is lost). It is an API tool only \u2014 there\\\\nis no inline `<say>` form \u2014 and its execute() is a deliberate no-op: the\\\\nnarration lives entirely in the tool-call arguments and is surfaced by the UI.\\\\n\\\\nThese tests pin three things:\\\\n  1. The schema shape (name, required `message`, no `invocation=inline`).\\\\n  2. execute() is a pure no-op returning {\\\\\\\"success\\\\\\\": True}.\\\\n  3. Rendering: `say` renders its `message` as prose (not a tool card),\\\\n     while `done` renders to nothing \u2014 and neither falls through to the\\\\n     generic tool-card branch.\\\\n\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\nfrom unittest.mock import MagicMock\\\\n\\\\nfrom forge.tools.builtin import say\\\\nfrom forge.ui.tool_rendering import (\\\\n    parse_partial_json,\\\\n    render_completed_tool_html,\\\\n    render_streaming_tool_html,\\\\n)\\\\n\\\\n\\\\nclass TestSaySchema:\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"The schema the model sees.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\n    def test_name_is_say(self):\\\\n        schema = say.get_schema()\\\\n        assert schema[\\\\\\\"function\\\\\\\"][\\\\\\\"name\\\\\\\"] == \\\\\\\"say\\\\\\\"\\\\n\\\\n    def test_message_is_required(self):\\\\n        params = say.get_schema()[\\\\\\\"function\\\\\\\"][\\\\\\\"parameters\\\\\\\"]\\\\n        assert \\\\\\\"message\\\\\\\" in params[\\\\\\\"properties\\\\\\\"]\\\\n        assert params[\\\\\\\"required\\\\\\\"] == [\\\\\\\"message\\\\\\\"]\\\\n\\\\n    def test_is_api_tool_not_inline(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"`say` is an API tool only \u2014 no inline invocation/syntax.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        schema = say.get_schema()\\\\n        # Default invocation is \\\\\\\"api\\\\\\\"; must never be \\\\\\\"inline\\\\\\\".\\\\n        assert schema.get(\\\\\\\"invocation\\\\\\\", \\\\\\\"api\\\\\\\") != \\\\\\\"inline\\\\\\\"\\\\n        assert \\\\\\\"inline_syntax\\\\\\\" not in schema\\\\n\\\\n\\\\nclass TestSayExecute:\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"execute() is a side-effect-free no-op.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\n    def test_execute_returns_success(self):\\\\n        vfs = MagicMock()\\\\n        result = say.execute(vfs, {\\\\\\\"message\\\\\\\": \\\\\\\"hello\\\\\\\"})\\\\n        assert result == {\\\\\\\"success\\\\\\\": True}\\\\n\\\\n    def test_execute_does_not_touch_vfs(self):\\\\n        vfs = MagicMock()\\\\n        say.execute(vfs, {\\\\\\\"message\\\\\\\": \\\\\\\"anything\\\\\\\"})\\\\n        vfs.write_file.assert_not_called()\\\\n        vfs.read_file.assert_not_called()\\\\n\\\\n    def test_execute_ignores_missing_message(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"Even with no message, execute() is still a clean no-op.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        vfs = MagicMock()\\\\n        assert say.execute(vfs, {}) == {\\\\\\\"success\\\\\\\": True}\\\\n\\\\n\\\\nclass TestSayRendering:\\\\n    \\\\\\\"\\\\\\\"\\\\\\\"`say` renders its message as prose; `done` renders to nothing.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n\\\\n    def _say_call(self, message: str) -> dict:\\\\n        return {\\\\\\\"function\\\\\\\": {\\\\\\\"name\\\\\\\": \\\\\\\"say\\\\\\\", \\\\\\\"arguments\\\\\\\": f'{{\\\\\\\"message\\\\\\\": \\\\\\\"{message}\\\\\\\"}}'}}\\\\n\\\\n    def test_completed_say_renders_message_as_prose(self):\\\\n        html = render_completed_tool_html(\\\\\\\"say\\\\\\\", {\\\\\\\"message\\\\\\\": \\\\\\\"Editing the parser\\\\\\\"})\\\\n        assert html is not None\\\\n        assert \\\\\\\"Editing the parser\\\\\\\" in html\\\\n        # Prose, not a tool card.\\\\n        assert \\\\\\\"tool-card\\\\\\\" not in html\\\\n\\\\n    def test_streaming_say_renders_message_as_prose(self):\\\\n        html = render_streaming_tool_html(self._say_call(\\\\\\\"Running the tests\\\\\\\"))\\\\n        assert html is not None\\\\n        assert \\\\\\\"Running the tests\\\\\\\" in html\\\\n        assert \\\\\\\"tool-card\\\\\\\" not in html\\\\n\\\\n    def test_empty_say_renders_nothing_but_is_handled(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"An empty message renders to \\\\\\\"\\\\\\\" \u2014 handled, NOT None (which would fall\\\\n        through to the generic tool-card branch).\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        assert render_completed_tool_html(\\\\\\\"say\\\\\\\", {\\\\\\\"message\\\\\\\": \\\\\\\"\\\\\\\"}) == \\\\\\\"\\\\\\\"\\\\n        assert render_completed_tool_html(\\\\\\\"say\\\\\\\", {}) == \\\\\\\"\\\\\\\"\\\\n\\\\n    def test_done_renders_empty_string_not_none(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"`done` is invisible: it must return \\\\\\\"\\\\\\\" (handled), never None.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        assert render_completed_tool_html(\\\\\\\"done\\\\\\\", {}) == \\\\\\\"\\\\\\\"\\\\n        assert render_streaming_tool_html({\\\\\\\"function\\\\\\\": {\\\\\\\"name\\\\\\\": \\\\\\\"done\\\\\\\", \\\\\\\"arguments\\\\\\\": \\\\\\\"\\\\\\\"}}) == \\\\\\\"\\\\\\\"\\\\n\\\\n    def test_partial_json_extracts_message(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"Regression: while a say call streams, parse_partial_json must extract\\\\n        `message` so it renders as prose instead of falling through to a\\\\n        generic '\\\\ud83d\\\\udd27 say' tool card.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        # Complete JSON.\\\\n        assert parse_partial_json('{\\\\\\\"message\\\\\\\": \\\\\\\"hello\\\\\\\"}')[\\\\\\\"message\\\\\\\"] == \\\\\\\"hello\\\\\\\"\\\\n        # Incomplete (still streaming) JSON \u2014 quote not yet closed.\\\\n        assert parse_partial_json('{\\\\\\\"message\\\\\\\": \\\\\\\"hel')[\\\\\\\"message\\\\\\\"] == \\\\\\\"hel\\\\\\\"\\\\n\\\\n    def test_streaming_partial_say_renders_prose_not_card(self):\\\\n        \\\\\\\"\\\\\\\"\\\\\\\"The exact bug reported: a mid-stream say must not render a tool card.\\\\\\\"\\\\\\\"\\\\\\\"\\\\n        partial = {\\\\\\\"function\\\\\\\": {\\\\\\\"name\\\\\\\": \\\\\\\"say\\\\\\\", \\\\\\\"arguments\\\\\\\": '{\\\\\\\"message\\\\\\\": \\\\\\\"Committ'}}\\\\n        html = render_streaming_tool_html(partial)\\\\n        assert html is not None\\\\n        assert \\\\\\\"Committ\\\\\\\" in html\\\\n        assert \\\\\\\"tool-card\\\\\\\" not in html\\\\n\\\"}]\"}"
+          }
+        },
+        {
+          "id": "toolu_01989A9VdyX7mtRsA3MKfLzZ",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"message\": \"Running the full test suite.\"}"
+          }
+        },
+        {
+          "id": "toolu_01EMQMn2ZDN2t4vUPmqnufgX",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01DX2j1MhBv1bTiSuaDSa2BH",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KEhJYA5Tji3BoLbYE7asLY",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"tests/test_say_tool.py\"], \"new_files\": [\"tests/test_say_tool.py\"], \"side_effects\": [\"files_modified\", \"new_files_created\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01989A9VdyX7mtRsA3MKfLzZ",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `say`\n```json\n{\n  \"message\": \"Writing `tests/test_say_tool.py` \\u2014 schema, no-op execute, and rendering (say\\u2192prose, done\\u2192empty).\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `edit`\n```json\n{\n  \"edits\": [\n    {\n      \"content\": \"\\\"\\\"\\\"\\nTests for the `say` tool.\\n\\n`say` lets the model narrate progress between tool calls without ending the\\nturn (the provider ends the turn after the final tool call's results return,\\nso prose written *after* tool calls is lost). It is an API tool only \\u2014 there\\nis no inline `<say>` form \\u2014 and its execute() is a deliberate no-op: the\\nnarration lives entirely in the tool-call arguments and is surfaced by the UI.\\n\\nThese tests pin three things:\\n  1. The schema shape (name, required `message`, no `invocation=inline`).\\n  2. execute() is a pure no-op returning {\\\"success\\\": True}.\\n  3. Rendering: `say` renders its `message` as prose (not a tool card),\\n     while `done` renders to nothing \\u2014 and neither falls through to the\\n     generic tool-card branch.\\n\\\"\\\"\\\"\\n\\nfrom unittest.mock import MagicMock\\n\\nfrom forge.tools.builtin import say\\nfrom forge.ui.tool_rendering import (\\n    parse_partial_json,\\n    render_completed_tool_html,\\n    render_streaming_tool_html,\\n)\\n\\n\\nclass TestSaySchema:\\n    \\\"\\\"\\\"The schema the model sees.\\\"\\\"\\\"\\n\\n    def test_name_is_say(self):\\n        schema = say.get_schema()\\n        assert schema[\\\"function\\\"][\\\"name\\\"] == \\\"say\\\"\\n\\n    def test_message_is_required(self):\\n        params = say.get_schema()[\\\"function\\\"][\\\"parameters\\\"]\\n        assert \\\"message\\\" in params[\\\"properties\\\"]\\n        assert params[\\\"required\\\"] == [\\\"message\\\"]\\n\\n    def test_is_api_tool_not_inline(self):\\n        \\\"\\\"\\\"`say` is an API tool only \\u2014 no inline invocation/syntax.\\\"\\\"\\\"\\n        schema = say.get_schema()\\n        # Default invocation is \\\"api\\\"; must never be \\\"inline\\\".\\n        assert schema.get(\\\"invocation\\\", \\\"api\\\") != \\\"inline\\\"\\n        assert \\\"inline_syntax\\\" not in schema\\n\\n\\nclass TestSayExecute:\\n    \\\"\\\"\\\"execute() is a side-effect-free no-op.\\\"\\\"\\\"\\n\\n    def test_execute_returns_success(self):\\n        vfs = MagicMock()\\n        result = say.execute(vfs, {\\\"message\\\": \\\"hello\\\"})\\n        assert result == {\\\"success\\\": True}\\n\\n    def test_execute_does_not_touch_vfs(self):\\n        vfs = MagicMock()\\n        say.execute(vfs, {\\\"message\\\": \\\"anything\\\"})\\n        vfs.write_file.assert_not_called()\\n        vfs.read_file.assert_not_called()\\n\\n    def test_execute_ignores_missing_message(self):\\n        \\\"\\\"\\\"Even with no message, execute() is still a clean no-op.\\\"\\\"\\\"\\n        vfs = MagicMock()\\n        assert say.execute(vfs, {}) == {\\\"success\\\": True}\\n\\n\\nclass TestSayRendering:\\n    \\\"\\\"\\\"`say` renders its message as prose; `done` renders to nothing.\\\"\\\"\\\"\\n\\n    def _say_call(self, message: str) -> dict:\\n        return {\\\"function\\\": {\\\"name\\\": \\\"say\\\", \\\"arguments\\\": f'{{\\\"message\\\": \\\"{message}\\\"}}'}}\\n\\n    def test_completed_say_renders_message_as_prose(self):\\n        html = render_completed_tool_html(\\\"say\\\", {\\\"message\\\": \\\"Editing the parser\\\"})\\n        assert html is not None\\n        assert \\\"Editing the parser\\\" in html\\n        # Prose, not a tool card.\\n        assert \\\"tool-card\\\" not in html\\n\\n    def test_streaming_say_renders_message_as_prose(self):\\n        html = render_streaming_tool_html(self._say_call(\\\"Running the tests\\\"))\\n        assert html is not None\\n        assert \\\"Running the tests\\\" in html\\n        assert \\\"tool-card\\\" not in html\\n\\n    def test_empty_say_renders_nothing_but_is_handled(self):\\n        \\\"\\\"\\\"An empty message renders to \\\"\\\" \\u2014 handled, NOT None (which would fall\\n        through to the generic tool-card branch).\\\"\\\"\\\"\\n        assert render_completed_tool_html(\\\"say\\\", {\\\"message\\\": \\\"\\\"}) == \\\"\\\"\\n        assert render_completed_tool_html(\\\"say\\\", {}) == \\\"\\\"\\n\\n    def test_done_renders_empty_string_not_none(self):\\n        \\\"\\\"\\\"`done` is invisible: it must return \\\"\\\" (handled), never None.\\\"\\\"\\\"\\n        assert render_completed_tool_html(\\\"done\\\", {}) == \\\"\\\"\\n        assert render_streaming_tool_html({\\\"function\\\": {\\\"name\\\": \\\"done\\\", \\\"arguments\\\": \\\"\\\"}}) == \\\"\\\"\\n\\n    def test_partial_json_extracts_message(self):\\n        \\\"\\\"\\\"Regression: while a say call streams, parse_partial_json must extract\\n        `message` so it renders as prose instead of falling through to a\\n        generic '\\ud83d\\udd27 say' tool card.\\\"\\\"\\\"\\n        # Complete JSON.\\n        assert parse_partial_json('{\\\"message\\\": \\\"hello\\\"}')[\\\"message\\\"] == \\\"hello\\\"\\n        # Incomplete (still streaming) JSON \\u2014 quote not yet closed.\\n        assert parse_partial_json('{\\\"message\\\": \\\"hel')[\\\"message\\\"] == \\\"hel\\\"\\n\\n    def test_streaming_partial_say_renders_prose_not_card(self):\\n        \\\"\\\"\\\"The exact bug reported: a mid-stream say must not render a tool card.\\\"\\\"\\\"\\n        partial = {\\\"function\\\": {\\\"name\\\": \\\"say\\\", \\\"arguments\\\": '{\\\"message\\\": \\\"Committ'}}\\n        html = render_streaming_tool_html(partial)\\n        assert html is not None\\n        assert \\\"Committ\\\" in html\\n        assert \\\"tool-card\\\" not in html\\n\",\n      \"filepath\": \"tests/test_say_tool.py\"\n    }\n  ]\n}\n```\n**Result:**\n```json\n{\n  \"edits_applied\": 1,\n  \"modified_files\": [\n    \"tests/test_say_tool.py\"\n  ],\n  \"new_files\": [\n    \"tests/test_say_tool.py\"\n  ],\n  \"side_effects\": [\n    \"files_modified\",\n    \"new_files_created\"\n  ],\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `say`\n```json\n{\n  \"message\": \"Running the full test suite.\"\n}\n```\n**Result:**\n```json\n{\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EMQMn2ZDN2t4vUPmqnufgX",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_dh1rsnr_\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 308 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 28%]\\ntests/test_inline_executor.py ...                                        [ 29%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 30%]\\ntests/test_llm_backend.py ................                               [ 35%]\\ntests/test_markdown_renumber.py .......................                  [ 42%]\\ntests/test_mermaid_repair.py .................                           [ 48%]\\ntests/test_prompt_manager.py ........................................... [ 62%]\\n...............                                                          [ 67%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 68%]\\ntests/test_queued_messages.py ..........                                 [ 71%]\\ntests/test_say_tool.py ............                                      [ 75%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 308 passed in 1.87s ==============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_dh1rsnr_\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 308 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  6%]\\ntests/test_code_regions.py ....................                          [ 13%]\\ntests/test_compact_replay.py ......                                      [ 15%]\\ntests/test_inline_edit.py ..........................................     [ 28%]\\ntests/test_inline_executor.py ...                                        [ 29%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 30%]\\ntests/test_llm_backend.py ................                               [ 35%]\\ntests/test_markdown_renumber.py .......................                  [ 42%]\\ntests/test_mermaid_repair.py .................                           [ 48%]\\ntests/test_prompt_manager.py ........................................... [ 62%]\\n...............                                                          [ 67%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 68%]\\ntests/test_queued_messages.py ..........                                 [ 71%]\\ntests/test_say_tool.py ............                                      [ 75%]\\ntests/test_session_spawn.py .................                            [ 80%]\\ntests/test_streaming_helper.py .......                                   [ 83%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 95%]\\ntests/test_tool_executor.py ..............                               [100%]\\n\\n============================= 308 passed in 1.87s ==============================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The chain worked \u2014 you can see it in the results: `say` \u2192 `edit` \u2192 `say` \u2192 `run_tests` all executed in order in a single turn, with the narration interleaved between the actions. 12 new tests in `test_say_tool.py`, all 308 pass.\n\nThat's exactly the interleaving pattern `say` was built for. Let me commit it.",
+      "tool_calls": [
+        {
+          "id": "toolu_01VRn65X5TC9N7x9BWVejFrW",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"message\": \"Add tests for the `say` tool\\n\\nCovers schema shape (name, required `message`, not inline), the no-op\\nside-effect-free execute(), and rendering: `say` renders its message as\\nprose (not a tool card) in both streaming and completed paths, `done`\\nrenders to \\\"\\\" (handled, not None), and parse_partial_json extracts the\\n`message` key so a mid-stream say renders as prose rather than falling\\nthrough to a generic tool card (the reported bug).\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01VRn65X5TC9N7x9BWVejFrW",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"9764f6fd63bb\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Everything's committed and working. The session is complete \u2014 all four goals are done and verified, including a live demonstration of the multi-call chain you just watched (`say` \u2192 `edit` \u2192 `say` \u2192 `run_tests` \u2192 `commit`, all in single responses).\n\nContext is at 127k, which is large. Since this is a clean stopping point with nothing pending, I'd recommend compacting the conversation before the next task. Here's a summary of where things stand:\n\n**Done this session (all committed):**\n1. **Inline tools also callable as API tools** \u2014 `_filter_inline_tools` is a pass-through.\n2. **`llm.inline_tools_enabled` toggle** \u2014 gates inline text-parsing across prompt, chat rendering, and command execution, with a UI checkbox.\n3. **`edit` accepts an `edits` array** \u2014 multiple replaces/writes in one call, with streaming diff rendering matching inline `<replace>`/`<write>`.\n4. **`say` tool** \u2014 narrate between tool calls without ending the turn; renders as prose; fixed the streaming-fallback bug (added `message` to `parse_partial_json` keys, made `say`/`done` empty renders \"handled\" via `is not None`); documented in the prompt; 12 tests in `test_say_tool.py`. All 308 tests pass.\n\nWant me to compact now, or is there a next task you'd like to start? If you've got another change in mind, just point me at it."
     }
   ],
   "parent_session": null,

@@ -27,6 +27,14 @@ class Settings:
             # want to "think between edits" and would otherwise break the
             # one-long-response pattern.
             "require_done_tag": False,
+            # When True, the inline XML edit syntax (<replace>, <write>,
+            # <commit/>, <run_tests/>, etc.) is parsed out of assistant
+            # message text and executed. When False, inline text parsing is
+            # disabled entirely — the model must invoke these tools as normal
+            # API tool calls instead. Either way, every inline tool is ALSO
+            # exposed as a regular API tool, so disabling this never removes a
+            # capability; it only controls the text-parsing path.
+            "inline_tools_enabled": True,
         },
         "editor": {
             "font_size": 10,

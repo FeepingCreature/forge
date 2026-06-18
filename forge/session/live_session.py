@@ -700,8 +700,13 @@ class LiveSession(QObject):
         # Finalize streaming
         self.finish_streaming(result.get("content"), result.get("tool_calls"))
 
-        # Process inline commands first
-        if result.get("content"):
+        # Process inline commands first — but only if inline text parsing is
+        # enabled. When disabled, assistant text is treated as plain text and
+        # the model is expected to use API tool calls instead.
+        inline_enabled = bool(
+            self.session_manager.settings.get("llm.inline_tools_enabled", True)
+        )
+        if inline_enabled and result.get("content"):
             from forge.tools.invocation import parse_inline_commands
 
             commands = parse_inline_commands(result["content"])
@@ -1275,7 +1280,10 @@ class LiveSession(QObject):
         tool_schemas = sm.tool_manager.discover_tools()
         from forge.prompts.manager import PromptManager
 
-        sm.prompt_manager = PromptManager(tool_schemas=tool_schemas)
+        inline_enabled = bool(sm.settings.get("llm.inline_tools_enabled", True))
+        sm.prompt_manager = PromptManager(
+            tool_schemas=tool_schemas, inline_enabled=inline_enabled
+        )
 
         # Re-apply summaries (they're still valid)
         if sm.repo_summaries:

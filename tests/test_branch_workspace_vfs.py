@@ -28,6 +28,19 @@ def repo(tmp_path, monkeypatch):
     return ForgeRepository(str(tmp_path))
 
 
+def _make_settings():
+    """Build a Settings object without touching the user's config file.
+
+    Bypasses __init__ (which would load ~/.config/forge/settings.json) but
+    still populates .settings with the defaults so Settings.get() works.
+    """
+    from forge.config.settings import Settings
+
+    settings = Settings.__new__(Settings)
+    settings.settings = Settings.DEFAULT_SETTINGS.copy()
+    return settings
+
+
 def test_vfs_sees_content_after_commit(repo):
     """
     After a commit via the VFS, the same VFS instance must immediately
@@ -37,10 +50,7 @@ def test_vfs_sees_content_after_commit(repo):
     but leave base_vfs pointing at the old commit, so the committed content
     vanished from the VFS's perspective the moment pending_changes was cleared.
     """
-    from forge.config.settings import Settings
-
-    settings = Settings.__new__(Settings)
-    settings.config = {}
+    settings = _make_settings()
 
     workspace = BranchWorkspace("master", repo, settings)
 
@@ -56,10 +66,7 @@ def test_vfs_sees_content_after_refresh(repo):
     """
     refresh_vfs() must also produce a VFS that sees previously committed content.
     """
-    from forge.config.settings import Settings
-
-    settings = Settings.__new__(Settings)
-    settings.config = {}
+    settings = _make_settings()
 
     workspace = BranchWorkspace("master", repo, settings)
 
@@ -78,10 +85,7 @@ def test_workspace_vfs_is_session_manager_vfs(repo):
     If they ever diverge, commits made through one won't be visible
     through the other.
     """
-    from forge.config.settings import Settings
-
-    settings = Settings.__new__(Settings)
-    settings.config = {}
+    settings = _make_settings()
 
     workspace = BranchWorkspace("master", repo, settings)
 

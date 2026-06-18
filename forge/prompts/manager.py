@@ -49,13 +49,18 @@ class PromptManager:
     """
 
     def __init__(
-        self, system_prompt: str | None = None, tool_schemas: list[dict] | None = None
+        self,
+        system_prompt: str | None = None,
+        tool_schemas: list[dict] | None = None,
+        inline_enabled: bool = True,
     ) -> None:
         self.blocks: list[ContentBlock] = []
 
-        # Generate system prompt if not provided
+        # Generate system prompt if not provided.
+        # inline_enabled controls whether the inline XML edit syntax is
+        # documented; when off, the prompt tells the model to use API tools.
         if system_prompt is None:
-            system_prompt = get_system_prompt(tool_schemas)
+            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)
         self.system_prompt = system_prompt
 
         # Rolling counter for user-friendly tool call IDs

@@ -182,22 +182,73 @@ def parse_write_match(match: re.Match[str]) -> dict[str, Any]:
 
 
 def get_schema() -> dict[str, Any]:
-    """Tool schema describing the edit tool to the LLM."""
+    """Tool schema describing the edit tool to the LLM.
+
+    The API form takes an `edits` array so multiple surgical edits and/or
+    whole-file writes can be applied in a SINGLE tool call, applied
+    sequentially with stop-on-first-failure. Each entry is one of:
+
+      - replace: {"filepath", "search", "replace"} — find exact `search`
+        text and replace its first occurrence with `replace`.
+      - write:   {"filepath", "content"} — create or overwrite the file.
+
+    An entry is treated as a write when it has a "content" key (and no
+    "search"); otherwise it's a replace.
+    """
     return {
         "type": "function",
         "invocation": "inline",
-        "inline_syntax": '<replace file="path"><old>old text</old><new>new text</new></replace>',
+        "inline_syntax": (
+            'replace: <replace file="path">OLD<sep/>NEW</replace_close> '
+            'write: <write file="path">CONTENT</write_close> '
+            "(multiple blocks per message allowed)"
+        ),
         "function": {
             "name": "edit",
-            "description": "Edit a file by searching for exact text and replacing it.",
+            "description": (
+                "Edit files. Pass an `edits` array to apply multiple changes in one "
+                "call (applied in order, stopping at the first failure). Each entry is "
+                "either a surgical replace (filepath + search + replace) or a whole-file "
+                "write (filepath + content). Use replace to change part of a file; use "
+                "write to create a new file or overwrite an existing one entirely."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filepath": {"type": "string"},
-                    "search": {"type": "string"},
-                    "replace": {"type": "string"},
+                    "edits": {
+                        "type": "array",
+                        "description": "List of edits to apply sequentially.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "filepath": {
+                                    "type": "string",
+                                    "description": "Path to the file to edit.",
+                                },
+                                "search": {
+                                    "type": "string",
+                                    "description": (
+                                        "Exact text to find (replace entries). Must match "
+                                        "exactly including whitespace. Omit for whole-file writes."
+                                    ),
+                                },
+                                "replace": {
+                                    "type": "string",
+                                    "description": "Replacement text (replace entries).",
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": (
+                                        "Full file content (write entries). Presence of this "
+                                        "key marks the entry as a whole-file write."
+                                    ),
+                                },
+                            },
+                            "required": ["filepath"],
+                        },
+                    },
                 },
-                "required": ["filepath", "search", "replace"],
+                "required": ["edits"],
             },
         },
     }
@@ -250,15 +301,29 @@ def detect_unparsed_edit_blocks(
 
 def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     """
-    Execute a single search/replace edit against the VFS.
+    Execute file edits against the VFS.
 
-    Args:
-        filepath: Path to the file to edit.
-        search: Exact text to find (must match exactly, including whitespace).
-        replace: Text to replace it with.
+    Two call shapes are supported:
 
-    Returns dict with success/error and optional diff.
+      - API form: {"edits": [ {entry}, ... ]} — apply multiple edits
+        sequentially, stopping at the first failure. Each entry is either a
+        replace (filepath + search + replace) or a write (filepath + content).
+
+      - Single-edit form: {"filepath", "search", "replace"} or
+        {"filepath", "content"} — used by the inline command dispatcher, which
+        parses one block at a time.
+
+    Returns a dict with success/error. For the multi-edit API form, an
+    aggregated result is returned with the union of modified/new files.
     """
+    if "edits" in args:
+        return _execute_edits(vfs, args["edits"])
+
+    return _execute_single(vfs, args)
+
+
+def _execute_single(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
+    """Apply one edit entry (replace or write) to the VFS."""
     filepath = args.get("filepath", "")
     search = args.get("search", "")
     replace = args.get("replace", "")
@@ -266,8 +331,7 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     if not filepath:
         return {"success": False, "error": "filepath is required"}
 
-    # Whole-file write path — when called via <write>, the dispatcher routes
-    # through execute_write below, so this branch is just for safety.
+    # Whole-file write path: an entry with "content" (and no search) is a write.
     if not search and "content" in args:
         return execute_write(vfs, {"filepath": filepath, "content": args["content"]})
 
@@ -276,11 +340,11 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
     except FileNotFoundError:
         return {"success": False, "error": f"File not found: {filepath}"}
 
-    # Empty search means create/overwrite — but require explicit <write> for that
+    # Empty search with no content means ambiguous — require explicit write.
     if not search:
         return {
             "success": False,
-            "error": "search text is required for <replace> blocks; use <write> for whole-file writes",
+            "error": "search text is required for replace edits; provide 'content' for a whole-file write",
         }
 
     if search not in content:
@@ -303,6 +367,65 @@ def execute(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:
         "modified_files": [filepath],
         "side_effects": [SideEffect.FILES_MODIFIED],
     }
+
+
+def _execute_edits(vfs: "VFS", edits: Any) -> dict[str, Any]:
+    """Apply a list of edit entries sequentially, stop-on-first-failure.
+
+    Returns an aggregated result. On failure, the result carries the failing
+    entry's error plus how many edits succeeded before it, and any files
+    already modified are reported (the VFS changes are NOT rolled back — the
+    pipeline simply stops, same semantics as the inline command pipeline).
+    """
+    if not isinstance(edits, list) or not edits:
+        return {"success": False, "error": "edits must be a non-empty list"}
+
+    modified: list[str] = []
+    new_files: list[str] = []
+
+    for i, entry in enumerate(edits):
+        if not isinstance(entry, dict):
+            return {
+                "success": False,
+                "error": f"edit #{i} must be an object, got {type(entry).__name__}",
+                "edits_succeeded": i,
+                "modified_files": modified,
+            }
+
+        result = _execute_single(vfs, entry)
+
+        if not result.get("success"):
+            error = result.get("error", "unknown error")
+            out: dict[str, Any] = {
+                "success": False,
+                "error": f"edit #{i} failed: {error}",
+                "edits_succeeded": i,
+            }
+            if "diff" in result:
+                out["diff"] = result["diff"]
+            if modified:
+                out["modified_files"] = modified
+                out["side_effects"] = [SideEffect.FILES_MODIFIED]
+            return out
+
+        for fp in result.get("modified_files", []):
+            if fp not in modified:
+                modified.append(fp)
+        for fp in result.get("new_files", []):
+            if fp not in new_files:
+                new_files.append(fp)
+
+    side_effects = [SideEffect.FILES_MODIFIED]
+    out = {
+        "success": True,
+        "edits_applied": len(edits),
+        "modified_files": modified,
+    }
+    if new_files:
+        out["new_files"] = new_files
+        side_effects.append(SideEffect.NEW_FILES_CREATED)
+    out["side_effects"] = side_effects
+    return out
 
 
 def execute_write(vfs: "VFS", args: dict[str, Any]) -> dict[str, Any]:

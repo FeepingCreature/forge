@@ -303,13 +303,45 @@ parser will not silently drop your edit.
 """
 
 
-def get_system_prompt(tool_schemas: list[dict] | None = None) -> str:
+# Short note injected instead of the inline-syntax docs when inline text
+# parsing is disabled. Every inline tool is still exposed as a normal API
+# tool, so the model should just call them like any other function.
+EDIT_FORMAT_API_ONLY = """
+## Making Edits
+
+Inline XML commands (`<replace>`, `<write>`, `<commit/>`, `<run_tests/>`, etc.)
+are DISABLED in this session — any such tags in your message text are treated
+as plain prose and will NOT be executed.
+
+Instead, every one of these capabilities is available as a normal API tool
+call. To edit files, call the `edit` tool with an `edits` array (each entry is
+either a surgical replace — `filepath`, `search`, `replace` — or a whole-file
+write — `filepath`, `content`). You can pass multiple edits in one call; they
+apply in order and stop at the first failure. Likewise use the `commit`,
+`run_tests`, `check`, `delete_file`, and other tools via ordinary function
+calls. Batch several tool calls in one response to minimize round-trips.
+"""
+
+
+def get_system_prompt(
+    tool_schemas: list[dict] | None = None, inline_enabled: bool = True
+) -> str:
     """Get the full system prompt with inline command format instructions.
 
     Args:
         tool_schemas: List of tool schemas from ToolManager.discover_tools().
                      If provided, generates documentation for all inline tools.
+        inline_enabled: When True, document the inline XML edit syntax
+                     (`<replace>`/`<write>`/etc.) and the other inline commands.
+                     When False, the inline text-parsing path is off, so we
+                     instead tell the model to call these tools via the API.
     """
+    if not inline_enabled:
+        # Inline text parsing is off — don't document XML syntax the model
+        # can't use. Inline tools are still exposed as API tools (handled by
+        # the normal tool schemas), so no per-tool inline docs are added here.
+        return SYSTEM_PROMPT_BASE + EDIT_FORMAT_API_ONLY
+
     prompt = SYSTEM_PROMPT_BASE + EDIT_FORMAT_XML
 
     # If tool schemas provided, add documentation for other inline tools

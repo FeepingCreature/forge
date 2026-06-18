@@ -68,9 +68,14 @@ class SessionManager(QObject):
         self._repo = repo
 
         # Prompt manager for cache-optimized prompt construction
-        # Pass tool schemas so inline tool documentation gets generated
+        # Pass tool schemas so inline tool documentation gets generated.
+        # inline_enabled gates whether the inline XML edit syntax is documented;
+        # when disabled, the model is told to use the equivalent API tools.
         tool_schemas = self.tool_manager.discover_tools()
-        self.prompt_manager = PromptManager(tool_schemas=tool_schemas)
+        inline_enabled = bool(self.settings.get("llm.inline_tools_enabled", True))
+        self.prompt_manager = PromptManager(
+            tool_schemas=tool_schemas, inline_enabled=inline_enabled
+        )
 
         # Active files in context (tracked separately for persistence)
         self.active_files: set[str] = set()

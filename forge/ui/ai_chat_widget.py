@@ -325,9 +325,13 @@ class AIChatWidget(QWidget):
         self, tool_name: str, tool_args: dict[str, Any], result: dict[str, Any]
     ) -> None:
         """Display tool result in chat (system messages for failures, etc.)."""
-        # Built-in tools with native rendering don't need system messages on success
+        # Built-in tools with native rendering don't need system messages on
+        # success — their tool call is already shown inline as a card (or, for
+        # `say`/`done`, as prose / nothing). Anything NOT in this set falls
+        # through to a generic JSON "system card" dump below.
         builtin_tools_with_native_rendering = {
             "search_replace",
+            "edit",
             "delete_file",
             "update_context",
             "grep_open",
@@ -336,6 +340,8 @@ class AIChatWidget(QWidget):
             "commit",
             "think",
             "run_tests",
+            "say",
+            "done",
         }
 
         if tool_name in builtin_tools_with_native_rendering and result.get("success"):

@@ -480,9 +480,12 @@ def build_streaming_tool_calls_js(tool_calls: list[dict]) -> str:
         if not name:
             continue
 
-        # Check for special rendering (e.g. edit gets a diff view)
+        # Check for special rendering (e.g. edit gets a diff view).
+        # `say`/`done` intentionally render to little/nothing (say is prose,
+        # done is invisible) — they return a string (possibly empty), so they
+        # must NOT fall through to the generic tool-card branch.
         special_html = render_streaming_tool_html(tc)
-        if special_html:
+        if special_html is not None:
             tool_html_parts.append(special_html)
         else:
             # Default rendering for other tools

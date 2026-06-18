@@ -277,7 +277,7 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
     try:
         parsed = json.loads(json_str)
         if isinstance(parsed, dict):
-            for key in ("filepath", "search", "replace", "scratchpad", "conclusion"):
+            for key in ("filepath", "search", "replace", "scratchpad", "conclusion", "message"):
                 if key in parsed and isinstance(parsed[key], str):
                     result[key] = parsed[key]
         return result
@@ -286,7 +286,7 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
 
     # Incomplete JSON - extract what we can
     # Look for each field pattern: "fieldname": "value or "fieldname":"value
-    for field in ("filepath", "search", "replace", "scratchpad", "conclusion"):
+    for field in ("filepath", "search", "replace", "scratchpad", "conclusion", "message"):
         # Find the start of this field
         patterns = [f'"{field}": "', f'"{field}":"']
         start_idx = -1
@@ -863,8 +863,11 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
     elif name == "run_tests":
         # Run tests - show as streaming card
         return render_run_tests_html(parsed, result=None)
-    elif name in ("say", "done"):
-        # These are "in-flow" tools - displayed as assistant text, not tool cards
+    elif name == "say":
+        # `say` narrates mid-turn: render its message as prose, not a card.
+        return render_say_html(parsed)
+    elif name == "done":
+        # `done` only signals end-of-turn; nothing to display.
         return ""
     else:
         return None  # Unknown tool - use default rendering
@@ -916,11 +919,30 @@ def render_completed_tool_html(
         return render_think_html(args, result)
     elif name == "run_tests":
         return render_run_tests_html(args, result)
-    elif name in ("say", "done"):
-        # These are "in-flow" tools - displayed as assistant text, not tool cards
+    elif name == "say":
+        # `say` narrates mid-turn: render its message as prose, not a card.
+        return render_say_html(args)
+    elif name == "done":
+        # `done` only signals end-of-turn; nothing to display.
         return ""
     else:
         return None  # Unknown tool - use default rendering
+
+
+def render_say_html(args: dict[str, object]) -> str:
+    """Render a `say` tool call as plain narration prose (not a tool card).
+
+    The model uses `say` to narrate progress between tool calls without ending
+    the turn. Visually it should read as ordinary assistant prose, so we render
+    the `message` argument through the same markdown renderer used for assistant
+    text. An empty/missing message renders to nothing.
+    """
+    message = args.get("message", "")
+    if not message:
+        return ""
+    # Render as plain markdown prose. inline_enabled=False keeps any stray tag
+    # text literal — `say` content is narration, never executable commands.
+    return render_markdown(str(message), inline_enabled=False)
 
 
 def render_compact_html(args: dict[str, object], result: dict[str, object] | None = None) -> str:

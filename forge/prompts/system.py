@@ -320,6 +320,25 @@ write — `filepath`, `content`). You can pass multiple edits in one call; they
 apply in order and stop at the first failure. Likewise use the `commit`,
 `run_tests`, `check`, `delete_file`, and other tools via ordinary function
 calls. Batch several tool calls in one response to minimize round-trips.
+
+### Narrating between tool calls with `say`
+
+Your turn ends after your final tool call's results come back, so any prose
+you write *after* your tool calls is lost — it can't continue the pipeline.
+When you want to narrate progress *between* actions while staying in the same
+turn, call the `say` tool: its `message` is shown to the user as plain prose,
+and because it is itself a tool call it keeps the turn alive. A typical turn:
+
+```
+say("Editing the parser")
+edit({"edits": [ ... ]})
+say("Running the tests")
+run_tests()
+say("All green — committing")
+commit({"message": "Fix the parser"})
+```
+
+Keep `say` messages short. It has no side effects.
 """
 
 

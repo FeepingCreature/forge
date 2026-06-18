@@ -137,9 +137,12 @@ class ChatMessage:
             # Get the result for this tool call (if available)
             result = tool_results.get(tool_call_id)
 
-            # Try native rendering for built-in tools
+            # Try native rendering for built-in tools. Native renderers return
+            # a string (possibly empty, e.g. `say` with no message, or `done`)
+            # to mean "I handled this — render exactly this"; they return None
+            # to mean "not mine, use default rendering".
             native_html = render_completed_tool_html(name, args, result)
-            if native_html:
+            if native_html is not None:
                 html_parts.append(native_html)
             else:
                 # Default rendering for unknown tools

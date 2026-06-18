@@ -792,6 +792,10 @@ def render_edit_tool_html(
     block: replace entries (search/replace) become diff views, write entries
     (content) become file-creation cards. This is what makes a streaming
     ``edit`` tool call look identical to the in-flow XML edits.
+
+    Used by both the streaming path (``render_streaming_tool_html``) and the
+    completed/backlog path (``render_completed_tool_html``), which is why the
+    live diff and the final card look the same.
     """
     if not edits:
         return render_diff_html(

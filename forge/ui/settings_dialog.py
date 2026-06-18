@@ -189,6 +189,27 @@ class SettingsDialog(QDialog):
         require_done_info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", require_done_info)
 
+        # Inline XML edit syntax (<replace>/<write>/<commit/>/...) parsing
+        self.inline_tools_enabled_input = QCheckBox()
+        self.inline_tools_enabled_input.setToolTip(
+            "When enabled, inline XML commands (<replace>, <write>, <commit/>, "
+            "<run_tests/>, etc.) written in the AI's message text are parsed and "
+            "executed. When disabled, that text is treated as plain prose. Either "
+            "way, every one of these tools is ALSO available as a normal API tool "
+            "call, so disabling this never removes a capability — it only turns off "
+            "the text-parsing path."
+        )
+        layout.addRow("Parse inline XML commands:", self.inline_tools_enabled_input)
+
+        inline_tools_info = QLabel(
+            "Controls only the inline text-parsing path. Turn this OFF for models "
+            "that lead with standard tool calls and waste turns grasping for inline "
+            "syntax; the same edit/commit/test tools remain callable as API tools."
+        )
+        inline_tools_info.setWordWrap(True)
+        inline_tools_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", inline_tools_info)
+
         # Connect click events using event filter or subclass approach
         self.model_input.installEventFilter(self)
 
@@ -648,6 +669,9 @@ class SettingsDialog(QDialog):
         self.model_input.setText(self._saved_model)
         self.base_url_input.setText(self.settings.get("llm.base_url", ""))
         self.require_done_tag_input.setChecked(self.settings.get("llm.require_done_tag", False))
+        self.inline_tools_enabled_input.setChecked(
+            self.settings.get("llm.inline_tools_enabled", True)
+        )
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
@@ -671,6 +695,9 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
         self.settings.set("llm.require_done_tag", self.require_done_tag_input.isChecked())
+        self.settings.set(
+            "llm.inline_tools_enabled", self.inline_tools_enabled_input.isChecked()
+        )
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

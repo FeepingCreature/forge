@@ -66,7 +66,13 @@ class SessionManager(QObject):
         # inline-capable tools (edit, commit, run_tests, ...) are exposed as
         # API tools instead of being filtered out entirely.
         inline_enabled = bool(settings.get("llm.inline_tools_enabled", True))
-        self.tool_manager = ToolManager(repo, branch_name, inline_enabled=inline_enabled)
+        require_done_tag = bool(settings.get("llm.require_done_tag", False))
+        self.tool_manager = ToolManager(
+            repo,
+            branch_name,
+            inline_enabled=inline_enabled,
+            require_done_tag=require_done_tag,
+        )
 
         # Keep repo reference only for commit operations (not file reading)
         self._repo = repo

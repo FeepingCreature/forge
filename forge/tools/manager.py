@@ -63,6 +63,7 @@ class ToolManager:
         branch_name: str,
         tools_dir: str = "./tools",
         inline_enabled: bool = True,
+        require_done_tag: bool = False,
     ) -> None:
         # User tools directory path (repo-specific, accessed via VFS)
         self.tools_dir = Path(tools_dir)
@@ -74,6 +75,14 @@ class ToolManager:
         # is off, so those same tools MUST be exposed as API tools — otherwise
         # the model loses the ability to edit files, commit, run tests, etc.
         self.inline_enabled = inline_enabled
+
+        # Whether the strict end-of-turn handshake is active. The `done` tool
+        # exists solely to declare SideEffect.END_TURN in that mode. When it's
+        # off, `done` is a no-op that actively *prevents* a turn from ending
+        # (it's a tool call, so the loop re-drives the model to act on its
+        # result) - a footgun. So we only expose `done` when require_done_tag
+        # is True.
+        self.require_done_tag = require_done_tag
 
         # Built-in tools directory (part of Forge)
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
@@ -348,6 +357,8 @@ class ToolManager:
         same tools would be unreachable — every inline tool also has an
         execute() that works as a normal API tool, so we expose them all.
         """
+        if not self.require_done_tag:
+            tools = [t for t in tools if t.get("function", {}).get("name") != "done"]
         if not self.inline_enabled:
             return tools
         return [t for t in tools if t.get("invocation", "api") != "inline"]

@@ -861,9 +861,7 @@ def _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:
     return entries
 
 
-def render_edit_tool_html(
-    edits: list[dict[str, object]], is_streaming: bool
-) -> str:
+def render_edit_tool_html(edits: list[dict[str, object]], is_streaming: bool) -> str:
     """Render the `edit` tool's entries as a stack of diff / write cards.
 
     Each entry is rendered exactly like an inline ``<replace>``/``<write>``

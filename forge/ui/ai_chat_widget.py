@@ -710,13 +710,8 @@ class AIChatWidget(QWidget):
         if not self.runner.send_message(text, _skip_workdir_check=True):
             from forge.session.live_session import SessionState
 
-            if (
-                self.runner._turn_saw_terminate
-                or self.runner.state == SessionState.COMPLETED
-            ):
-                self._add_system_message(
-                    "🛑 Session terminated — no further input accepted."
-                )
+            if self.runner._turn_saw_terminate or self.runner.state == SessionState.COMPLETED:
+                self._add_system_message("🛑 Session terminated — no further input accepted.")
             else:
                 self._add_system_message("⚠️ Cannot send message - session is busy")
             return
@@ -803,9 +798,7 @@ class AIChatWidget(QWidget):
         When off, `<replace>`/`<write>` blocks in assistant prose did NOT
         execute, so we render them as literal text rather than tool cards.
         """
-        return bool(
-            self.runner.session_manager.settings.get("llm.inline_tools_enabled", True)
-        )
+        return bool(self.runner.session_manager.settings.get("llm.inline_tools_enabled", True))
 
     def _append_streaming_chunk(self, chunk: str) -> None:
         """Append a raw text chunk to the streaming message, rendering <edit> blocks as diffs"""

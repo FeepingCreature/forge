@@ -703,9 +703,7 @@ class LiveSession(QObject):
         # Process inline commands first — but only if inline text parsing is
         # enabled. When disabled, assistant text is treated as plain text and
         # the model is expected to use API tool calls instead.
-        inline_enabled = bool(
-            self.session_manager.settings.get("llm.inline_tools_enabled", True)
-        )
+        inline_enabled = bool(self.session_manager.settings.get("llm.inline_tools_enabled", True))
         if inline_enabled and result.get("content"):
             from forge.tools.invocation import parse_inline_commands
 
@@ -1281,9 +1279,7 @@ class LiveSession(QObject):
         from forge.prompts.manager import PromptManager
 
         inline_enabled = bool(sm.settings.get("llm.inline_tools_enabled", True))
-        sm.prompt_manager = PromptManager(
-            tool_schemas=tool_schemas, inline_enabled=inline_enabled
-        )
+        sm.prompt_manager = PromptManager(tool_schemas=tool_schemas, inline_enabled=inline_enabled)
 
         # Re-apply summaries (they're still valid)
         if sm.repo_summaries:

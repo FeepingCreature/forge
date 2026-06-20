@@ -695,9 +695,7 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.model", self.model_input.text())
         self.settings.set("llm.base_url", self.base_url_input.text())
         self.settings.set("llm.require_done_tag", self.require_done_tag_input.isChecked())
-        self.settings.set(
-            "llm.inline_tools_enabled", self.inline_tools_enabled_input.isChecked()
-        )
+        self.settings.set("llm.inline_tools_enabled", self.inline_tools_enabled_input.isChecked())
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

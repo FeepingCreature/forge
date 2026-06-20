@@ -342,9 +342,7 @@ Keep `say` messages short. It has no side effects.
 """
 
 
-def get_system_prompt(
-    tool_schemas: list[dict] | None = None, inline_enabled: bool = True
-) -> str:
+def get_system_prompt(tool_schemas: list[dict] | None = None, inline_enabled: bool = True) -> str:
     """Get the full system prompt with inline command format instructions.
 
     Args:

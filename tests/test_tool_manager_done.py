@@ -64,3 +64,36 @@ def test_filtering_is_idempotent_across_cached_discovery(repo):
     tm = ToolManager(repo, "master", inline_enabled=False, require_done_tag=False)
     tm.discover_tools()  # populate schema cache
     assert "done" not in _tool_names(tm.discover_tools())
+
+
+def _schema_for(schemas, name):
+    for s in schemas:
+        if s.get("function", {}).get("name") == name:
+            return s
+    return None
+
+
+def test_inline_markers_stripped_when_inline_disabled(repo):
+    """In API-only mode, inline tools are exposed but without inline markers.
+
+    `edit` is an inline tool whose schema carries invocation="inline" and an
+    inline_syntax pointing at <replace>/<write>. When inline parsing is off the
+    model can only call it as an API function, so those markers must be stripped
+    -- otherwise the schema advertises XML syntax the model can't actually use.
+    """
+    tm = ToolManager(repo, "master", inline_enabled=False)
+    edit_schema = _schema_for(tm.discover_tools(), "edit")
+    assert edit_schema is not None, "edit should be exposed as an API tool in API-only mode"
+    assert "invocation" not in edit_schema
+    assert "inline_syntax" not in edit_schema
+    # The actual function schema must be left intact.
+    assert edit_schema["function"]["name"] == "edit"
+    assert "parameters" in edit_schema["function"]
+
+
+def test_inline_markers_present_when_inline_enabled(repo):
+    """With inline parsing on, inline tools are driven by prose parsing and are
+    filtered out of the API tool list entirely (markers untouched on the cache).
+    """
+    tm = ToolManager(repo, "master", inline_enabled=True)
+    assert _schema_for(tm.discover_tools(), "edit") is None

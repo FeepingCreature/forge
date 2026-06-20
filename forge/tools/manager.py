@@ -355,13 +355,31 @@ class ToolManager:
 
         When inline parsing is DISABLED, the text-parsing path is off, so those
         same tools would be unreachable — every inline tool also has an
-        execute() that works as a normal API tool, so we expose them all.
+        execute() that works as a normal API tool, so we expose them all. But
+        their schemas still carry the inline markers (invocation="inline" and
+        an inline_syntax pointing at XML like <replace>/<write>). Exposed as an
+        API tool, those markers are a lie — the model can only call the tool as
+        a function. So we strip the inline markers before handing them over.
         """
         if not self.require_done_tag:
             tools = [t for t in tools if t.get("function", {}).get("name") != "done"]
         if not self.inline_enabled:
-            return tools
+            return [self._strip_inline_markers(t) for t in tools]
         return [t for t in tools if t.get("invocation", "api") != "inline"]
+
+    @staticmethod
+    def _strip_inline_markers(schema: dict[str, Any]) -> dict[str, Any]:
+        """Return a copy of a tool schema with inline-only markers removed.
+
+        Strips the top-level "invocation" and "inline_syntax" keys so a tool
+        that is being exposed as an API function isn't also advertising XML
+        inline syntax it can't actually be invoked with in this mode. Schemas
+        without those keys are returned unchanged (a shallow copy).
+        """
+        if "invocation" not in schema and "inline_syntax" not in schema:
+            return schema
+        stripped = {k: v for k, v in schema.items() if k not in ("invocation", "inline_syntax")}
+        return stripped
 
     def _load_tool_module_from_path(self, tool_path: Path, is_builtin: bool = False) -> Any:
         """Load a tool as a Python module from disk"""

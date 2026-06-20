@@ -998,7 +998,7 @@ def render_streaming_tool_html(tool_call: dict[str, object]) -> str | None:
 
 
 def render_completed_tool_html(
-    name: str, args: dict[str, object], result: dict[str, object] | None = None
+    name: str, args: dict[str, object] | list[object], result: dict[str, object] | None = None
 ) -> str | None:
     """
     Render a completed tool call as HTML.
@@ -1026,7 +1026,13 @@ def render_completed_tool_html(
         else:
             entries = [args]
         return render_edit_tool_html(entries, is_streaming=False)
-    elif name == "search_replace":
+
+    # Every other built-in renderer expects the dict argument shape; the bare
+    # list shape only ever applies to `edit` (handled above). Narrow here so
+    # the type checker knows `args` is a dict for the remaining branches.
+    assert isinstance(args, dict)
+
+    if name == "search_replace":
         filepath = args.get("filepath", "")
         search = args.get("search", "")
         replace = args.get("replace", "")

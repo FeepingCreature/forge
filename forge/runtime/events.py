@@ -62,3 +62,12 @@ class SummaryProgress:
     current: int
     total: int
     filepath: str
+
+@dataclass
+class PromptProgressEvent:
+    """Progress update for prompt processing (LLM prefix processing)."""
+
+    processed: int | None
+    total: int | None
+    cache: int | None
+

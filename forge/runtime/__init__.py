@@ -7,6 +7,7 @@ implementations without touching production code paths.
 """
 
 from forge.runtime.events import (
+    PromptProgressEvent,
     ReasoningChunk,
     StreamChunk,
     StreamToolCallDelta,

@@ -107,6 +107,16 @@ class OpenRouterBackend:
                 current_content += text
                 yield StreamChunk(text)
 
+            # Prompt processing progress (e.g. llama.cpp / local backends)
+            if "prompt_progress" in chunk:
+                prog = chunk["prompt_progress"]
+                from forge.runtime.events import PromptProgressEvent
+                yield PromptProgressEvent(
+                    processed=prog.get("processed"),
+                    total=prog.get("total"),
+                    cache=prog.get("cache"),
+                )
+
             if "tool_calls" in delta:
                 for tc_delta in delta["tool_calls"]:
                     idx = tc_delta.get("index", 0)

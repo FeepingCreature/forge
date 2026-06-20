@@ -474,6 +474,7 @@ class LiveSession(QObject):
             )
         elif isinstance(event, PromptProgressEvent):
             # Convert None to 0 or -1 to satisfy signal types
+            print(f"[DEBUG] Emitting prompt_progress signal: {event.processed}, {event.total}, {event.cache}")
             self.prompt_progress.emit(
                 event.processed if event.processed is not None else 0,
                 event.total if event.total is not None else 0,

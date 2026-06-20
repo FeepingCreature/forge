@@ -110,6 +110,7 @@ class OpenRouterBackend:
             # Prompt processing progress (e.g. llama.cpp / local backends)
             if "prompt_progress" in chunk:
                 prog = chunk["prompt_progress"]
+                print(f"[DEBUG] Prompt progress received: {prog}")
                 from forge.runtime.events import PromptProgressEvent
                 yield PromptProgressEvent(
                     processed=prog.get("processed"),

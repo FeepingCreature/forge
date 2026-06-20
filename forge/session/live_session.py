@@ -38,6 +38,7 @@ from forge.runtime import (
     TaskRunner,
     ToolFinished,
     ToolStarted,
+    PromptProgressEvent,
 )
 
 if TYPE_CHECKING:
@@ -97,15 +98,6 @@ class ToolFinishedEvent(SessionEvent):
         self.tool_name = tool_name
         self.tool_args = tool_args
         self.result = result
-
-
-class PromptProgressEvent(SessionEvent):
-    """Progress update for prompt processing."""
-
-    def __init__(self, processed: int | None, total: int | None, cache: int | None):
-        self.processed = processed
-        self.total = total
-        self.cache = cache
 
 
 class StateChangedEvent(SessionEvent):

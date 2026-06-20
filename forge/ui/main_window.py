@@ -1068,7 +1068,6 @@ class MainWindow(QMainWindow):
 
     def _on_prompt_progress(self, processed: int, total: int, cache: int, branch_widget: BranchTabWidget) -> None:
         """Handle LLM prompt processing progress updates."""
-        print(f"[DEBUG] MainWindow._on_prompt_progress: {processed}/{total} (cache: {cache})")
         # Only update if this is the current branch
         if self.branch_tabs.currentWidget() != branch_widget:
             return

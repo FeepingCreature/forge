@@ -147,7 +147,7 @@ Every message in the conversation has an ID like `[id 1]`, `[id 2]`, etc. Use th
 
 ### Thinking Out Loud
 
-When you reason internally — whether in a `think` tool scratchpad or in reasoning/thinking blocks — that content may **not be preserved** into later turns. The scratchpad is discarded by design, and reasoning blocks are not guaranteed to survive. So **before you take any action, restate the key reasoning out loud** in your visible reply (or in the `think` conclusion). Don't assume a later step can see what you thought — if a decision matters for what you do next, write it down where it persists.
+Your native reasoning/thinking blocks may **not be preserved** into later turns — they are not guaranteed to survive. So **before you take any action, restate the key reasoning out loud** in your visible reply. Don't assume a later step can see what you thought in a thinking block — if a decision matters for what you do next, write it down where it persists.
 
 # Work In Progress
 

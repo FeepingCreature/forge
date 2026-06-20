@@ -237,6 +237,10 @@ class MainWindow(QMainWindow):
         session_manager.context_stats_updated.connect(
             lambda stats, bw=branch_widget: self._on_context_stats_updated(stats, bw)
         )
+        session_manager.prompt_progress.connect(
+            lambda p, t, c, bw=branch_widget: self._on_prompt_progress(p, t, c, bw)
+        )
+
 
         # Refresh context stats (and mood bar) after AI turn finishes,
         # since conversation tokens change even if no files were added/removed
@@ -1060,6 +1064,20 @@ class MainWindow(QMainWindow):
             self.cost_label.setText(f"<b>${cost:.4f}</b> (${daily:.2f} today)")
         else:
             self.cost_label.setText(f"<b>${cost:.4f}</b>")
+
+    def _on_prompt_progress(self, processed: int, total: int, cache: int, branch_widget: BranchTabWidget) -> None:
+        """Handle LLM prompt processing progress updates."""
+        # Only update if this is the current branch
+        if self.branch_tabs.currentWidget() != branch_widget:
+            return
+
+        # If total is 0, it means processing has finished or hasn't started
+        if total == 0:
+            # Clear the bar if progress is absent
+            self._mood_bar.set_progress(0, 0, 0)
+            return
+
+        self._mood_bar.set_progress(processed, total, cache)
 
     def _open_initial_files(self) -> None:
         """Open files passed on command line"""

@@ -99,6 +99,15 @@ class ToolFinishedEvent(SessionEvent):
         self.result = result
 
 
+class PromptProgressEvent(SessionEvent):
+    """Progress update for prompt processing."""
+
+    def __init__(self, processed: int | None, total: int | None, cache: int | None):
+        self.processed = processed
+        self.total = total
+        self.cache = cache
+
+
 class StateChangedEvent(SessionEvent):
     """Session state changed."""
 
@@ -179,9 +188,11 @@ class LiveSession(QObject):
     tool_call_delta = Signal(int, dict)
     tool_started = Signal(str, dict)
     tool_finished = Signal(str, str, dict, dict)  # id, name, args, result
+    prompt_progress = Signal(int, int, int)  # processed, total, cache
     turn_finished = Signal(str)  # commit_oid
     error_occurred = Signal(str)
     state_changed = Signal(str)  # SessionState value
+
 
     # Signal for messages list changes (for UI sync)
     message_added = Signal(dict)  # The message that was added
@@ -460,6 +471,13 @@ class LiveSession(QObject):
         elif isinstance(event, ToolFinishedEvent):
             self.tool_finished.emit(
                 event.tool_call_id, event.tool_name, event.tool_args, event.result
+            )
+        elif isinstance(event, PromptProgressEvent):
+            # Convert None to 0 or -1 to satisfy signal types
+            self.prompt_progress.emit(
+                event.processed if event.processed is not None else 0,
+                event.total if event.total is not None else 0,
+                event.cache if event.cache is not None else 0,
             )
         elif isinstance(event, StateChangedEvent):
             self.state_changed.emit(event.state)

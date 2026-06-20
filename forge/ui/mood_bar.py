@@ -30,11 +30,17 @@ class MoodBar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._segments: list[dict] = []
-        self._total_tokens: int = 0
+        self._total_tokens = int(0)
         self._segment_rects: list[tuple[QRect, dict]] = []  # For hit testing
+
+        # Progress tracking
+        self._progress_processed = 0
+        self._progress_total = 0
+        self._progress_cache = 0
 
         # Empty/unused color
         self._empty_color = QColor(MOOD_COLORS["empty"])
+
 
         # Tick mark settings
         self._tick_interval = 10_000  # Tokens between big marks
@@ -59,6 +65,14 @@ class MoodBar(QWidget):
         self._total_tokens = sum(s.get("tokens", 0) for s in segments)
         self._segment_rects = []  # Will be recalculated on paint
         self.update()
+
+    def set_progress(self, processed: int, total: int, cache: int) -> None:
+        """Update the prompt processing progress marker."""
+        self._progress_processed = processed
+        self._progress_total = total
+        self._progress_cache = cache
+        self.update()
+
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         """Draw the colored segments and tick marks."""
@@ -102,6 +116,26 @@ class MoodBar(QWidget):
         # Fill any rounding remainder
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
+
+        # Draw prompt processing head
+        if self._progress_total > 0:
+            # Map processed tokens to X position (relative to total tokens)
+            # Note: total_tokens includes current turn content, but prompt_progress
+            # refers to the prefix. For simplicity, we scale against total_tokens
+            # or use a fixed width if total_tokens is small.
+            progress_x = (self._progress_processed / self._progress_total) * width
+            
+            # Draw a bright vertical line for the processing head
+            painter.setPen(Qt.PenStyle.SolidLine)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QColor("#ffffff"))
+            painter.drawLine(int(progress_x), 0, int(progress_x), height)
+            
+            # Draw a smaller marker for the cache boundary
+            if self._progress_cache > 0:
+                cache_x = (self._progress_cache / self._progress_total) * width
+                painter.setPen(QColor("#fbbf24")) # Amber for cache
+                painter.drawLine(int(cache_x), 0, int(cache_x), 4)
 
         # Draw triangular tick marks at 10k token intervals
         if self._total_tokens >= self._tick_interval:

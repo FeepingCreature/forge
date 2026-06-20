@@ -88,6 +88,7 @@ class OpenRouterBackend:
         current_tool_calls: list[dict[str, Any]] = []
 
         for chunk in self._client.chat_stream(messages, tools):
+            print(f"[DEBUG] SSE Chunk: {chunk}")
             if "choices" not in chunk or not chunk["choices"]:
                 continue
             delta = chunk["choices"][0].get("delta", {})

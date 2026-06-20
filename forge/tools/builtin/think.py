@@ -47,6 +47,9 @@ def get_schema() -> dict[str, Any]:
                 "Extended reasoning scratchpad. Use when you need to think through "
                 "complex problems step-by-step. The scratchpad is automatically "
                 "discarded to save context - only your conclusion is kept. "
+                "Because the scratchpad (and any reasoning/think blocks) may NOT be "
+                "preserved into later turns, repeat your reasoning out loud before "
+                "acting on it - don't rely on a thought being remembered later. "
                 "Good for: planning multi-step changes, weighing tradeoffs, "
                 "working through logic, debugging hypotheses."
             ),
@@ -65,7 +68,11 @@ def get_schema() -> dict[str, Any]:
                         "type": "string",
                         "description": (
                             "Your conclusion or summary. This is kept in context for "
-                            "future reference. Should capture the key decision or insight."
+                            "future reference. Should capture the key decision or insight. "
+                            "IMPORTANT: the scratchpad is discarded and your raw thinking "
+                            "may NOT be preserved, so before you take any action restate "
+                            "the key reasoning out loud here (or in your reply) rather than "
+                            "assuming a later step can see what you thought."
                         ),
                     },
                 },

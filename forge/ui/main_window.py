@@ -237,9 +237,10 @@ class MainWindow(QMainWindow):
         session_manager.context_stats_updated.connect(
             lambda stats, bw=branch_widget: self._on_context_stats_updated(stats, bw)
         )
-        session_manager.prompt_progress.connect(
+        runner.prompt_progress.connect(
             lambda p, t, c, bw=branch_widget: self._on_prompt_progress(p, t, c, bw)
         )
+
 
 
         # Refresh context stats (and mood bar) after AI turn finishes,

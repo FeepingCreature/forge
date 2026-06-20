@@ -117,25 +117,27 @@ class MoodBar(QWidget):
         if int(x) < width:
             painter.fillRect(QRect(int(x), 0, width - int(x), height), self._empty_color)
 
-        # Draw prompt processing head
+        # Draw prompt processing progress bar
         if self._progress_total > 0:
             # Map processed tokens to X position (relative to total tokens)
-            # Note: total_tokens includes current turn content, but prompt_progress
-            # refers to the prefix. For simplicity, we scale against total_tokens
-            # or use a fixed width if total_tokens is small.
             progress_x = (self._progress_processed / self._progress_total) * width
+            bar_height = int(height * 0.2)
             
-            # Draw a bright vertical line for the processing head
-            painter.setPen(Qt.PenStyle.SolidLine)
+            # Fill processed area with semi-transparent white
+            painter.setBrush(QColor(255, 255, 255, 80))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(0, 0, int(progress_x), bar_height)
+            
+            # Draw a bright vertical line at the leading edge
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QColor("#ffffff"))
-            painter.drawLine(int(progress_x), 0, int(progress_x), height)
+            painter.drawLine(int(progress_x), 0, int(progress_x), bar_height)
             
             # Draw a smaller marker for the cache boundary
             if self._progress_cache > 0:
                 cache_x = (self._progress_cache / self._progress_total) * width
                 painter.setPen(QColor("#fbbf24")) # Amber for cache
-                painter.drawLine(int(cache_x), 0, int(cache_x), 4)
+                painter.drawLine(int(cache_x), 0, int(cache_x), bar_height)
 
         # Draw triangular tick marks at 10k token intervals
         if self._total_tokens >= self._tick_interval:

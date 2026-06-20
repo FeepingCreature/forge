@@ -673,6 +673,8 @@ class LiveSession(QObject):
                 self._on_reasoning_chunk(event.text)
             elif isinstance(event, StreamToolCallDelta):
                 self._on_tool_call_delta(event.index, event.tool_call)
+            elif isinstance(event, PromptProgressEvent):
+                self._emit_event(event)
 
         self._stream_handle = self._tasks.submit(
             stream_work,

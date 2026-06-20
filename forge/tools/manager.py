@@ -62,9 +62,18 @@ class ToolManager:
         repo: "ForgeRepository",
         branch_name: str,
         tools_dir: str = "./tools",
+        inline_enabled: bool = True,
     ) -> None:
         # User tools directory path (repo-specific, accessed via VFS)
         self.tools_dir = Path(tools_dir)
+
+        # Whether the inline XML text-parsing path is active. When True,
+        # inline-capable tools (edit, commit, run_tests, ...) are invoked by
+        # parsing the assistant's prose, so they are NOT exposed as API tools
+        # (that would double-expose them). When False, the text-parsing path
+        # is off, so those same tools MUST be exposed as API tools — otherwise
+        # the model loses the ability to edit files, commit, run tests, etc.
+        self.inline_enabled = inline_enabled
 
         # Built-in tools directory (part of Forge)
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
@@ -260,8 +269,10 @@ class ToolManager:
     def discover_tools(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Discover all APPROVED tools (built-in + user) and get their schemas.
 
-        Only returns API tools (tools with invocation="api" or no invocation specified).
-        Inline tools (invocation="inline") are handled separately via inline command parsing.
+        When inline parsing is enabled, only returns API tools — inline tools
+        (invocation="inline") are handled separately via inline command
+        parsing. When inline parsing is disabled, inline tools are also
+        returned so the model can invoke them as ordinary API tool calls.
 
         Args:
             force_refresh: If True, ignore cache and reload all tools
@@ -327,11 +338,18 @@ class ToolManager:
         return self._filter_inline_tools(tools)
 
     def _filter_inline_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Filter out inline tools - they use XML syntax, not API calls.
+        """Decide which tools are exposed as API tools.
 
-        Tools with invocation="inline" are handled by the inline command parser,
-        not the API tool calling mechanism.
+        When inline parsing is ENABLED, tools with invocation="inline" are
+        driven by the inline command parser (XML in the assistant's prose),
+        so we strip them from the API tool list to avoid double-exposing them.
+
+        When inline parsing is DISABLED, the text-parsing path is off, so those
+        same tools would be unreachable — every inline tool also has an
+        execute() that works as a normal API tool, so we expose them all.
         """
+        if not self.inline_enabled:
+            return tools
         return [t for t in tools if t.get("invocation", "api") != "inline"]
 
     def _load_tool_module_from_path(self, tool_path: Path, is_builtin: bool = False) -> Any:

@@ -61,8 +61,12 @@ class SessionManager(QObject):
         # Off-thread work goes through this seam. Tests inject SyncTaskRunner.
         self._tasks: TaskRunner = task_runner if task_runner is not None else QtTaskRunner()
 
-        # Tool manager owns the VFS - all file access goes through it
-        self.tool_manager = ToolManager(repo, branch_name)
+        # Tool manager owns the VFS - all file access goes through it.
+        # Pass inline_enabled so that when the inline text-parsing path is OFF,
+        # inline-capable tools (edit, commit, run_tests, ...) are exposed as
+        # API tools instead of being filtered out entirely.
+        inline_enabled = bool(settings.get("llm.inline_tools_enabled", True))
+        self.tool_manager = ToolManager(repo, branch_name, inline_enabled=inline_enabled)
 
         # Keep repo reference only for commit operations (not file reading)
         self._repo = repo
@@ -72,7 +76,6 @@ class SessionManager(QObject):
         # inline_enabled gates whether the inline XML edit syntax is documented;
         # when disabled, the model is told to use the equivalent API tools.
         tool_schemas = self.tool_manager.discover_tools()
-        inline_enabled = bool(self.settings.get("llm.inline_tools_enabled", True))
         self.prompt_manager = PromptManager(
             tool_schemas=tool_schemas, inline_enabled=inline_enabled
         )

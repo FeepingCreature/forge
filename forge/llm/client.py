@@ -141,6 +141,7 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "stream": True,
+            "return_progress": True,
         }
 
         if tools:

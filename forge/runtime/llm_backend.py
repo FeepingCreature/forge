@@ -88,7 +88,6 @@ class OpenRouterBackend:
         current_tool_calls: list[dict[str, Any]] = []
 
         for chunk in self._client.chat_stream(messages, tools):
-            print(f"[DEBUG] SSE Chunk: {chunk}")
             if "choices" not in chunk or not chunk["choices"]:
                 continue
             delta = chunk["choices"][0].get("delta", {})
@@ -111,7 +110,6 @@ class OpenRouterBackend:
             # Prompt processing progress (e.g. llama.cpp / local backends)
             if "prompt_progress" in chunk:
                 prog = chunk["prompt_progress"]
-                print(f"[DEBUG] Prompt progress received: {prog}")
                 from forge.runtime.events import PromptProgressEvent
                 yield PromptProgressEvent(
                     processed=prog.get("processed"),

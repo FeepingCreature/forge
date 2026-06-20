@@ -1145,7 +1145,12 @@ fails, the rest abort and you get control back with the error. So you don't need
 and check after each call — batch them, and handle the rare failure when it surfaces.
 
 Only split across responses when a later call genuinely needs the *result* of an earlier
-one (e.g. you must read a file's content before you know what to replace)."""
+one (e.g. you must read a file's content before you know what to replace).
+
+**Think out loud before acting.** Your native reasoning/thinking blocks may NOT be
+preserved into later turns. So before you take an action that depends on a conclusion you
+reached while thinking, restate that key reasoning out loud in your visible reply -- don't
+assume a later step can see what you thought."""
 
     def _format_inline_command_reminder(self) -> str:
         """
@@ -1201,7 +1206,12 @@ NOT:
 Let me wait for test results...  ← WRONG: costs an extra response
 ```
 
-Chain everything optimistically. The pipeline handles failures for you."""
+Chain everything optimistically. The pipeline handles failures for you.
+
+**Think out loud before acting.** Your native reasoning/thinking blocks may NOT be
+preserved into later turns. So before you take an action that depends on a conclusion you
+reached while thinking, restate that key reasoning out loud in your visible reply -- don't
+assume a later step can see what you thought."""
 
     def format_context_stats_block(self) -> str:
         """

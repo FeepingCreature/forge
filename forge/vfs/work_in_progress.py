@@ -2,6 +2,7 @@
 Writable VFS that accumulates changes on top of a git commit
 """
 
+import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -191,5 +192,22 @@ class WorkInProgressVFS(VFS):
             else:
                 # Base commit files: copy raw bytes (preserves binary files)
                 full_path.write_bytes(self.base_vfs.read_file_bytes(filepath))
+
+        # Submodules are tracked as gitlink entries (commit pointers), not
+        # blobs, so they never appear in list_all_files() and aren't written
+        # above. There's also no .git in the tempdir, so `git submodule update`
+        # can't work there. Since the AI can't modify submodule contents
+        # anyway, just copy each submodule's checked-out folder verbatim from
+        # the real repo's working directory into the tempdir.
+        workdir = self.repo.repo.workdir
+        if workdir is not None:
+            workdir_path = Path(workdir)
+            for sub_path in self.repo.repo.listall_submodules():
+                src = workdir_path / sub_path
+                if not src.is_dir():
+                    continue
+                dst = tmpdir / sub_path
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True)
 
         return tmpdir

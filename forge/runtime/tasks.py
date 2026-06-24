@@ -33,7 +33,7 @@ import traceback
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal, Slot
 
 T = TypeVar("T")
 
@@ -288,6 +288,15 @@ class QtTaskRunner(QObject):
         super().__init__()
         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []
         self._lock = threading.Lock()
+        # Pin our thread affinity to the main (GUI) thread regardless of which
+        # thread constructs us. The queued `_thread_done` -> `_forget_thread`
+        # hop only delivers onto the main thread if THIS QObject lives there;
+        # if a SessionManager (and thus a QtTaskRunner) is ever built on a
+        # worker thread, the ref-drop would otherwise run on that worker thread
+        # and crash. Pinning affinity here makes the guarantee unconditional.
+        app = QCoreApplication.instance()
+        if app is not None and self.thread() is not app.thread():
+            self.moveToThread(app.thread())
         self._thread_done.connect(self._forget_thread)
 
     @Slot(object)

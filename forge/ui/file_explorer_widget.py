@@ -97,12 +97,12 @@ class FileExplorerWidget(QWidget):
 
         self.settings_btn = QPushButton("⚙")
         self.settings_btn.setFixedSize(22, 22)
-        self.settings_btn.setToolTip("Configure summary exclusions")
+        self.settings_btn.setToolTip("Repository settings")
         self.settings_btn.setStyleSheet(
             "QPushButton { border: none; font-size: 14px; } "
             "QPushButton:hover { background-color: #e0e0e0; border-radius: 3px; }"
         )
-        self.settings_btn.clicked.connect(self._show_exclusions_dialog)
+        self.settings_btn.clicked.connect(self._show_repository_settings)
         header_layout.addWidget(self.settings_btn)
 
         layout.addLayout(header_layout)
@@ -523,9 +523,9 @@ class FileExplorerWidget(QWidget):
         self.file_deleted.emit(filepath)
         self.refresh()
 
-    def _show_exclusions_dialog(self) -> None:
-        """Show the summary exclusions configuration dialog."""
-        from forge.ui.summary_exclusions_dialog import SummaryExclusionsDialog
+    def _show_repository_settings(self) -> None:
+        """Show the per-repository settings dialog."""
+        from forge.ui.repository_settings_dialog import RepositorySettingsDialog
 
-        dialog = SummaryExclusionsDialog(self.workspace, self)
+        dialog = RepositorySettingsDialog(self.workspace, self)
         dialog.exec()

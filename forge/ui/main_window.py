@@ -713,9 +713,8 @@ class MainWindow(QMainWindow):
         self.branch_tabs.removeTab(index)
 
     def _open_settings(self) -> None:
-        """Open settings dialog"""
-        workspace = self._get_current_workspace()
-        dialog = SettingsDialog(self.settings, self, workspace=workspace)
+        """Open settings dialog (global user settings only)"""
+        dialog = SettingsDialog(self.settings, self)
         if dialog.exec():
             # Settings were saved, could reload/apply them here
             self.status_bar.showMessage("Settings saved")

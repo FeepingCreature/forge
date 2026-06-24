@@ -29,8 +29,7 @@ from forge.llm.client import LLMClient
 from forge.ui.model_picker_dialog import ModelPickerPopup
 
 if TYPE_CHECKING:
-    from forge.config.settings import Settings  # noqa: I001
-    from forge.ui.branch_workspace import BranchWorkspace
+    from forge.config.settings import Settings
 
 
 class ModelFetchWorker(QObject):
@@ -61,11 +60,9 @@ class SettingsDialog(QDialog):
         self,
         settings: "Settings",
         parent: QWidget | None = None,
-        workspace: "BranchWorkspace | None" = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
-        self.workspace = workspace
         self.setWindowTitle("Forge Settings")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)

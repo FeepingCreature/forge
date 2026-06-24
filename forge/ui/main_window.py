@@ -714,7 +714,7 @@ class MainWindow(QMainWindow):
 
     def _open_settings(self) -> None:
         """Open settings dialog (global user settings only)"""
-        dialog = SettingsDialog(self.settings, self)
+        dialog = SettingsDialog(self.settings, self.action_registry, self)
         if dialog.exec():
             # Settings were saved, could reload/apply them here
             self.status_bar.showMessage("Settings saved")

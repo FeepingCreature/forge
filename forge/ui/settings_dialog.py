@@ -2,8 +2,6 @@
 Settings dialog for Forge
 """
 
-from typing import TYPE_CHECKING  # noqa: I001
-
 from PySide6.QtCore import QEvent, QObject, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -24,12 +22,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.config.settings import Settings
 from forge.constants import DEFAULT_MODEL, DEFAULT_SUMMARIZATION_MODEL
 from forge.llm.client import LLMClient
+from forge.ui.actions import ActionRegistry
 from forge.ui.model_picker_dialog import ModelPickerPopup
-
-if TYPE_CHECKING:
-    from forge.config.settings import Settings
 
 
 class ModelFetchWorker(QObject):
@@ -58,11 +55,13 @@ class SettingsDialog(QDialog):
 
     def __init__(
         self,
-        settings: "Settings",
+        settings: Settings,
+        action_registry: ActionRegistry,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
+        self.action_registry = action_registry
         self.setWindowTitle("Forge Settings")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
@@ -323,12 +322,7 @@ class SettingsDialog(QDialog):
 
     def _populate_keybindings(self) -> None:
         """Populate the keybindings table from ActionRegistry"""
-        # Get action registry from parent (MainWindow)
-        main_window = self.parent()
-        registry = getattr(main_window, "action_registry", None)
-        if registry is None:
-            return
-
+        registry = self.action_registry
         actions = registry.get_all()
 
         # Sort by category then name
@@ -359,11 +353,7 @@ class SettingsDialog(QDialog):
 
     def _reset_keybindings(self) -> None:
         """Reset all keybindings to defaults"""
-        main_window = self.parent()
-        registry = getattr(main_window, "action_registry", None)
-        if registry is None:
-            return
-
+        registry = self.action_registry
         for action_id, edit in self._keybinding_edits.items():
             action = registry.get(action_id)
             if action:
@@ -611,16 +601,14 @@ class SettingsDialog(QDialog):
 
         # Keybindings - collect custom shortcuts
         keybindings: dict[str, str] = {}
-        main_window = self.parent()
-        registry = getattr(main_window, "action_registry", None)
-        if registry is not None:
-            for action_id, edit in self._keybinding_edits.items():
-                action = registry.get(action_id)
-                if action:
-                    new_shortcut = edit.keySequence().toString()
-                    # Only save if different from default
-                    if new_shortcut != action.shortcut:
-                        keybindings[action_id] = new_shortcut
+        registry = self.action_registry
+        for action_id, edit in self._keybinding_edits.items():
+            action = registry.get(action_id)
+            if action:
+                new_shortcut = edit.keySequence().toString()
+                # Only save if different from default
+                if new_shortcut != action.shortcut:
+                    keybindings[action_id] = new_shortcut
 
         self.settings.set("keybindings", keybindings)
 

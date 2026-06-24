@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -44,6 +45,7 @@ class RepositorySettingsDialog(QDialog):
     Tabs:
       - Summarization: summary exclusion patterns (gitignore syntax)
       - Testing: the test command used by the run_tests tool
+      - Tools: optional built-in tools enabled for this repository
     """
 
     def __init__(self, workspace: "BranchWorkspace", parent: QWidget | None = None) -> None:
@@ -68,6 +70,7 @@ class RepositorySettingsDialog(QDialog):
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_summarization_tab(), "Summarization")
         self.tabs.addTab(self._build_testing_tab(), "Testing")
+        self.tabs.addTab(self._build_tools_tab(), "Tools")
         layout.addWidget(self.tabs)
 
         # Shared bottom button box
@@ -184,6 +187,52 @@ class RepositorySettingsDialog(QDialog):
         note = QLabel("<i>Changes take effect on the next run_tests call.</i>")
         note.setWordWrap(True)
         note.setStyleSheet("color: #888; font-size: 10px;")
+        layout.addWidget(note)
+
+        layout.addStretch()
+        return tab
+
+    def _build_tools_tab(self) -> QWidget:
+        from forge.tools.manager import ToolManager
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        desc = QLabel(
+            "Enable optional built-in tools for this repository.\n"
+            "These tools are available to the AI when enabled."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("margin-bottom: 8px;")
+        layout.addWidget(desc)
+
+        # Human-readable descriptions for known conditional tools.
+        tool_descriptions: dict[str, str] = {
+            "web_search": "Search the web using DuckDuckGo",
+            "web_read": "Fetch and extract content from web pages",
+        }
+
+        # Current enabled tools from the (already-loaded) config.
+        enabled_tools = set(self._load_config().get("enabled_tools", []))
+
+        self._tool_checkboxes: dict[str, QCheckBox] = {}
+        conditional_tools = sorted(ToolManager.CONDITIONAL_TOOLS)
+
+        if not conditional_tools:
+            no_tools = QLabel("No optional tools available.")
+            no_tools.setStyleSheet("color: #888;")
+            layout.addWidget(no_tools)
+        else:
+            for tool_name in conditional_tools:
+                description = tool_descriptions.get(tool_name, tool_name)
+                checkbox = QCheckBox(f"{tool_name} \u2014 {description}")
+                checkbox.setChecked(tool_name in enabled_tools)
+                self._tool_checkboxes[tool_name] = checkbox
+                layout.addWidget(checkbox)
+
+        note = QLabel("<i>Changes take effect on the next AI turn.</i>")
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #888; font-size: 10px; margin-top: 12px;")
         layout.addWidget(note)
 
         layout.addStretch()
@@ -307,6 +356,9 @@ class RepositorySettingsDialog(QDialog):
         ]
         config["summary_exclusions"] = patterns
         config["test_command"] = self.test_command_input.text().strip()
+        config["enabled_tools"] = sorted(
+            name for name, checkbox in self._tool_checkboxes.items() if checkbox.isChecked()
+        )
 
         self.workspace.vfs.write_file(CONFIG_FILE, json.dumps(config, indent=2))
         self.workspace.vfs.commit("Update repository settings", commit_type=CommitType.PREPARE)

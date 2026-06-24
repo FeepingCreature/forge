@@ -41,7 +41,6 @@ class MoodBar(QWidget):
         # Empty/unused color
         self._empty_color = QColor(MOOD_COLORS["empty"])
 
-
         # Tick mark settings
         self._tick_interval = 10_000  # Tokens between big marks
         self._tick_color = QColor(0, 0, 0, 178)  # 70% opacity black triangles
@@ -72,7 +71,6 @@ class MoodBar(QWidget):
         self._progress_total = total
         self._progress_cache = cache
         self.update()
-
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802
         """Draw the colored segments and tick marks."""
@@ -122,21 +120,21 @@ class MoodBar(QWidget):
             # Map processed tokens to X position (relative to total tokens)
             progress_x = (self._progress_processed / self._progress_total) * width
             bar_height = int(height * 0.2)
-            
+
             # Fill processed area with semi-transparent white
             painter.setBrush(QColor(255, 255, 255, 80))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRect(0, 0, int(progress_x), bar_height)
-            
+
             # Draw a bright vertical line at the leading edge
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QColor("#ffffff"))
             painter.drawLine(int(progress_x), 0, int(progress_x), bar_height)
-            
+
             # Draw a smaller marker for the cache boundary
             if self._progress_cache > 0:
                 cache_x = (self._progress_cache / self._progress_total) * width
-                painter.setPen(QColor("#fbbf24")) # Amber for cache
+                painter.setPen(QColor("#fbbf24"))  # Amber for cache
                 painter.drawLine(int(cache_x), 0, int(cache_x), bar_height)
 
         # Draw triangular tick marks at 10k token intervals

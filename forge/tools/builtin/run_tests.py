@@ -7,6 +7,7 @@ This tool:
 3. Returns test output with pass/fail summary
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -59,7 +60,10 @@ Automatically discovers test command from:
 - pytest (if pytest.ini, pyproject.toml with pytest, or test_*.py files exist)
 - package.json scripts.test
 
-Returns test output with pass/fail summary. Use this to verify your changes work.""",
+Returns test output with pass/fail summary. Use this to verify your changes work.
+
+If the repository configures a test command in .forge/config.json
+("test_command"), that command is used instead of auto-discovery.""",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -80,6 +84,24 @@ Returns test output with pass/fail summary. Use this to verify your changes work
             },
         },
     }
+
+
+def _read_configured_command(vfs: "WorkInProgressVFS") -> str:
+    """Read the per-repository test command from .forge/config.json.
+
+    The command is stored under the top-level "test_command" key (the same
+    config file ToolManager uses for "enabled_tools"). When non-empty, it
+    overrides automatic test-command discovery. Returns "" when unset.
+    """
+    try:
+        content = vfs.read_file(".forge/config.json")
+        config = json.loads(content)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return ""
+    command = config.get("test_command", "")
+    if not isinstance(command, str):
+        return ""
+    return command.strip()
 
 
 def _discover_test_command(tmpdir: Path) -> tuple[list[str], str]:
@@ -164,39 +186,59 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        # Discover test command
-        cmd, cmd_desc = _discover_test_command(tmpdir)
-        results["test_command"] = cmd_desc
-
-        # Add specific test file if specified
-        if file:
-            if "pytest" in cmd_desc:
-                cmd.append(file)
-            elif cmd_desc == "make test":
-                results["note"] = "File filtering not supported with make test, running all tests"
-
-        # Add pattern filter if specified
-        if pattern:
-            if "pytest" in cmd_desc:
-                cmd.extend(["-k", pattern])
-            elif cmd_desc == "make test":
-                # Can't easily filter make test, note it
+        # A per-repository test command (.forge/config.json "test_command")
+        # overrides auto-discovery. It's run via the shell so it may include
+        # arguments and pipes (e.g. "pytest -q" or "npm test"). The file,
+        # pattern, and verbose options only apply to auto-discovered commands
+        # since we can't reliably splice them into an arbitrary shell command.
+        configured = _read_configured_command(vfs)
+        if configured:
+            cmd: list[str] | str = configured
+            cmd_desc = configured
+            use_shell = True
+            if file or pattern or verbose:
                 results["note"] = (
-                    "Pattern filtering not supported with make test, running all tests"
+                    "file/pattern/verbose options are ignored when a "
+                    "repository test_command is configured"
                 )
+        else:
+            cmd, cmd_desc = _discover_test_command(tmpdir)
+            use_shell = False
 
-        # Add verbose flag
-        if verbose:
-            if "pytest" in cmd_desc:
-                cmd.append("-v")
-            elif "cargo" in cmd_desc:
-                cmd.append("--verbose")
+            # Add specific test file if specified
+            if file:
+                if "pytest" in cmd_desc:
+                    cmd.append(file)
+                elif cmd_desc == "make test":
+                    results["note"] = (
+                        "File filtering not supported with make test, running all tests"
+                    )
+
+            # Add pattern filter if specified
+            if pattern:
+                if "pytest" in cmd_desc:
+                    cmd.extend(["-k", pattern])
+                elif cmd_desc == "make test":
+                    # Can't easily filter make test, note it
+                    results["note"] = (
+                        "Pattern filtering not supported with make test, running all tests"
+                    )
+
+            # Add verbose flag
+            if verbose:
+                if "pytest" in cmd_desc:
+                    cmd.append("-v")
+                elif "cargo" in cmd_desc:
+                    cmd.append("--verbose")
+
+        results["test_command"] = cmd_desc
 
         # Run tests with timeout
         try:
             result = subprocess.run(
                 cmd,
                 cwd=tmpdir,
+                shell=use_shell,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

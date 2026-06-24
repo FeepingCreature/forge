@@ -111,6 +111,7 @@ class OpenRouterBackend:
             if "prompt_progress" in chunk:
                 prog = chunk["prompt_progress"]
                 from forge.runtime.events import PromptProgressEvent
+
                 yield PromptProgressEvent(
                     processed=prog.get("processed"),
                     total=prog.get("total"),

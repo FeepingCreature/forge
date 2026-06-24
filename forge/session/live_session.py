@@ -185,7 +185,6 @@ class LiveSession(QObject):
     error_occurred = Signal(str)
     state_changed = Signal(str)  # SessionState value
 
-
     # Signal for messages list changes (for UI sync)
     message_added = Signal(dict)  # The message that was added
     message_updated = Signal(int, dict)  # index, updated message

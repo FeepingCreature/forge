@@ -241,8 +241,6 @@ class MainWindow(QMainWindow):
             lambda p, t, c, bw=branch_widget: self._on_prompt_progress(p, t, c, bw)
         )
 
-
-
         # Refresh context stats (and mood bar) after AI turn finishes,
         # since conversation tokens change even if no files were added/removed
         branch_widget.ai_turn_finished.connect(
@@ -1066,7 +1064,9 @@ class MainWindow(QMainWindow):
         else:
             self.cost_label.setText(f"<b>${cost:.4f}</b>")
 
-    def _on_prompt_progress(self, processed: int, total: int, cache: int, branch_widget: BranchTabWidget) -> None:
+    def _on_prompt_progress(
+        self, processed: int, total: int, cache: int, branch_widget: BranchTabWidget
+    ) -> None:
         """Handle LLM prompt processing progress updates."""
         # Only update if this is the current branch
         if self.branch_tabs.currentWidget() != branch_widget:

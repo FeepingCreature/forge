@@ -114,9 +114,7 @@ def _resolve_ref(repo: pygit2.Repository, ref: str | None, default_branch: str) 
         try:
             # Try full or partial SHA
             obj = repo.revparse_single(ref)
-            if isinstance(obj, pygit2.Commit):
-                return obj
-            # Could be a tag pointing to a commit
+            # Could be a tag pointing to a commit; peel to the commit.
             return obj.peel(pygit2.Commit)
         except (KeyError, ValueError):
             pass
@@ -147,7 +145,7 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
     # Resolve commit
     try:
         obj = repo.revparse_single(commit_sha)
-        commit: pygit2.Commit = obj if isinstance(obj, pygit2.Commit) else obj.peel(pygit2.Commit)
+        commit: pygit2.Commit = obj.peel(pygit2.Commit)
     except (KeyError, ValueError, pygit2.GitError):
         return {"success": False, "error": f"Could not find commit: {commit_sha}"}
 
@@ -165,6 +163,8 @@ def _show_commit_diff(repo: pygit2.Repository, commit_sha: str) -> dict[str, Any
     # Format diff output
     diff_lines = []
     for patch in diff:
+        if patch is None:
+            continue
         file_path = patch.delta.new_file.path or patch.delta.old_file.path
 
         # Skip session.json - it's noise in diffs

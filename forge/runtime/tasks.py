@@ -239,7 +239,9 @@ class _QtWorker(QObject):
     """
 
     # Emitted from worker thread; received on the submitter's thread.
-    event = Signal(object)
+    # NB: named `event_emitted` (not `event`) to avoid shadowing
+    # QObject.event, which mypy flags as an incompatible override.
+    event_emitted = Signal(object)
     finished = Signal(object)
     failed = Signal(str)
     done = Signal()  # Always emitted last, used for thread cleanup.
@@ -252,7 +254,7 @@ class _QtWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            result = self._work(self.event.emit, self._token)
+            result = self._work(self.event_emitted.emit, self._token)
         except CancelledError:
             # Cooperative cancellation — silent, no callback.
             self.done.emit()
@@ -312,7 +314,7 @@ class QtTaskRunner(QObject):
                 return
             on_error(msg)
 
-        worker.event.connect(safe_event)
+        worker.event_emitted.connect(safe_event)
         worker.finished.connect(safe_result)
         worker.failed.connect(safe_error)
 

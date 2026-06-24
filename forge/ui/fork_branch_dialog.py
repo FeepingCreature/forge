@@ -7,13 +7,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 
 class ForkBranchDialog(QDialog):
     """Dialog for forking a branch with session options."""
 
-    def __init__(self, source_branch: str, parent: object = None) -> None:
+    def __init__(self, source_branch: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Fork Branch")
         self.setMinimumWidth(350)

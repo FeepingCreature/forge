@@ -26,7 +26,12 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from forge.runtime.events import ReasoningChunk, StreamChunk, StreamToolCallDelta
+from forge.runtime.events import (
+    PromptProgressEvent,
+    ReasoningChunk,
+    StreamChunk,
+    StreamToolCallDelta,
+)
 
 
 @dataclass
@@ -40,7 +45,9 @@ class StreamFinished:
 # Union type for events yielded by LLMBackend.stream(). Plain isinstance
 # dispatch on the consumer side. Kept as a comment-style alias because
 # Python doesn't have real sum types.
-StreamEvent = StreamChunk | ReasoningChunk | StreamToolCallDelta | StreamFinished
+StreamEvent = (
+    StreamChunk | ReasoningChunk | StreamToolCallDelta | PromptProgressEvent | StreamFinished
+)
 
 
 class LLMBackend(Protocol):
@@ -110,7 +117,6 @@ class OpenRouterBackend:
             # Prompt processing progress (e.g. llama.cpp / local backends)
             if "prompt_progress" in chunk:
                 prog = chunk["prompt_progress"]
-                from forge.runtime.events import PromptProgressEvent
 
                 yield PromptProgressEvent(
                     processed=prog.get("processed"),

@@ -206,9 +206,6 @@ def _spawn(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     try:
         # Get current branch HEAD
         parent_ref = repo.repo.branches.get(parent_branch)
-        if not parent_ref:
-            return {"success": False, "error": f"Parent branch '{parent_branch}' not found"}
-
         parent_commit = parent_ref.peel(pygit2.Commit)
 
         # Check if branch already exists
@@ -267,10 +264,6 @@ def _check_merge_clean(ctx: "ToolContext", parent_branch: str, child_branch: str
     """Check if merging child into parent would be clean."""
     parent_ref = ctx.repo.repo.branches.get(parent_branch)
     child_ref = ctx.repo.repo.branches.get(child_branch)
-
-    if not parent_ref or not child_ref:
-        return False
-
     parent_commit = parent_ref.peel(pygit2.Commit)
     child_commit = child_ref.peel(pygit2.Commit)
 
@@ -524,10 +517,6 @@ def _merge(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 
         parent_ref = repo.repo.branches.get(parent_branch)
         child_ref = repo.repo.branches.get(branch)
-
-        if not parent_ref or not child_ref:
-            return {"success": False, "error": "Could not find branch references"}
-
         parent_commit = parent_ref.peel(pygit2.Commit)
         child_commit = child_ref.peel(pygit2.Commit)
 

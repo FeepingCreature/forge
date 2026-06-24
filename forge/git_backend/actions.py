@@ -59,8 +59,6 @@ class RebaseAction(GitAction):
         self.previous_source_oid = str(source_tip.id)
 
         target_commit = repo[self.target_oid]
-        if not isinstance(target_commit, pygit2.Commit):
-            raise ValueError(f"Target {self.target_oid} is not a commit")
 
         # Find merge base between source branch tip and target
         merge_base_oid = repo.merge_base(source_tip.id, target_commit.id)
@@ -139,7 +137,6 @@ class RebaseAction(GitAction):
                 [current_parent.id],
             )
             new_commit = repo[new_commit_oid]
-            assert isinstance(new_commit, pygit2.Commit)
             current_parent = new_commit
 
         # Move source branch to point at last replayed commit
@@ -187,15 +184,12 @@ class MergeAction(GitAction):
         self.previous_target_oid = str(target_commit.id)
 
         source_commit = self.repo.repo[self.source_oid]
-        if not isinstance(source_commit, pygit2.Commit):
-            raise ValueError(f"Source {self.source_oid} is not a commit")
 
         merge_base_oid = self.repo.repo.merge_base(target_commit.id, source_commit.id)
         if not merge_base_oid:
             raise ValueError("No common ancestor found - cannot merge unrelated histories")
 
         ancestor_commit = self.repo.repo[merge_base_oid]
-        assert isinstance(ancestor_commit, pygit2.Commit)
 
         # Do a three-way merge
         merge_result = self.repo.repo.merge_trees(
@@ -345,7 +339,6 @@ def check_merge_clean(repo: ForgeRepository, source_oid: str, target_branch: str
         return True
 
     ancestor_commit = repo.repo[merge_base]
-    assert isinstance(ancestor_commit, pygit2.Commit)
 
     # Do a merge tree check
     merge_result = repo.repo.merge_trees(

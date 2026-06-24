@@ -30,6 +30,7 @@ from PySide6.QtCore import QObject, Signal
 
 from forge.runtime import (
     LLMBackend,
+    PromptProgressEvent,
     QtTaskRunner,
     ReasoningChunk,
     StreamChunk,
@@ -38,7 +39,6 @@ from forge.runtime import (
     TaskRunner,
     ToolFinished,
     ToolStarted,
-    PromptProgressEvent,
 )
 
 if TYPE_CHECKING:
@@ -228,7 +228,7 @@ class LiveSession(QObject):
 
         # === ATTACH/DETACH STATE ===
         self._attached = False
-        self._event_buffer: deque[SessionEvent] = deque()
+        self._event_buffer: deque[SessionEvent | PromptProgressEvent] = deque()
         self._buffer_lock = Lock()
 
         # Execution state
@@ -425,7 +425,7 @@ class LiveSession(QObject):
             self._attached = False
             self._event_buffer.clear()  # Clear any stale events
 
-    def drain_buffer(self) -> list[SessionEvent]:
+    def drain_buffer(self) -> list[SessionEvent | PromptProgressEvent]:
         """
         Drain and return all buffered events.
 
@@ -439,7 +439,7 @@ class LiveSession(QObject):
             self._event_buffer.clear()
             return events
 
-    def _emit_event(self, event: SessionEvent) -> None:
+    def _emit_event(self, event: SessionEvent | PromptProgressEvent) -> None:
         """
         Emit an event - either directly via signal or buffer if detached.
 

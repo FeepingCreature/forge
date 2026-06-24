@@ -5,6 +5,7 @@ A fuzzy-searchable list of all available actions, triggered by Ctrl+Shift+P.
 """
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -204,7 +205,7 @@ class CommandPalette(QDialog):
             self.search_input.setFocus()
             self.search_input.keyPressEvent(event)
 
-    def showEvent(self, event: object) -> None:  # noqa: N802
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         """Focus search input when shown."""
         super().showEvent(event)
         self.search_input.setFocus()

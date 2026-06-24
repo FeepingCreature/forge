@@ -325,10 +325,10 @@ class SettingsDialog(QDialog):
         """Populate the keybindings table from ActionRegistry"""
         # Get action registry from parent (MainWindow)
         main_window = self.parent()
-        if not hasattr(main_window, "action_registry"):
+        registry = getattr(main_window, "action_registry", None)
+        if registry is None:
             return
 
-        registry = main_window.action_registry
         actions = registry.get_all()
 
         # Sort by category then name
@@ -360,10 +360,9 @@ class SettingsDialog(QDialog):
     def _reset_keybindings(self) -> None:
         """Reset all keybindings to defaults"""
         main_window = self.parent()
-        if not hasattr(main_window, "action_registry"):
+        registry = getattr(main_window, "action_registry", None)
+        if registry is None:
             return
-
-        registry = main_window.action_registry
 
         for action_id, edit in self._keybinding_edits.items():
             action = registry.get(action_id)
@@ -613,8 +612,8 @@ class SettingsDialog(QDialog):
         # Keybindings - collect custom shortcuts
         keybindings: dict[str, str] = {}
         main_window = self.parent()
-        if hasattr(main_window, "action_registry"):
-            registry = main_window.action_registry
+        registry = getattr(main_window, "action_registry", None)
+        if registry is not None:
             for action_id, edit in self._keybinding_edits.items():
                 action = registry.get(action_id)
                 if action:

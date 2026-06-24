@@ -105,8 +105,7 @@ class CommitDiffWindow(QMainWindow):
         """Load and display the commit."""
         import pygit2
 
-        commit = self.repo.repo.revparse_single(self.commit_oid)
-        assert isinstance(commit, pygit2.Commit)
+        commit = self.repo.repo.revparse_single(self.commit_oid).peel(pygit2.Commit)
 
         # Set window title
         self.setWindowTitle(
@@ -139,6 +138,8 @@ class CommitDiffWindow(QMainWindow):
         self._file_diffs = {}
 
         for patch in diff:
+            if patch is None:
+                continue
             filepath = patch.delta.new_file.path or patch.delta.old_file.path
 
             # Determine status

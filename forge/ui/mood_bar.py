@@ -30,7 +30,7 @@ class MoodBar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._segments: list[dict] = []
-        self._total_tokens = int(0)
+        self._total_tokens = 0
         self._segment_rects: list[tuple[QRect, dict]] = []  # For hit testing
 
         # Progress tracking

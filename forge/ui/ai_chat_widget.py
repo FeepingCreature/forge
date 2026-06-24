@@ -39,6 +39,7 @@ from forge.ui.js_cache import JS_CACHE_DIR, get_script_src, get_script_tag
 from forge.ui.tool_rendering import render_markdown
 
 if TYPE_CHECKING:
+    from forge.runtime import PromptProgressEvent
     from forge.session.live_session import LiveSession, SessionEvent
 
 
@@ -155,7 +156,7 @@ class AIChatWidget(QWidget):
         self.runner.message_updated.connect(self._on_runner_message_updated)
         self.runner.messages_truncated.connect(self._on_runner_messages_truncated)
 
-    def _handle_runner_event(self, event: "SessionEvent") -> None:
+    def _handle_runner_event(self, event: "SessionEvent | PromptProgressEvent") -> None:
         """Handle a buffered event from the runner."""
         from forge.session.live_session import (
             ChunkEvent,
@@ -419,7 +420,7 @@ class AIChatWidget(QWidget):
         self.chat_view.setPage(custom_page)
 
         # Log JavaScript console messages to stdout for debugging
-        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message
+        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message  # type: ignore[method-assign]
 
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)

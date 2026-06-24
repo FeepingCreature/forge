@@ -202,6 +202,11 @@ class WorkInProgressVFS(VFS):
         workdir = self.repo.repo.workdir
         if workdir is not None:
             workdir_path = Path(workdir)
+            # Copy the .git directory so that tools in tempdir can run git commands
+            git_dir = workdir_path / ".git"
+            if git_dir.exists():
+                shutil.copytree(git_dir, tmpdir / ".git", symlinks=True, dirs_exist_ok=True)
+
             for sub_path in self.repo.repo.listall_submodules():
                 src = workdir_path / sub_path
                 if not src.is_dir():

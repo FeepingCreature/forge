@@ -25,6 +25,13 @@ class GitCommitVFS(VFS):
         except KeyError as err:
             raise FileNotFoundError(f"File not found: {path}") from err
 
+    def get_file_mode(self, path: str) -> int:
+        """Get the git filemode for a path"""
+        try:
+            return self.tree[path].filemode
+        except KeyError as err:
+            raise FileNotFoundError(f"File not found: {path}") from err
+
     def read_file(self, path: str) -> str:
         """Read file content as text (UTF-8 decoded)"""
         data = self.read_file_bytes(path)

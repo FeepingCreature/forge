@@ -3,9 +3,12 @@ Writable VFS that accumulates changes on top of a git commit
 """
 
 import shutil
+import stat
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+import pygit2
 
 from forge.git_backend.commit_types import CommitType
 from forge.vfs.base import VFS
@@ -191,7 +194,13 @@ class WorkInProgressVFS(VFS):
                 full_path.write_text(self.pending_changes[filepath], encoding="utf-8")
             else:
                 # Base commit files: copy raw bytes (preserves binary files)
-                full_path.write_bytes(self.base_vfs.read_file_bytes(filepath))
+                # Check if it's a symlink first
+                if stat.S_ISLNK(self.base_vfs.get_file_mode(filepath)):
+                    # Symlink targets are stored as text in the blob
+                    target = self.base_vfs.read_file(filepath)
+                    full_path.symlink_to(target)
+                else:
+                    full_path.write_bytes(self.base_vfs.read_file_bytes(filepath))
 
         # Submodules are tracked as gitlink entries (commit pointers), not
         # blobs, so they never appear in list_all_files() and aren't written

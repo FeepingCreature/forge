@@ -282,7 +282,7 @@ def execute(vfs: "WorkInProgressVFS", args: dict[str, Any]) -> dict[str, Any]:
         modified_files = []
         for rel_path in vfs.list_files():
             file_path = tmpdir / rel_path
-            if file_path.exists():
+            if file_path.exists() and not file_path.is_symlink():
                 new_content = file_path.read_text(encoding="utf-8")
                 # Check if content actually changed
                 try:

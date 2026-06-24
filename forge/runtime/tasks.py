@@ -279,10 +279,23 @@ class QtTaskRunner(QObject):
     `shutdown()` is called).
     """
 
+    # Emitted (possibly from a worker thread) when a thread finishes. Connected
+    # to a slot on this QObject, which lives on the main thread, so delivery is
+    # queued onto the main thread — the ref-drop never runs on the worker thread.
+    _thread_done = Signal(object)
+
     def __init__(self) -> None:
         super().__init__()
         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []
         self._lock = threading.Lock()
+        self._thread_done.connect(self._forget_thread)
+
+    @Slot(object)
+    def _forget_thread(self, thread: QThread) -> None:
+        # Runs on the runner's (main) thread via queued delivery, after the
+        # worker thread's exec() has fully returned.
+        with self._lock:
+            self._threads = [t for t in self._threads if t[0] is not thread]
 
     def submit(
         self,
@@ -348,16 +361,10 @@ class QtTaskRunner(QObject):
         worker.done.connect(thread.quit)
         thread.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-
-        # Bookkeeping: drop our strong reference once the thread is really
-        # done. Runs on the main thread (the runner's affinity), so the
-        # list mutation doesn't need the lock for thread-safety — but we
-        # keep it for symmetry with the append side.
-        def _forget_thread() -> None:
-            with self._lock:
-                self._threads = [t for t in self._threads if t[0] is not thread]
-
-        thread.finished.connect(_forget_thread)
+        # Bookkeeping: only EMIT here (thread-safe, drops no refs). The actual
+        # list mutation / ref-drop happens in the _forget_thread slot on the
+        # main thread via queued delivery — never on the dying worker thread.
+        thread.finished.connect(lambda t=thread: self._thread_done.emit(t))
         thread.started.connect(worker.run)
 
         with self._lock:

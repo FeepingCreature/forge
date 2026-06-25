@@ -581,9 +581,7 @@ class SettingsDialog(QDialog):
         self.inline_tools_enabled_input.setChecked(
             self.settings.get("llm.inline_tools_enabled", True)
         )
-        self.prefix_tool_args_input.setChecked(
-            self.settings.get("llm.prefix_tool_args", False)
-        )
+        self.prefix_tool_args_input.setChecked(self.settings.get("llm.prefix_tool_args", False))
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))

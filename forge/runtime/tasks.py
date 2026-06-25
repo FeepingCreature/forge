@@ -291,21 +291,11 @@ class QtTaskRunner(QObject):
         # affinity to the main thread to ensure that queued signals
         # (like _thread_done) are delivered to the main event loop.
         app = QCoreApplication.instance()
-        assert app is not None and QThread.currentThread() is app.thread(), \
+        assert app is not None and QThread.currentThread() is app.thread(), (
             "QtTaskRunner must be created on the main thread"
+        )
         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []
         self._lock = threading.Lock()
-        # Pin our thread affinity to the main (GUI) thread unconditionally.
-        # The queued `_thread_done` -> `_forget_thread` hop only delivers onto
-        # the main thread if THIS QObject lives there; otherwise the QObject
-        # ref-drop (and the resulting `~QObject` / DeferredDelete) runs on the
-        # dying worker thread and crashes with SIGSEGV. The construction-time
-        # assertion above documents the expectation, but it is stripped under
-        # `python -O` and only checks the *constructing* thread; this pin makes
-        # the queued-delivery guarantee hold regardless. Do NOT remove it: it
-        # is not redundant with the assertion (see commit d9cf42555ef9).
-        if self.thread() is not app.thread():
-            self.moveToThread(app.thread())
         self._thread_done.connect(self._forget_thread)
 
     @Slot(QThread)
@@ -314,10 +304,34 @@ class QtTaskRunner(QObject):
 
     @Slot(object)
     def _forget_thread(self, thread: QThread) -> None:
-        # Runs on the runner's (main) thread via queued delivery, after the
-        # worker thread's exec() has fully returned.
+        # SINGLE delete path, SINGLE owner.
+        #
+        # This slot runs on the runner's (main) thread via queued delivery,
+        # and only after the worker thread's `finished` signal fired — i.e.
+        # `QThread::run()`/`exec()` has fully returned and the OS thread is
+        # winding down. At that point it is safe for US (the owner) to delete
+        # both the worker and the thread, from the main thread, via
+        # `deleteLater()`. Because the runner lives on the main thread, those
+        # DeferredDelete events are processed by the main event loop — never
+        # by the dying worker thread.
+        #
+        # We deliberately do NOT connect `worker.deleteLater` /
+        # `thread.deleteLater` to `thread.finished` (the old design). That
+        # created TWO delete paths: the worker would be deleted by its own
+        # thread's event loop AND have its last Python ref dropped here on the
+        # main thread, racing into a double-free ("shared QObject was deleted
+        # directly" → SIGSEGV in sendPostedEvents on the worker thread).
+        # Owning the lifetime in one place removes the race by construction.
         with self._lock:
-            self._threads = [t for t in self._threads if t[0] is not thread]
+            survivors = []
+            for entry in self._threads:
+                if entry[0] is thread:
+                    _, worker, _ = entry
+                    worker.deleteLater()
+                    thread.deleteLater()
+                else:
+                    survivors.append(entry)
+            self._threads = survivors
 
     def submit(
         self,
@@ -352,40 +366,24 @@ class QtTaskRunner(QObject):
         worker.event_emitted.connect(safe_event)
         worker.finished.connect(safe_result)
         worker.failed.connect(safe_error)
+        # Keep refs alive: capture worker+thread in the slot wrappers above is
+        # not enough; the runner's `self._threads` list is the single owner
+        # (see _forget_thread). Nothing else holds a strong ref, so the C++
+        # objects only die when WE call deleteLater() on the main thread.
 
-        # Thread teardown follows the documented Qt pattern:
+        # Thread teardown is intentionally minimal and has ONE channel:
         #
-        #   worker.done   ─► thread.quit         (ask exec() to return)
-        #   thread.finished ─► worker.deleteLater (worker lives on thread,
-        #                                          deleted via thread's loop
-        #                                          before it actually exits)
-        #   thread.finished ─► thread.deleteLater (only after the OS thread
-        #                                          has fully finished)
+        #   worker.done   ─► thread.quit          (ask exec() to return)
+        #   thread.finished ─► _emit_thread_done   (re-emit as a queued signal
+        #                                           so _forget_thread runs on
+        #                                           the main thread)
         #
-        # Previously we ran a `cleanup` closure directly off `worker.done`,
-        # which is emitted from inside `_QtWorker.run` — i.e. while the
-        # thread is *still* executing. That closure posted
-        # `thread.deleteLater()` to the main event loop immediately, and if
-        # main got back to its event loop before the native OS thread had
-        # finished winding down, Qt would destroy the QThread C++ object
-        # while the thread was still running:
-        #
-        #     QThread: Destroyed while thread '' is still running
-        #     Aborted
-        #
-        # The race is widest on the first tool call of a turn, where stream
-        # completion immediately submits a tool task synchronously, then
-        # returns to the event loop with Thread S's DeferredDelete already
-        # queued and only microseconds of OS-level teardown done.
-        #
-        # `thread.finished` fires *after* `QThread::run()` has returned, so
-        # connecting deleteLater to it is safe.
+        # _forget_thread is then the SOLE place that deletes the worker and
+        # the thread (via deleteLater on the main thread) and drops our
+        # ownership ref. No `deleteLater` is wired to `thread.finished`
+        # directly, so there is exactly one delete path and no cross-thread
+        # double-free race.
         worker.done.connect(thread.quit)
-        thread.finished.connect(worker.deleteLater)
-        thread.finished.connect(thread.deleteLater)
-        # Bookkeeping: only EMIT here (thread-safe, drops no refs). The actual
-        # list mutation / ref-drop happens in the _forget_thread slot on the
-        # main thread via queued delivery — never on the dying worker thread.
         thread.finished.connect(partial(self._emit_thread_done, thread))
         thread.started.connect(worker.run)
 

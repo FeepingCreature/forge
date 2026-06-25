@@ -388,7 +388,7 @@ class ToolManager:
                 prefixed_name = f"{i}_{prop_name}"
                 name_map[prop_name] = prefixed_name
                 new_properties[prefixed_name] = prop_val
-            
+
             params["properties"] = new_properties
 
             required = params.get("required", [])
@@ -464,7 +464,8 @@ class ToolManager:
         """Execute a tool with VFS or ToolContext based on API version."""
         if self.prefix_tool_args:
             import re
-            args = {re.sub(r'^\d+_', '', k): v for k, v in args.items()}
+
+            args = {re.sub(r"^\d+_", "", k): v for k, v in args.items()}
 
         from forge.tools.context import ToolContext, get_tool_api_version
 

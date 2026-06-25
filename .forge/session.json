@@ -181,6 +181,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "chatcmpl-Dw7bYjJudHUIyiB5pp0VPd7W5z7iyr0j"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352569344.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352569344.json",
+      "timestamp": 1782352569.354903,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-B0RYnXYsQAcSorl4IZ6JtdIYfIhhi6PS"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352615696.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352615696.json",
+      "timestamp": 1782352615.7067678,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-Q0c97LWYKHbZYI7pMQjxx3YaystdOhGv"
     }
   ],
   "messages": [
@@ -675,6 +693,32 @@
     {
       "role": "assistant",
       "content": "I have fixed the reported `TypeError` and cleaned up the remaining unused import.\n\nThe `TypeError` occurred because `QThread.finished` emits no arguments, but `_emit_thread_done` required the `thread` object. I resolved this by using `functools.partial` to bind the `thread` instance to the slot, ensuring it is passed correctly when the signal is triggered.\n\nI have also removed the unused `pygit2` import from `forge/vfs/work_in_progress.py` to resolve the final linting error.\n\nDone! Fixed the `QtTaskRunner` argument error and cleaned up unused imports."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 51a72651",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "doesn't functools.partial just make a closure again"
+    },
+    {
+      "role": "assistant",
+      "content": "You are correct\u2014`functools.partial` is essentially a specialized closure. It stores a reference to the function and the arguments, and when called, it invokes the function with those arguments. In terms of Python memory and object lifetimes, it behaves almost identically to a lambda capturing `self` and `thread`.\n\nHowever, the \"safety\" here doesn't come from avoiding closures, but from **where and how the code is executed**.\n\n### The Root of the Segfault\nThe original segfault (`SIGSEGV in _forget_thread`) wasn't caused by the existence of a Python closure, but by a **threading race condition**:\n\n1.  **Thread Affinity**: If the `QtTaskRunner` was created on a worker thread, connections to its slots from that same worker thread were `Direct` instead of `Queued`. This meant the cleanup logic (`_forget_thread`) ran on the dying worker thread.\n2.  **Destruction Race**: Running cleanup on a dying thread while simultaneously triggering `deleteLater()` on the `QThread` object often leads to a segfault because the C++ object is destroyed while the native OS thread is still winding down.\n\n### Why `partial` (or a lambda) is safe now\nThe fix consists of three layers of protection that make the specific Python construct (lambda vs. partial) irrelevant:\n\n1.  **Pinning to Main Thread**: By calling `self.moveToThread(app.thread())` in `__init__`, we guarantee that the `QtTaskRunner` always lives on the main thread.\n2.  **Guaranteed Queued Connection**: Because the runner lives on the main thread and the signal (`thread.finished`) comes from a worker thread, Qt **guarantees** a `QueuedConnection`. The execution of the slot is posted as an event to the main event loop.\n3.  **Decoupled Cleanup**: The `_emit_thread_done` slot doesn't do the cleanup itself; it emits another signal (`_thread_done`). This ensures that the final `_forget_thread` logic is completely decoupled from the `QThread`'s termination sequence.\n\n**In short:** The `partial` is just a way to fix the `TypeError` (passing the `thread` argument) while staying within the safe, queued signal-slot architecture. A lambda `lambda: self._emit_thread_done(thread)` would have been just as safe in this specific architecture."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 3cdfe790",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "QtTaskRunner can never be created from a worker thread."
+    },
+    {
+      "role": "assistant",
+      "content": "[id 26] Fair point. If `QtTaskRunner` is always instantiated on the main thread, the `moveToThread` logic is redundant. \n\nHowever, the actual fix for the segfault\u2014moving the cleanup from the worker thread to the main thread via a queued signal\u2014remains necessary. The `SIGSEGV` happens because `_forget_thread` (which modifies the `_threads` list and drops references) was originally running on the worker thread's stack as it was being torn down, or triggered a `deleteLater` that raced with the OS thread exit.\n\nSince the `moveToThread` call is unnecessary, I'll remove it to clean up the code, while keeping the signal-slot architecture that ensures the cleanup happens on the main thread.\n\n<antml:function_calls>\n  <call name=\"edit\" arguments=\"{&quot;edits&quot;: [{&quot;filepath&quot;: &quot;forge/runtime/tasks.py&quot;, &quot;replace&quot;: &quot;        self._thread_done.connect(self._forget_thread)&quot;, &quot;search&quot;: &quot;        # Pin our thread affinity to the main (GUI) thread regardless of which\\n        # thread constructs us. The queued `_thread_done` -> `_forget_thread`\\n        # hop only delivers onto the main thread if THIS QObject lives there;\\n        # if a SessionManager (and thus a QtTaskRunner) is ever built on a\\n        # worker thread, the ref-drop would otherwise run on that worker thread\\n        # and crash. Pinning affinity here makes the guarantee unconditional.\\n        app = QCoreApplication.instance()\\n        if app is not None and self.thread() is not app.thread():\\n            self.moveToThread(app.thread())\\n        self._thread_done.connect(self._forget_thread)&quot;}]}\"/>\n</antml:function_calls>\n\n<antml:function_calls>\n  <call name=\"commit\" arguments=\"{&quot;message&quot;: &quot;refactor: remove redundant moveToThread in QtTaskRunner&quot;}\"/>\n</antml:function_calls>"
     }
   ],
   "parent_session": null,

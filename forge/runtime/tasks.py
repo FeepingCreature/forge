@@ -287,6 +287,12 @@ class QtTaskRunner(QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        # Assert we are on the main thread. QtTaskRunner relies on its
+        # affinity to the main thread to ensure that queued signals
+        # (like _thread_done) are delivered to the main event loop.
+        app = QCoreApplication.instance()
+        assert app is not None and QThread.currentThread() is app.thread(), \
+            "QtTaskRunner must be created on the main thread"
         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []
         self._lock = threading.Lock()
         # Pin our thread affinity to the main (GUI) thread regardless of which

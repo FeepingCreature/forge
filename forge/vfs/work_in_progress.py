@@ -8,8 +8,6 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pygit2
-
 from forge.git_backend.commit_types import CommitType
 from forge.vfs.base import VFS
 from forge.vfs.git_commit import GitCommitVFS

@@ -31,6 +31,7 @@ from __future__ import annotations
 import threading
 import traceback
 from collections.abc import Callable
+from functools import partial
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal, Slot
@@ -377,7 +378,7 @@ class QtTaskRunner(QObject):
         # Bookkeeping: only EMIT here (thread-safe, drops no refs). The actual
         # list mutation / ref-drop happens in the _forget_thread slot on the
         # main thread via queued delivery — never on the dying worker thread.
-        thread.finished.connect(self._emit_thread_done)
+        thread.finished.connect(partial(self._emit_thread_done, thread))
         thread.started.connect(worker.run)
 
         with self._lock:

@@ -299,6 +299,10 @@ class QtTaskRunner(QObject):
             self.moveToThread(app.thread())
         self._thread_done.connect(self._forget_thread)
 
+    @Slot(QThread)
+    def _emit_thread_done(self, thread: QThread) -> None:
+        self._thread_done.emit(thread)
+
     @Slot(object)
     def _forget_thread(self, thread: QThread) -> None:
         # Runs on the runner's (main) thread via queued delivery, after the
@@ -373,7 +377,7 @@ class QtTaskRunner(QObject):
         # Bookkeeping: only EMIT here (thread-safe, drops no refs). The actual
         # list mutation / ref-drop happens in the _forget_thread slot on the
         # main thread via queued delivery — never on the dying worker thread.
-        thread.finished.connect(lambda t=thread: self._thread_done.emit(t))
+        thread.finished.connect(self._emit_thread_done)
         thread.started.connect(worker.run)
 
         with self._lock:

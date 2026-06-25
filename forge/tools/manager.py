@@ -64,6 +64,7 @@ class ToolManager:
         tools_dir: str = "./tools",
         inline_enabled: bool = True,
         require_done_tag: bool = False,
+        prefix_tool_args: bool = False,
     ) -> None:
         # User tools directory path (repo-specific, accessed via VFS)
         self.tools_dir = Path(tools_dir)
@@ -83,6 +84,7 @@ class ToolManager:
         # result) - a footgun. So we only expose `done` when require_done_tag
         # is True.
         self.require_done_tag = require_done_tag
+        self.prefix_tool_args = prefix_tool_args
 
         # Built-in tools directory (part of Forge)
         self.builtin_tools_dir = Path(__file__).parent / "builtin"
@@ -344,6 +346,7 @@ class ToolManager:
                         skill_name, skill_doc = skill_info
                         self._skills[skill_name] = skill_doc
 
+        tools = self._apply_arg_prefixing(tools)
         return self._filter_inline_tools(tools)
 
     def _filter_inline_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -366,6 +369,33 @@ class ToolManager:
         if not self.inline_enabled:
             return [self._strip_inline_markers(t) for t in tools]
         return [t for t in tools if t.get("invocation", "api") != "inline"]
+
+    def _apply_arg_prefixing(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Prefix tool arguments with 1_, 2_, etc. to force alphanumeric order."""
+        if not self.prefix_tool_args:
+            return tools
+
+        for tool in tools:
+            func = tool.get("function", {})
+            params = func.get("parameters", {})
+            if not params or "properties" not in params:
+                continue
+
+            properties = params["properties"]
+            name_map = {}
+            new_properties = {}
+            for i, (prop_name, prop_val) in enumerate(properties.items(), 1):
+                prefixed_name = f"{i}_{prop_name}"
+                name_map[prop_name] = prefixed_name
+                new_properties[prefixed_name] = prop_val
+            
+            params["properties"] = new_properties
+
+            required = params.get("required", [])
+            if required:
+                params["required"] = [name_map[name] for name in required if name in name_map]
+
+        return tools
 
     @staticmethod
     def _strip_inline_markers(schema: dict[str, Any]) -> dict[str, Any]:
@@ -432,6 +462,10 @@ class ToolManager:
         self, tool_name: str, args: dict[str, Any], session_manager: Any = None
     ) -> dict[str, Any]:
         """Execute a tool with VFS or ToolContext based on API version."""
+        if self.prefix_tool_args:
+            import re
+            args = {re.sub(r'^\d+_', '', k): v for k, v in args.items()}
+
         from forge.tools.context import ToolContext, get_tool_api_version
 
         # Check if tool is approved

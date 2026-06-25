@@ -35,6 +35,7 @@ class Settings:
             # exposed as a regular API tool, so disabling this never removes a
             # capability; it only controls the text-parsing path.
             "inline_tools_enabled": True,
+            "prefix_tool_args": False,
         },
         "editor": {
             "font_size": 10,

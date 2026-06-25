@@ -295,6 +295,17 @@ class QtTaskRunner(QObject):
             "QtTaskRunner must be created on the main thread"
         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []
         self._lock = threading.Lock()
+        # Pin our thread affinity to the main (GUI) thread unconditionally.
+        # The queued `_thread_done` -> `_forget_thread` hop only delivers onto
+        # the main thread if THIS QObject lives there; otherwise the QObject
+        # ref-drop (and the resulting `~QObject` / DeferredDelete) runs on the
+        # dying worker thread and crashes with SIGSEGV. The construction-time
+        # assertion above documents the expectation, but it is stripped under
+        # `python -O` and only checks the *constructing* thread; this pin makes
+        # the queued-delivery guarantee hold regardless. Do NOT remove it: it
+        # is not redundant with the assertion (see commit d9cf42555ef9).
+        if self.thread() is not app.thread():
+            self.moveToThread(app.thread())
         self._thread_done.connect(self._forget_thread)
 
     @Slot(QThread)

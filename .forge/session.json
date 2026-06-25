@@ -199,6 +199,51 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "chatcmpl-Q0c97LWYKHbZYI7pMQjxx3YaystdOhGv"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352635852.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352635852.json",
+      "timestamp": 1782352635.8545337,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-r3dAc4FknxaB7wClStbezzJAVE7DHUrZ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352645218.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352645218.json",
+      "timestamp": 1782352645.2257473,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-SUG2dx2OIlwDKfbHkwwg5NHsHtPHiGeQ"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352650201.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352650201.json",
+      "timestamp": 1782352650.2186203,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-yYn1CqtJtuOhmFkJKSkpFaBSXoYrsp0v"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352666314.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352666314.json",
+      "timestamp": 1782352666.3178182,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-bwN3CJEpPzXvpMjD5ZpUoiNXISFy7S6v"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782352692585.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782352692585.json",
+      "timestamp": 1782352692.6135972,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-YRYM67DlQHrL72S8N9HjDRbTfQepeqJ4"
     }
   ],
   "messages": [
@@ -719,6 +764,148 @@
     {
       "role": "assistant",
       "content": "[id 26] Fair point. If `QtTaskRunner` is always instantiated on the main thread, the `moveToThread` logic is redundant. \n\nHowever, the actual fix for the segfault\u2014moving the cleanup from the worker thread to the main thread via a queued signal\u2014remains necessary. The `SIGSEGV` happens because `_forget_thread` (which modifies the `_threads` list and drops references) was originally running on the worker thread's stack as it was being torn down, or triggered a `deleteLater` that raced with the OS thread exit.\n\nSince the `moveToThread` call is unnecessary, I'll remove it to clean up the code, while keeping the signal-slot architecture that ensures the cleanup happens on the main thread.\n\n<antml:function_calls>\n  <call name=\"edit\" arguments=\"{&quot;edits&quot;: [{&quot;filepath&quot;: &quot;forge/runtime/tasks.py&quot;, &quot;replace&quot;: &quot;        self._thread_done.connect(self._forget_thread)&quot;, &quot;search&quot;: &quot;        # Pin our thread affinity to the main (GUI) thread regardless of which\\n        # thread constructs us. The queued `_thread_done` -> `_forget_thread`\\n        # hop only delivers onto the main thread if THIS QObject lives there;\\n        # if a SessionManager (and thus a QtTaskRunner) is ever built on a\\n        # worker thread, the ref-drop would otherwise run on that worker thread\\n        # and crash. Pinning affinity here makes the guarantee unconditional.\\n        app = QCoreApplication.instance()\\n        if app is not None and self.thread() is not app.thread():\\n            self.moveToThread(app.thread())\\n        self._thread_done.connect(self._forget_thread)&quot;}]}\"/>\n</antml:function_calls>\n\n<antml:function_calls>\n  <call name=\"commit\" arguments=\"{&quot;message&quot;: &quot;refactor: remove redundant moveToThread in QtTaskRunner&quot;}\"/>\n</antml:function_calls>"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 33767d7f",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "can we assert that we're running on the main thread?"
+    },
+    {
+      "role": "assistant",
+      "content": "[id 27] Yes, adding an assertion is a great way to document this requirement and catch any future regressions in how `QtTaskRunner` is instantiated.\n\nI will add an assertion in `QtTaskRunner.__init__` to verify that the current thread is indeed the main application thread.\n\n",
+      "tool_calls": [
+        {
+          "id": "Ynqxa3AgvGPQhhqFGkJ664yifmb3j6op",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\":[{\"filepath\":\"forge/runtime/tasks.py\",\"replace\":\"    def __init__(self) -> None:\\n        super().__init__()\\n        # Assert we are on the main thread. QtTaskRunner relies on its\\n        # affinity to the main thread to ensure that queued signals\\n        # (like _thread_done) are delivered to the main event loop.\\n        app = QCoreApplication.instance()\\n        assert app is not None and QThread.currentThread() is app.thread(), \\\\\\\\\\n            \\\"QtTaskRunner must be created on the main thread\\\"\\n        self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n        self._lock = threading.Lock()\\n        self._thread_done.connect(self._forget_thread)\",\"search\":\"    def __init__(self) -> None:\\n        super().__init__()\\n        self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n        self._lock = threading.Lock()\\n        self._thread_done.connect(self._forget_thread)\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "Ynqxa3AgvGPQhhqFGkJ664yifmb3j6op",
+      "content": "{\"success\": false, \"error\": \"edit #0 failed: Search text not found in forge/runtime/tasks.py\", \"edits_succeeded\": 0, \"diff\": \"--- expected\\n+++ actual\\n@@ -1,5 +1,5 @@\\n+\\n     def __init__(self) -> None:\\n         super().__init__()\\n         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n-        self._lock = threading.Lock()\\n-        self._thread_done.connect(self._forget_thread)+        self._lock = threading.Lock()\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "fS1ZbekDD8Y5b3KqtFzCDSRvn5UVxqWw",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\":[{\"filepath\":\"forge/runtime/tasks.py\",\"replace\":\"    def __init__(self) -> None:\\n        super().__init__()\\n        # Assert we are on the main thread. QtTaskRunner relies on its\\n        # affinity to the main thread to ensure that queued signals\\n        # (like _thread_done) are delivered to the main event loop.\\n        app = QCoreApplication.instance()\\n        assert app is not None and QThread.currentThread() is app.thread(), \\\\\\n            \\\"QtTaskRunner must be created on the main thread\\\"\\n        self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n        self._lock = threading.Lock()\\n        self._thread_done.connect(self._forget_thread)\",\"search\":\"    def __init__(self) -> None:\\n        super().__init__()\\n        self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n        self._lock = threading.Lock()\\n        self._thread_done.connect(self._forget_thread)\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u274c **edit** failed: edit #0 failed: Search text not found in forge/runtime/tasks.py",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "fS1ZbekDD8Y5b3KqtFzCDSRvn5UVxqWw",
+      "content": "{\"success\": false, \"error\": \"edit #0 failed: Search text not found in forge/runtime/tasks.py\", \"edits_succeeded\": 0, \"diff\": \"--- expected\\n+++ actual\\n@@ -1,5 +1,5 @@\\n+\\n     def __init__(self) -> None:\\n         super().__init__()\\n         self._threads: list[tuple[QThread, _QtWorker, TaskHandle]] = []\\n-        self._lock = threading.Lock()\\n-        self._thread_done.connect(self._forget_thread)+        self._lock = threading.Lock()\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 30] The previous edit attempts failed because the search block was too large and likely sensitive to minor whitespace differences. I will use a smaller, more targeted search block to insert the main-thread assertion into `QtTaskRunner.__init__`.\n\nAdding this assertion ensures that the `QtTaskRunner` is always created on the main thread, which is a prerequisite for the queued signal-slot mechanism used to safely clean up worker threads without segfaulting.\n\n",
+      "tool_calls": [
+        {
+          "id": "YiGUJVIcEXZcT3ncGp872CzyInWDx42N",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\":[{\"filepath\":\"forge/runtime/tasks.py\",\"replace\":\"    def __init__(self) -> None:\\n        super().__init__()\\n        # Assert we are on the main thread. QtTaskRunner relies on its\\n        # affinity to the main thread to ensure that queued signals\\n        # (like _thread_done) are delivered to the main event loop.\\n        app = QCoreApplication.instance()\\n        assert app is not None and QThread.currentThread() is app.thread(), \\\\\\n            \\\"QtTaskRunner must be created on the main thread\\\"\",\"search\":\"    def __init__(self) -> None:\\n        super().__init__()\"}]}"
+          }
+        },
+        {
+          "id": "9DYalaRH6FBrjtss39zeKfXDkxTqYxzL",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"message\":\"fix: add main-thread assertion to QtTaskRunner\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "system",
+      "content": "\u274c **edit** failed: edit #0 failed: Search text not found in forge/runtime/tasks.py",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "YiGUJVIcEXZcT3ncGp872CzyInWDx42N",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/runtime/tasks.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "9DYalaRH6FBrjtss39zeKfXDkxTqYxzL",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"6034ff880d21\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 31] I noticed that the redundant `moveToThread` logic in `QtTaskRunner.__init__` is still present in the code, despite the assertion we just added. Since we now explicitly assert that `QtTaskRunner` must be created on the main thread, the manual affinity pinning is redundant.\n\nI will remove the `moveToThread` block and the duplicated `app = QCoreApplication.instance()` call to clean up the constructor.\n\n",
+      "tool_calls": [
+        {
+          "id": "YcRFTetqKoPYx8l5vhRDBi3W0WvGkMUz",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\":[{\"filepath\":\"forge/runtime/tasks.py\",\"replace\":\"        self._lock = threading.Lock()\\n        self._thread_done.connect(self._forget_thread)\",\"search\":\"        self._lock = threading.Lock()\\n        # Pin our thread affinity to the main (GUI) thread regardless of which\\n        # thread constructs us. The queued `_thread_done` -> `_forget_thread`\\n        # hop only delivers onto the main thread if THIS QObject lives there;\\n        # if a SessionManager (and thus a QtTaskRunner) is ever built on a\\n        # worker thread, the ref-drop would otherwise run on that worker thread\\n        # and crash. Pinning affinity here makes the guarantee unconditional.\\n        app = QCoreApplication.instance()\\n        if app is not None and self.thread() is not app.thread():\\n            self.moveToThread(app.thread())\\n        self._thread_done.connect(self._forget_thread)\"}]}"
+          }
+        },
+        {
+          "id": "oFHyZiDRYRTv4S8kUpL7DEASPIggfSOB",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"message\":\"refactor: remove redundant moveToThread in QtTaskRunner\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "YcRFTetqKoPYx8l5vhRDBi3W0WvGkMUz",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/runtime/tasks.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "oFHyZiDRYRTv4S8kUpL7DEASPIggfSOB",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"652c4492a001\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "user",
+      "content": "alright now the pins can be removed? so we have a clean view",
+      "_mid_turn": true
+    },
+    {
+      "role": "assistant",
+      "content": "The \"pins\"\u2014the redundant `moveToThread` logic and its accompanying comments\u2014have already been removed in the previous step. \n\nThe `QtTaskRunner.__init__` is now clean: it simply asserts that it is being created on the main thread (ensuring the queued signal-slot architecture works as intended) and initializes its state.\n\nDone! The codebase now has a clean view with the unnecessary affinity-pinning removed, while maintaining the safety of the main-thread assertion and the queued cleanup mechanism."
     }
   ],
   "parent_session": null,

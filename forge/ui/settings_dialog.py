@@ -201,6 +201,23 @@ class SettingsDialog(QDialog):
         inline_tools_info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", inline_tools_info)
 
+        # Prefix tool arguments with 1_, 2_, etc.
+        self.prefix_tool_args_input = QCheckBox()
+        self.prefix_tool_args_input.setToolTip(
+            "When enabled, tool argument names in the schema are prefixed with numbers "
+            "(e.g., '1_filepath', '2_content'). This forces models (like Gemma) "
+            "to follow the defined argument order rather than sorting them lexically."
+        )
+        layout.addRow("Prefix tool arguments:", self.prefix_tool_args_input)
+
+        prefix_info = QLabel(
+            "Useful for smaller models that get confused by argument order. "
+            "Forge automatically strips these prefixes before calling the actual tool."
+        )
+        prefix_info.setWordWrap(True)
+        prefix_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", prefix_info)
+
         # Connect click events using event filter or subclass approach
         self.model_input.installEventFilter(self)
 
@@ -564,6 +581,9 @@ class SettingsDialog(QDialog):
         self.inline_tools_enabled_input.setChecked(
             self.settings.get("llm.inline_tools_enabled", True)
         )
+        self.prefix_tool_args_input.setChecked(
+            self.settings.get("llm.prefix_tool_args", False)
+        )
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
@@ -588,6 +608,7 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.base_url", self.base_url_input.text())
         self.settings.set("llm.require_done_tag", self.require_done_tag_input.isChecked())
         self.settings.set("llm.inline_tools_enabled", self.inline_tools_enabled_input.isChecked())
+        self.settings.set("llm.prefix_tool_args", self.prefix_tool_args_input.isChecked())
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

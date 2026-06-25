@@ -1,10 +1,12 @@
 {
   "active_files": [
+    "forge/ui/settings_dialog.py",
+    "forge/ui/repository_settings_dialog.py",
     "CLAUDE.md",
-    "forge/session/manager.py",
-    "forge/tools/manager.py",
     "forge/runtime/tool_executor.py",
-    "forge/config/settings.py"
+    "forge/config/settings.py",
+    "forge/session/manager.py",
+    "forge/tools/manager.py"
   ],
   "request_log_entries": [
     {
@@ -303,6 +305,24 @@
       "streaming": true,
       "actual_cost": null,
       "generation_id": "chatcmpl-wA5D3FnysXBnp2E8U1pD47qp62zGDUAe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782353207901.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782353207901.json",
+      "timestamp": 1782353207.9036489,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-zerBUjgPtnHZgy9IYTXKTkEBuxnWpAsm"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782353240716.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782353240716.json",
+      "timestamp": 1782353240.7255986,
+      "model": "/home/feep/models/gemma-4-31B-it-qat-UD-Q4_K_XL.gguf",
+      "streaming": true,
+      "actual_cost": null,
+      "generation_id": "chatcmpl-a6K3vpD6tDTWUlfs1TLzcI3EzLvbODg8"
     }
   ],
   "messages": [
@@ -438,6 +458,40 @@
     {
       "role": "assistant",
       "content": "I have implemented the tool argument prefixing setting.\n\n### Summary of Changes:\n1.  **Settings**: Added `llm.prefix_tool_args` (default `False`) to `forge/config/settings.py`.\n2.  **Session Management**: Updated `SessionManager` to pass this setting to `ToolManager`.\n3.  **Schema Prefixing**: Modified `ToolManager.discover_tools` to call `_apply_arg_prefixing`, which renames argument keys in the tool schemas (e.g., `filepath` $\\rightarrow$ `1_filepath`) and updates the `required` list accordingly. This forces models like Gemma to follow the defined argument order rather than alphabetical order.\n4.  **Argument Un-prefixing**: Updated `ToolManager.execute_tool` to strip these numeric prefixes (e.g., `1_`, `2_`) from the arguments provided by the LLM before passing them to the tool's execution function.\n\nThe feature is now fully implemented and can be enabled via the settings.\n\n<commit message=\"Add llm.prefix_tool_args setting to force alphanumeric argument order\"/>\ndone()"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Generated summaries for 94 files",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "sensible. did you put it in the ui?"
+    },
+    {
+      "role": "assistant",
+      "content": "I missed the UI part! I've implemented the logic and the setting, but I didn't add the toggle to the settings dialog. I'll add that now.\n\nI will:\n1.  Add a `prefix_tool_args_input` checkbox to the LLM tab in `forge/ui/settings_dialog.py`.\n2.  Update `_load_settings` to initialize the checkbox state from the settings.\n3.  Update `_save_and_close` to persist the setting when the user saves.\n\n",
+      "tool_calls": [
+        {
+          "id": "4d9VXHlRpaQJ7P0NRyA7n1HwqAIy0zBH",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"edits\":[{\"filepath\":\"forge/ui/settings_dialog.py\",\"replace\":\"        layout.addRow(\\\"Parse inline XML commands:\\\", self.inline_tools_enabled_input)\\n\\n        inline_tools_info = QLabel(\\n            \\\"Controls only the inline text-parsing path. Turn this OFF for models \\\"\\n            \\\"that lead with standard tool calls and waste turns grasping for inline \\\"\\n            \\\"syntax; the same edit/commit/test tools remain callable as API tools.\\\"\\n        )\\n        inline_tools_info.setWordWrap(True)\\n        inline_tools_info.setStyleSheet(\\\"color: #666; font-size: 10px;\\\")\\n        layout.addRow(\\\"\\\", inline_tools_info)\\n\\n        # Prefix tool arguments with 1_, 2_, etc.\\n        self.prefix_tool_args_input = QCheckBox()\\n        self.prefix_tool_args_input.setToolTip(\\n            \\\"When enabled, tool argument names in the schema are prefixed with numbers \\\"\\n            \\\"(e.g., '1_filepath', '2_content'). This forces models (like Gemma) \\\"\\n            \\\"to follow the defined argument order rather than sorting them lexically.\\\"\\n        )\\n        layout.addRow(\\\"Prefix tool arguments:\\\", self.prefix_tool_args_input)\\n\\n        prefix_info = QLabel(\\n            \\\"Useful for smaller models that get confused by argument order. \\\"\\n            \\\"Forge automatically strips these prefixes before calling the actual tool.\\\"\\n        )\\n        prefix_info.setWordWrap(True)\\n        prefix_info.setStyleSheet(\\\"color: #666; font-size: 10px;\\\")\\n        layout.addRow(\\\"\\\", prefix_info)\\n\\n        # Connect click events using event filter or subclass approach\",\"search\":\"        layout.addRow(\\\"Parse inline XML commands:\\\", self.inline_tools_enabled_input)\\n\\n        inline_tools_info = QLabel(\\n            \\\"Controls only the inline text-parsing path. Turn this OFF for models \\\"\\n            \\\"that lead with standard tool calls and waste turns grasping for inline \\\"\\n            \\\"syntax; the same edit/commit/test tools remain callable as API tools.\\\"\\n        )\\n        inline_tools_info.setWordWrap(True)\\n        inline_tools_info.setStyleSheet(\\\"color: #666; font-size: 10px;\\\")\\n        layout.addRow(\\\"\\\", inline_tools_info)\\n\\n        # Connect click events using event filter or subclass approach\"},{\"filepath\":\"forge/ui/settings_dialog.py\",\"replace\":\"        self.inline_tools_enabled_input.setChecked(\\n            self.settings.get(\\\"llm.inline_tools_enabled\\\", True)\\n        )\\n        self.prefix_tool_args_input.setChecked(\\n            self.settings.get(\\\"llm.prefix_tool_args\\\", False)\\n        )\",\"search\":\"        self.inline_tools_enabled_input.setChecked(\\n            self.settings.get(\\\"llm.inline_tools_enabled\\\", True)\\n        )\"},{\"filepath\":\"forge/ui/settings_dialog.py\",\"replace\":\"        self.settings.set(\\\"llm.require_done_tag\\\", self.require_done_tag_input.isChecked())\\n        self.settings.set(\\\"llm.inline_tools_enabled\\\", self.inline_tools_enabled_input.isChecked())\\n        self.settings.set(\\\"llm.prefix_tool_args\\\", self.prefix_tool_args_input.isChecked())\\n        # Editor settings\",\"search\":\"        self.settings.set(\\\"llm.require_done_tag\\\", self.require_done_tag_input.isChecked())\\n        self.settings.set(\\\"llm.inline_tools_enabled\\\", self.inline_tools_enabled_input.isChecked())\\n        # Editor settings\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "4d9VXHlRpaQJ7P0NRyA7n1HwqAIy0zBH",
+      "content": "{\"success\": true, \"edits_applied\": 3, \"modified_files\": [\"forge/ui/settings_dialog.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "[id 10] I have now added the `prefix_tool_args` setting to the UI in `forge/ui/settings_dialog.py`, allowing users to toggle this behavior for models like Gemma.\n\nAll changes are complete:\n1.  **Configuration**: Added `llm.prefix_tool_args` to `DEFAULT_SETTINGS`.\n2.  **Plumbing**: Propagated the setting from `SessionManager` $\\rightarrow$ `ToolManager`.\n3.  **Schema**: Implemented `_apply_arg_prefixing` in `ToolManager` to number argument keys in the JSON schema.\n4.  **Execution**: Implemented un-prefixing in `ToolManager.execute_tool` to ensure tools receive original argument names.\n5.  **UI**: Added the checkbox and descriptive info to the LLM settings tab.\n\n<commit message=\"Add llm.prefix_tool_args setting and UI toggle for argument ordering\"/>\n\nDone!"
     }
   ],
   "parent_session": null,

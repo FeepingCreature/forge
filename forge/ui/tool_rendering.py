@@ -15,6 +15,8 @@ import difflib
 import html
 import json
 import re
+from collections.abc import Mapping
+from typing import Any
 
 
 def get_diff_styles() -> str:
@@ -262,6 +264,38 @@ def get_diff_styles() -> str:
     """
 
 
+# When tool-argument prefixing is enabled (ToolManager.prefix_tool_args), the
+# streamed JSON keys arrive with a numeric prefix like `1_edits`, `1_filepath`,
+# `2_search`, `3_replace`, `2_content` (see ToolManager._prefix_schema_object,
+# which builds names as f"{i}_{prop_name}"). The renderers below all read the
+# BARE field names, so we strip a single leading `N_` prefix from every key
+# before reading it. This makes the streaming/completed edit views render
+# identically whether or not prefixing is on.
+_ARG_PREFIX_RE = re.compile(r"^\d+_")
+
+
+def _strip_key_prefix(key: str) -> str:
+    """Strip a single leading numeric arg-order prefix (e.g. `2_search` -> `search`).
+
+    Only strips the `N_` that the prefixing scheme prepends; keys without such
+    a prefix pass through unchanged.
+    """
+    return _ARG_PREFIX_RE.sub("", key, count=1)
+
+
+def _deprefix_dict(d: Mapping[Any, object]) -> dict[str, object]:
+    """Return a copy of `d` with each string key's `N_` prefix stripped.
+
+    Handles both prefixed and unprefixed keys. If de-prefixing two keys would
+    collide, the later one wins (shouldn't happen for our schemas). Values are
+    left untouched — edit entries are flat, so one level of stripping suffices.
+    """
+    out: dict[str, object] = {}
+    for k, v in d.items():
+        out[_strip_key_prefix(k) if isinstance(k, str) else str(k)] = v
+    return out
+
+
 def parse_partial_json(json_str: str) -> dict[str, object]:
     """
     Parse a potentially incomplete JSON object.
@@ -270,6 +304,10 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
     This handles the streaming case where we might have:
     - {"filepath": "foo.py", "search": "hello
     - {"filepath": "foo.py", "search": "hello", "replace": "wor
+
+    Field keys may carry a numeric arg-order prefix (`1_filepath`, `2_search`,
+    ...) when tool-argument prefixing is enabled; the prefix is stripped so
+    callers always see the bare field names.
     """
     result: dict[str, object] = {}
 
@@ -277,6 +315,7 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
     try:
         parsed = json.loads(json_str)
         if isinstance(parsed, dict):
+            deprefixed = _deprefix_dict(parsed)
             for key in (
                 "filepath",
                 "search",
@@ -286,14 +325,15 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
                 "conclusion",
                 "message",
             ):
-                if key in parsed and isinstance(parsed[key], str):
-                    result[key] = parsed[key]
+                if key in deprefixed and isinstance(deprefixed[key], str):
+                    result[key] = deprefixed[key]
         return result
     except json.JSONDecodeError:
         pass
 
     # Incomplete JSON - extract what we can
     # Look for each field pattern: "fieldname": "value or "fieldname":"value
+    # The field may be prefixed ("2_search") so we also try prefixed patterns.
     for field in (
         "filepath",
         "search",
@@ -303,14 +343,11 @@ def parse_partial_json(json_str: str) -> dict[str, object]:
         "conclusion",
         "message",
     ):
-        # Find the start of this field
-        patterns = [f'"{field}": "', f'"{field}":"']
-        start_idx = -1
-        for pattern in patterns:
-            idx = json_str.find(pattern)
-            if idx != -1:
-                start_idx = idx + len(pattern)
-                break
+        # Find the start of this field. Match both the bare field name and the
+        # prefixed form (any leading digits + underscore before the name).
+        field_re = re.compile(r'"(?:\d+_)?' + re.escape(field) + r'"\s*:\s*"')
+        m = field_re.search(json_str)
+        start_idx = m.end() if m else -1
 
         if start_idx == -1:
             continue
@@ -688,26 +725,36 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
     if not args_str:
         return []
 
-    # Fast path: complete JSON.
+    # Fast path: complete JSON. Keys may carry a numeric arg-order prefix
+    # (`1_edits`, and within each entry `1_filepath`/`2_search`/...) when
+    # tool-argument prefixing is enabled, so de-prefix at every level before
+    # inspecting keys — the renderers all expect bare field names.
     try:
         full = json.loads(args_str)
+        if isinstance(full, dict):
+            full = _deprefix_dict(full)
         if isinstance(full, dict) and "edits" in full:
             edits = _coerce_edits_value(full["edits"])
-            return [e for e in edits if isinstance(e, dict)]
+            return [_deprefix_dict(e) for e in edits if isinstance(e, dict)]
         # Bare top-level array — some providers deliver the `edits` value
         # directly as the arguments payload.
         if isinstance(full, list):
-            return [e for e in full if isinstance(e, dict)]
+            return [_deprefix_dict(e) for e in full if isinstance(e, dict)]
         # Single-edit shape (inline dispatcher / legacy) — wrap it.
         if isinstance(full, dict) and ("search" in full or "content" in full):
             return [full]
     except json.JSONDecodeError:
         pass
 
-    # Partial path for a bare top-level array: no `"edits"` key to anchor on,
+    # The `edits` key may carry a numeric arg-order prefix (`"1_edits"`) when
+    # tool-argument prefixing is enabled. Match either form when anchoring.
+    edits_key_re = re.compile(r'"(?:\d+_)?edits"')
+    edits_key_match = edits_key_re.search(args_str)
+
+    # Partial path for a bare top-level array: no `edits` key to anchor on,
     # so scan for balanced objects starting right after the leading `[`.
     stripped = args_str.lstrip()
-    if stripped.startswith("[") and '"edits"' not in args_str:
+    if stripped.startswith("[") and edits_key_match is None:
         return _scan_array_objects(args_str, args_str.find("[") + 1)
 
     # Partial path: find the `edits` value. Two sub-shapes during streaming:
@@ -719,12 +766,12 @@ def _parse_partial_edits(args_str: str) -> list[dict[str, object]]:
     # the `[` and the objects live INSIDE a JSON string, escaped (\"), so a
     # raw brace scan finds nothing until the whole string closes. Detect that
     # case, decode the partial string body, and scan the DECODED text instead.
-    arr_start = args_str.find('"edits"')
-    if arr_start == -1:
+    if edits_key_match is None:
         return []
 
-    # Locate the start of the value after the colon following "edits".
-    colon = args_str.find(":", arr_start + len('"edits"'))
+    # Locate the start of the value after the colon following the edits key
+    # (bare or prefixed).
+    colon = args_str.find(":", edits_key_match.end())
     if colon == -1:
         return []
     val = args_str[colon + 1 :].lstrip()
@@ -843,7 +890,9 @@ def _scan_array_objects(args_str: str, start: int) -> list[dict[str, object]]:
                     try:
                         obj = json.loads(chunk)
                         if isinstance(obj, dict):
-                            entries.append(obj)
+                            # De-prefix so `1_filepath`/`2_search`/... entries
+                            # render the same as unprefixed ones.
+                            entries.append(_deprefix_dict(obj))
                     except json.JSONDecodeError:
                         pass
                     obj_start = -1
@@ -1019,12 +1068,21 @@ def render_completed_tool_html(
         # write card. Accept the `{"edits": [...]}` object, a bare top-level
         # `[...]` array (some providers deliver the array directly), and the
         # single-edit shape.
+        # Keys may be prefixed (`1_edits`, entry-level `1_filepath`/...) when
+        # tool-argument prefixing is on; de-prefix at both levels so the cards
+        # render identically to the unprefixed case.
         if isinstance(args, list):
-            entries = [e for e in args if isinstance(e, dict)]
-        elif "edits" in args:
-            entries = [e for e in _coerce_edits_value(args["edits"]) if isinstance(e, dict)]
+            entries = [_deprefix_dict(e) for e in args if isinstance(e, dict)]
         else:
-            entries = [args]
+            deprefixed_args = _deprefix_dict(args)
+            if "edits" in deprefixed_args:
+                entries = [
+                    _deprefix_dict(e)
+                    for e in _coerce_edits_value(deprefixed_args["edits"])
+                    if isinstance(e, dict)
+                ]
+            else:
+                entries = [deprefixed_args]
         return render_edit_tool_html(entries, is_streaming=False)
 
     # Every other built-in renderer expects the dict argument shape; the bare

@@ -302,39 +302,53 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
-        if filepath in self.active_files:
-            return  # Already in context
-
-        self.active_files.add(filepath)
-
-        # Also add to prompt manager with current content (from VFS to include pending changes)
-        try:
-            content = self.tool_manager.vfs.read_file(filepath)
-            self.prompt_manager.append_file_content(filepath, content)
-        except (FileNotFoundError, KeyError):
-            pass  # File doesn't exist yet
-
-        # Persist immediately so the selection survives app restarts
-        self._save_active_files_to_session()
-
-        # Emit signals for UI updates
-        self.context_changed.emit(self.active_files.copy())
-        self._emit_context_stats()
+        self.update_active_files(add=[filepath])
 
     def remove_active_file(self, filepath: str) -> None:
         """Remove a file from active context"""
-        if filepath not in self.active_files:
-            return  # Not in context
+        self.update_active_files(remove=[filepath])
 
-        self.active_files.discard(filepath)
+    def update_active_files(
+        self, add: list[str] | None = None, remove: list[str] | None = None
+    ) -> None:
+        """Add and/or remove multiple files from active context in one operation.
 
-        # Also remove from prompt manager
-        self.prompt_manager.remove_file_content(filepath)
+        Persistence (a session-file commit + fresh VFS) and UI signals are done
+        exactly ONCE at the end regardless of how many files changed. Per-file
+        persistence used to cost ~1s each (a git commit per file); batching here
+        keeps a multi-file update_context call fast.
+        """
+        add = add or []
+        remove = remove or []
 
-        # Persist immediately so the selection survives app restarts
+        changed = False
+
+        for filepath in add:
+            if filepath in self.active_files:
+                continue  # Already in context
+            self.active_files.add(filepath)
+            changed = True
+            # Add to prompt manager with current content (from VFS to include pending changes)
+            try:
+                content = self.tool_manager.vfs.read_file(filepath)
+                self.prompt_manager.append_file_content(filepath, content)
+            except (FileNotFoundError, KeyError):
+                pass  # File doesn't exist yet
+
+        for filepath in remove:
+            if filepath not in self.active_files:
+                continue  # Not in context
+            self.active_files.discard(filepath)
+            changed = True
+            self.prompt_manager.remove_file_content(filepath)
+
+        if not changed:
+            return
+
+        # Persist once so the selection survives app restarts
         self._save_active_files_to_session()
 
-        # Emit signals for UI updates
+        # Emit signals for UI updates (once)
         self.context_changed.emit(self.active_files.copy())
         self._emit_context_stats()
 

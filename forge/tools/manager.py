@@ -371,31 +371,71 @@ class ToolManager:
         return [t for t in tools if t.get("invocation", "api") != "inline"]
 
     def _apply_arg_prefixing(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Prefix tool arguments with 1_, 2_, etc. to force alphanumeric order."""
+        """Prefix tool arguments with 1_, 2_, etc. to force alphanumeric order.
+
+        Applied recursively: nested object properties AND the properties of
+        array `items` (e.g. the entries of the edit tool's `edits` array) are
+        prefixed too. Without this, models reorder nested params (the edit
+        tool's filepath/search/replace) unpredictably.
+        """
         if not self.prefix_tool_args:
             return tools
 
         for tool in tools:
             func = tool.get("function", {})
             params = func.get("parameters", {})
-            if not params or "properties" not in params:
-                continue
+            self._prefix_schema_object(params)
 
-            properties = params["properties"]
-            name_map = {}
-            new_properties = {}
+        return tools
+
+    @staticmethod
+    def _prefix_schema_object(schema: dict[str, Any]) -> None:
+        """Prefix the `properties` of one JSON-schema object node, recursing.
+
+        Recurses into each property value: object nodes (their own
+        `properties`) and array nodes (their `items` schema). Mutates in place.
+        """
+        properties = schema.get("properties")
+        if isinstance(properties, dict) and properties:
+            name_map: dict[str, str] = {}
+            new_properties: dict[str, Any] = {}
             for i, (prop_name, prop_val) in enumerate(properties.items(), 1):
                 prefixed_name = f"{i}_{prop_name}"
                 name_map[prop_name] = prefixed_name
                 new_properties[prefixed_name] = prop_val
+                # Recurse into the value BEFORE moving on
+                ToolManager._prefix_schema_object(prop_val)
 
-            params["properties"] = new_properties
+            schema["properties"] = new_properties
 
-            required = params.get("required", [])
+            required = schema.get("required", [])
             if required:
-                params["required"] = [name_map[name] for name in required if name in name_map]
+                schema["required"] = [name_map[name] for name in required if name in name_map]
 
-        return tools
+        # Recurse into array item schemas (e.g. edits -> items -> properties)
+        items = schema.get("items")
+        if isinstance(items, dict):
+            ToolManager._prefix_schema_object(items)
+
+    @staticmethod
+    def _strip_arg_prefixes(value: Any) -> Any:
+        """Recursively strip `N_` ordering prefixes from argument keys.
+
+        Mirrors _prefix_schema_object: the model receives prefixed parameter
+        names at every nesting level (top-level, nested objects, and array
+        entries), so we must strip them back out at every level before the
+        tool sees them. Recurses through dicts and lists.
+        """
+        import re
+
+        if isinstance(value, dict):
+            return {
+                re.sub(r"^\d+_", "", k): ToolManager._strip_arg_prefixes(v)
+                for k, v in value.items()
+            }
+        if isinstance(value, list):
+            return [ToolManager._strip_arg_prefixes(item) for item in value]
+        return value
 
     @staticmethod
     def _strip_inline_markers(schema: dict[str, Any]) -> dict[str, Any]:
@@ -463,9 +503,7 @@ class ToolManager:
     ) -> dict[str, Any]:
         """Execute a tool with VFS or ToolContext based on API version."""
         if self.prefix_tool_args:
-            import re
-
-            args = {re.sub(r"^\d+_", "", k): v for k, v in args.items()}
+            args = self._strip_arg_prefixes(args)
 
         from forge.tools.context import ToolContext, get_tool_api_version
 
@@ -546,10 +584,9 @@ class ToolManager:
                 # Handle add/remove in one operation
                 add_files = result.get("add", [])
                 remove_files = result.get("remove", [])
-                for filepath in add_files:
-                    session_manager.add_active_file(filepath)
-                for filepath in remove_files:
-                    session_manager.remove_active_file(filepath)
+                # Batch the add/remove into a single persist + signal emission.
+                # Doing it per-file cost ~1s each (a git commit per file).
+                session_manager.update_active_files(add=add_files, remove=remove_files)
 
         return result
 

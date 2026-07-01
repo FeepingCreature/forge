@@ -4,6 +4,24 @@ import pytest
 from forge.git_backend.repository import ForgeRepository
 from forge.ui.branch_workspace import BranchWorkspace
 
+pytest.importorskip("PySide6")
+
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    """A QApplication on the (main) test thread.
+
+    Constructing a BranchWorkspace creates a SessionManager, which builds a
+    QtTaskRunner. QtTaskRunner asserts it is created on the main thread and
+    that a QCoreApplication exists (it relies on main-thread affinity to
+    deliver its queued signals). Without an app instance these tests trip that
+    assertion, so every test here depends on this fixture.
+    """
+    app = QApplication.instance() or QApplication([])
+    yield app
+
 
 @pytest.fixture
 def repo(tmp_path, monkeypatch):
@@ -41,7 +59,7 @@ def _make_settings():
     return settings
 
 
-def test_vfs_sees_content_after_commit(repo):
+def test_vfs_sees_content_after_commit(qapp, repo):
     """
     After a commit via the VFS, the same VFS instance must immediately
     serve the new content — without any refresh.
@@ -62,7 +80,7 @@ def test_vfs_sees_content_after_commit(repo):
     assert workspace.vfs.read_file("new.txt") == "world"
 
 
-def test_vfs_sees_content_after_refresh(repo):
+def test_vfs_sees_content_after_refresh(qapp, repo):
     """
     refresh_vfs() must also produce a VFS that sees previously committed content.
     """
@@ -77,7 +95,7 @@ def test_vfs_sees_content_after_refresh(repo):
     assert workspace.vfs.read_file("new.txt") == "world"
 
 
-def test_workspace_vfs_is_session_manager_vfs(repo):
+def test_workspace_vfs_is_session_manager_vfs(qapp, repo):
     """
     BranchWorkspace.vfs must be the exact same object as
     session_manager.tool_manager.vfs — not a separate instance.

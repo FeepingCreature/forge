@@ -26,6 +26,8 @@ You receive:
 2. **Active file contents** - Full, current content of files you're working with
 
 The summaries give you a map of the codebase. When you need to work with a file, add it to your context with `update_context` or `grep_open` to see its actual current content.
+
+**Images work the same way.** When vision is enabled, you can pull an image file (`.png`, `.jpg`, etc.) into context by opening it with `update_context`, exactly like a text file — its pixels then become visible to you. This is non-obvious but it's the intended mechanism: to *look at* an image in the repo, add its path with `update_context`. (If vision is disabled, adding an image is an error rather than a silent no-op.)
 """
 
 # "You See Your Own Changes" — inline variant (mentions <replace>/<write>/<delete>).

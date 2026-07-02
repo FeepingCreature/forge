@@ -111,6 +111,39 @@ import shutil
 shutil.rmtree(tmpdir, ignore_errors=True)
 ```
 
+## Returning Images to the Model
+
+There is no `ctx.append_image(...)` API. A tool surfaces an image to the
+model the same way the assistant does: by **referencing it in markdown
+output**. When a tool returns displayable output containing a markdown image
+reference (`![alt](path)`) that resolves to a file in the VFS, Forge
+automatically stores full- and low-resolution copies under `.forge/images/`
+and appends a model-visible image block (when `llm.vision_enabled` is on).
+
+So a tool that produces an image (e.g. renders a chart) should:
+
+1. Write the image bytes into the VFS with `ctx.write_bytes(path, data)`.
+2. Reference it in a `display_output` string as `![alt](path)`.
+3. Declare the `has_display_output` side effect so the orchestrator renders it.
+
+```python
+from forge.tools.side_effects import SideEffect
+
+
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
+    png_bytes = render_chart(args)             # your code
+    ctx.write_bytes("charts/output.png", png_bytes)
+    return {
+        "success": True,
+        "display_output": "Here is the chart:\n\n![chart](charts/output.png)",
+        "side_effects": [SideEffect.HAS_DISPLAY_OUTPUT],
+    }
+```
+
+The embedding step is a no-op when vision is disabled (the image is still
+stored and rendered for the user, just not sent to the model). If the image
+can't be decoded it's left as-is with a warning rather than crashing.
+
 ## Calling the LLM (Scout Model)
 
 Custom tools can call the summarization/scout model for analysis tasks:

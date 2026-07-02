@@ -1,9 +1,11 @@
 {
   "active_files": [
+    "forge/session/manager.py",
     "CLAUDE.md",
-    "forge/session/image_embedding.py",
-    "forge/ui/branch_workspace.py",
-    "forge/ui/file_explorer_widget.py"
+    "forge/prompts/system.py",
+    "forge/tools/builtin/update_context.py",
+    "forge/tools/builtin/get_skill.py",
+    "forge/tools/side_effects.py"
   ],
   "request_log_entries": [
     {
@@ -2129,6 +2131,51 @@
       "streaming": true,
       "actual_cost": 0.074941,
       "generation_id": "gen-1782994722-Oc6QHGTqu1rmpYvxocpW"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994762012.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994762012.json",
+      "timestamp": 1782994762.0142663,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.05855575,
+      "generation_id": "gen-1782994762-vlnjAZUAbGZdXRFVYo9x"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994767940.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994767940.json",
+      "timestamp": 1782994767.9438381,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.45148775,
+      "generation_id": "gen-1782994768-xjZtl3cHzFKIWCvCsFYR"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994783800.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994783800.json",
+      "timestamp": 1782994783.8021297,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.52695875,
+      "generation_id": "gen-1782994783-kyufgQCmsAyGaWu9xHGi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994804437.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994804437.json",
+      "timestamp": 1782994804.4460394,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.16532775,
+      "generation_id": "gen-1782994804-PRNGM9BCY57mnO3YxYkD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994814477.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994814477.json",
+      "timestamp": 1782994814.4792883,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.086911,
+      "generation_id": "gen-1782994814-25U1ChGUPSsZ2Vz7OTtW"
     }
   ],
   "messages": [
@@ -2547,6 +2594,153 @@
     {
       "role": "assistant",
       "content": "Both changes are done, committed, and verified. Here's the final summary.\n\n## What changed in this round\n\n**#2 \u2014 corrupted-image handling (`forge/session/image_embedding.py`)**\n- Narrowed `except Exception` \u2192 `except (UnidentifiedImageError, OSError)`, so only genuine *decode* failures (unrecognized data, truncated/broken files) are swallowed; any other exception is a real bug and now propagates.\n- Added a `warnings.warn(...)` so a corrupted image produces a visible warning instead of crashing *or* failing silently \u2014 exactly the behavior you asked for. Verified firing in the test output (`test_undecodable_image_left_untouched`).\n\n**`BranchWorkspace.vision_enabled`**\n- Kept as a thin pass-through to `self._settings.get_vision_enabled()`, with the docstring simplified to just say it passes straight through (dropped the ownership-justification comment since you're fine with the pass-through here).\n\nAll checks pass (mypy \u2713, ruff \u2713) and all 23 image-embedding tests pass.\n\n## Full session recap\n- **Bug 2 (terminated session stays terminated after Clear Session):** fixed by resetting `_turn_saw_terminate`/`_turn_saw_end_turn` in `LiveSession.clear_session()`.\n- **Bug 1 (image context circle in explorer):** images are now context-toggleable when vision is enabled \u2014 circle icon, single-click toggle, folder/root aggregation, and a right-click Add/Remove-from-Context menu action; hidden when vision is off (since `add_active_file` hard-errors there). Backed by the new `BranchWorkspace.vision_enabled` accessor.\n- **IMAGE_TODO review:** implementation is solid; the two `except` concerns I flagged are now resolved (#2 tightened + warned) or accepted (#1 pass-through).\n\nCommitted in two commits (`4644cddc`, `0230bf6f`). Anything else you'd like me to look at?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: b156da29",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "excellent! okay, one more thing we need to do is make sure that the api for writing a tool that appends images is documented in the tool-writing documentation, and that the model knows that it can add images to the context by opening them (this is maybe non-obvious)."
+    },
+    {
+      "role": "assistant",
+      "content": "I need to find two documentation locations:\n1. The tool-writing documentation (the `create_tool` skill and/or tool API docs) \u2014 to document the image-appending API.\n2. The system prompt \u2014 so the model knows it can add images to context by opening them.\n\nLet me look at the tool-writing skill docs and find how tools return images. First I need to understand the actual API for a tool to append an image to context. Let me investigate.",
+      "tool_calls": [
+        {
+          "id": "toolu_01385zwtW5nAQk6H1s4xboED",
+          "type": "function",
+          "function": {
+            "name": "get_skill",
+            "arguments": "{\"1_skill\": \"create_tool\"}"
+          }
+        },
+        {
+          "id": "toolu_01FhiJDnZmCxrC13i3Nbkqdz",
+          "type": "function",
+          "function": {
+            "name": "grep_open",
+            "arguments": "{\"1_pattern\": \"HAS_DISPLAY_OUTPUT|display_output|embed_images_in_markdown|EmbeddedImage|IMAGE_CONTENT\", \"2_include_extensions\": [\".py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01385zwtW5nAQk6H1s4xboED",
+      "content": "{\"success\": true, \"skill\": \"create_tool\", \"documentation\": \"# Creating a Custom Tool\\n\\nCustom tools live in the `/tools` directory at the repository root.\\nEach tool is a single Python file that exports `get_schema()` and `execute()`.\\n\\n## File Structure\\n\\nCreate a file at `tools/<tool_name>.py`:\\n\\n```python\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"my_tool\\\",  # Must match filename without .py\\n            \\\"description\\\": \\\"What this tool does - be descriptive!\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"param1\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"Description of param1\\\",\\n                    },\\n                    \\\"param2\\\": {\\n                        \\\"type\\\": \\\"boolean\\\",\\n                        \\\"default\\\": False,\\n                        \\\"description\\\": \\\"Optional param with default\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"param1\\\"],  # List required params\\n            },\\n        },\\n    }\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Execute the tool\\\"\\\"\\\"\\n    param1 = args.get(\\\"param1\\\", \\\"\\\")\\n    param2 = args.get(\\\"param2\\\", False)\\n\\n    # Do work here...\\n\\n    return {\\n        \\\"success\\\": True,\\n        \\\"result\\\": \\\"whatever you want to return\\\",\\n    }\\n```\\n\\n## ToolContext API\\n\\nThe `ctx` parameter is a `ToolContext` that provides access to files and more:\\n\\n```python\\n# File operations (convenience methods)\\ncontent = ctx.read_file(\\\"path/to/file.py\\\")   # Returns str, raises FileNotFoundError\\nctx.write_file(\\\"path/to/file.py\\\", \\\"content\\\") # Accumulates in pending changes\\nexists = ctx.file_exists(\\\"path/to/file.py\\\")  # Returns bool\\nfiles = ctx.list_files()                      # List all text files\\n\\n# Access VFS directly for more operations\\nctx.vfs.delete_file(\\\"path/to/file.py\\\")       # Mark for deletion\\npending = ctx.vfs.get_pending_changes()      # dict[path, content]\\ndeleted = ctx.vfs.get_deleted_files()        # set of deleted paths\\n\\n# Branch info\\ncurrent = ctx.branch_name                    # Current branch name\\n\\n# Cross-branch operations\\nother_vfs = ctx.get_branch_vfs(\\\"other-branch\\\")\\nother_content = other_vfs.read_file(\\\"file.py\\\")\\n\\n# Git repository access (for advanced operations)\\nctx.repo  # ForgeRepository instance\\n```\\n\\n### Materializing to Disk\\n\\nFor tools that need to run external commands:\\n\\n```python\\ntmpdir = ctx.vfs.materialize_to_tempdir()  # Returns Path to temp directory\\n# tmpdir contains the full repo state with pending changes applied\\n# Remember to clean up:\\nimport shutil\\nshutil.rmtree(tmpdir, ignore_errors=True)\\n```\\n\\n## Calling the LLM (Scout Model)\\n\\nCustom tools can call the summarization/scout model for analysis tasks:\\n\\n```python\\nfrom typing import TYPE_CHECKING, Any\\n\\nfrom forge.config.settings import Settings\\nfrom forge.llm.client import LLMClient\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    # Get API key and summarization model from settings\\n    settings = Settings()\\n    api_key = settings.get_api_key()\\n    model = settings.get_summarization_model()\\n\\n    if not api_key:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No API key configured\\\"}\\n\\n    # Create client and make request\\n    client = LLMClient(api_key, model)\\n    messages = [{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Your prompt here\\\"}]\\n    response = client.chat(messages)\\n\\n    # Extract response\\n    choices = response.get(\\\"choices\\\", [])\\n    if not choices:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No response from model\\\"}\\n\\n    answer = choices[0].get(\\\"message\\\", {}).get(\\\"content\\\", \\\"\\\")\\n    return {\\\"success\\\": True, \\\"answer\\\": answer}\\n```\\n\\n## Exporting a Skill\\n\\nTools can provide detailed documentation via the `get_skill` tool by exporting\\na `get_skill()` function. This is useful for complex tools that need more\\nexplanation than fits in a schema description.\\n\\n```python\\ndef get_skill() -> tuple[str, str]:\\n    \\\"\\\"\\\"Return (skill_name, documentation) for this tool.\\\"\\\"\\\"\\n    return (\\\"my_skill\\\", \\\"\\\"\\\"\\\\\\n# My Skill Documentation\\n\\nDetailed instructions for using this tool...\\n\\n## Examples\\n\\n```python\\n# Example usage\\n```\\n\\\"\\\"\\\")\\n```\\n\\nThe skill name doesn't have to match the tool name. Users can then call\\n`get_skill(\\\"my_skill\\\")` to retrieve this documentation.\\n\\n## Tool Approval\\n\\nCustom tools require user approval before they can be executed. When you create\\na new tool, the user will be prompted to review and approve it. The tool's hash\\nis stored in `.forge/approved_tools.json` so modifications require re-approval.\\n\\n## Example: A Tool That Runs Commands\\n\\n```python\\nimport shutil\\nimport subprocess\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"run_make\\\",\\n            \\\"description\\\": \\\"Run a make target\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"target\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"Make target to run\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"target\\\"],\\n            },\\n        },\\n    }\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    target = args.get(\\\"target\\\", \\\"\\\")\\n\\n    # Materialize VFS to run commands\\n    tmpdir = ctx.vfs.materialize_to_tempdir()\\n\\n    try:\\n        result = subprocess.run(\\n            [\\\"make\\\", target],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        return {\\n            \\\"success\\\": result.returncode == 0,\\n            \\\"stdout\\\": result.stdout,\\n            \\\"stderr\\\": result.stderr,\\n        }\\n    finally:\\n        shutil.rmtree(tmpdir, ignore_errors=True)\\n```\\n\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\udd27 **Tool call:** `get_skill`\n```json\n{\n  \"1_skill\": \"create_tool\"\n}\n```\n**Result:**\n```json\n{\n  \"documentation\": \"# Creating a Custom Tool\\n\\nCustom tools live in the `/tools` directory at the repository root.\\nEach tool is a single Python file that exports `get_schema()` and `execute()`.\\n\\n## File Structure\\n\\nCreate a file at `tools/<tool_name>.py`:\\n\\n```python\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    \\\"\\\"\\\"Return tool schema for LLM\\\"\\\"\\\"\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"my_tool\\\",  # Must match filename without .py\\n            \\\"description\\\": \\\"What this tool does - be descriptive!\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"param1\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"Description of param1\\\",\\n                    },\\n                    \\\"param2\\\": {\\n                        \\\"type\\\": \\\"boolean\\\",\\n                        \\\"default\\\": False,\\n                        \\\"description\\\": \\\"Optional param with default\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"param1\\\"],  # List required params\\n            },\\n        },\\n    }\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Execute the tool\\\"\\\"\\\"\\n    param1 = args.get(\\\"param1\\\", \\\"\\\")\\n    param2 = args.get(\\\"param2\\\", False)\\n\\n    # Do work here...\\n\\n    return {\\n        \\\"success\\\": True,\\n        \\\"result\\\": \\\"whatever you want to return\\\",\\n    }\\n```\\n\\n## ToolContext API\\n\\nThe `ctx` parameter is a `ToolContext` that provides access to files and more:\\n\\n```python\\n# File operations (convenience methods)\\ncontent = ctx.read_file(\\\"path/to/file.py\\\")   # Returns str, raises FileNotFoundError\\nctx.write_file(\\\"path/to/file.py\\\", \\\"content\\\") # Accumulates in pending changes\\nexists = ctx.file_exists(\\\"path/to/file.py\\\")  # Returns bool\\nfiles = ctx.list_files()                      # List all text files\\n\\n# Access VFS directly for more operations\\nctx.vfs.delete_file(\\\"path/to/file.py\\\")       # Mark for deletion\\npending = ctx.vfs.get_pending_changes()      # dict[path, content]\\ndeleted = ctx.vfs.get_deleted_files()        # set of deleted paths\\n\\n# Branch info\\ncurrent = ctx.branch_name                    # Current branch name\\n\\n# Cross-branch operations\\nother_vfs = ctx.get_branch_vfs(\\\"other-branch\\\")\\nother_content = other_vfs.read_file(\\\"file.py\\\")\\n\\n# Git repository access (for advanced operations)\\nctx.repo  # ForgeRepository instance\\n```\\n\\n### Materializing to Disk\\n\\nFor tools that need to run external commands:\\n\\n```python\\ntmpdir = ctx.vfs.materialize_to_tempdir()  # Returns Path to temp directory\\n# tmpdir contains the full repo state with pending changes applied\\n# Remember to clean up:\\nimport shutil\\nshutil.rmtree(tmpdir, ignore_errors=True)\\n```\\n\\n## Calling the LLM (Scout Model)\\n\\nCustom tools can call the summarization/scout model for analysis tasks:\\n\\n```python\\nfrom typing import TYPE_CHECKING, Any\\n\\nfrom forge.config.settings import Settings\\nfrom forge.llm.client import LLMClient\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    # Get API key and summarization model from settings\\n    settings = Settings()\\n    api_key = settings.get_api_key()\\n    model = settings.get_summarization_model()\\n\\n    if not api_key:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No API key configured\\\"}\\n\\n    # Create client and make request\\n    client = LLMClient(api_key, model)\\n    messages = [{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Your prompt here\\\"}]\\n    response = client.chat(messages)\\n\\n    # Extract response\\n    choices = response.get(\\\"choices\\\", [])\\n    if not choices:\\n        return {\\\"success\\\": False, \\\"error\\\": \\\"No response from model\\\"}\\n\\n    answer = choices[0].get(\\\"message\\\", {}).get(\\\"content\\\", \\\"\\\")\\n    return {\\\"success\\\": True, \\\"answer\\\": answer}\\n```\\n\\n## Exporting a Skill\\n\\nTools can provide detailed documentation via the `get_skill` tool by exporting\\na `get_skill()` function. This is useful for complex tools that need more\\nexplanation than fits in a schema description.\\n\\n```python\\ndef get_skill() -> tuple[str, str]:\\n    \\\"\\\"\\\"Return (skill_name, documentation) for this tool.\\\"\\\"\\\"\\n    return (\\\"my_skill\\\", \\\"\\\"\\\"\\\\\\n# My Skill Documentation\\n\\nDetailed instructions for using this tool...\\n\\n## Examples\\n\\n```python\\n# Example usage\\n```\\n\\\"\\\"\\\")\\n```\\n\\nThe skill name doesn't have to match the tool name. Users can then call\\n`get_skill(\\\"my_skill\\\")` to retrieve this documentation.\\n\\n## Tool Approval\\n\\nCustom tools require user approval before they can be executed. When you create\\na new tool, the user will be prompted to review and approve it. The tool's hash\\nis stored in `.forge/approved_tools.json` so modifications require re-approval.\\n\\n## Example: A Tool That Runs Commands\\n\\n```python\\nimport shutil\\nimport subprocess\\nfrom typing import TYPE_CHECKING, Any\\n\\nif TYPE_CHECKING:\\n    from forge.tools.context import ToolContext\\n\\n\\ndef get_schema() -> dict[str, Any]:\\n    return {\\n        \\\"type\\\": \\\"function\\\",\\n        \\\"function\\\": {\\n            \\\"name\\\": \\\"run_make\\\",\\n            \\\"description\\\": \\\"Run a make target\\\",\\n            \\\"parameters\\\": {\\n                \\\"type\\\": \\\"object\\\",\\n                \\\"properties\\\": {\\n                    \\\"target\\\": {\\n                        \\\"type\\\": \\\"string\\\",\\n                        \\\"description\\\": \\\"Make target to run\\\",\\n                    },\\n                },\\n                \\\"required\\\": [\\\"target\\\"],\\n            },\\n        },\\n    }\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    target = args.get(\\\"target\\\", \\\"\\\")\\n\\n    # Materialize VFS to run commands\\n    tmpdir = ctx.vfs.materialize_to_tempdir()\\n\\n    try:\\n        result = subprocess.run(\\n            [\\\"make\\\", target],\\n            cwd=tmpdir,\\n            capture_output=True,\\n            text=True,\\n        )\\n        return {\\n            \\\"success\\\": result.returncode == 0,\\n            \\\"stdout\\\": result.stdout,\\n            \\\"stderr\\\": result.stderr,\\n        }\\n    finally:\\n        shutil.rmtree(tmpdir, ignore_errors=True)\\n```\\n\",\n  \"skill\": \"create_tool\",\n  \"success\": true\n}\n```",
+      "_ui_only": true
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01FhiJDnZmCxrC13i3Nbkqdz",
+      "content": "{\"success\": true, \"message\": \"Found 9 files matching 'HAS_DISPLAY_OUTPUT|display_output|embed_images_in_markdown|EmbeddedImage|IMAGE_CONTENT'\", \"matches\": [{\"filepath\": \"forge/prompts/manager.py\", \"match_count\": 12, \"first_match\": \"IMAGE_CONTENT\"}, {\"filepath\": \"forge/session/image_embedding.py\", \"match_count\": 7, \"first_match\": \"IMAGE_CONTENT\"}, {\"filepath\": \"forge/session/live_session.py\", \"match_count\": 1, \"first_match\": \"IMAGE_CONTENT\"}, {\"filepath\": \"forge/session/manager.py\", \"match_count\": 3, \"first_match\": \"IMAGE_CONTENT\"}, {\"filepath\": \"forge/session/startup.py\", \"match_count\": 3, \"first_match\": \"IMAGE_CONTENT\"}, {\"filepath\": \"forge/tools/builtin/run_tests.py\", \"match_count\": 2, \"first_match\": \"display_output\"}, {\"filepath\": \"forge/tools/side_effects.py\", \"match_count\": 3, \"first_match\": \"display_output\"}, {\"filepath\": \"tests/test_image_embedding.py\", \"match_count\": 24, \"first_match\": \"EmbeddedImage\"}, {\"filepath\": \"tools/check.py\", \"match_count\": 2, \"first_match\": \"HAS_DISPLAY_OUTPUT\"}], \"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\", \"forge/session/image_embedding.py\", \"forge/session/live_session.py\", \"forge/session/manager.py\", \"forge/session/startup.py\", \"forge/tools/builtin/run_tests.py\", \"forge/tools/side_effects.py\", \"tests/test_image_embedding.py\", \"tools/check.py\"], \"remove\": []}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Context is very large. Let me first establish the key facts I've learned, then trim context before editing.\n\nKey findings on the \"append image from a tool\" API:\n- Tools are pure functions over the VFS (v1) or `ToolContext` (v2). They don't directly touch the PromptManager.\n- The way a tool surfaces an image to the model is **indirect**: a tool writes/creates a file, and images get into model context via the **context mechanism** \u2014 `SessionManager.add_active_file(path)` for a `.png/.jpg/...` file appends an `IMAGE_CONTENT` block (gated on `llm.vision_enabled`, hard-errors otherwise). There is no `ctx.append_image(...)` API in the ToolContext.\n- The other path is **output-embedding**: if the assistant references `![alt](path)` in its own text output, `embed_output_images` stores dual-quality copies and appends the model-facing IMAGE_CONTENT block automatically.\n\nSo the honest documentation is: a tool doesn't \"append an image\" via a special API \u2014 it either (a) references the image in markdown output (which auto-embeds), or (b) the image gets pulled into context by being opened/added as an active file. And the second user request is exactly point (b): the model should know it can **open an image to add it to context** (like `update_context` for a `.png`).\n\nLet me verify how `update_context` / opening works for images and whether the system prompt mentions vision at all.",
+      "tool_calls": [
+        {
+          "id": "toolu_01FtdCqTkri3WQp6w8BQf7kZ",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"1_add\": [\"forge/tools/builtin/update_context.py\", \"forge/tools/builtin/get_skill.py\", \"forge/prompts/system.py\"], \"2_remove\": [\"forge/prompts/manager.py\", \"forge/session/live_session.py\", \"forge/session/startup.py\", \"forge/tools/builtin/run_tests.py\", \"tools/check.py\", \"tests/test_image_embedding.py\", \"forge/session/image_embedding.py\", \"forge/ui/branch_workspace.py\", \"forge/ui/file_explorer_widget.py\", \"forge/ui/main_window.py\", \"forge/ui/side_panel.py\", \"forge/ui/branch_tab_widget.py\", \"forge/ui/ai_chat_widget.py\", \"forge/session/registry.py\", \"tests/harness/session.py\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01FtdCqTkri3WQp6w8BQf7kZ",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/tools/builtin/update_context.py\", \"forge/tools/builtin/get_skill.py\", \"forge/prompts/system.py\"], \"remove\": [\"forge/prompts/manager.py\", \"forge/session/live_session.py\", \"forge/session/startup.py\", \"forge/tools/builtin/run_tests.py\", \"tools/check.py\", \"tests/test_image_embedding.py\", \"forge/session/image_embedding.py\", \"forge/ui/branch_workspace.py\", \"forge/ui/file_explorer_widget.py\", \"forge/ui/main_window.py\", \"forge/ui/side_panel.py\", \"forge/ui/branch_tab_widget.py\", \"forge/ui/ai_chat_widget.py\", \"forge/session/registry.py\", \"tests/harness/session.py\"], \"message\": \"Added 3 files, removed 15 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Now I have all the facts I need. Let me restate the key conclusion so it persists:\n\n**The API reality:** There is no `ctx.append_image(...)` in ToolContext. A tool surfaces an image to the model in one of two ways:\n1. **Write/reference it in markdown output** \u2014 if the assistant (or a tool's `display_output`) emits `![alt](path)` pointing at a VFS image, `SessionManager.embed_output_images()` auto-stores dual-quality copies and appends a model-facing `IMAGE_CONTENT` block (vision-gated).\n2. **Add it as an active file** \u2014 `update_context` with an image path routes through `SessionManager.add_active_file`, which appends an `IMAGE_CONTENT` block (hard-errors if vision disabled).\n\nSo for a tool author, the way to \"append an image\" is to **create the image file in the VFS and reference it in markdown output** (the auto-embed path). I'll document that in the `create_tool` skill.\n\nFor the model: I'll add a short note to the system prompt (both inline and API variants share `_PROMPT_PREFIX` and the loop sections mention `update_context`) that images can be pulled into context by opening them with `update_context`, when vision is enabled.\n\nLet me make both edits. The `create_tool` skill lives in `get_skill.py` (`BUILTIN_SKILLS[\"create_tool\"]`), and the system prompt prefix is in `system.py`.",
+      "tool_calls": [
+        {
+          "id": "toolu_01HiWQiUkZiTbZ16HLkDHHaC",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"1_message\": \"Documenting the image-embedding tool API and the \\\"open an image to add it to context\\\" note.\"}"
+          }
+        },
+        {
+          "id": "toolu_01Df6mtS4uy6q9rovWFxtPah",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/tools/builtin/get_skill.py\", \"2_search\": \"## Calling the LLM (Scout Model)\", \"3_replace\": \"## Returning Images to the Model\\n\\nThere is no `ctx.append_image(...)` API. A tool surfaces an image to the\\nmodel the same way the assistant does: by **referencing it in markdown\\noutput**. When a tool returns displayable output containing a markdown image\\nreference (`![alt](path)`) that resolves to a file in the VFS, Forge\\nautomatically stores full- and low-resolution copies under `.forge/images/`\\nand appends a model-visible image block (when `llm.vision_enabled` is on).\\n\\nSo a tool that produces an image (e.g. renders a chart) should:\\n\\n1. Write the image bytes into the VFS with `ctx.write_bytes(path, data)`.\\n2. Reference it in a `display_output` string as `![alt](path)`.\\n3. Declare the `has_display_output` side effect so the orchestrator renders it.\\n\\n```python\\nfrom forge.tools.side_effects import SideEffect\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    png_bytes = render_chart(args)             # your code\\n    ctx.write_bytes(\\\"charts/output.png\\\", png_bytes)\\n    return {\\n        \\\"success\\\": True,\\n        \\\"display_output\\\": \\\"Here is the chart:\\\\n\\\\n![chart](charts/output.png)\\\",\\n        \\\"side_effects\\\": [SideEffect.HAS_DISPLAY_OUTPUT],\\n    }\\n```\\n\\nThe embedding step is a no-op when vision is disabled (the image is still\\nstored and rendered for the user, just not sent to the model). If the image\\ncan't be decoded it's left as-is with a warning rather than crashing.\\n\\n## Calling the LLM (Scout Model)\"}, {\"1_filepath\": \"forge/prompts/system.py\", \"2_search\": \"The summaries give you a map of the codebase. When you need to work with a file, add it to your context with `update_context` or `grep_open` to see its actual current content.\\n\\\"\\\"\\\"\", \"3_replace\": \"The summaries give you a map of the codebase. When you need to work with a file, add it to your context with `update_context` or `grep_open` to see its actual current content.\\n\\n**Images work the same way.** When vision is enabled, you can pull an image file (`.png`, `.jpg`, etc.) into context by opening it with `update_context`, exactly like a text file \\u2014 its pixels then become visible to you. This is non-obvious but it's the intended mechanism: to *look at* an image in the repo, add its path with `update_context`. (If vision is disabled, adding an image is an error rather than a silent no-op.)\\n\\\"\\\"\\\"\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01HiWQiUkZiTbZ16HLkDHHaC",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01Df6mtS4uy6q9rovWFxtPah",
+      "content": "{\"success\": true, \"edits_applied\": 2, \"modified_files\": [\"forge/tools/builtin/get_skill.py\", \"forge/prompts/system.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Both edits landed cleanly. Let me verify nothing broke \u2014 the system prompt has tests that reference its content, and there's a Pillow import to confirm. Let me run the relevant tests and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_019WctvPHtdBLEEaCZ3g5mcB",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        },
+        {
+          "id": "toolu_01JU43ZdsMt2Jx5rsw46DRMN",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"1_message\": \"Document image-embedding tool API and image-in-context via update_context\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_019WctvPHtdBLEEaCZ3g5mcB",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_qs3q9pwc\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 374 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  5%]\\ntests/test_code_regions.py ....................                          [ 10%]\\ntests/test_compact_replay.py ........                                    [ 13%]\\ntests/test_edit_arg_prefix_rendering.py ................                 [ 17%]\\ntests/test_image_embedding.py .......................                    [ 23%]\\ntests/test_inline_edit.py .............................................. [ 35%]\\n..........                                                               [ 38%]\\ntests/test_inline_executor.py ...                                        [ 39%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 39%]\\ntests/test_llm_backend.py ................                               [ 43%]\\ntests/test_markdown_renumber.py .......................                  [ 50%]\\ntests/test_mermaid_repair.py .................                           [ 54%]\\ntests/test_prompt_manager.py ........................................... [ 66%]\\n...............                                                          [ 70%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 73%]\\ntests/test_repository_settings.py .....                                  [ 74%]\\ntests/test_say_tool.py ............                                      [ 78%]\\ntests/test_session_spawn.py .................                            [ 82%]\\ntests/test_streaming_helper.py .......                                   [ 84%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 94%]\\ntests/test_tool_executor.py ..............                               [ 98%]\\ntests/test_tool_manager_done.py ......                                   [100%]\\n\\n=============================== warnings summary ===============================\\ntests/test_image_embedding.py::TestEmbedEdgeCases::test_undecodable_image_left_untouched\\n  /tmp/forge_vfs_qs3q9pwc/forge/session/image_embedding.py:200: UserWarning: Could not decode image 'broken.png' for embedding (cannot identify image file <_io.BytesIO object at 0x7f3507d3fd30>); leaving reference untouched\\n    rewritten = _IMAGE_REF_RE.sub(_replace, content)\\n\\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\\n======================== 374 passed, 1 warning in 2.40s ========================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_qs3q9pwc\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 374 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  5%]\\ntests/test_code_regions.py ....................                          [ 10%]\\ntests/test_compact_replay.py ........                                    [ 13%]\\ntests/test_edit_arg_prefix_rendering.py ................                 [ 17%]\\ntests/test_image_embedding.py .......................                    [ 23%]\\ntests/test_inline_edit.py .............................................. [ 35%]\\n..........                                                               [ 38%]\\ntests/test_inline_executor.py ...                                        [ 39%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 39%]\\ntests/test_llm_backend.py ................                               [ 43%]\\ntests/test_markdown_renumber.py .......................                  [ 50%]\\ntests/test_mermaid_repair.py .................                           [ 54%]\\ntests/test_prompt_manager.py ........................................... [ 66%]\\n...............                                                          [ 70%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 73%]\\ntests/test_repository_settings.py .....                                  [ 74%]\\ntests/test_say_tool.py ............                                      [ 78%]\\ntests/test_session_spawn.py .................                            [ 82%]\\ntests/test_streaming_helper.py .......                                   [ 84%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 94%]\\ntests/test_tool_executor.py ..............                               [ 98%]\\ntests/test_tool_manager_done.py ......                                   [100%]\\n\\n=============================== warnings summary ===============================\\ntests/test_image_embedding.py::TestEmbedEdgeCases::test_undecodable_image_left_untouched\\n  /tmp/forge_vfs_qs3q9pwc/forge/session/image_embedding.py:200: UserWarning: Could not decode image 'broken.png' for embedding (cannot identify image file <_io.BytesIO object at 0x7f3507d3fd30>); leaving reference untouched\\n    rewritten = _IMAGE_REF_RE.sub(_replace, content)\\n\\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\\n======================== 374 passed, 1 warning in 2.40s ========================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01JU43ZdsMt2Jx5rsw46DRMN",
+      "content": "{\"success\": true, \"message\": \"Committed: 2 file(s) modified/created\", \"commit\": \"5f3da3b18a61\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Both documentation changes are complete, tested, and committed. Here's the summary.\n\n## What was added\n\n**1. Tool-writing docs \u2014 image-embedding API (`create_tool` skill in `forge/tools/builtin/get_skill.py`)**\n\nAdded a new **\"Returning Images to the Model\"** section that makes the API explicit: there is *no* `ctx.append_image(...)`. A tool surfaces an image the same way the assistant does \u2014 by referencing it in markdown output. The section documents the three-step recipe (write bytes to VFS \u2192 reference as `![alt](path)` in `display_output` \u2192 declare `HAS_DISPLAY_OUTPUT`), with a runnable chart-rendering example, and notes the vision-disabled no-op and the corrupted-image warning behavior we just implemented.\n\n**2. System prompt \u2014 image-in-context via `update_context` (`forge/prompts/system.py`)**\n\nAdded a note to the shared `_PROMPT_PREFIX` (so it appears in both inline and API-mode prompts) right after the \"add it to your context with `update_context`\" line: **images work the same way** \u2014 when vision is enabled, opening an image with `update_context` pulls its pixels into context like a text file. Called out explicitly as non-obvious-but-intended, with the vision-disabled-errors caveat.\n\n## Verification\n- Full suite: **374 passed** (the one warning is the expected corrupted-image warning from `test_undecodable_image_left_untouched`).\n- Committed as `5f3da3b1`.\n\nThat covers everything from this session: the two original bugs (terminated-session-flag, image context circle), the corrupted-image warning + narrowed exception, and now both documentation touchpoints. Anything else?"
     }
   ],
   "parent_session": null,

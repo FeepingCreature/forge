@@ -2176,6 +2176,42 @@
       "streaming": true,
       "actual_cost": 0.086911,
       "generation_id": "gen-1782994814-25U1ChGUPSsZ2Vz7OTtW"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994963364.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994963364.json",
+      "timestamp": 1782994963.3665502,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.10757075,
+      "generation_id": "gen-1782994963-nvx0wJf6cdXcgv9MnyPl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994983866.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994983866.json",
+      "timestamp": 1782994983.8701456,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.206544,
+      "generation_id": "gen-1782994984-0FaVD8WXwDJyFEfLLmbC"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782994990813.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782994990813.json",
+      "timestamp": 1782994990.8342762,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.2073615,
+      "generation_id": "gen-1782994991-KsWsHDQXEQtrIWSGTs8b"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782995000869.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782995000869.json",
+      "timestamp": 1782995000.8718007,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.09294225,
+      "generation_id": "gen-1782995001-r2c0AI3iSWjdTpkXpHjc"
     }
   ],
   "messages": [
@@ -2741,6 +2777,97 @@
     {
       "role": "assistant",
       "content": "Both documentation changes are complete, tested, and committed. Here's the summary.\n\n## What was added\n\n**1. Tool-writing docs \u2014 image-embedding API (`create_tool` skill in `forge/tools/builtin/get_skill.py`)**\n\nAdded a new **\"Returning Images to the Model\"** section that makes the API explicit: there is *no* `ctx.append_image(...)`. A tool surfaces an image the same way the assistant does \u2014 by referencing it in markdown output. The section documents the three-step recipe (write bytes to VFS \u2192 reference as `![alt](path)` in `display_output` \u2192 declare `HAS_DISPLAY_OUTPUT`), with a runnable chart-rendering example, and notes the vision-disabled no-op and the corrupted-image warning behavior we just implemented.\n\n**2. System prompt \u2014 image-in-context via `update_context` (`forge/prompts/system.py`)**\n\nAdded a note to the shared `_PROMPT_PREFIX` (so it appears in both inline and API-mode prompts) right after the \"add it to your context with `update_context`\" line: **images work the same way** \u2014 when vision is enabled, opening an image with `update_context` pulls its pixels into context like a text file. Called out explicitly as non-obvious-but-intended, with the vision-disabled-errors caveat.\n\n## Verification\n- Full suite: **374 passed** (the one warning is the expected corrupted-image warning from `test_undecodable_image_left_untouched`).\n- Committed as `5f3da3b1`.\n\nThat covers everything from this session: the two original bugs (terminated-session-flag, image context circle), the corrupted-image warning + narrowed exception, and now both documentation touchpoints. Anything else?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 19f55d43",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "can get_skill only include this guidance if vision is on? that will make things conceptually easier for it. also we're kind of including too many details. the model can't see .forge/images. we should focus on the happy path: write the image to the filesystem, then reference it in tool output; the model will see the image. Same in system.py. Don't say \"if vision is enabled\", the model knows that vision is enabled by the fact that the docs mention images."
+    },
+    {
+      "role": "assistant",
+      "content": "I need to make two changes: (1) gate the `create_tool` image guidance behind vision-enabled, and (2) simplify both the skill docs and system.py to focus on the happy path without mentioning vision or `.forge/images`.\n\nThe skill docs come from a static `BUILTIN_SKILLS` dict. To make the guidance vision-conditional, I need to build the `create_tool` skill dynamically based on whether vision is on. The `_get_all_skills(ctx)` function has access to `ctx.session_manager`, which knows settings. Let me check the current files and restructure.\n\nFor the skill: I'll split the image section out of the static string and append it in `_get_all_skills` only when vision is enabled (queried via session_manager \u2192 settings). For system.py: simplify the prefix note.\n\nLet me look at how session_manager exposes vision. From manager.py context earlier, it uses `self.settings.get_vision_enabled()`. I'll add a check there.",
+      "tool_calls": [
+        {
+          "id": "toolu_01FfWCh6Y7GWmG4zPfgUqfi7",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/tools/builtin/get_skill.py\", \"2_search\": \"## Returning Images to the Model\\n\\nThere is no `ctx.append_image(...)` API. A tool surfaces an image to the\\nmodel the same way the assistant does: by **referencing it in markdown\\noutput**. When a tool returns displayable output containing a markdown image\\nreference (`![alt](path)`) that resolves to a file in the VFS, Forge\\nautomatically stores full- and low-resolution copies under `.forge/images/`\\nand appends a model-visible image block (when `llm.vision_enabled` is on).\\n\\nSo a tool that produces an image (e.g. renders a chart) should:\\n\\n1. Write the image bytes into the VFS with `ctx.write_bytes(path, data)`.\\n2. Reference it in a `display_output` string as `![alt](path)`.\\n3. Declare the `has_display_output` side effect so the orchestrator renders it.\\n\\n```python\\nfrom forge.tools.side_effects import SideEffect\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    png_bytes = render_chart(args)             # your code\\n    ctx.write_bytes(\\\"charts/output.png\\\", png_bytes)\\n    return {\\n        \\\"success\\\": True,\\n        \\\"display_output\\\": \\\"Here is the chart:\\\\n\\\\n![chart](charts/output.png)\\\",\\n        \\\"side_effects\\\": [SideEffect.HAS_DISPLAY_OUTPUT],\\n    }\\n```\\n\\nThe embedding step is a no-op when vision is disabled (the image is still\\nstored and rendered for the user, just not sent to the model). If the image\\ncan't be decoded it's left as-is with a warning rather than crashing.\\n\\n## Calling the LLM (Scout Model)\", \"3_replace\": \"## Calling the LLM (Scout Model)\"}, {\"1_filepath\": \"forge/tools/builtin/get_skill.py\", \"2_search\": \"def _get_all_skills(ctx: \\\"ToolContext | None\\\") -> dict[str, str]:\\n    \\\"\\\"\\\"Get all available skills from tools and built-ins.\\\"\\\"\\\"\\n    skills = BUILTIN_SKILLS.copy()\\n\\n    # If we have a context with session_manager, get tool-defined skills\\n    if ctx and ctx.session_manager:\\n        tool_skills = ctx.session_manager.tool_manager.get_skills()\\n        skills.update(tool_skills)\\n\\n    return skills\", \"3_replace\": \"# Guidance on returning an image from a tool. Only surfaced when vision is\\n# enabled \\u2014 with vision off the model can't see images, so telling it how to\\n# produce one is just noise. Appended to the create_tool skill in that case.\\n_RETURN_IMAGES_SECTION = \\\"\\\"\\\"\\\\\\n\\n## Returning Images\\n\\nTo return an image from a tool so the model can see it: write the image to\\nthe filesystem, then reference it in the tool's output. The model will see\\nthe image.\\n\\n```python\\nfrom forge.tools.side_effects import SideEffect\\n\\n\\ndef execute(ctx: \\\"ToolContext\\\", args: dict[str, Any]) -> dict[str, Any]:\\n    png_bytes = render_chart(args)             # your code\\n    ctx.write_bytes(\\\"charts/output.png\\\", png_bytes)\\n    return {\\n        \\\"success\\\": True,\\n        \\\"display_output\\\": \\\"Here is the chart:\\\\n\\\\n![chart](charts/output.png)\\\",\\n        \\\"side_effects\\\": [SideEffect.HAS_DISPLAY_OUTPUT],\\n    }\\n```\\n\\\"\\\"\\\"\\n\\n\\ndef _get_all_skills(ctx: \\\"ToolContext | None\\\") -> dict[str, str]:\\n    \\\"\\\"\\\"Get all available skills from tools and built-ins.\\\"\\\"\\\"\\n    skills = BUILTIN_SKILLS.copy()\\n\\n    # If we have a context with session_manager, get tool-defined skills and\\n    # decide whether to append the image-returning guidance (vision-gated).\\n    if ctx and ctx.session_manager:\\n        tool_skills = ctx.session_manager.tool_manager.get_skills()\\n        skills.update(tool_skills)\\n\\n        if ctx.session_manager.settings.get_vision_enabled():\\n            skills[\\\"create_tool\\\"] = skills[\\\"create_tool\\\"] + _RETURN_IMAGES_SECTION\\n\\n    return skills\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01FfWCh6Y7GWmG4zPfgUqfi7",
+      "content": "{\"success\": true, \"edits_applied\": 2, \"modified_files\": [\"forge/tools/builtin/get_skill.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me simplify the system.py note. The current text mentions \"when vision is enabled\" and the vision-disabled caveat \u2014 I should strip that per the user's request and focus on the happy path.",
+      "tool_calls": [
+        {
+          "id": "toolu_01KKEbhU2ZsRankC3uyu6hLW",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/prompts/system.py\", \"2_search\": \"**Images work the same way.** When vision is enabled, you can pull an image file (`.png`, `.jpg`, etc.) into context by opening it with `update_context`, exactly like a text file \\u2014 its pixels then become visible to you. This is non-obvious but it's the intended mechanism: to *look at* an image in the repo, add its path with `update_context`. (If vision is disabled, adding an image is an error rather than a silent no-op.)\", \"3_replace\": \"**Images work the same way.** To look at an image file (`.png`, `.jpg`, etc.), open it with `update_context` just like a text file \\u2014 its pixels then become visible to you. This is the intended (and non-obvious) way to view an image in the repo.\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01KKEbhU2ZsRankC3uyu6hLW",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/prompts/system.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Both changes look good. Let me verify the ToolContext exposes `write_bytes` (referenced in the example) and that `settings` is the right attribute name on session_manager, then run tests and commit.\n\nFrom the manager.py content I saw earlier, `SessionManager` has `self.settings` (public), and `get_vision_enabled()` exists on it. The `ToolContext` summary confirms `write_bytes(path, content)` exists. Both are correct.\n\nLet me run tests and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_019Wpoq3mBbDB5ruz2d1EguX",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{}"
+          }
+        },
+        {
+          "id": "toolu_01EuxJGFh7vCkqKxWd2NoUeV",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"1_message\": \"Gate tool image-return guidance on vision and trim to happy path\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_019Wpoq3mBbDB5ruz2d1EguX",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_0_0mrnx8\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 374 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  5%]\\ntests/test_code_regions.py ....................                          [ 10%]\\ntests/test_compact_replay.py ........                                    [ 13%]\\ntests/test_edit_arg_prefix_rendering.py ................                 [ 17%]\\ntests/test_image_embedding.py .......................                    [ 23%]\\ntests/test_inline_edit.py .............................................. [ 35%]\\n..........                                                               [ 38%]\\ntests/test_inline_executor.py ...                                        [ 39%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 39%]\\ntests/test_llm_backend.py ................                               [ 43%]\\ntests/test_markdown_renumber.py .......................                  [ 50%]\\ntests/test_mermaid_repair.py .................                           [ 54%]\\ntests/test_prompt_manager.py ........................................... [ 66%]\\n...............                                                          [ 70%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 73%]\\ntests/test_repository_settings.py .....                                  [ 74%]\\ntests/test_say_tool.py ............                                      [ 78%]\\ntests/test_session_spawn.py .................                            [ 82%]\\ntests/test_streaming_helper.py .......                                   [ 84%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 94%]\\ntests/test_tool_executor.py ..............                               [ 98%]\\ntests/test_tool_manager_done.py ......                                   [100%]\\n\\n=============================== warnings summary ===============================\\ntests/test_image_embedding.py::TestEmbedEdgeCases::test_undecodable_image_left_untouched\\n  /tmp/forge_vfs_0_0mrnx8/forge/session/image_embedding.py:200: UserWarning: Could not decode image 'broken.png' for embedding (cannot identify image file <_io.BytesIO object at 0x7fc64448fdd0>); leaving reference untouched\\n    rewritten = _IMAGE_REF_RE.sub(_replace, content)\\n\\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\\n======================== 374 passed, 1 warning in 2.42s ========================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_0_0mrnx8\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 374 items\\n\\ntests/test_branch_workspace_vfs.py ...                                   [  0%]\\ntests/test_clear_session.py ..................                           [  5%]\\ntests/test_code_regions.py ....................                          [ 10%]\\ntests/test_compact_replay.py ........                                    [ 13%]\\ntests/test_edit_arg_prefix_rendering.py ................                 [ 17%]\\ntests/test_image_embedding.py .......................                    [ 23%]\\ntests/test_inline_edit.py .............................................. [ 35%]\\n..........                                                               [ 38%]\\ntests/test_inline_executor.py ...                                        [ 39%]\\ntests/test_inline_pipeline_vfs.py .                                      [ 39%]\\ntests/test_llm_backend.py ................                               [ 43%]\\ntests/test_markdown_renumber.py .......................                  [ 50%]\\ntests/test_mermaid_repair.py .................                           [ 54%]\\ntests/test_prompt_manager.py ........................................... [ 66%]\\n...............                                                          [ 70%]\\ntests/test_prompt_manager_inline_failure.py ...                          [ 70%]\\ntests/test_queued_messages.py ..........                                 [ 73%]\\ntests/test_repository_settings.py .....                                  [ 74%]\\ntests/test_say_tool.py ............                                      [ 78%]\\ntests/test_session_spawn.py .................                            [ 82%]\\ntests/test_streaming_helper.py .......                                   [ 84%]\\ntests/test_summary_exclusions.py ..........................              [ 91%]\\ntests/test_task_runner.py ............                                   [ 94%]\\ntests/test_tool_executor.py ..............                               [ 98%]\\ntests/test_tool_manager_done.py ......                                   [100%]\\n\\n=============================== warnings summary ===============================\\ntests/test_image_embedding.py::TestEmbedEdgeCases::test_undecodable_image_left_untouched\\n  /tmp/forge_vfs_0_0mrnx8/forge/session/image_embedding.py:200: UserWarning: Could not decode image 'broken.png' for embedding (cannot identify image file <_io.BytesIO object at 0x7fc64448fdd0>); leaving reference untouched\\n    rewritten = _IMAGE_REF_RE.sub(_replace, content)\\n\\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\\n======================== 374 passed, 1 warning in 2.42s ========================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01EuxJGFh7vCkqKxWd2NoUeV",
+      "content": "{\"success\": true, \"message\": \"Committed: 2 file(s) modified/created\", \"commit\": \"024e216932a2\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All changes are complete, tested, and committed. Here's the final summary of this round.\n\n## What changed\n\n**1. `create_tool` skill (`forge/tools/builtin/get_skill.py`) \u2014 vision-gated, happy-path only**\n- Removed the verbose \"Returning Images to the Model\" section from the static skill body.\n- Added `_RETURN_IMAGES_SECTION`, appended to the `create_tool` skill in `_get_all_skills()` **only when `settings.get_vision_enabled()` is true**. If vision is off, the guidance simply isn't there \u2014 no \"if vision is enabled\" hedging, no mention of `.forge/images`.\n- Trimmed to the happy path: *write the image to the filesystem, then reference it in the tool's output; the model will see the image* \u2014 plus the runnable example.\n\n**2. System prompt (`forge/prompts/system.py`)**\n- Simplified the images note to just the happy path: open an image with `update_context` like a text file and its pixels become visible. Dropped the \"when vision is enabled\" and vision-disabled-error caveats.\n\n## Verification\n- Full suite: **374 passed** (the lone warning is the expected corrupted-image test).\n- Committed as `024e2169`.\n\nEverything from the session is now done: the two original bugs, the corrupted-image warning + narrowed exception, and the image documentation in both the tool skill (vision-gated) and system prompt (happy path). Anything else?"
     }
   ],
   "parent_session": null,

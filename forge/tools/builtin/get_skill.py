@@ -111,39 +111,6 @@ import shutil
 shutil.rmtree(tmpdir, ignore_errors=True)
 ```
 
-## Returning Images to the Model
-
-There is no `ctx.append_image(...)` API. A tool surfaces an image to the
-model the same way the assistant does: by **referencing it in markdown
-output**. When a tool returns displayable output containing a markdown image
-reference (`![alt](path)`) that resolves to a file in the VFS, Forge
-automatically stores full- and low-resolution copies under `.forge/images/`
-and appends a model-visible image block (when `llm.vision_enabled` is on).
-
-So a tool that produces an image (e.g. renders a chart) should:
-
-1. Write the image bytes into the VFS with `ctx.write_bytes(path, data)`.
-2. Reference it in a `display_output` string as `![alt](path)`.
-3. Declare the `has_display_output` side effect so the orchestrator renders it.
-
-```python
-from forge.tools.side_effects import SideEffect
-
-
-def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
-    png_bytes = render_chart(args)             # your code
-    ctx.write_bytes("charts/output.png", png_bytes)
-    return {
-        "success": True,
-        "display_output": "Here is the chart:\n\n![chart](charts/output.png)",
-        "side_effects": [SideEffect.HAS_DISPLAY_OUTPUT],
-    }
-```
-
-The embedding step is a no-op when vision is disabled (the image is still
-stored and rendered for the user, just not sent to the model). If the image
-can't be decoded it's left as-is with a warning rather than crashing.
-
 ## Calling the LLM (Scout Model)
 
 Custom tools can call the summarization/scout model for analysis tasks:
@@ -268,14 +235,45 @@ def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
 }
 
 
+# Guidance on returning an image from a tool. Only surfaced when vision is
+# enabled — with vision off the model can't see images, so telling it how to
+# produce one is just noise. Appended to the create_tool skill in that case.
+_RETURN_IMAGES_SECTION = """\
+
+## Returning Images
+
+To return an image from a tool so the model can see it: write the image to
+the filesystem, then reference it in the tool's output. The model will see
+the image.
+
+```python
+from forge.tools.side_effects import SideEffect
+
+
+def execute(ctx: "ToolContext", args: dict[str, Any]) -> dict[str, Any]:
+    png_bytes = render_chart(args)             # your code
+    ctx.write_bytes("charts/output.png", png_bytes)
+    return {
+        "success": True,
+        "display_output": "Here is the chart:\n\n![chart](charts/output.png)",
+        "side_effects": [SideEffect.HAS_DISPLAY_OUTPUT],
+    }
+```
+"""
+
+
 def _get_all_skills(ctx: "ToolContext | None") -> dict[str, str]:
     """Get all available skills from tools and built-ins."""
     skills = BUILTIN_SKILLS.copy()
 
-    # If we have a context with session_manager, get tool-defined skills
+    # If we have a context with session_manager, get tool-defined skills and
+    # decide whether to append the image-returning guidance (vision-gated).
     if ctx and ctx.session_manager:
         tool_skills = ctx.session_manager.tool_manager.get_skills()
         skills.update(tool_skills)
+
+        if ctx.session_manager.settings.get_vision_enabled():
+            skills["create_tool"] = skills["create_tool"] + _RETURN_IMAGES_SECTION
 
     return skills
 

@@ -817,7 +817,12 @@ class LiveSession(QObject):
 
             self.session_manager.append_assistant_message(annotated_content)
             error_content = f"\u274c Inline commands not executed:\n\n{error_text}"
-            self.add_message({"role": "user", "content": error_content, "_ui_only": True})
+            # _synthetic (NOT _ui_only): the LLM DOES see this feedback (we call
+            # append_user_message below). `_ui_only` strictly means "never sent
+            # to the LLM"; using it here would lie and cause message-ID drift on
+            # reload (replay skips _ui_only). `_synthetic` marks it as an
+            # auto-injected user message that shouldn't count as a real turn.
+            self.add_message({"role": "user", "content": error_content, "_synthetic": True})
             self.session_manager.append_user_message(error_content)
 
             self._continue_after_tools()
@@ -875,7 +880,10 @@ class LiveSession(QObject):
             # Add error to conversation
             error_content = f"❌ `{failed_cmd.tool_name}` failed:\n\n{error_msg}"
             self.session_manager.append_assistant_message(annotated_content)
-            self.add_message({"role": "user", "content": error_content, "_ui_only": True})
+            # _synthetic (NOT _ui_only): the LLM DOES see this feedback. See the
+            # note at the parse-check failure site above for why _ui_only would
+            # be wrong here (it strictly means "never sent to the LLM").
+            self.add_message({"role": "user", "content": error_content, "_synthetic": True})
             self.session_manager.append_user_message(error_content)
 
             # Continue so AI can fix
@@ -1362,7 +1370,14 @@ class LiveSession(QObject):
         # Find end of this turn
         end_idx = len(self.messages)
         for i in range(first_message_index + 1, len(self.messages)):
-            if self.messages[i].get("role") == "user" and not self.messages[i].get("_ui_only"):
+            msg = self.messages[i]
+            # Only a REAL typed user message ends a turn. Auto-injected user
+            # messages (synthetic inline-error feedback, mid-turn reminders/
+            # queued nudges) are not turn boundaries.
+            is_real_user_turn = (
+                msg.get("role") == "user" and not msg.get("_synthetic") and not msg.get("_mid_turn")
+            )
+            if is_real_user_turn:
                 end_idx = i
                 break
 

@@ -222,20 +222,21 @@ class TestCompactReplayDeferred:
         assert conv_blocks[1].metadata["message_id"] == "2"
         assert conv_blocks[2].metadata["message_id"] == "3"
 
-    def test_ui_only_user_messages_consume_ids(self, mock_session_manager):
-        """`_ui_only` USER messages must consume a message_id during replay.
+    def test_synthetic_user_messages_consume_ids(self, mock_session_manager):
+        """`_synthetic` USER messages must consume a message_id during replay.
 
-        At runtime, inline-command-error feedback is added as a `_ui_only`
-        user message AND appended to the PromptManager (consuming an ID). If
-        replay skipped it, every later message_id would drift down by one and
-        stored compact ranges would select the wrong blocks. This is the
-        regression guard for that ID drift.
+        At runtime, inline-command-error feedback is added as a `_synthetic`
+        user message AND appended to the PromptManager (consuming an ID) — the
+        LLM DOES see it, so it is NOT `_ui_only`. If replay skipped it, every
+        later message_id would drift down by one and stored compact ranges
+        would select the wrong blocks. This is the regression guard for that
+        ID drift.
         """
         messages = [
             {"role": "user", "content": "Hello"},  # id 1
             {"role": "assistant", "content": "Reply"},  # id 2
-            # Inline-error feedback: _ui_only but user role -> consumes id 3
-            {"role": "user", "content": "error feedback", "_ui_only": True},
+            # Inline-error feedback: _synthetic user role -> consumes id 3
+            {"role": "user", "content": "error feedback", "_synthetic": True},
             {"role": "user", "content": "Next"},  # id 4
         ]
 
@@ -250,23 +251,23 @@ class TestCompactReplayDeferred:
             in (BlockType.USER_MESSAGE, BlockType.ASSISTANT_MESSAGE)
             and not b.deleted
         ]
-        # All four messages are replayed (the _ui_only user message included)
+        # All four messages are replayed (the _synthetic user message included)
         assert len(conv_blocks) == 4
         assert [b.metadata["message_id"] for b in conv_blocks] == ["1", "2", "3", "4"]
 
-    def test_ui_only_user_message_keeps_compact_range_aligned(self, mock_session_manager):
+    def test_synthetic_user_message_keeps_compact_range_aligned(self, mock_session_manager):
         """A stored compact range must still hit the right tool result after reload.
 
-        Reproduces the original bug: an inline-error `_ui_only` user message
+        Reproduces the original bug: an inline-error `_synthetic` user message
         occurs before a tool call whose result is later compacted. If replay
-        dropped the `_ui_only` message, the message IDs would shift and the
+        dropped the `_synthetic` message, the message IDs would shift and the
         compact range (captured against runtime IDs) would miss the tool call,
         leaving its result uncompacted.
         """
         messages = [
             {"role": "user", "content": "Hello"},  # id 1
             # Inline-error feedback consumes id 2 at runtime
-            {"role": "user", "content": "error feedback", "_ui_only": True},
+            {"role": "user", "content": "error feedback", "_synthetic": True},
             # Tool call at id 3
             {
                 "role": "assistant",
@@ -282,7 +283,7 @@ class TestCompactReplayDeferred:
             {"role": "tool", "tool_call_id": "call_1", "content": '{"ok": true}'},
             {"role": "user", "content": "compact"},  # id 4
             # Compact ids 1..3 (captured against runtime IDs that INCLUDE the
-            # _ui_only user message at id 2)
+            # _synthetic user message at id 2)
             {
                 "role": "assistant",
                 "tool_calls": [
@@ -306,7 +307,7 @@ class TestCompactReplayDeferred:
         pm = mock_session_manager.prompt_manager
 
         # The grep_open tool result should be compacted because its tool call
-        # (id 3) falls inside the compact range only when the _ui_only user
+        # (id 3) falls inside the compact range only when the _synthetic user
         # message consumed id 2.
         results = [
             b

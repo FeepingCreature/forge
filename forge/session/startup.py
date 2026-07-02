@@ -50,15 +50,14 @@ def replay_messages_to_prompt_manager(
         role = msg.get("role")
         content = msg.get("content", "")
 
-        # Skip only display-only system notifications. Crucially, we do NOT
-        # skip `_ui_only` user/assistant messages here: at runtime those ARE
-        # appended to the PromptManager (e.g. inline-command-error feedback in
-        # LiveSession), consuming a sequential message_id. If replay skipped
-        # them, every subsequent message_id would drift down by one, so a
-        # stored `compact` call's from_id/to_id would then select the wrong
-        # blocks on reload (and its tool-result second pass would compact the
-        # wrong results or none). Replaying them keeps IDs identical to runtime.
-        if msg.get("_ui_only") and role == "system":
+        # `_ui_only` strictly means "the LLM never sees this" (display-only
+        # system notifications). Those were never appended to the PromptManager
+        # at runtime, so skipping them here keeps replay IDs identical to
+        # runtime. Auto-injected user messages that the LLM DOES see (inline-
+        # error feedback) are marked `_synthetic`, NOT `_ui_only`, so they fall
+        # through and are replayed — preserving the message-ID sequence that
+        # stored compact ranges were captured against.
+        if msg.get("_ui_only"):
             continue
 
         if role == "user":

@@ -5,6 +5,7 @@ Read-only VFS backed by a git commit
 import pygit2
 
 from .base import VFS
+from .lfs import is_lfs_pointer, resolve_lfs_bytes
 
 
 class GitCommitVFS(VFS):
@@ -16,14 +17,23 @@ class GitCommitVFS(VFS):
         self.tree = commit.tree
 
     def read_file_bytes(self, path: str) -> bytes:
-        """Read file content as raw bytes from git tree"""
+        """Read file content as raw bytes from git tree.
+
+        Git LFS is transparent here: if the blob is an LFS pointer, resolve
+        the real bytes from the local LFS store so callers get real content
+        for free. Raises if the pointer's object hasn't been fetched.
+        """
         try:
             entry = self.tree[path]
             blob = self.repo[entry.id]
             assert isinstance(blob, pygit2.Blob), f"Expected Blob, got {type(blob)}"
-            return blob.data
+            data = blob.data
         except KeyError as err:
             raise FileNotFoundError(f"File not found: {path}") from err
+
+        if is_lfs_pointer(data):
+            return resolve_lfs_bytes(self.repo.path, path, data)
+        return data
 
     def get_file_mode(self, path: str) -> int:
         """Get the git filemode for a path"""

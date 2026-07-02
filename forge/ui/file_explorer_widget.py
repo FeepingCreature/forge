@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from forge.constants import IMAGE_EXTENSIONS
 from forge.vfs import is_binary_file
 
 if TYPE_CHECKING:
@@ -41,6 +42,12 @@ ICON_WARNING = "⚠️"  # Warning icon for large files
 
 # Threshold for "large file" warning (in characters)
 LARGE_FILE_THRESHOLD = 10000
+
+
+def _is_image_file(filepath: str) -> bool:
+    """Check if a filepath is a raster image the tab viewer can display."""
+    return PurePosixPath(filepath).suffix.lower() in IMAGE_EXTENSIONS
+
 
 # Column indices
 COL_NAME = 0
@@ -195,9 +202,15 @@ class FileExplorerWidget(QWidget):
             file_item.setText(COL_NAME, f"📄 {filename}")
             file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole, filepath)  # Store full path
 
-            # Check if binary file
-            is_binary = is_binary_file(filepath)
-            if is_binary:
+            # Images can be opened in a dedicated tab viewer (see IMAGE_TODO
+            # section 3), so they get their own "image" type instead of being
+            # lumped in with unopenable "binary" files.
+            if _is_image_file(filepath):
+                file_item.setText(COL_NAME, f"\U0001f5bc\ufe0f {filename}")
+                file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "image")
+                file_item.setText(COL_CONTEXT, "")  # No text-context icon for images
+                file_item.setToolTip(COL_NAME, f"{filepath}\n(image - double-click to view)")
+            elif is_binary_file(filepath):
                 file_item.setData(
                     COL_NAME, Qt.ItemDataRole.UserRole + 1, "binary"
                 )  # Mark as binary
@@ -365,7 +378,7 @@ class FileExplorerWidget(QWidget):
         """Handle double-click on item"""
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
 
-        if item_type == "file":
+        if item_type in ("file", "image"):
             filepath = item.data(0, Qt.ItemDataRole.UserRole)
             self.file_open_requested.emit(filepath)
         elif item_type == "binary":
@@ -423,6 +436,31 @@ class FileExplorerWidget(QWidget):
             menu.addSeparator()
 
             # Delete action
+            delete_action = QAction("Delete", self)
+            delete_action.triggered.connect(lambda: self._delete_file(filepath))
+            menu.addAction(delete_action)
+
+        elif item_type == "image":
+            # Image file - can be opened in the tab viewer, but no text-context
+            # toggle (the vision context mechanism is a separate, settings-gated
+            # path; see IMAGE_TODO section 1).
+            open_action = QAction("Open", self)
+            open_action.triggered.connect(lambda: self.file_open_requested.emit(filepath))
+            menu.addAction(open_action)
+
+            menu.addSeparator()
+
+            copy_path_action = QAction("Copy Path", self)
+            copy_path_action.triggered.connect(lambda: self._copy_to_clipboard(filepath))
+            menu.addAction(copy_path_action)
+
+            copy_name_action = QAction("Copy Name", self)
+            filename = PurePosixPath(filepath).name
+            copy_name_action.triggered.connect(lambda: self._copy_to_clipboard(filename))
+            menu.addAction(copy_name_action)
+
+            menu.addSeparator()
+
             delete_action = QAction("Delete", self)
             delete_action.triggered.connect(lambda: self._delete_file(filepath))
             menu.addAction(delete_action)

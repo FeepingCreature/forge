@@ -99,6 +99,10 @@ class BranchWorkspace:
         """Read file content through VFS"""
         return self.vfs.read_file(filepath)
 
+    def get_file_bytes(self, filepath: str) -> bytes:
+        """Read file content as raw bytes through VFS (for binary files like images)"""
+        return self.vfs.read_file_bytes(filepath)
+
     def set_file_content(self, filepath: str, content: str) -> None:
         """Write file content through VFS (accumulates in pending changes)"""
         self.vfs.write_file(filepath, content)

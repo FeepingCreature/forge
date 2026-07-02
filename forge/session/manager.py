@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 from PySide6.QtCore import QObject, Signal
 
-from forge.constants import SESSION_FILE
+from forge.constants import IMAGE_EXTENSIONS, SESSION_FILE
 from forge.git_backend.commit_types import CommitType
 from forge.git_backend.repository import ForgeRepository
 from forge.llm.client import LLMClient
@@ -272,14 +272,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         return context
 
-    # Raster image extensions supported by the context mechanism (vision models).
-    # A subset of _SKIP_EXTENSIONS - .ico/.svg are excluded since they aren't
-    # standard raster formats accepted by vision APIs.
-    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
-
     def _is_image_file(self, filepath: str) -> bool:
         """Check if a filepath is a raster image (context mechanism candidate)."""
-        return Path(filepath).suffix.lower() in self.IMAGE_EXTENSIONS
+        return Path(filepath).suffix.lower() in IMAGE_EXTENSIONS
 
     def _add_image_to_prompt(self, filepath: str, tool_call_id: str | None = None) -> None:
         """

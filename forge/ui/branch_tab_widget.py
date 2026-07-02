@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMessageBox, QSplitter, QTabWidget, QVBoxLayout, QWidget
 
+from forge.constants import IMAGE_EXTENSIONS
 from forge.ui.branch_workspace import BranchWorkspace
 from forge.ui.editor_widget import EditorWidget
+from forge.ui.image_viewer_widget import ImageViewerWidget
 from forge.ui.markdown_preview import MarkdownPreviewWidget
 from forge.ui.open_files_cache import get_open_files, save_open_files
 from forge.ui.quick_open import QuickOpenWidget
@@ -53,6 +55,10 @@ class BranchTabWidget(QWidget):
 
         # Track editor widgets by filepath
         self._editors: dict[str, EditorWidget] = {}
+
+        # Track image viewer widgets by filepath (images are not editable text,
+        # so they're tracked separately from self._editors)
+        self._image_viewers: dict[str, ImageViewerWidget] = {}
 
         # Track modified state per file
         self._modified_files: set[str] = set()
@@ -107,6 +113,12 @@ class BranchTabWidget(QWidget):
 
     def _find_tab_index(self, filepath: str) -> int:
         """Find the tab index for a filepath, returns -1 if not found."""
+        if filepath in self._image_viewers:
+            viewer = self._image_viewers[filepath]
+            for i in range(self.file_tabs.count()):
+                if self.file_tabs.widget(i) is viewer:
+                    return i
+            return -1
         if filepath not in self._editors:
             return -1
         editor = self._editors[filepath]
@@ -118,6 +130,10 @@ class BranchTabWidget(QWidget):
             if isinstance(widget, MarkdownPreviewWidget) and widget.editor_widget is editor:
                 return i
         return -1
+
+    def _is_image_path(self, filepath: str) -> bool:
+        """Check if a filepath is a raster image handled by the tab viewer."""
+        return Path(filepath).suffix.lower() in IMAGE_EXTENSIONS
 
     def get_ai_chat_widget(self) -> QWidget | None:
         """Get the AI chat widget, if one is attached.
@@ -205,11 +221,24 @@ class BranchTabWidget(QWidget):
         Returns the tab index.
         """
         # Check if already open
-        if filepath in self._editors:
+        if filepath in self._editors or filepath in self._image_viewers:
             idx = self._find_tab_index(filepath)
             if idx >= 0:
                 self.file_tabs.setCurrentIndex(idx)
                 return idx
+
+        # Images are viewed, not edited - dispatch to a dedicated read-only viewer
+        # instead of the text EditorWidget (see IMAGE_TODO.md section 3).
+        if self._is_image_path(filepath):
+            data = self.workspace.get_file_bytes(filepath)
+            filename = Path(filepath).name
+            viewer = ImageViewerWidget(filepath=filepath, data=data)
+            index: int = self.file_tabs.addTab(viewer, f"🖼️ {filename}")
+            self.file_tabs.setCurrentIndex(index)
+            self._image_viewers[filepath] = viewer
+            self.workspace.open_file(filepath)
+            self.file_opened.emit(filepath)
+            return index
 
         # Create new editor
         editor = EditorWidget(filepath=filepath, settings=self.settings)
@@ -234,7 +263,7 @@ class BranchTabWidget(QWidget):
             tab_widget = editor
 
         # Add to tabs
-        index: int = self.file_tabs.addTab(tab_widget, f"📄 {filename}")
+        index = self.file_tabs.addTab(tab_widget, f"📄 {filename}")
         self.file_tabs.setCurrentIndex(index)
 
         # Track editor (always the EditorWidget, not the wrapper)
@@ -248,6 +277,11 @@ class BranchTabWidget(QWidget):
 
     def _close_file_with_confirm(self, filepath: str) -> None:
         """Close a file tab, prompting the user if there are unsaved changes."""
+        if filepath in self._image_viewers:
+            # Images are read-only, never "modified" - just close directly
+            self.close_file(filepath)
+            return
+
         if filepath not in self._editors:
             return
 
@@ -275,6 +309,15 @@ class BranchTabWidget(QWidget):
 
         Returns True if closed, False if not found.
         """
+        if filepath in self._image_viewers:
+            idx = self._find_tab_index(filepath)
+            if idx >= 0:
+                self.file_tabs.removeTab(idx)
+            del self._image_viewers[filepath]
+            self.workspace.close_file(filepath)
+            self.file_closed.emit(filepath)
+            return True
+
         if filepath not in self._editors:
             return False
 
@@ -427,7 +470,8 @@ class BranchTabWidget(QWidget):
         """
         Set all file editors to read-only mode.
 
-        Used during AI turns.
+        Used during AI turns. Image viewers are already always read-only, so
+        there's nothing to toggle for them.
         """
         for editor in self._editors.values():
             editor.editor.setReadOnly(read_only)
@@ -464,15 +508,21 @@ class BranchTabWidget(QWidget):
         """Handle tab close request"""
         widget = self.file_tabs.widget(index)
 
-        # Find which file this is (widget may be editor or MarkdownPreviewWidget wrapper)
+        # Find which file this is (widget may be editor, MarkdownPreviewWidget wrapper,
+        # or an image viewer)
         filepath = None
-        for fp, editor in self._editors.items():
-            if widget is editor:
+        for fp, viewer in self._image_viewers.items():
+            if widget is viewer:
                 filepath = fp
                 break
-            if isinstance(widget, MarkdownPreviewWidget) and widget.editor_widget is editor:
-                filepath = fp
-                break
+        if filepath is None:
+            for fp, editor in self._editors.items():
+                if widget is editor:
+                    filepath = fp
+                    break
+                if isinstance(widget, MarkdownPreviewWidget) and widget.editor_widget is editor:
+                    filepath = fp
+                    break
 
         if filepath:
             self._close_file_with_confirm(filepath)
@@ -552,7 +602,7 @@ class BranchTabWidget(QWidget):
 
     def get_open_file_paths(self) -> list[str]:
         """Get list of currently open file paths (for persistence)"""
-        return list(self._editors.keys())
+        return list(self._editors.keys()) + list(self._image_viewers.keys())
 
     def restore_open_files(self, repo_path: str) -> None:
         """Restore open files from XDG cache"""

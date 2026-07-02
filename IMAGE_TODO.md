@@ -81,19 +81,22 @@ tradeoffs.
       assistant-message range are dropped along with the rest of that
       message's content when it's compacted.
 
-## 3. View an image in a tab
+## 3. View an image in a tab  ✅ DONE
 
 Always full quality — this is pure UI, unrelated to either mechanism above.
 
-- [ ] `BranchWorkspace`: add `get_file_bytes(filepath)` so UI doesn't reach
+- [x] `BranchWorkspace`: add `get_file_bytes(filepath)` so UI doesn't reach
       into `vfs.base_vfs` directly (ownership rule — ask the owner).
-- [ ] New `ImageViewerWidget` (QLabel/QPixmap, minimal zoom/fit-to-window).
-- [ ] `branch_tab_widget.py` `open_file()`: extend the existing `.md` →
+- [x] New `ImageViewerWidget` (QLabel/QPixmap, minimal zoom/fit-to-window).
+- [x] `branch_tab_widget.py` `open_file()`: extend the existing `.md` →
       `MarkdownPreviewWidget` dispatch pattern with an image-extension branch
       that creates `ImageViewerWidget` instead of `EditorWidget` (no text
       editor needed for binary images).
-- [ ] Update `_find_tab_index()` and `_on_tab_close_requested()` for the new
+- [x] Update `_find_tab_index()` and `_on_tab_close_requested()` for the new
       wrapper type, same as the markdown wrapper is handled.
+- [x] File explorer (`file_explorer_widget.py`): images get their own `image`
+      item type (openable, 🖼️ icon) instead of the greyed-out unopenable
+      `binary` type; double-click and context-menu "Open" route to the viewer.
 
 ## 4. Output embedding: tools/model embed a repo image in chat output
 

@@ -54,14 +54,19 @@ class PromptManager:
         system_prompt: str | None = None,
         tool_schemas: list[dict] | None = None,
         inline_enabled: bool = True,
+        vision_enabled: bool = False,
     ) -> None:
         self.blocks: list[ContentBlock] = []
 
         # Generate system prompt if not provided.
         # inline_enabled controls whether the inline XML edit syntax is
         # documented; when off, the prompt tells the model to use API tools.
+        # vision_enabled gates a short note about viewing images via
+        # update_context (omitted when the model can't see images).
         if system_prompt is None:
-            system_prompt = get_system_prompt(tool_schemas, inline_enabled=inline_enabled)
+            system_prompt = get_system_prompt(
+                tool_schemas, inline_enabled=inline_enabled, vision_enabled=vision_enabled
+            )
         self.system_prompt = system_prompt
 
         # Whether inline XML commands are parsed from assistant prose. When off,

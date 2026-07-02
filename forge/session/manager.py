@@ -85,7 +85,9 @@ class SessionManager(QObject):
         # when disabled, the model is told to use the equivalent API tools.
         tool_schemas = self.tool_manager.discover_tools()
         self.prompt_manager = PromptManager(
-            tool_schemas=tool_schemas, inline_enabled=inline_enabled
+            tool_schemas=tool_schemas,
+            inline_enabled=inline_enabled,
+            vision_enabled=settings.get_vision_enabled(),
         )
 
         # Active files in context (tracked separately for persistence)

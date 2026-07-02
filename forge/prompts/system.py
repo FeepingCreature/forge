@@ -26,7 +26,12 @@ You receive:
 2. **Active file contents** - Full, current content of files you're working with
 
 The summaries give you a map of the codebase. When you need to work with a file, add it to your context with `update_context` or `grep_open` to see its actual current content.
+"""
 
+# Appended to the prefix only when vision is enabled. With vision off the
+# model can't see images, so mentioning them is just noise (and the caveats
+# needed to explain the disabled case would only add confusion).
+_IMAGES_NOTE = """
 **Images work the same way.** To look at an image file (`.png`, `.jpg`, etc.), open it with `update_context` just like a text file — its pixels then become visible to you. This is the intended (and non-obvious) way to view an image in the repo.
 """
 
@@ -326,7 +331,7 @@ SVG blocks are rendered as actual graphics in the chat. Use SVG for custom visua
 """
 
 
-def _build_base_prompt(inline_enabled: bool) -> str:
+def _build_base_prompt(inline_enabled: bool, vision_enabled: bool = False) -> str:
     """Assemble the base system prompt for the given inline mode.
 
     When inline_enabled is False we omit every inline-command reference and
@@ -334,8 +339,13 @@ def _build_base_prompt(inline_enabled: bool) -> str:
     act (see-your-changes, the basic loop, assume-success). The inline-only
     sections ("Inline Commands vs API Tool Calls", "If You Feel Stuck",
     "Discussing XML Syntax") are dropped entirely.
+
+    When vision_enabled is True, a short note telling the model it can view
+    images by opening them with update_context is appended to the prefix.
     """
     parts = [_PROMPT_PREFIX]
+    if vision_enabled:
+        parts.append(_IMAGES_NOTE)
     if inline_enabled:
         parts.append(_SEE_CHANGES_INLINE)
         parts.append(_LOOP_AND_BATCH_INLINE)
@@ -506,7 +516,11 @@ Keep `say` messages short. It has no side effects.
 """
 
 
-def get_system_prompt(tool_schemas: list[dict] | None = None, inline_enabled: bool = True) -> str:
+def get_system_prompt(
+    tool_schemas: list[dict] | None = None,
+    inline_enabled: bool = True,
+    vision_enabled: bool = False,
+) -> str:
     """Get the full system prompt with edit-format instructions.
 
     Args:
@@ -521,7 +535,7 @@ def get_system_prompt(tool_schemas: list[dict] | None = None, inline_enabled: bo
                      are phrased for API tools and the model is told to call
                      the edit/commit/run_tests/... tools as ordinary functions.
     """
-    base = _build_base_prompt(inline_enabled)
+    base = _build_base_prompt(inline_enabled, vision_enabled=vision_enabled)
 
     if not inline_enabled:
         # Inline text parsing is off \u2014 don't document XML syntax the model

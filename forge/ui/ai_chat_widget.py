@@ -793,6 +793,12 @@ class AIChatWidget(QWidget):
         js_code = build_queued_message_js(text)
         self.chat_view.page().runJavaScript(js_code)
 
+    def _vfs(self) -> Any:
+        """The session's VFS, used to resolve embedded ``.forge/images/...``
+        references to inline data URLs when rendering assistant messages.
+        """
+        return self.runner.session_manager.tool_manager.vfs
+
     def _inline_enabled(self) -> bool:
         """Whether inline XML command text-parsing is on for this session.
 
@@ -818,7 +824,9 @@ class AIChatWidget(QWidget):
         from forge.ui.chat_streaming import escape_for_js
 
         content_html = render_markdown(
-            self.runner.streaming_content, inline_enabled=self._inline_enabled()
+            self.runner.streaming_content,
+            inline_enabled=self._inline_enabled(),
+            vfs=self._vfs(),
         )
         escaped_html = escape_for_js(content_html)
 
@@ -965,6 +973,7 @@ class AIChatWidget(QWidget):
                         self.handled_approvals,
                         is_streaming_msg,
                         inline_enabled=self._inline_enabled(),
+                        vfs=self._vfs(),
                     )
                 )
 

@@ -128,11 +128,18 @@ vision content that flag governs.
             source file later being edited or deleted.
   - [ ] If the path doesn't resolve to an existing image file, leave the
         markdown text untouched (no fallback guessing).
-- [ ] `render_markdown()` in `tool_rendering.py`: resolves `.forge/images/...`
+- [x] `render_markdown()` in `tool_rendering.py`: resolves `.forge/images/...`
       paths to actual bytes for the `<img>` tag the user sees (always the
-      full-quality file, never the `.low.jpg`).
-- [ ] Add `Pillow` to project dependencies (`pyproject.toml`) — only needed
+      full-quality file, never the `.low.jpg`). Implemented as
+      `resolve_embedded_images_html()` + optional `vfs=` param on
+      `render_markdown()`/`ChatMessage.render_html()`, wired through
+      `ai_chat_widget.py` via `_vfs()`.
+- [x] Add `Pillow` to project dependencies (`pyproject.toml`) — only needed
       for this section.
+- [x] Replay: on session reload, `_replay_embedded_images()` in `startup.py`
+      re-attaches the model-facing `IMAGE_CONTENT` block (from the
+      `.low.jpg` sibling) for each `.forge/images/` ref in historical
+      assistant messages, gated on `vision_enabled`.
 
 ## Phasing
 
@@ -141,7 +148,7 @@ vision content that flag governs.
    `update_context` image support — full quality, live.
 3. Tab viewer (§3).
 4. Output embedding (§4): Pillow dependency, `.forge/images/` dual-storage,
-   markdown rewrite at finalization, compaction interaction (§2).
+   markdown rewrite at finalization, compaction interaction (§2). ✅ DONE
 
 ## Resolved decisions
 

@@ -91,6 +91,13 @@ def replay_messages_to_prompt_manager(
             is_ephemeral = bool(msg.get("_ephemeral", False))
             session_manager.append_tool_result(tool_call_id, content, is_ephemeral)
 
+    # Re-embed output images referenced by historical assistant messages so the
+    # model sees them again on reload. The full-quality + low-res copies were
+    # already written to .forge/images/ when the message was first finalized;
+    # here we just re-attach the model-facing low-res copy as an IMAGE_CONTENT
+    # block. Gated on vision_enabled exactly like live embedding.
+    _replay_embedded_images(messages, session_manager)
+
     # Now apply all compactions - all messages (including tool results) are in place
     for from_id, to_id, summary in deferred_compactions:
         compacted, error = session_manager.compact_messages(from_id, to_id, summary)
@@ -98,6 +105,49 @@ def replay_messages_to_prompt_manager(
             print(f"⚠️ Compaction replay error ({from_id}-{to_id}): {error}")
         else:
             print(f"📦 Replayed compaction: {compacted} message(s)")
+
+
+def _replay_embedded_images(
+    messages: list[dict[str, Any]],
+    session_manager: "SessionManager",
+) -> None:
+    """Re-attach model-facing IMAGE_CONTENT blocks for images embedded in
+    historical assistant messages.
+
+    When an assistant message was first finalized, output-embedded images were
+    written to ``.forge/images/<sha>.<ext>`` (full quality) plus a
+    ``.forge/images/<sha>.low.jpg`` sibling, and the low-res copy was attached
+    as an IMAGE_CONTENT block so the model could see it. That block lives only
+    in the in-memory prompt manager, so on reload we must recreate it from the
+    files on disk. Gated on ``vision_enabled`` exactly like live embedding: if
+    vision is off, the markdown still renders for the user (via the UI's
+    embedded-image resolution) but nothing is replayed to the model.
+    """
+    if not session_manager.settings.get_vision_enabled():
+        return
+
+    import base64
+
+    from forge.session.image_embedding import _low_res_sibling, find_embedded_image_refs
+
+    vfs = session_manager.tool_manager.vfs
+    prompt_manager = session_manager.prompt_manager
+
+    for msg in messages:
+        if msg.get("_ui_only") or msg.get("role") != "assistant":
+            continue
+        content = msg.get("content", "") or ""
+        for full_path in find_embedded_image_refs(content):
+            low_path = _low_res_sibling(full_path)
+            try:
+                if not vfs.file_exists(low_path):
+                    continue
+                low_bytes = vfs.read_file_bytes(low_path)
+            except (FileNotFoundError, OSError):
+                continue
+            b64 = base64.b64encode(low_bytes).decode("ascii")
+            data_url = f"data:image/jpeg;base64,{b64}"
+            prompt_manager.append_image_content(full_path, data_url, embedded=True)
 
 
 def load_or_create_session(

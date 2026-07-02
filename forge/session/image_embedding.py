@@ -97,6 +97,37 @@ def _make_low_res_jpeg(data: bytes) -> bytes:
         return out.getvalue()
 
 
+def _low_res_sibling(full_path: str) -> str:
+    """Given a full-quality ``.forge/images/<sha>.<ext>`` path, return the
+    sibling ``.forge/images/<sha>.low.jpg`` low-res path.
+
+    Assumes ``full_path`` is a ``.forge/images/`` path (caller checks).
+    """
+    ext = _ext_of(full_path)
+    base = full_path[: -len(ext)] if ext else full_path
+    return f"{base}.low.jpg"
+
+
+def find_embedded_image_refs(content: str) -> list[str]:
+    """Return the distinct ``.forge/images/<sha>.<ext>`` full-quality paths
+    referenced by markdown image syntax in ``content``, in first-seen order.
+
+    Only already-embedded refs (those under ``.forge/images/``) are returned;
+    ``.low.jpg`` siblings are skipped since they are model-facing only. Used
+    by replay to re-append IMAGE_CONTENT blocks for historical messages.
+    """
+    seen: list[str] = []
+    for m in _IMAGE_REF_RE.finditer(content):
+        path = m.group("path")
+        if not path.startswith(IMAGES_DIR + "/"):
+            continue
+        if path.endswith(".low.jpg"):
+            continue
+        if path not in seen:
+            seen.append(path)
+    return seen
+
+
 def embed_images_in_markdown(vfs: _BytesVFS, content: str) -> tuple[str, list[EmbeddedImage]]:
     """Scan ``content`` for markdown image refs resolving to existing VFS
     images, store dual-quality copies under ``.forge/images/``, rewrite the

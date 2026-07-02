@@ -7,12 +7,15 @@ that knows how to render itself to HTML.
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from forge.ui.tool_rendering import (
     render_completed_tool_html,
     render_markdown,
 )
+
+if TYPE_CHECKING:
+    from forge.session.image_embedding import _BytesVFS
 
 
 @dataclass
@@ -68,6 +71,7 @@ class ChatMessage:
         handled_approvals: set[str],
         is_streaming: bool = False,
         inline_enabled: bool = True,
+        vfs: "_BytesVFS | None" = None,
     ) -> str:
         """Render this message as HTML.
 
@@ -78,6 +82,8 @@ class ChatMessage:
             inline_enabled: When False, inline text-parsing is off — don't render
                            `<replace>`/`<write>` blocks in prose as tool cards
                            (they didn't execute); show them as literal text.
+            vfs: When provided, embedded ``.forge/images/...`` image references
+                 are resolved to inline base64 data URLs for display.
 
         Returns:
             HTML string for this message
@@ -94,6 +100,7 @@ class ChatMessage:
             self.content,
             inline_results=self.inline_results,
             inline_enabled=inline_enabled,
+            vfs=vfs,
         )
 
         # Append approval buttons (rendered as raw HTML, outside markdown)

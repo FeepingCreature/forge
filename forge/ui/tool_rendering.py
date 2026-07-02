@@ -11,12 +11,16 @@ Provides HTML/CSS rendering for built-in tools:
 Local/user tools use default JSON rendering.
 """
 
+import base64
 import difflib
 import html
 import json
 import re
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from forge.session.image_embedding import _BytesVFS
 
 
 def get_diff_styles() -> str:
@@ -1498,10 +1502,54 @@ def _preserve_ordered_list_numbers(markdown_src: str, html_out: str) -> str:
     return "".join(out)
 
 
+# Maps common image extensions to the MIME type used in a data: URL.
+_IMAGE_MIME_BY_EXT = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".svg": "image/svg+xml",
+}
+
+# Matches an <img ...> tag's src attribute pointing at an embedded image path.
+# We only ever rewrite srcs under .forge/images/ — everything else is left as-is.
+_EMBEDDED_IMG_SRC_RE = re.compile(r'(<img\b[^>]*?\bsrc=")(\.forge/images/[^"]+)(")', re.IGNORECASE)
+
+
+def resolve_embedded_images_html(html_out: str, vfs: "_BytesVFS") -> str:
+    """Rewrite ``<img src=".forge/images/...">`` tags to inline base64 data URLs.
+
+    The WebEngine chat view can't load repo-relative file paths, so any image
+    the model embedded (stored under ``.forge/images/`` — always the
+    full-quality copy, never the ``.low.jpg`` model-facing one) is resolved to
+    its bytes via ``vfs`` and inlined as a ``data:`` URL. Paths that don't
+    resolve to an existing file are left untouched.
+    """
+
+    def _replace(match: "re.Match[str]") -> str:
+        prefix, path, suffix = match.group(1), match.group(2), match.group(3)
+        try:
+            if not vfs.file_exists(path):
+                return match.group(0)
+            data = vfs.read_file_bytes(path)
+        except (FileNotFoundError, OSError):
+            return match.group(0)
+        dot = path.rfind(".")
+        ext = path[dot:].lower() if dot != -1 else ""
+        mime = _IMAGE_MIME_BY_EXT.get(ext, "application/octet-stream")
+        b64 = base64.b64encode(data).decode("ascii")
+        return f"{prefix}data:{mime};base64,{b64}{suffix}"
+
+    return _EMBEDDED_IMG_SRC_RE.sub(_replace, html_out)
+
+
 def render_markdown(
     content: str,
     inline_results: list[dict[str, object]] | None = None,
     inline_enabled: bool = True,
+    vfs: "_BytesVFS | None" = None,
 ) -> str:
     """
     Render markdown content to HTML, handling inline commands as tool cards.
@@ -1520,10 +1568,20 @@ def render_markdown(
                        turn, so we must NOT render them as tool cards (that would
                        imply they ran). Instead render the whole message as plain
                        markdown with the raw tags escaped to literal text.
+        vfs: When provided, any ``<img src=".forge/images/...">`` produced by
+             embedded-image markdown is resolved to an inline base64 data URL
+             from the VFS so the WebEngine view can display it.
 
     Returns:
         HTML string with markdown rendered and inline commands as tool cards
     """
+
+    def _finish(rendered_html: str) -> str:
+        # Resolve embedded-image srcs to data URLs when a VFS is available.
+        return (
+            resolve_embedded_images_html(rendered_html, vfs) if vfs is not None else rendered_html
+        )
+
     import markdown as md
 
     from forge.tools.invocation import (
@@ -1556,7 +1614,7 @@ def render_markdown(
             extensions=md_extensions,
             extension_configs=md_extension_configs,
         )
-        return _preserve_ordered_list_numbers(content, rendered)
+        return _finish(_preserve_ordered_list_numbers(content, rendered))
 
     inline_tools = discover_inline_tools()
     code_regions = _build_code_regions(content)
@@ -1627,7 +1685,7 @@ def render_markdown(
         pos = earliest_match.end()
         command_index += 1
 
-    return "".join(result_parts)
+    return _finish("".join(result_parts))
 
 
 def _render_inline_command_html(

@@ -7,8 +7,11 @@ from forge.session.image_embedding import (
     IMAGES_DIR,
     LOW_RES_MAX_DIM,
     EmbeddedImage,
+    _low_res_sibling,
     embed_images_in_markdown,
+    find_embedded_image_refs,
 )
+from forge.ui.tool_rendering import resolve_embedded_images_html
 
 
 class FakeVFS:
@@ -184,6 +187,82 @@ class TestEmbedEdgeCases:
         assert len(embedded) == 2
         assert "a.png" not in rewritten
         assert "b.jpg" not in rewritten
+
+
+class TestFindEmbeddedImageRefs:
+    def test_finds_embedded_full_paths(self) -> None:
+        content = (
+            f"![a]({IMAGES_DIR}/aaa.png)\n"
+            f"![b]({IMAGES_DIR}/bbb.jpg)\n"
+            "![c](assets/not-embedded.png)"
+        )
+        refs = find_embedded_image_refs(content)
+        assert refs == [f"{IMAGES_DIR}/aaa.png", f"{IMAGES_DIR}/bbb.jpg"]
+
+    def test_skips_low_res_siblings(self) -> None:
+        content = f"![x]({IMAGES_DIR}/aaa.low.jpg)"
+        assert find_embedded_image_refs(content) == []
+
+    def test_distinct_first_seen_order(self) -> None:
+        content = f"![a]({IMAGES_DIR}/aaa.png) ![again]({IMAGES_DIR}/aaa.png)"
+        assert find_embedded_image_refs(content) == [f"{IMAGES_DIR}/aaa.png"]
+
+    def test_no_refs_returns_empty(self) -> None:
+        assert find_embedded_image_refs("no images here") == []
+
+
+class TestLowResSibling:
+    def test_derives_low_jpg_path(self) -> None:
+        assert _low_res_sibling(f"{IMAGES_DIR}/abc.png") == f"{IMAGES_DIR}/abc.low.jpg"
+        assert _low_res_sibling(f"{IMAGES_DIR}/abc.jpeg") == f"{IMAGES_DIR}/abc.low.jpg"
+
+    def test_matches_embed_output(self) -> None:
+        vfs = FakeVFS()
+        vfs.files["pic.png"] = _png_bytes()
+        _, embedded = embed_images_in_markdown(vfs, "![x](pic.png)")
+        assert _low_res_sibling(embedded[0].full_path) == embedded[0].low_res_path
+
+
+class TestResolveEmbeddedImagesHtml:
+    def test_rewrites_embedded_src_to_data_url(self) -> None:
+        vfs = FakeVFS()
+        vfs.files["pic.png"] = _png_bytes()
+        _, embedded = embed_images_in_markdown(vfs, "![x](pic.png)")
+        full = embedded[0].full_path
+        html_in = f'<p><img alt="x" src="{full}"></p>'
+
+        out = resolve_embedded_images_html(html_in, vfs)
+
+        assert 'src="data:image/png;base64,' in out
+        assert full not in out
+
+    def test_leaves_non_embedded_src_untouched(self) -> None:
+        vfs = FakeVFS()
+        html_in = '<img src="https://example.com/x.png"><img src="assets/y.png">'
+        assert resolve_embedded_images_html(html_in, vfs) == html_in
+
+    def test_missing_file_left_untouched(self) -> None:
+        vfs = FakeVFS()
+        html_in = f'<img src="{IMAGES_DIR}/missing.png">'
+        assert resolve_embedded_images_html(html_in, vfs) == html_in
+
+    def test_full_quality_bytes_used_not_low_res(self) -> None:
+        vfs = FakeVFS()
+        original = _png_bytes()
+        _, embedded = embed_images_in_markdown_with(vfs, original)
+        full = embedded[0].full_path
+        html_in = f'<img src="{full}">'
+
+        out = resolve_embedded_images_html(html_in, vfs)
+
+        b64 = out.split('base64,', 1)[1].split('"', 1)[0]
+        assert base64.b64decode(b64) == original
+
+
+def embed_images_in_markdown_with(vfs: FakeVFS, data: bytes) -> tuple[str, list]:
+    """Helper: seed vfs with given bytes at pic.png and embed a ref to it."""
+    vfs.files["pic.png"] = data
+    return embed_images_in_markdown(vfs, "![x](pic.png)")
 
 
 class TestEmbeddedImageDataclass:

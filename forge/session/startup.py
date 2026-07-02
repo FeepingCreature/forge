@@ -47,11 +47,18 @@ def replay_messages_to_prompt_manager(
     deferred_compactions: list[tuple[str, str, str]] = []  # (from_id, to_id, summary)
 
     for msg in messages:
-        if msg.get("_ui_only"):
-            continue  # Skip UI-only messages (system notifications, etc.)
-
         role = msg.get("role")
         content = msg.get("content", "")
+
+        # `_ui_only` strictly means "the LLM never sees this" (display-only
+        # system notifications). Those were never appended to the PromptManager
+        # at runtime, so skipping them here keeps replay IDs identical to
+        # runtime. Auto-injected user messages that the LLM DOES see (inline-
+        # error feedback) are marked `_synthetic`, NOT `_ui_only`, so they fall
+        # through and are replayed — preserving the message-ID sequence that
+        # stored compact ranges were captured against.
+        if msg.get("_ui_only"):
+            continue
 
         if role == "user":
             session_manager.append_user_message(content)

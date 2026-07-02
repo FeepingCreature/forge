@@ -191,11 +191,15 @@ class TestCompactReplayDeferred:
                 f"Tool result for {call_id} should be compacted, got: {results[0].content[:100]}"
             )
 
-    def test_ui_only_messages_skipped(self, mock_session_manager):
-        """UI-only messages should not affect message ID numbering."""
+    def test_ui_only_system_messages_skipped(self, mock_session_manager):
+        """Display-only system messages should not affect message ID numbering.
+
+        Only `_ui_only` messages with role=="system" are display-only and never
+        touch the PromptManager at runtime, so replay must skip them too.
+        """
         messages = [
             {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi", "_ui_only": True},  # Skipped
+            {"role": "system", "content": "notice", "_ui_only": True},  # Skipped
             {"role": "assistant", "content": "Hi there"},
             {"role": "user", "content": "Bye"},
         ]
@@ -217,6 +221,103 @@ class TestCompactReplayDeferred:
         assert conv_blocks[0].metadata["message_id"] == "1"
         assert conv_blocks[1].metadata["message_id"] == "2"
         assert conv_blocks[2].metadata["message_id"] == "3"
+
+    def test_synthetic_user_messages_consume_ids(self, mock_session_manager):
+        """`_synthetic` USER messages must consume a message_id during replay.
+
+        At runtime, inline-command-error feedback is added as a `_synthetic`
+        user message AND appended to the PromptManager (consuming an ID) — the
+        LLM DOES see it, so it is NOT `_ui_only`. If replay skipped it, every
+        later message_id would drift down by one and stored compact ranges
+        would select the wrong blocks. This is the regression guard for that
+        ID drift.
+        """
+        messages = [
+            {"role": "user", "content": "Hello"},  # id 1
+            {"role": "assistant", "content": "Reply"},  # id 2
+            # Inline-error feedback: _synthetic user role -> consumes id 3
+            {"role": "user", "content": "error feedback", "_synthetic": True},
+            {"role": "user", "content": "Next"},  # id 4
+        ]
+
+        replay_messages_to_prompt_manager(messages, mock_session_manager)
+
+        pm = mock_session_manager.prompt_manager
+
+        conv_blocks = [
+            b
+            for b in pm.blocks
+            if b.block_type
+            in (BlockType.USER_MESSAGE, BlockType.ASSISTANT_MESSAGE)
+            and not b.deleted
+        ]
+        # All four messages are replayed (the _synthetic user message included)
+        assert len(conv_blocks) == 4
+        assert [b.metadata["message_id"] for b in conv_blocks] == ["1", "2", "3", "4"]
+
+    def test_synthetic_user_message_keeps_compact_range_aligned(self, mock_session_manager):
+        """A stored compact range must still hit the right tool result after reload.
+
+        Reproduces the original bug: an inline-error `_synthetic` user message
+        occurs before a tool call whose result is later compacted. If replay
+        dropped the `_synthetic` message, the message IDs would shift and the
+        compact range (captured against runtime IDs) would miss the tool call,
+        leaving its result uncompacted.
+        """
+        messages = [
+            {"role": "user", "content": "Hello"},  # id 1
+            # Inline-error feedback consumes id 2 at runtime
+            {"role": "user", "content": "error feedback", "_synthetic": True},
+            # Tool call at id 3
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "grep_open", "arguments": "{}"},
+                    }
+                ],
+                "content": "searching",
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": '{"ok": true}'},
+            {"role": "user", "content": "compact"},  # id 4
+            # Compact ids 1..3 (captured against runtime IDs that INCLUDE the
+            # _synthetic user message at id 2)
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_compact",
+                        "type": "function",
+                        "function": {
+                            "name": "compact",
+                            "arguments": json.dumps(
+                                {"from_id": "1", "to_id": "3", "summary": "did stuff"}
+                            ),
+                        },
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "call_compact", "content": '{"success": true}'},
+        ]
+
+        replay_messages_to_prompt_manager(messages, mock_session_manager)
+
+        pm = mock_session_manager.prompt_manager
+
+        # The grep_open tool result should be compacted because its tool call
+        # (id 3) falls inside the compact range only when the _synthetic user
+        # message consumed id 2.
+        results = [
+            b
+            for b in pm.blocks
+            if b.block_type == BlockType.TOOL_RESULT
+            and not b.deleted
+            and b.metadata.get("tool_call_id") == "call_1"
+        ]
+        assert len(results) == 1
+        assert "COMPACTED" in results[0].content
 
     def test_malformed_compact_args_skipped(self, mock_session_manager):
         """Malformed compact arguments should be silently skipped."""

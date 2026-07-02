@@ -29,6 +29,7 @@ class ChatMessage:
     tool_call_id: str | None = None  # For tool result messages
     is_ui_only: bool = False  # UI-only messages (not sent to LLM)
     is_mid_turn: bool = False  # Mid-turn user interruptions
+    is_synthetic: bool = False  # Auto-injected user messages (LLM sees them, but not a real turn)
     skip_display: bool = False  # Messages to hide from display
     inline_results: list[dict[str, Any]] | None = None  # Results for inline commands
     approval_tool: str | None = None  # Tool name needing approval (renders buttons)
@@ -43,6 +44,7 @@ class ChatMessage:
             tool_call_id=msg.get("tool_call_id"),
             is_ui_only=msg.get("_ui_only", False),
             is_mid_turn=msg.get("_mid_turn", False),
+            is_synthetic=msg.get("_synthetic", False),
             skip_display=msg.get("_skip_display", False),
             inline_results=msg.get("_inline_results"),
             approval_tool=msg.get("_approval_tool"),
@@ -55,9 +57,10 @@ class ChatMessage:
     def starts_new_turn(self) -> bool:
         """Check if this message starts a new conversation turn.
 
-        A turn starts with a user message (unless it's a mid-turn interruption).
+        A turn starts with a user message (unless it's a mid-turn interruption
+        or an auto-injected synthetic user message such as inline-error feedback).
         """
-        return self.role == "user" and not self.is_mid_turn
+        return self.role == "user" and not self.is_mid_turn and not self.is_synthetic
 
     def render_html(
         self,

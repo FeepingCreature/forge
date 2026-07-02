@@ -99,12 +99,86 @@ def replay_messages_to_prompt_manager(
     _replay_embedded_images(messages, session_manager)
 
     # Now apply all compactions - all messages (including tool results) are in place
+    print(
+        f"🔁 REPLAY: applying {len(deferred_compactions)} deferred compaction(s): "
+        f"{[(f, t) for f, t, _ in deferred_compactions]}"
+    )
     for from_id, to_id, summary in deferred_compactions:
         compacted, error = session_manager.compact_messages(from_id, to_id, summary)
         if error:
-            print(f"⚠️ Compaction replay error ({from_id}-{to_id}): {error}")
+            print(f"⚠️  REPLAY compaction error (#{from_id}-#{to_id}): {error}")
         else:
-            print(f"📦 Replayed compaction: {compacted} message(s)")
+            print(f"📦 REPLAY compacted #{from_id}-#{to_id}: {compacted} block(s)")
+
+    # Diagnostic: after replay + compaction, report any large conversation blocks
+    # that were NOT compacted. This surfaces the replay bug where tool results
+    # that used to be compacted are now left full-size in context.
+    _log_uncompacted_large_blocks(session_manager)
+
+
+def _log_uncompacted_large_blocks(
+    session_manager: "SessionManager",
+    min_tokens: int = 1000,
+) -> None:
+    """Log a summary of large conversation blocks left uncompacted after replay.
+
+    Scans the prompt manager's live blocks and reports any USER_MESSAGE,
+    ASSISTANT_MESSAGE, TOOL_CALL or TOOL_RESULT block whose estimated token
+    count is >= ``min_tokens`` and whose content is NOT marked ``[COMPACTED``.
+
+    Token estimate mirrors PromptManager (~3 chars/token). Each reported line
+    includes the block's user-facing ID (message_id for messages/tool calls,
+    user_id for tool results) so the offending block can be traced back to the
+    stored compact ranges.
+    """
+    import json
+
+    from forge.prompts.manager import BlockType
+
+    prompt_manager = session_manager.prompt_manager
+    conv_types = {
+        BlockType.USER_MESSAGE,
+        BlockType.ASSISTANT_MESSAGE,
+        BlockType.TOOL_CALL,
+        BlockType.TOOL_RESULT,
+    }
+
+    offenders: list[tuple[str, str, int]] = []  # (label, id, tokens)
+    total_uncompacted_tokens = 0
+
+    for block in prompt_manager.blocks:
+        if block.deleted or block.block_type not in conv_types:
+            continue
+        if block.content.startswith("[COMPACTED"):
+            continue
+
+        tokens = len(block.content) // 3
+        if block.block_type == BlockType.TOOL_CALL:
+            # Tool call JSON is not in .content; count it too so big argument
+            # payloads aren't undercounted.
+            for tc in block.metadata.get("tool_calls", []):
+                tokens += len(json.dumps(tc)) // 3
+
+        if tokens < min_tokens:
+            continue
+
+        if block.block_type == BlockType.TOOL_RESULT:
+            block_id = f"tool_result #{block.metadata.get('user_id', '?')}"
+        else:
+            block_id = f"msg #{block.metadata.get('message_id', '?')}"
+        offenders.append((block.block_type.value, block_id, tokens))
+        total_uncompacted_tokens += tokens
+
+    if not offenders:
+        print(f"✅ REPLAY: no uncompacted conversation blocks ≥{min_tokens} tokens after replay")
+        return
+
+    print(
+        f"🔍 REPLAY: {len(offenders)} uncompacted conversation block(s) ≥{min_tokens} tokens "
+        f"({total_uncompacted_tokens} tokens total left in context):"
+    )
+    for block_type, block_id, tokens in sorted(offenders, key=lambda o: o[2], reverse=True):
+        print(f"   ↳ {block_id} ({block_type}): ~{tokens} tokens")
 
 
 def _replay_embedded_images(

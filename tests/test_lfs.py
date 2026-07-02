@@ -5,9 +5,13 @@ import pytest
 from forge.vfs.lfs import (
     LFSObjectMissingError,
     is_lfs_pointer,
+    is_lfs_tracked,
     lfs_object_path,
+    make_lfs_pointer,
+    parse_lfs_attributes,
     parse_lfs_pointer,
     resolve_lfs_bytes,
+    write_lfs_object,
 )
 
 POINTER = (
@@ -71,5 +75,83 @@ class TestResolveLFSBytes:
 
     def test_raises_when_object_missing(self, tmp_path):
         gitdir = tmp_path / ".git"
-        with pytest.raises(LFSObjectMissingError, match="not in the local"):
+        # workdir=None means no fetch is attempted, so it raises immediately.
+        with pytest.raises(LFSObjectMissingError, match="could not be fetched"):
             resolve_lfs_bytes(str(gitdir), "images/x.png", POINTER)
+
+
+class TestMakeLFSPointer:
+    def test_roundtrips_with_parse(self):
+        data = b"the real image bytes"
+        pointer = make_lfs_pointer(data)
+        assert is_lfs_pointer(pointer)
+        oid, size = parse_lfs_pointer(pointer)
+        assert size == len(data)
+        # oid is the sha256 of the content
+        import hashlib
+
+        assert oid == hashlib.sha256(data).hexdigest()
+
+    def test_canonical_three_line_form(self):
+        pointer = make_lfs_pointer(b"x").decode()
+        lines = pointer.splitlines()
+        assert lines[0] == "version https://git-lfs.github.com/spec/v1"
+        assert lines[1].startswith("oid sha256:")
+        assert lines[2] == "size 1"
+
+
+class TestWriteLFSObject:
+    def test_writes_and_returns_oid(self, tmp_path):
+        import hashlib
+
+        gitdir = tmp_path / ".git"
+        data = b"hello lfs"
+        oid = write_lfs_object(str(gitdir), data)
+        assert oid == hashlib.sha256(data).hexdigest()
+        assert lfs_object_path(str(gitdir), oid).read_bytes() == data
+
+    def test_idempotent(self, tmp_path):
+        gitdir = tmp_path / ".git"
+        data = b"hello lfs"
+        oid1 = write_lfs_object(str(gitdir), data)
+        oid2 = write_lfs_object(str(gitdir), data)
+        assert oid1 == oid2
+
+    def test_write_then_resolve_roundtrip(self, tmp_path):
+        gitdir = tmp_path / ".git"
+        data = b"roundtrip bytes"
+        write_lfs_object(str(gitdir), data)
+        pointer = make_lfs_pointer(data)
+        assert resolve_lfs_bytes(str(gitdir), "a.png", pointer) == data
+
+
+class TestParseLFSAttributes:
+    def test_extracts_filter_lfs_patterns(self):
+        text = (
+            "*.png filter=lfs diff=lfs merge=lfs -text\n"
+            "*.txt text\n"
+            "*.psd filter=lfs diff=lfs merge=lfs -text\n"
+        )
+        assert parse_lfs_attributes(text) == ["*.png", "*.psd"]
+
+    def test_ignores_comments_and_blanks(self):
+        text = "# a comment\n\n*.bin filter=lfs -text\n"
+        assert parse_lfs_attributes(text) == ["*.bin"]
+
+    def test_no_lfs_lines(self):
+        assert parse_lfs_attributes("*.txt text\n") == []
+
+
+class TestIsLFSTracked:
+    def test_basename_glob_matches_nested(self):
+        assert is_lfs_tracked("assets/img/logo.png", ["*.png"])
+
+    def test_non_matching_extension(self):
+        assert not is_lfs_tracked("a/b.txt", ["*.png"])
+
+    def test_pattern_with_slash_matches_full_path(self):
+        assert is_lfs_tracked("assets/logo.png", ["assets/*.png"])
+        assert not is_lfs_tracked("other/logo.png", ["assets/*.png"])
+
+    def test_empty_patterns(self):
+        assert not is_lfs_tracked("a.png", [])

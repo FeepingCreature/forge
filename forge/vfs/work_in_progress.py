@@ -189,6 +189,12 @@ class WorkInProgressVFS(VFS):
         changes = self.pending_changes.copy()
         binary_changes = self.pending_binary_changes.copy()
 
+        # LFS "clean": any binary write to an LFS-tracked path must store the
+        # real bytes in the local LFS object store and commit a pointer blob in
+        # its place (pygit2 doesn't run git's clean filter). .gitattributes is
+        # read from the VFS so a rule the AI added this same turn takes effect.
+        self._clean_lfs_changes(changes, binary_changes)
+
         # Create tree with changes and deletions
         tree_oid = self.repo.create_tree_from_changes(
             self.branch_name, changes, self.deleted_files, binary_changes
@@ -211,6 +217,42 @@ class WorkInProgressVFS(VFS):
         self.clear_pending_changes()
 
         return str(commit_oid)
+
+    def _clean_lfs_changes(self, changes: dict[str, str], binary_changes: dict[str, bytes]) -> None:
+        """Apply the git-lfs clean filter to pending binary changes in place.
+
+        For each binary change on an LFS-tracked path: write the real bytes to
+        the local LFS store and replace the entry with a pointer blob (moved
+        from ``binary_changes`` into ``changes`` since a pointer is text).
+
+        .gitattributes is read from the VFS (pending change first, else base
+        commit) so a rule the AI added this same turn takes effect.
+        """
+        from forge.vfs.lfs import (
+            is_lfs_tracked,
+            make_lfs_pointer,
+            parse_lfs_attributes,
+            write_lfs_object,
+        )
+
+        if ".gitattributes" in changes:
+            gitattributes = changes[".gitattributes"]
+        elif self.base_vfs.file_exists(".gitattributes"):
+            gitattributes = self.base_vfs.read_file(".gitattributes")
+        else:
+            return
+
+        patterns = parse_lfs_attributes(gitattributes)
+        if not patterns:
+            return
+
+        gitdir = self.repo.repo.path
+        for path in list(binary_changes):
+            if not is_lfs_tracked(path, patterns):
+                continue
+            data = binary_changes.pop(path)
+            write_lfs_object(gitdir, data)
+            changes[path] = make_lfs_pointer(data).decode("utf-8")
 
     def materialize_to_tempdir(self) -> Path:
         """

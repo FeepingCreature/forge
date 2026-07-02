@@ -32,7 +32,7 @@ class GitCommitVFS(VFS):
             raise FileNotFoundError(f"File not found: {path}") from err
 
         if is_lfs_pointer(data):
-            return resolve_lfs_bytes(self.repo.path, path, data)
+            return resolve_lfs_bytes(self.repo.path, path, data, workdir=self.repo.workdir)
         return data
 
     def get_file_mode(self, path: str) -> int:

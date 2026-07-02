@@ -28,8 +28,11 @@ import base64
 import hashlib
 import io
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Protocol
+
+from PIL import UnidentifiedImageError
 
 from forge.constants import IMAGE_EXTENSIONS
 
@@ -170,9 +173,17 @@ def embed_images_in_markdown(vfs: _BytesVFS, content: str) -> tuple[str, list[Em
 
         try:
             low_bytes = _make_low_res_jpeg(data)
-        except Exception:
-            # Undecodable image: leave the reference untouched rather than
-            # embedding something the model can't see. No fallback guessing.
+        except (UnidentifiedImageError, OSError) as exc:
+            # Corrupted/undecodable image: warn and leave the reference
+            # untouched rather than crashing or embedding something the model
+            # can't see. We only swallow *decode* errors (UnidentifiedImageError
+            # for unrecognized data, OSError for truncated/broken files); any
+            # other exception is a real bug and propagates.
+            warnings.warn(
+                f"Could not decode image {path!r} for embedding ({exc}); "
+                "leaving reference untouched",
+                stacklevel=2,
+            )
             return match.group(0)
 
         vfs.write_file_bytes(full_path, data)

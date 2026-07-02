@@ -71,10 +71,8 @@ class BranchWorkspace:
     def vision_enabled(self) -> bool:
         """Whether image/vision context is enabled for this workspace.
 
-        The workspace owns settings, so it answers this question rather than
-        handing out the Settings object (see CLAUDE.md ownership rule). Callers
-        like the file explorer use it to decide whether images can be added to
-        AI context.
+        Passes straight through to settings. Callers like the file explorer
+        use it to decide whether images can be added to AI context.
         """
         return self._settings.get_vision_enabled()
 

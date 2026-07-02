@@ -191,6 +191,81 @@ class TestCompactReplayDeferred:
                 f"Tool result for {call_id} should be compacted, got: {results[0].content[:100]}"
             )
 
+    def test_prefixed_compact_args_are_replayed(self, mock_session_manager):
+        """Regression: compact args with numeric order prefixes must replay.
+
+        When ``llm.prefix_tool_args`` is enabled, the stored compact tool call
+        carries keys ``1_from_id`` / ``2_to_id`` / ``3_summary`` instead of the
+        bare names. The old replay parser read ``args.get("from_id")`` etc.,
+        got empty strings, hit the ``if from_id and to_id`` guard, and silently
+        dropped the compaction ("applying 0 deferred compaction(s)") — leaving
+        tool results that used to be compacted full-size in context. This is
+        the exact production bug: replay must strip the prefixes first.
+        """
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "grep_open", "arguments": "{}"},
+                    }
+                ],
+                "content": "searching",
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": '{"matches": ["file1.py"], "success": true}',
+            },
+            {"role": "user", "content": "compact"},
+            # Compact tool call with PREFIXED argument keys
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_compact",
+                        "type": "function",
+                        "function": {
+                            "name": "compact",
+                            "arguments": json.dumps(
+                                {
+                                    "1_from_id": "1",
+                                    "2_to_id": "3",
+                                    "3_summary": "searched and found file1.py",
+                                }
+                            ),
+                        },
+                    }
+                ],
+                "content": "",
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_compact",
+                "content": '{"success": true}',
+            },
+        ]
+
+        replay_messages_to_prompt_manager(messages, mock_session_manager)
+
+        pm = mock_session_manager.prompt_manager
+
+        # The grep_open tool result (inside range 1-3) must be compacted.
+        results = [
+            b
+            for b in pm.blocks
+            if b.block_type == BlockType.TOOL_RESULT
+            and not b.deleted
+            and b.metadata.get("tool_call_id") == "call_1"
+        ]
+        assert len(results) == 1
+        assert "COMPACTED" in results[0].content, (
+            "Prefixed compact args were dropped on replay — tool result left uncompacted"
+        )
+
     def test_ui_only_system_messages_skipped(self, mock_session_manager):
         """Display-only system messages should not affect message ID numbering.
 

@@ -16,6 +16,26 @@ if TYPE_CHECKING:
     from forge.session.manager import SessionManager
 
 
+def _deprefix_args(args: Any) -> dict[str, Any]:
+    """Strip numeric arg-order prefixes (``N_``) from top-level argument keys.
+
+    Mirrors ToolManager._strip_arg_prefixes / tool_rendering._deprefix_dict:
+    when ``llm.prefix_tool_args`` is enabled, tool-call arguments are stored
+    with keys like ``1_from_id`` / ``2_to_id`` / ``3_summary``. The replay
+    parser reads the bare names, so strip a single leading ``N_`` from each key
+    before reading. Unprefixed keys pass through unchanged. Only one level is
+    needed here — compact's arguments are flat.
+    """
+    import re
+
+    if not isinstance(args, dict):
+        return {}
+    result: dict[str, Any] = {
+        (re.sub(r"^\d+_", "", k) if isinstance(k, str) else k): v for k, v in args.items()
+    }
+    return result
+
+
 def replay_messages_to_prompt_manager(
     messages: list[dict[str, Any]],
     session_manager: "SessionManager",
@@ -73,6 +93,14 @@ def replay_messages_to_prompt_manager(
                     if func.get("name") == "compact":
                         try:
                             args = json.loads(func.get("arguments", "{}"))
+                            # When llm.prefix_tool_args is on, stored argument
+                            # keys carry numeric ordering prefixes (1_from_id,
+                            # 2_to_id, 3_summary). Strip them before reading —
+                            # otherwise from_id/to_id come back empty, the
+                            # `if from_id and to_id` guard fails, and the
+                            # compaction is silently dropped on replay (leaving
+                            # tool results that used to be compacted full-size).
+                            args = _deprefix_args(args)
                             from_id = args.get("from_id", "")
                             to_id = args.get("to_id", "")
                             summary = args.get("summary", "")

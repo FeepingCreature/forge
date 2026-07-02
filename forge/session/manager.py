@@ -468,6 +468,36 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         """Add an assistant message to the prompt stream"""
         self.prompt_manager.append_assistant_message(content)
 
+    def embed_output_images(self, content: str) -> str:
+        """Embed repo images the assistant referenced in its own output (§4).
+
+        Scans ``content`` for markdown ``![alt](path)`` references that resolve
+        to existing VFS image files. For each, stores a full-quality copy plus
+        a Pillow-downscaled low-res copy under ``.forge/images/`` and rewrites
+        the reference to point at the full-quality committed path.
+
+        The full-quality store + markdown rewrite ALWAYS happen (they're for
+        the user's rendered chat, independent of vision support). The low-res
+        base64 copy is only appended as a model-facing IMAGE_CONTENT block when
+        ``llm.vision_enabled`` is on — a non-vision model can't see it, so we
+        don't pay to replay it forever.
+
+        Returns the rewritten content (unchanged if no refs resolved).
+        """
+        from forge.session.image_embedding import embed_images_in_markdown
+
+        rewritten, embedded = embed_images_in_markdown(self.tool_manager.vfs, content)
+        if not embedded:
+            return content
+
+        if self.settings.get_vision_enabled():
+            for img in embedded:
+                self.prompt_manager.append_image_content(
+                    img.full_path, img.data_url, embedded=True
+                )
+
+        return rewritten
+
     def append_tool_call(self, tool_calls: list[dict[str, Any]], content: str = "") -> None:
         """Add tool calls to the prompt stream, with any accompanying text content"""
         self.prompt_manager.append_tool_call(tool_calls, content)

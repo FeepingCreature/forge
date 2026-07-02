@@ -273,10 +273,14 @@ class PromptManager:
                     print(f"   ↳ Found and deleted {filepath}")
 
     def append_image_content(
-        self, filepath: str, data_url: str, tool_call_id: str | None = None
+        self,
+        filepath: str,
+        data_url: str,
+        tool_call_id: str | None = None,
+        embedded: bool = False,
     ) -> None:
         """
-        Add a full-quality image to the stream, removing any previous version.
+        Add an image to the stream, removing any previous version.
 
         Mirrors append_file_content()'s tombstone-and-move-to-end semantics:
         the old block (if any) is replaced with a tiny text tombstone and the
@@ -284,8 +288,15 @@ class PromptManager:
 
         Args:
             filepath: Path to the image file (used as the identity key)
-            data_url: A `data:<mime>;base64,<...>` URL with the full-quality bytes
+            data_url: A `data:<mime>;base64,<...>` URL with the image bytes
             tool_call_id: If this image was just (re)loaded by a tool, its ID
+            embedded: If True, this is an OUTPUT-EMBEDDED image (§4) — a
+                permanent part of conversation history that the model referenced
+                in its own output, NOT a context-mechanism image tied to
+                `active_files`. Embedded blocks are excluded from
+                `get_active_image_files()` so `sync_prompt_manager()` never
+                evicts them, and carry a low-res data URL rather than full
+                quality.
         """
         print(f"🖼️  PromptManager: Setting image content for {filepath}")
 
@@ -315,7 +326,11 @@ class PromptManager:
             ContentBlock(
                 block_type=BlockType.IMAGE_CONTENT,
                 content=data_url,
-                metadata={"filepath": filepath, "tool_call_id": tool_call_id},
+                metadata={
+                    "filepath": filepath,
+                    "tool_call_id": tool_call_id,
+                    "embedded": embedded,
+                },
             )
         )
 
@@ -556,13 +571,19 @@ class PromptManager:
         return files
 
     def get_active_image_files(self) -> list[str]:
-        """Get list of images currently in context (not deleted)"""
+        """Get list of context-mechanism images currently in context.
+
+        Excludes output-embedded images (§4): those are permanent history, not
+        tied to `active_files`, so `sync_prompt_manager()` must not treat them
+        as active-file blocks it should evict.
+        """
         files = []
         for block in self.blocks:
             if (
                 block.block_type == BlockType.IMAGE_CONTENT
                 and not block.deleted
                 and not block.metadata.get("tombstone")
+                and not block.metadata.get("embedded")
                 and "filepath" in block.metadata
             ):
                 files.append(block.metadata["filepath"])

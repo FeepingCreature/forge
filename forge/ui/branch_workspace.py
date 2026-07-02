@@ -67,6 +67,17 @@ class BranchWorkspace:
         """Get a display-friendly name for the branch"""
         return self.branch_name
 
+    @property
+    def vision_enabled(self) -> bool:
+        """Whether image/vision context is enabled for this workspace.
+
+        The workspace owns settings, so it answers this question rather than
+        handing out the Settings object (see CLAUDE.md ownership rule). Callers
+        like the file explorer use it to decide whether images can be added to
+        AI context.
+        """
+        return self._settings.get_vision_enabled()
+
     def open_file(self, filepath: str) -> int:
         """
         Open a file in this workspace.

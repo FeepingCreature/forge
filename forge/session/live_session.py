@@ -1335,6 +1335,11 @@ class LiveSession(QObject):
         self._turn_executed_tool_ids = set()
         self._newly_created_files = set()
         self._pending_file_updates = []
+        # A terminated session set _turn_saw_terminate; clearing must reset it,
+        # otherwise send_message() keeps refusing input on the fresh session
+        # until an app restart reloads it with the flag back to False.
+        self._turn_saw_terminate = False
+        self._turn_saw_end_turn = False
         self.state = SessionState.IDLE
 
         # Commit the cleared state (writes empty session.json, commits, refreshes VFS)

@@ -84,6 +84,9 @@ class FileExplorerWidget(QWidget):
         self._large_files: set[str] = set()  # Files that are large (10k+ chars)
         self._file_sizes: dict[str, int] = {}  # File sizes in characters
         self._root_item: QTreeWidgetItem | None = None  # The <root> item
+        # Whether images can be added to AI context (vision-gated). Cached on
+        # refresh() so click/menu/icon logic doesn't repeatedly ask the workspace.
+        self._vision_enabled: bool = workspace.vision_enabled
         self._setup_ui()
         self.refresh()
 
@@ -138,11 +141,27 @@ class FileExplorerWidget(QWidget):
 
         layout.addWidget(self.tree)
 
+    def _is_context_eligible(self, item_type: str | None) -> bool:
+        """Whether an item type can be toggled in/out of AI context.
+
+        Text files always are. Images are only when vision is enabled — the
+        session's add_active_file() hard-errors on images when vision is off,
+        so we must not offer the toggle in that case.
+        """
+        if item_type == "file":
+            return True
+        if item_type == "image":
+            return self._vision_enabled
+        return False
+
     def refresh(self) -> None:
         """Refresh the file tree from VFS"""
         self.tree.clear()
         self._large_files.clear()
         self._file_sizes.clear()
+
+        # Re-read vision setting in case it changed since construction.
+        self._vision_enabled = self.workspace.vision_enabled
 
         # Get all files from VFS (including binary) and cache them
         files = self.workspace.vfs.list_all_files()
@@ -208,8 +227,18 @@ class FileExplorerWidget(QWidget):
             if _is_image_file(filepath):
                 file_item.setText(COL_NAME, f"\U0001f5bc\ufe0f {filename}")
                 file_item.setData(COL_NAME, Qt.ItemDataRole.UserRole + 1, "image")
-                file_item.setText(COL_CONTEXT, "")  # No text-context icon for images
-                file_item.setToolTip(COL_NAME, f"{filepath}\n(image - double-click to view)")
+                # Images can be added to context only when vision is enabled;
+                # otherwise show no circle (view-only, like a binary file).
+                if self._vision_enabled:
+                    file_item.setText(COL_CONTEXT, ICON_NONE)
+                    file_item.setToolTip(
+                        COL_NAME,
+                        f"{filepath}\n(image - double-click to view, click ◯ to add to context)",
+                    )
+                    file_item.setToolTip(COL_CONTEXT, "Click to toggle AI context")
+                else:
+                    file_item.setText(COL_CONTEXT, "")
+                    file_item.setToolTip(COL_NAME, f"{filepath}\n(image - double-click to view)")
             elif is_binary_file(filepath):
                 file_item.setData(
                     COL_NAME, Qt.ItemDataRole.UserRole + 1, "binary"
@@ -274,8 +303,9 @@ class FileExplorerWidget(QWidget):
 
         item_type = parent.data(0, Qt.ItemDataRole.UserRole + 1)
 
-        if item_type == "file":
-            # File: simple in-context check
+        if self._is_context_eligible(item_type):
+            # Context-eligible leaf (text file, or image when vision is on):
+            # simple in-context check.
             filepath = parent.data(0, Qt.ItemDataRole.UserRole)
             state = ContextState.FULL if filepath in self._context_files else ContextState.NONE
             is_large = filepath in self._large_files
@@ -334,13 +364,9 @@ class FileExplorerWidget(QWidget):
 
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
 
-        # Binary files can't be added to context
-        if item_type == "binary":
-            return
-
-        if item_type == "file":
+        if self._is_context_eligible(item_type):
             filepath = item.data(0, Qt.ItemDataRole.UserRole)
-            # Toggle context for file
+            # Toggle context for file (or vision-enabled image)
             is_in_context = filepath in self._context_files
             self.context_toggle_requested.emit(filepath, not is_in_context)
 
@@ -441,12 +467,28 @@ class FileExplorerWidget(QWidget):
             menu.addAction(delete_action)
 
         elif item_type == "image":
-            # Image file - can be opened in the tab viewer, but no text-context
-            # toggle (the vision context mechanism is a separate, settings-gated
-            # path; see IMAGE_TODO section 1).
+            # Image file - can be opened in the tab viewer. When vision is
+            # enabled it can also be added to AI context via the same
+            # mechanism as text files (see IMAGE_TODO section 1); when vision
+            # is off, add_active_file() would hard-error, so no toggle shown.
             open_action = QAction("Open", self)
             open_action.triggered.connect(lambda: self.file_open_requested.emit(filepath))
             menu.addAction(open_action)
+
+            if self._vision_enabled:
+                menu.addSeparator()
+                is_in_context = filepath in self._context_files
+                if is_in_context:
+                    context_action = QAction("Remove from Context", self)
+                    context_action.triggered.connect(
+                        lambda: self.context_toggle_requested.emit(filepath, False)
+                    )
+                else:
+                    context_action = QAction("Add to Context", self)
+                    context_action.triggered.connect(
+                        lambda: self.context_toggle_requested.emit(filepath, True)
+                    )
+                menu.addAction(context_action)
 
             menu.addSeparator()
 

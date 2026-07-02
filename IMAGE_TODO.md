@@ -1,46 +1,58 @@
 # Image Support TODO
 
-Goal: let the model see repo images, view them in tabs, and embed repo images
-(pinned to a commit) in its own output. All gated by a settings toggle for
-models without vision support.
+Goal: let the model see repo images, view them in tabs, and let tools/model
+embed repo images in output for the *user*. All model-facing behavior is
+gated by a settings toggle for models without vision support.
 
-## Key simplification
+## Key simplification: images are ALWAYS low-detail to the model
 
-Degradation is **not** our job to implement pixel-wise. OpenRouter/OpenAI-style
-vision APIs accept a `detail` field per image part:
+No recency-based degradation tiers. Every image the model sees is sent at a
+fixed `detail: "low"` (~85-96 tokens, OpenAI/OpenRouter vision API). There is
+no `"auto"`/`"high"` tier at all.
 
-```json
-{"type": "image_url", "image_url": {"url": "data:...;base64,...", "detail": "low"}}
-```
+Rationale: the model can't usefully inspect fine detail anyway, and any real
+work happens against the full-quality file in the VFS directly (edits, tools,
+etc. never go through the vision snapshot). If the model genuinely needs a
+closer look... it can't get one — there is no higher tier. That's fine: images
+are for orientation ("what does this chart/screenshot roughly show"), not
+pixel inspection.
 
-`"low"` is a fixed ~85 tokens regardless of resolution. So "degrade further back
- in the log" just means: send the same full-res image every time, but set
-`detail: "low"` for all but the most recent occurrence(s), and `detail: "auto"`
-(or `"high"`) for the newest. No Pillow, no resizing, no cached variants.
+This also means: **no degradation-over-time logic, no "is this the most
+recent image" bookkeeping.** Compaction (§2) is the only way an image leaves
+history. Pillow becomes a real dependency, used to produce the small
+low-detail thumbnail once at attach-time (capped resolution + JPEG
+recompression) — kept small because it's replayed in session history forever
+as base64.
+
+## The model only ever sees an image by having it in context
+
+There is exactly **one** way an image becomes visible to the model: it is in
+`active_files` (context), same as any other file. No auto-attachment, no
+implicit "the model just wrote this so it can see it" magic.
+
+Consequence: **a tool that generates an image and wants the model to be aware
+of it must explicitly add it to context itself** (same call a human would make
+via the file explorer). This keeps the mental model uniform with every other
+file type and avoids a second hidden trigger path.
+
+Embedding an image in chat output for the *user* (§4) is a **completely
+separate, unrelated concern** — it doesn't touch the model's context at all,
+doesn't require `vision_enabled`, and doesn't imply the model can see the
+image it just embedded (if it wants that, it must `update_context` it too).
 
 ## Settings
 
 - [ ] Add `llm.vision_enabled` to `Settings.DEFAULT_SETTINGS` (default `False`).
 - [ ] Expose toggle in `settings_dialog.py`.
-- [ ] Single gate point: wherever we decide whether a file gets read as an
-      image content block for the model vs. skipped/refused. Tab viewing and
-      output embedding are independent of this flag (that's for the human,
-      not the model) and should work regardless.
+- [ ] Single gate point: `update_context`/`add_active_file`, when the file is
+      an image — if `vision_enabled` is off, adding an image file to context
+      should fail/refuse clearly (no silent no-op) rather than pretend to
+      succeed. Tab viewing (§3) and output embedding (§4) are unaffected by
+      this flag — that's for the human, not the model.
 
 ## 1. Model can see repo images (core)
 
-**Design principle: the live VFS file and the conversational record are
-decoupled.** The file in the VFS is just a normal (binary) file — it commits,
-diffs, deletes, and opens in tabs like anything else, and a custom tool can
-write one directly. The *moment* an image enters the conversation (explicit
-context-add, or the model referencing it in output — see §4), we snapshot its
-current bytes as a base64 data URL and store that snapshot directly in the
-session JSON. No OID indirection, no blob-serving layer: the snapshot itself
-is the historical record, frozen at reference time, unaffected by later edits
-or deletion of the source file. This is simpler than commit-pinning and
-doesn't require the git blob to stay reachable.
-
-- [ ] VFS: add a binary write/read path so tools can produce images as
+- [ ] VFS: add a binary write/read path so tools can produce/read images as
       pending files. `WorkInProgressVFS.pending_changes` is currently
       `dict[str, str]` (text only) — add a parallel bytes-based path (e.g.
       `write_bytes`/`read_bytes`) rather than overloading `write_file`.
@@ -50,41 +62,46 @@ doesn't require the git blob to stay reachable.
       so a custom tool can generate an image file directly.
 - [ ] `update_context`/`add_active_file` path: today `_should_summarize` /
       `BINARY_EXTENSIONS` filters images out entirely. Add an image-aware
-      branch: if `vision_enabled` and the file is an image extension, read
-      bytes, base64-encode, and take the context-entry snapshot described
-      above instead of routing through the text-summary path.
+      branch: if the file is an image extension and `vision_enabled`, read
+      full-quality bytes, downscale/recompress via Pillow into a small
+      low-detail thumbnail, base64-encode *that*, and store it as the
+      session-visible snapshot (see below). If `vision_enabled` is off,
+      refuse with a clear error.
 - [ ] Prompt manager (`forge/prompts/manager.py`):
-  - [ ] New `BlockType.IMAGE_CONTENT` whose `content` *is* the base64 data URL
-        itself (self-contained — no filepath lookup needed to replay it).
+  - [ ] New `BlockType.IMAGE_CONTENT` whose `content` *is* the base64
+        thumbnail data URL itself (self-contained — no filepath lookup
+        needed to replay it into a future prompt).
   - [ ] `append_image_content()` — mirrors `append_file_content()`'s
-        tombstone-and-move-to-end semantics for cache optimization.
+        tombstone-and-move-to-end semantics: re-adding the same file to
+        context replaces the old snapshot the same way editing a text file
+        moves it to the end of the prompt stream.
   - [ ] `to_messages()`: needs to emit multimodal content
-        (`content: [{"type": "text", ...}, {"type": "image_url", ...}]`)
-        instead of a plain string, for any message containing an image block.
-        This changes the message shape for those turns — check cache_control
-        placement still makes sense.
-  - [ ] Detail-level logic: determine at `to_messages()` build time which
-        image blocks are "most recent" (e.g. last N, or only images in the
-        active-files set / most recent turn) → `detail: "auto"`; all earlier
-        occurrences → `detail: "low"`. Applies uniformly regardless of
-        whether the image came from context-add or model-embedded output
-        (§4) — same block type, same rule.
+        (`content: [{"type": "text", ...}, {"type": "image_url", "image_url":
+        {"url": ..., "detail": "low"}}]`) instead of a plain string, for any
+        message containing an image block. Check cache_control placement
+        still makes sense for these turns.
   - [ ] Token estimation (`_estimate_tokens` is char-based) doesn't apply to
-        images — use a fixed estimate per image (85 for low-detail; a rough
-        constant like 1500 for auto/high, since real cost depends on
-        resolution and we don't need to be exact for the mood bar).
+        images — use a fixed constant (~90 tokens) per image block for mood
+        bar / budget purposes, matching the real low-detail API cost.
 - [ ] `LLMClient`: no changes expected — payload already passes `messages`
       through untouched, so multimodal content blocks should pass through
       fine as long as `PromptManager` builds them correctly. Verify OpenRouter
       accepts the standard OpenAI vision shape for the configured model.
+- [ ] Add `Pillow` to project dependencies (`pyproject.toml`).
 
 ## 2. Compaction drops images
 
 - [ ] When `compact_messages(from_id, to_id, ...)` tombstones a range, any
-      `IMAGE_CONTENT` block in that range is dropped outright (no low-detail
-      fallback survives compaction — same as other compacted content).
+      `IMAGE_CONTENT` block in that range is dropped outright — same as any
+      other compacted content, no special-casing needed since there's only
+      one detail tier.
+- [ ] Removing an image from context (`remove_active_file`) should behave
+      exactly like removing a text file — tombstone it via
+      `remove_file_content`-equivalent for images.
 
 ## 3. View an image in a tab
+
+Always full quality — unrelated to the model-facing low-detail thumbnail.
 
 - [ ] `BranchWorkspace`: add `get_file_bytes(filepath)` so UI doesn't reach
       into `vfs.base_vfs` directly (ownership rule — ask the owner).
@@ -96,49 +113,54 @@ doesn't require the git blob to stay reachable.
 - [ ] Update `_find_tab_index()` and `_on_tab_close_requested()` for the new
       wrapper type, same as the markdown wrapper is handled.
 
-## 4. Model embeds repo images in output
+## 4. Tools/model embed repo images in chat output (for the user)
 
-No custom URL scheme, no blob-serving, no commit-oid tracking needed — this
-reuses the exact same snapshot mechanism as §1.
+This is purely a rendering concern for the human reading the chat. It is
+**independent of `vision_enabled`** and does **not** put anything in the
+model's context — if the model wants to see the image it embedded, it must
+also `update_context` it (§1), same as any other file.
 
-- [ ] Model writes normal markdown `![alt](path.png)` referring to a repo
-      file, exactly as it would reference any other file by path elsewhere.
+- [ ] Model/tool writes normal markdown `![alt](path.png)` referring to a
+      repo file, exactly as it would reference any other file by path.
 - [ ] At **message-finalization time** (when the assistant turn is finalized
-      in `live_session.py`, not at render time), scan the assistant message
-      text for image references that resolve to an existing VFS file. For
-      each one found, read current bytes, base64-encode, and record it as an
-      `IMAGE_CONTENT`-bearing attachment associated with that message (same
-      snapshot shape as §1) — keyed by the literal path text so the renderer
-      can splice it back in. **Leave the visible markdown text itself
-      unchanged** (`![alt](path.png)`) — don't bake the data URL into the raw
-      message string, or every future replay of that message's text into
-      later prompts would carry the full base64 blob permanently.
+      in `live_session.py`, not at render time), scan the message text for
+      image references that resolve to an existing VFS file. For each one
+      found:
+      - [ ] Read full-quality bytes, hash them (sha256).
+      - [ ] Write them to a stable, content-addressed path under
+            `.forge/images/<sha256>.<ext>` via a normal VFS binary write (this
+            commits/versions like any other file — no separate blob store).
+      - [ ] Rewrite the markdown reference in place to point at
+            `.forge/images/<sha256>.<ext>` instead of the original path. This
+            makes the rendered chat immune to the original file later being
+            edited or deleted — the `.forge/images/` copy is the permanent
+            record for that message.
   - [ ] If the path doesn't resolve to an existing image file, leave the
         markdown text untouched (no fallback guessing).
-- [ ] `render_markdown()` in `tool_rendering.py`: when rendering a message
-      that has attached image snapshots, substitute the matching `![alt](path)`
-      occurrence's `src` with the stored data URL before/after markdown
-      conversion. No VFS/git access needed at render time — it's all in the
-      message's own attached data.
-- [ ] Because these are ordinary `IMAGE_CONTENT`-shaped snapshots, they ride
-      the same detail-degradation (§1) and compaction-drop (§2) rules as any
-      other image in context — an old embedded output image just becomes
-      `detail: "low"` and eventually gets dropped on compaction, same as one
-      added via context.
+- [ ] `render_markdown()` in `tool_rendering.py`: needs no new logic beyond
+      resolving `.forge/images/...` paths to actual bytes for the `<img>` tag
+      (e.g. a `file://`-style or data-URL rendering of the VFS path at render
+      time — check how the chat view currently resolves any relative URLs, if
+      at all).
 
 ## Phasing
 
-1. Core vision (settings toggle, byte-level VFS reads, image content blocks,
-   multimodal messages + detail levels, `update_context` image support).
-2. Compaction drop.
-3. Tab viewer.
-4. Embedded output images (scheme handler + finalization rewrite pass).
+1. Settings toggle + VFS binary read/write + `ToolContext` bytes methods.
+2. Core vision: Pillow thumbnailing, `IMAGE_CONTENT` block, multimodal
+   `to_messages()`, `update_context` image support.
+3. Compaction drop for image blocks.
+4. Tab viewer.
+5. Chat-output embedding (`.forge/images/` content-addressed store + markdown
+   rewrite at finalization + render-time resolution).
 
 ## Open questions
 
-- How many "most recent" images stay at `detail: auto` — just the latest
-  turn's images, or a fixed count? Simplest: only images still attached to
-  files in the *current* active-files set get `auto`; anything tombstoned/
-  superseded gets `low`.
-- Do we need a max total image count/size per turn (cost guard), independent
-  of the token-budget logic used for summaries?
+- `.forge/images/` will accumulate forever (content-addressed, never
+  cleaned up) since every embedded image creates a permanent file. Do we want
+  any GC story, or is "images are cheap and rare" an acceptable answer for now?
+- Pillow thumbnail parameters (max dimension, JPEG quality) — need a concrete
+  starting point, e.g. max 512px longest side, quality 50.
+- Should refusing `update_context` on an image when `vision_enabled=False`
+  surface as a tool error to the model, or should the image simply be silently
+  excluded from context stats/prompt (still shown in file explorer)? Leaning
+  towards explicit error — matches "No fallbacks" principle.

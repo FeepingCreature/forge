@@ -188,6 +188,69 @@
       "streaming": true,
       "actual_cost": 0.1852605,
       "generation_id": "gen-1782987904-3IGuq9ns0Uc2T8TysJpY"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1782987910358.json",
+      "response_file": "/tmp/forge_debug/response_1782987910358.json",
+      "timestamp": 1782987910.3583808,
+      "model": "~anthropic/claude-haiku-latest",
+      "streaming": false,
+      "actual_cost": 0.000288,
+      "generation_id": "gen-1782987910-JsMI9iBqPQENLpkBQmYy"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988138777.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988138777.json",
+      "timestamp": 1782988138.7794785,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.11475,
+      "generation_id": "gen-1782988139-S6qL2pvWSnYqIH3UacFU"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988216812.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988216812.json",
+      "timestamp": 1782988216.8148031,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.0680489,
+      "generation_id": "gen-1782988217-xkmHlicAcEytYTPJB2bx"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988268201.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988268201.json",
+      "timestamp": 1782988268.2250044,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.1079848,
+      "generation_id": "gen-1782988268-HT5dsNtCHzoUuLvsdlin"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988363400.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988363400.json",
+      "timestamp": 1782988363.4026327,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.0441544,
+      "generation_id": "gen-1782988363-6WtSsVtn4nmU0fTrmUnb"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988378627.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988378627.json",
+      "timestamp": 1782988378.6297672,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.1002751,
+      "generation_id": "gen-1782988379-czqOBoYez8nKPfMUjz2Z"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988425878.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988425878.json",
+      "timestamp": 1782988425.8809724,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.0688439,
+      "generation_id": "gen-1782988426-sDZf3Dl6d8YGATQZzWWt"
     }
   ],
   "messages": [
@@ -409,6 +472,117 @@
     {
       "role": "assistant",
       "content": "IMAGE_TODO.md is already updated with the new design (confirmed by the tool output above) \u2014 sections 1 and 4 now describe the decoupled VFS-file / session-snapshot model instead of the OID/scheme-handler approach, and phasing/open-questions are consistent with it. No further action needed unless you want to adjust something else.\n\nOne thing worth flagging while it's fresh: in \u00a74 I specified that the *visible markdown text stays as the literal path* (`![alt](path.png)`) and the data URL is stored as a separate attachment keyed by path, rather than rewriting the message text to embed the data URL inline. That was a deliberate choice to avoid permanently bloating the raw message string on every future replay \u2014 but it does mean the renderer needs a small association step (message \u2192 path \u2192 snapshot) rather than just rendering the message text directly. If you'd rather keep it dead simple and just rewrite the text in place (accepting that replayed history carries the base64 forever), say so and I'll flip that section.\n\nWant me to start on phase 1 now, or review anything else first?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: ee63a420",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "\"replayed history carries the base64 forever\" tbh makes sense to me. we can maybe jpeg/resolution squish it a bit... we do need to pull in pillow for that but it makes sense because the model can't look that closely anyways, and any work done will be on the repo version which is full quality. note: images embedded in the output are for the benefit of the user, not the model: we should resolve/rewrite them using an assigned id and maybe store the corresponding image files maybe separately in .forge to speed up loading. the model only! looks at an image by opening it in context like any other file. so tools that generate an image, if they want the model to see it, have to automatically add it to the context. I think that makes sense. then we can skip auto-degradation because the model can just drop it from context at will. wdyt? is there a use for the model seeing an image in its history forever?"
+    },
+    {
+      "role": "system",
+      "content": "\u274c Cancelled by user",
+      "_ui_only": true
+    },
+    {
+      "role": "system",
+      "content": "\ud83d\uded1 AI turn cancelled by user",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "rethink: maybe the compromise is to show the model embedded images in low (96 token) mode always and that's fine, we have to load it anyways, so it has context for the actions it took and doesn't need an extra toolcall, and if it wants detail it can context open it?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01DURsfh5qFXJZXsWizUg4Xa",
+          "type": "function",
+          "function": {
+            "name": "say",
+            "arguments": "{\"1_message\": \"Good \u2014 I think the second message (low-detail-always) is the right compromise, and it also simplifies away most of the degradation machinery. Let me restate the reasoning since it settles several loose ends at once, then rewrite the TODO.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01DURsfh5qFXJZXsWizUg4Xa",
+      "content": "{\"success\": true}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01EkR48DjtHBTxgcx4AguQeb",
+          "type": "function",
+          "function": {
+            "name": "think",
+            "arguments": "{\"1_scratchpad\": \"Reconciling msg 14 and msg 15:\\n\\nmsg 14: images for model = explicit context-add only (like any file). Embedded-output images are for the USER, rewritten with an assigned id, stored separately in .forge for fast loading. Model never sees embedded-output images automatically; tool must explicitly add to context if it wants model to see its generated image.\\n\\nmsg 15 (rethink/compromise): Since we have to load the image bytes anyway to do the embed-for-user rewrite, just also hand the model a low-detail (96 token) version at that same moment \u2014 avoiding requiring an extra explicit context-add tool call. Detail is ALWAYS low, period (removes recency-based degradation entirely, since there's no \\\"auto/high\\\" tier at all now). If the model wants more resolution, it uses context-open (which... would also just be low detail, since that's the only mode) \u2014 actually wait, if detail is always low, \\\"context open for more detail\\\" doesn't get it anything different resolution-wise via the vision API. But conceptually: context-open puts the image as an explicit content block that persists/stays visible across turns (vs. the embedded-output snapshot which might just be a one-time thing attached to that single message). Actually both are IMAGE_CONTENT blocks at low detail \u2014 the distinction is just where it lives in the stream (attached to a specific historical message vs a general active-file that stays \\\"live\\\" via tombstone-and-move like FILE_CONTENT). That's a fine distinction, not actually contradictory.\\n\\nSo final unified design:\\n- ALL images the model ever sees are sent at detail=\\\"low\\\" (fixed ~85-96 tokens), no exceptions, no age-based degradation logic needed at all.\\n- Two entry points create an IMAGE_CONTENT block for the model:\\n  (a) explicit context-add (file explorer / update_context on an image file) \u2014 like FILE_CONTENT, tombstoned/moved-to-end on re-reference, persists as \\\"live\\\" while in active_files.\\n  (b) automatic, at the moment an image gets embedded in output for the user's benefit (assistant message or tool result references an existing repo image via markdown) \u2014 this happens automatically without needing a separate context-add call, since loading is already required for the user-facing rewrite.\\n- Embedding-for-user (b) ALSO does: resolve path -> read bytes -> store a stable asset copy content-addressed under `.forge/images/<sha256>.<ext>` (via normal VFS binary write, so committed and versioned) -> rewrite the markdown reference in place to point at that stable path (survives later edits/deletion of the original source file) -> and attach a low-detail thumbnail snapshot (Pillow-resized/compressed, base64) as an IMAGE_CONTENT block into the conversation stream so the model also \\\"sees\\\" what it just embedded, at zero extra tool-call cost.\\n- Pillow is needed to produce the low-detail thumbnail (cap resolution, recompress as JPEG) so that repeated/forever-replayed base64 in session history stays small. This is a deliberate quality trade epsilon since detail=low means the model can't resolve fine detail anyway; full-quality work always happens by reading the real VFS file as bytes/text, not via the vision snapshot.\\n- No degradation-by-recency logic needed anymore (removed from TODO). Compaction still drops IMAGE_CONTENT blocks outright when their message range is compacted.\\n- Settings gate (llm.vision_enabled) controls whether the model-facing IMAGE_CONTENT snapshot is created/sent at all; the user-facing asset-store-and-rewrite part of flow (b) is independent and should still happen even with vision disabled (it's for human viewing, not the model).\\n- Content-addressing (sha256 of processed asset bytes) as the filename avoids needing a separate \\\"assigned id\\\" concept \u2014 consistent with existing SessionManager summary-cache pattern (already keys by blob oid/content hash).\\n- Tab viewer (section 3) is untouched by any of this \u2014 reads full-quality bytes directly from VFS, unrelated to the thumbnailing pipeline.\\n\\nThis resolves the apparent tension: msg14's \\\"model only sees images via context-add\\\" is superseded/loosened by msg15's compromise where output-embedding also auto-attaches a cheap low-detail view, but both funnel into the identical block type/mechanism, so it's one system with two triggers.\\n\\nNow rewrite IMAGE_TODO.md accordingly.\", \"2_conclusion\": \"Final unified design to write into IMAGE_TODO.md:\\n1. All model-visible images are ALWAYS sent at detail=\\\"low\\\" (fixed ~85-96 tokens) \u2014 no recency-based degradation tier at all, that whole mechanism is removed.\\n2. Two triggers produce the same IMAGE_CONTENT block type for the model: (a) explicit context-add of an image file (like any other file, tombstoned/live like FILE_CONTENT), and (b) automatic attachment at the moment an assistant message or tool result embeds an existing repo image via markdown for the user's benefit \u2014 reusing the byte-load that's already required for that embed, so no extra tool call is needed for the model to get a cheap look at what it just produced.\\n3. Flow (b) additionally: resolves the markdown path against the current VFS, stores a stable content-addressed copy under `.forge/images/<sha256>.<ext>` via a normal VFS binary write (committed/versioned like any file), and rewrites the markdown reference in place to point at that stable path \u2014 so the user-facing rendering survives later edits/deletion of the original source file. This part is for the user and happens regardless of the vision_enabled setting.\\n4. Pillow becomes a real dependency, used only to produce the small low-detail thumbnail (capped resolution + JPEG recompression) attached as the model's IMAGE_CONTENT snapshot \u2014 kept small because it's replayed in session history forever. Full-quality work is always done by reading the real VFS file directly, never via the vision snapshot.\\n5. Content-addressing (sha256) is used instead of an \\\"assigned id\\\" concept, consistent with the existing SessionManager summary-cache keying pattern.\\n6. llm.vision_enabled gates creation of the model-facing IMAGE_CONTENT snapshot in both flows; it does NOT gate the user-facing asset-store-and-rewrite part of flow (b).\\n7. Compaction still drops IMAGE_CONTENT blocks outright when their message range is compacted (no fallback tier since there's only one tier now).\\n8. Tab viewer (section 3) is unaffected \u2014 always reads full-quality bytes straight from VFS.\\n\\nNow rewriting IMAGE_TODO.md fully to reflect this, replacing the old \\\"Key simplification\\\"/\u00a71/\u00a74/open-questions content.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01EkR48DjtHBTxgcx4AguQeb",
+      "content": "{\"success\": true, \"think\": true, \"conclusion\": \"Final unified design to write into IMAGE_TODO.md:\\n1. All model-visible images are ALWAYS sent at detail=\\\"low\\\" (fixed ~85-96 tokens) \\u2014 no recency-based degradation tier at all, that whole mechanism is removed.\\n2. Two triggers produce the same IMAGE_CONTENT block type for the model: (a) explicit context-add of an image file (like any other file, tombstoned/live like FILE_CONTENT), and (b) automatic attachment at the moment an assistant message or tool result embeds an existing repo image via markdown for the user's benefit \\u2014 reusing the byte-load that's already required for that embed, so no extra tool call is needed for the model to get a cheap look at what it just produced.\\n3. Flow (b) additionally: resolves the markdown path against the current VFS, stores a stable content-addressed copy under `.forge/images/<sha256>.<ext>` via a normal VFS binary write (committed/versioned like any file), and rewrites the markdown reference in place to point at that stable path \\u2014 so the user-facing rendering survives later edits/deletion of the original source file. This part is for the user and happens regardless of the vision_enabled setting.\\n4. Pillow becomes a real dependency, used only to produce the small low-detail thumbnail (capped resolution + JPEG recompression) attached as the model's IMAGE_CONTENT snapshot \\u2014 kept small because it's replayed in session history forever. Full-quality work is always done by reading the real VFS file directly, never via the vision snapshot.\\n5. Content-addressing (sha256) is used instead of an \\\"assigned id\\\" concept, consistent with the existing SessionManager summary-cache keying pattern.\\n6. llm.vision_enabled gates creation of the model-facing IMAGE_CONTENT snapshot in both flows; it does NOT gate the user-facing asset-store-and-rewrite part of flow (b).\\n7. Compaction still drops IMAGE_CONTENT blocks outright when their message range is compacted (no fallback tier since there's only one tier now).\\n8. Tab viewer (section 3) is unaffected \\u2014 always reads full-quality bytes straight from VFS.\\n\\nNow rewriting IMAGE_TODO.md fully to reflect this, replacing the old \\\"Key simplification\\\"/\\u00a71/\\u00a74/open-questions content.\", \"message\": \"Thought through 822 tokens, concluded.\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Locking in the final design: **all model-visible images are always sent at `detail: \"low\"` (~85-96 tokens)**, whether they arrived via explicit context-add or via automatic attachment when the model embeds one in its output for the user. This removes the whole recency/degradation-tier mechanism \u2014 there's only one tier now. If the model wants a closer look, it re-opens the file in context (full-quality bytes, one extra tool call, its choice). Since context-open already requires reading the file, and output-embedding already requires reading the file for the user-facing asset, attaching the cheap low-detail copy to the model's view is free \u2014 no extra round trip either way.\n\nPillow becomes a real dependency, used only to produce that small thumbnail (capped resolution + JPEG) for the model-facing snapshot that gets replayed in history forever. The user-facing embed is a separate, full-quality concern: stored content-addressed under `.forge/images/<sha256>.<ext>` as a normal committed VFS file, with the markdown rewritten to point at that stable path \u2014 this survives the source file being later edited/deleted, and is unrelated to the vision toggle (it's for the user, not the model).",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01N2zHw3yfSkhpSQBp8by1Vp",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"IMAGE_TODO.md\", \"2_search\": \"## Key simplification\\n\\nDegradation is **not** our job to implement pixel-wise. OpenRouter/OpenAI-style\\nvision APIs accept a `detail` field per image part:\\n\\n```json\\n{\\\"type\\\": \\\"image_url\\\", \\\"image_url\\\": {\\\"url\\\": \\\"data:...;base64,...\\\", \\\"detail\\\": \\\"low\\\"}}\\n```\\n\\n`\\\"low\\\"` is a fixed ~85 tokens regardless of resolution. So \\\"degrade further back\\n in the log\\\" just means: send the same full-res image every time, but set\\n`detail: \\\"low\\\"` for all but the most recent occurrence(s), and `detail: \\\"auto\\\"`\\n(or `\\\"high\\\"`) for the newest. No Pillow, no resizing, no cached variants.\", \"3_replace\": \"## Key simplification: images are ALWAYS low-detail to the model\\n\\nNo recency-based degradation tiers. Every image the model sees \\u2014 whether via\\nexplicit context-add or via auto-attachment when it embeds one in output \\u2014 is\\nsent at a fixed `detail: \\\"low\\\"` (~85-96 tokens, OpenAI/OpenRouter vision API).\\nThere is no `\\\"auto\\\"`/`\\\"high\\\"` tier at all.\\n\\nRationale: the model can't usefully inspect fine detail anyway, and any real\\nwork happens against the full-quality file in the VFS directly (edits, tools,\\netc. never go through the vision snapshot). If the model genuinely needs a\\ncloser look, it just opens the file in context again \\u2014 same as it would for\\nany other file \\u2014 which re-reads full quality bytes on demand. Since reading\\nthe file's bytes is already required (to add it to context, or to produce the\\nuser-facing embed \\u2014 see \\u00a74), attaching the cheap low-detail copy to the\\nmodel's view costs nothing extra: no additional tool call needed for it to\\nhave *some* awareness of what it's looking at / just produced.\\n\\nThis also means: **no degradation-over-time logic, no \\\"is this the most\\nrecent image\\\" bookkeeping.** Compaction (\\u00a72) is the only way an image leaves\\nhistory. Pillow is still needed, but only to produce the small low-detail\\nthumbnail once at attach-time (capped resolution + JPEG recompression) \\u2014 kept\\nsmall because it's replayed in session history forever.\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01N2zHw3yfSkhpSQBp8by1Vp",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"IMAGE_TODO.md\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me rewrite the rest of the document (\u00a71, \u00a74, and downstream sections) to match the final design fully \u2014 right now only the \"Key simplification\" section reflects it; \u00a71's detail bullets and \u00a74 still describe the old \"auto-attach on every embed\" and \"detail:auto for recent\" mechanics that we just replaced.",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01147MsEiPjmuEU6owCDmYnK",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"IMAGE_TODO.md\", \"4_content\": \"# Image Support TODO\\n\\nGoal: let the model see repo images, view them in tabs, and let tools/model\\nembed repo images in output for the *user*. All model-facing behavior is\\ngated by a settings toggle for models without vision support.\\n\\n## Key simplification: images are ALWAYS low-detail to the model\\n\\nNo recency-based degradation tiers. Every image the model sees is sent at a\\nfixed `detail: \\\"low\\\"` (~85-96 tokens, OpenAI/OpenRouter vision API). There is\\nno `\\\"auto\\\"`/`\\\"high\\\"` tier at all.\\n\\nRationale: the model can't usefully inspect fine detail anyway, and any real\\nwork happens against the full-quality file in the VFS directly (edits, tools,\\netc. never go through the vision snapshot). If the model genuinely needs a\\ncloser look... it can't get one \\u2014 there is no higher tier. That's fine: images\\nare for orientation (\\\"what does this chart/screenshot roughly show\\\"), not\\npixel inspection.\\n\\nThis also means: **no degradation-over-time logic, no \\\"is this the most\\nrecent image\\\" bookkeeping.** Compaction (\\u00a72) is the only way an image leaves\\nhistory. Pillow becomes a real dependency, used to produce the small\\nlow-detail thumbnail once at attach-time (capped resolution + JPEG\\nrecompression) \\u2014 kept small because it's replayed in session history forever\\nas base64.\\n\\n## The model only ever sees an image by having it in context\\n\\nThere is exactly **one** way an image becomes visible to the model: it is in\\n`active_files` (context), same as any other file. No auto-attachment, no\\nimplicit \\\"the model just wrote this so it can see it\\\" magic.\\n\\nConsequence: **a tool that generates an image and wants the model to be aware\\nof it must explicitly add it to context itself** (same call a human would make\\nvia the file explorer). This keeps the mental model uniform with every other\\nfile type and avoids a second hidden trigger path.\\n\\nEmbedding an image in chat output for the *user* (\\u00a74) is a **completely\\nseparate, unrelated concern** \\u2014 it doesn't touch the model's context at all,\\ndoesn't require `vision_enabled`, and doesn't imply the model can see the\\nimage it just embedded (if it wants that, it must `update_context` it too).\\n\\n## Settings\\n\\n- [ ] Add `llm.vision_enabled` to `Settings.DEFAULT_SETTINGS` (default `False`).\\n- [ ] Expose toggle in `settings_dialog.py`.\\n- [ ] Single gate point: `update_context`/`add_active_file`, when the file is\\n      an image \\u2014 if `vision_enabled` is off, adding an image file to context\\n      should fail/refuse clearly (no silent no-op) rather than pretend to\\n      succeed. Tab viewing (\\u00a73) and output embedding (\\u00a74) are unaffected by\\n      this flag \\u2014 that's for the human, not the model.\\n\\n## 1. Model can see repo images (core)\\n\\n- [ ] VFS: add a binary write/read path so tools can produce/read images as\\n      pending files. `WorkInProgressVFS.pending_changes` is currently\\n      `dict[str, str]` (text only) \\u2014 add a parallel bytes-based path (e.g.\\n      `write_bytes`/`read_bytes`) rather than overloading `write_file`.\\n      Check `ForgeRepository.create_tree_from_changes` \\u2014 confirm/extend it to\\n      accept binary blobs alongside the text changes dict when committing.\\n- [ ] `ToolContext` (`forge/tools/context.py`): expose `write_bytes`/`read_bytes`\\n      so a custom tool can generate an image file directly.\\n- [ ] `update_context`/`add_active_file` path: today `_should_summarize` /\\n      `BINARY_EXTENSIONS` filters images out entirely. Add an image-aware\\n      branch: if the file is an image extension and `vision_enabled`, read\\n      full-quality bytes, downscale/recompress via Pillow into a small\\n      low-detail thumbnail, base64-encode *that*, and store it as the\\n      session-visible snapshot (see below). If `vision_enabled` is off,\\n      refuse with a clear error.\\n- [ ] Prompt manager (`forge/prompts/manager.py`):\\n  - [ ] New `BlockType.IMAGE_CONTENT` whose `content` *is* the base64\\n        thumbnail data URL itself (self-contained \\u2014 no filepath lookup\\n        needed to replay it into a future prompt).\\n  - [ ] `append_image_content()` \\u2014 mirrors `append_file_content()`'s\\n        tombstone-and-move-to-end semantics: re-adding the same file to\\n        context replaces the old snapshot the same way editing a text file\\n        moves it to the end of the prompt stream.\\n  - [ ] `to_messages()`: needs to emit multimodal content\\n        (`content: [{\\\"type\\\": \\\"text\\\", ...}, {\\\"type\\\": \\\"image_url\\\", \\\"image_url\\\":\\n        {\\\"url\\\": ..., \\\"detail\\\": \\\"low\\\"}}]`) instead of a plain string, for any\\n        message containing an image block. Check cache_control placement\\n        still makes sense for these turns.\\n  - [ ] Token estimation (`_estimate_tokens` is char-based) doesn't apply to\\n        images \\u2014 use a fixed constant (~90 tokens) per image block for mood\\n        bar / budget purposes, matching the real low-detail API cost.\\n- [ ] `LLMClient`: no changes expected \\u2014 payload already passes `messages`\\n      through untouched, so multimodal content blocks should pass through\\n      fine as long as `PromptManager` builds them correctly. Verify OpenRouter\\n      accepts the standard OpenAI vision shape for the configured model.\\n- [ ] Add `Pillow` to project dependencies (`pyproject.toml`).\\n\\n## 2. Compaction drops images\\n\\n- [ ] When `compact_messages(from_id, to_id, ...)` tombstones a range, any\\n      `IMAGE_CONTENT` block in that range is dropped outright \\u2014 same as any\\n      other compacted content, no special-casing needed since there's only\\n      one detail tier.\\n- [ ] Removing an image from context (`remove_active_file`) should behave\\n      exactly like removing a text file \\u2014 tombstone it via\\n      `remove_file_content`-equivalent for images.\\n\\n## 3. View an image in a tab\\n\\nAlways full quality \\u2014 unrelated to the model-facing low-detail thumbnail.\\n\\n- [ ] `BranchWorkspace`: add `get_file_bytes(filepath)` so UI doesn't reach\\n      into `vfs.base_vfs` directly (ownership rule \\u2014 ask the owner).\\n- [ ] New `ImageViewerWidget` (QLabel/QPixmap, minimal zoom/fit-to-window).\\n- [ ] `branch_tab_widget.py` `open_file()`: extend the existing `.md` \\u2192\\n      `MarkdownPreviewWidget` dispatch pattern with an image-extension branch\\n      that creates `ImageViewerWidget` instead of `EditorWidget` (no text\\n      editor needed for binary images).\\n- [ ] Update `_find_tab_index()` and `_on_tab_close_requested()` for the new\\n      wrapper type, same as the markdown wrapper is handled.\\n\\n## 4. Tools/model embed repo images in chat output (for the user)\\n\\nThis is purely a rendering concern for the human reading the chat. It is\\n**independent of `vision_enabled`** and does **not** put anything in the\\nmodel's context \\u2014 if the model wants to see the image it embedded, it must\\nalso `update_context` it (\\u00a71), same as any other file.\\n\\n- [ ] Model/tool writes normal markdown `![alt](path.png)` referring to a\\n      repo file, exactly as it would reference any other file by path.\\n- [ ] At **message-finalization time** (when the assistant turn is finalized\\n      in `live_session.py`, not at render time), scan the message text for\\n      image references that resolve to an existing VFS file. For each one\\n      found:\\n      - [ ] Read full-quality bytes, hash them (sha256).\\n      - [ ] Write them to a stable, content-addressed path under\\n            `.forge/images/<sha256>.<ext>` via a normal VFS binary write (this\\n            commits/versions like any other file \\u2014 no separate blob store).\\n      - [ ] Rewrite the markdown reference in place to point at\\n            `.forge/images/<sha256>.<ext>` instead of the original path. This\\n            makes the rendered chat immune to the original file later being\\n            edited or deleted \\u2014 the `.forge/images/` copy is the permanent\\n            record for that message.\\n  - [ ] If the path doesn't resolve to an existing image file, leave the\\n        markdown text untouched (no fallback guessing).\\n- [ ] `render_markdown()` in `tool_rendering.py`: needs no new logic beyond\\n      resolving `.forge/images/...` paths to actual bytes for the `<img>` tag\\n      (e.g. a `file://`-style or data-URL rendering of the VFS path at render\\n      time \\u2014 check how the chat view currently resolves any relative URLs, if\\n      at all).\\n\\n## Phasing\\n\\n1. Settings toggle + VFS binary read/write + `ToolContext` bytes methods.\\n2. Core vision: Pillow thumbnailing, `IMAGE_CONTENT` block, multimodal\\n   `to_messages()`, `update_context` image support.\\n3. Compaction drop for image blocks.\\n4. Tab viewer.\\n5. Chat-output embedding (`.forge/images/` content-addressed store + markdown\\n   rewrite at finalization + render-time resolution).\\n\\n## Open questions\\n\\n- `.forge/images/` will accumulate forever (content-addressed, never\\n  cleaned up) since every embedded image creates a permanent file. Do we want\\n  any GC story, or is \\\"images are cheap and rare\\\" an acceptable answer for now?\\n- Pillow thumbnail parameters (max dimension, JPEG quality) \\u2014 need a concrete\\n  starting point, e.g. max 512px longest side, quality 50.\\n- Should refusing `update_context` on an image when `vision_enabled=False`\\n  surface as a tool error to the model, or should the image simply be silently\\n  excluded from context stats/prompt (still shown in file explorer)? Leaning\\n  towards explicit error \\u2014 matches \\\"No fallbacks\\\" principle.\\n\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01147MsEiPjmuEU6owCDmYnK",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"IMAGE_TODO.md\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The document now fully reflects the locked-in design end to end:\n\n- **Key simplification**: images to the model are *always* `detail: \"low\"` (~85-96 tokens) \u2014 no recency tiers, no degradation-over-time bookkeeping.\n- **Single visibility rule**: the model only ever sees an image by having it in `active_files`, exactly like any other file. A tool that generates an image and wants the model aware of it must explicitly `update_context` it itself \u2014 no auto-attach magic.\n- **Output embedding (\u00a74) is fully decoupled from model visibility**: purely for the human, gated by nothing (not even `vision_enabled`), implemented via a content-addressed `.forge/images/<sha256>.<ext>` store that the markdown gets rewritten to point at during finalization \u2014 immune to the source file later changing.\n- **Pillow** is now a committed dependency, used only to produce the small low-detail thumbnail once at attach-time.\n- Compaction (\u00a72), tab viewing (\u00a73, always full quality, unrelated to the model-facing thumbnail), and phasing/open-questions are all updated to match.\n\nThe two open questions left are genuinely open (whether `.forge/images/` needs GC, and exact thumbnail params) \u2014 worth a quick decision before implementation but not blocking further planning.\n\nGiven the context is getting large (64k, mostly conversation history from the design discussion), want me to `compact` the earlier back-and-forth now that it's settled into the TODO doc, or go ahead and start implementing phase 1 (settings toggle + VFS binary read/write + `ToolContext` bytes methods)?"
     }
   ],
   "messages": [],

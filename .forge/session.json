@@ -1,11 +1,7 @@
 {
   "active_files": [
-    "forge/llm/client.py",
     "CLAUDE.md",
-    "forge/vfs/work_in_progress.py",
     "IMAGE_TODO.md",
-    "forge/vfs/binary.py",
-    "forge/config/settings.py",
     "forge/session/manager.py"
   ],
   "request_log_entries": [
@@ -251,6 +247,69 @@
       "streaming": true,
       "actual_cost": 0.0688439,
       "generation_id": "gen-1782988426-sDZf3Dl6d8YGATQZzWWt"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_1782988436450.json",
+      "response_file": "/tmp/forge_debug/response_1782988436450.json",
+      "timestamp": 1782988436.461184,
+      "model": "~anthropic/claude-haiku-latest",
+      "streaming": false,
+      "actual_cost": 0.000223,
+      "generation_id": "gen-1782988436-cI6UbgBUYdCKWNOr6Bpe"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988617574.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988617574.json",
+      "timestamp": 1782988617.5762997,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.1063244,
+      "generation_id": "gen-1782988617-B21yzPRlH4dxmyOx84kX"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988682673.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988682673.json",
+      "timestamp": 1782988682.6972766,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.1175159,
+      "generation_id": "gen-1782988683-20E0lUCHQSKsE5adJtaD"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988728100.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988728100.json",
+      "timestamp": 1782988728.101939,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.143788,
+      "generation_id": "gen-1782988728-GtGjxVa1bUdQQhWiGDQP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988814998.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988814998.json",
+      "timestamp": 1782988815.0001533,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.0230244,
+      "generation_id": "gen-1782988815-7ntrmagGnyiZb2gk4B0N"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988817954.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988817954.json",
+      "timestamp": 1782988817.9684193,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.028012,
+      "generation_id": "gen-1782988818-fLvtNNw5hJ3ZPziY5EUl"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1782988825588.json",
+      "response_file": "/tmp/forge_debug/response_stream_1782988825588.json",
+      "timestamp": 1782988825.6116471,
+      "model": "~anthropic/claude-sonnet-latest",
+      "streaming": true,
+      "actual_cost": 0.0522964,
+      "generation_id": "gen-1782988825-zzlQZYUHEwRnBEwclBxl"
     }
   ],
   "messages": [
@@ -583,6 +642,131 @@
     {
       "role": "assistant",
       "content": "The document now fully reflects the locked-in design end to end:\n\n- **Key simplification**: images to the model are *always* `detail: \"low\"` (~85-96 tokens) \u2014 no recency tiers, no degradation-over-time bookkeeping.\n- **Single visibility rule**: the model only ever sees an image by having it in `active_files`, exactly like any other file. A tool that generates an image and wants the model aware of it must explicitly `update_context` it itself \u2014 no auto-attach magic.\n- **Output embedding (\u00a74) is fully decoupled from model visibility**: purely for the human, gated by nothing (not even `vision_enabled`), implemented via a content-addressed `.forge/images/<sha256>.<ext>` store that the markdown gets rewritten to point at during finalization \u2014 immune to the source file later changing.\n- **Pillow** is now a committed dependency, used only to produce the small low-detail thumbnail once at attach-time.\n- Compaction (\u00a72), tab viewing (\u00a73, always full quality, unrelated to the model-facing thumbnail), and phasing/open-questions are all updated to match.\n\nThe two open questions left are genuinely open (whether `.forge/images/` needs GC, and exact thumbnail params) \u2014 worth a quick decision before implementation but not blocking further planning.\n\nGiven the context is getting large (64k, mostly conversation history from the design discussion), want me to `compact` the earlier back-and-forth now that it's settled into the TODO doc, or go ahead and start implementing phase 1 (settings toggle + VFS binary read/write + `ToolContext` bytes methods)?"
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 861f1562",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "ah, tiny bit of talking past each other: if an image is added to the context via context tool call, it's always full quality and stays full quality, because the model can drop it from context at will to make space. we use pillow to downgrade... images for submitting to the api because otherwise we can easily push out 10MB per request. ie. the \"always low\" context history images are degraded when stored (stored as both .png and .low.jpg, user sees .png, model sees .low.jpg \"low\") to keep the http submission under control. images tracked in the context mechanism are always current, and submitted at full quality- so they can come from the regular vfs by path. these are almost two entirely separate mechanisms."
+    },
+    {
+      "role": "assistant",
+      "content": "You're right, I conflated two mechanisms that should stay separate. Let me restate to make sure I've got it now:\n\n- **Context mechanism** (explicit `update_context`/`add_active_file` on an image): behaves exactly like any other active file \u2014 **full quality, live** (re-read from VFS whenever the file changes, same tombstone-and-move-to-end as `FILE_CONTENT`), no permanent degraded copy. The model controls the cost by dropping it from context when it doesn't need it anymore. No Pillow involved here at all.\n- **Output-embedding mechanism** (\u00a74, model/tool embeds an image in chat output for the user): this becomes a **permanent** part of conversation history (replayed on every future request forever), so *that's* where the 10MB-per-request risk actually lives. Fix: store two variants at embed time \u2014 `.forge/images/<hash>.png` (full quality, what the user sees in rendered chat) and `.forge/images/<hash>.low.jpg` (Pillow-downscaled, ~90 tokens, what actually gets baked into the replayed history as the model's copy).\n\nThese really are separate systems with separate lifetimes \u2014 I'll rewrite the doc to stop merging them.",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01Dzg7Z23V48NrvKbugvsJaw",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"IMAGE_TODO.md\", \"4_content\": \"# Image Support TODO\\n\\nGoal: let the model see repo images, view them in tabs, and let tools/model\\nembed repo images in output for the *user*. All model-facing behavior is\\ngated by a settings toggle for models without vision support.\\n\\n## Two entirely separate mechanisms \\u2014 don't conflate them\\n\\n1. **Context mechanism** (\\u00a71): a human or a tool explicitly adds an image file\\n   to `active_files`, exactly like a text file. **Always full quality, always\\n   current.** No permanent record, no degradation \\u2014 cost is controlled the\\n   same way it is for any large file: the model (or user) removes it from\\n   context when it's no longer needed. No Pillow involved.\\n2. **Output embedding** (\\u00a74): the model/tool references a repo image in its\\n   own chat output, for the *user's* benefit. This reference becomes a\\n   **permanent** part of conversation history (replayed into every future API\\n   request forever), so unlike \\u00a71 it cannot be full quality without eventually\\n   bloating every request. Fix: store two variants at embed time, one full\\n   quality for the user's rendered view, one Pillow-degraded for what actually\\n   gets replayed to the model.\\n\\nDon't reuse one code path for both \\u2014 they have opposite quality/lifetime\\ntradeoffs.\\n\\n## Settings\\n\\n- [ ] Add `llm.vision_enabled` to `Settings.DEFAULT_SETTINGS` (default `False`).\\n- [ ] Expose toggle in `settings_dialog.py`.\\n- [ ] Single gate point: `update_context`/`add_active_file`, when the file is\\n      an image \\u2014 if `vision_enabled` is off, adding an image file to context\\n      should fail/refuse clearly (no silent no-op) rather than pretend to\\n      succeed. Tab viewing (\\u00a73) and output embedding (\\u00a74) are unaffected by\\n      this flag \\u2014 that's for the human, not the model.\\n\\n## 1. Context mechanism: model sees a repo image (full quality, live)\\n\\n- [ ] VFS: add a binary write/read path so tools can produce/read images as\\n      pending files. `WorkInProgressVFS.pending_changes` is currently\\n      `dict[str, str]` (text only) \\u2014 add a parallel bytes-based path (e.g.\\n      `write_bytes`/`read_bytes`) rather than overloading `write_file`.\\n      Check `ForgeRepository.create_tree_from_changes` \\u2014 confirm/extend it to\\n      accept binary blobs alongside the text changes dict when committing.\\n- [ ] `ToolContext` (`forge/tools/context.py`): expose `write_bytes`/`read_bytes`\\n      so a custom tool can generate an image file directly.\\n- [ ] `update_context`/`add_active_file` path: today `_should_summarize` /\\n      `BINARY_EXTENSIONS` filters images out entirely. Add an image-aware\\n      branch: if the file is an image extension and `vision_enabled`, read\\n      **full-quality** bytes, base64-encode directly (no Pillow, no\\n      resizing), and add it as a live block (see below). If `vision_enabled`\\n      is off, refuse with a clear error.\\n- [ ] Prompt manager (`forge/prompts/manager.py`):\\n  - [ ] New `BlockType.IMAGE_CONTENT` whose `content` is the current\\n        full-quality base64 data URL.\\n  - [ ] `append_image_content()` / `remove_image_content()` \\u2014 mirrors\\n        `append_file_content()`/`remove_file_content()`'s tombstone-and-\\n        move-to-end semantics exactly. `file_was_modified()`-equivalent:\\n        if an image file in context changes on disk, refresh the block the\\n        same way a text file's content is refreshed.\\n  - [ ] `to_messages()`: emit multimodal content (`content: [{\\\"type\\\": \\\"text\\\",\\n        ...}, {\\\"type\\\": \\\"image_url\\\", \\\"image_url\\\": {\\\"url\\\": ...}}]`, no\\n        `detail` override \\u2014 let the API default (`auto`) apply, since these\\n        are meant to be inspected at full fidelity) for any message\\n        containing an image block.\\n  - [ ] Token estimation (`_estimate_tokens` is char-based) doesn't apply to\\n        images \\u2014 use a rough fixed estimate (e.g. ~1500 tokens) for mood bar\\n        purposes; real cost depends on resolution and we don't need to be\\n        exact.\\n- [ ] `LLMClient`: no changes expected \\u2014 payload already passes `messages`\\n      through untouched, so multimodal content blocks should pass through\\n      fine as long as `PromptManager` builds them correctly. Verify OpenRouter\\n      accepts the standard OpenAI vision shape for the configured model.\\n- [ ] Removing an image from context (`remove_active_file`) tombstones its\\n      block exactly like removing a text file.\\n\\n## 2. Compaction\\n\\n- [ ] Context-mechanism images (\\u00a71) are **not** touched by `compact_messages`\\n      \\u2014 they're removed the same way any active file is removed\\n      (`remove_active_file`), independent of message-range compaction.\\n- [ ] Output-embedded images (\\u00a74) that live inside a compacted\\n      assistant-message range are dropped along with the rest of that\\n      message's content when it's compacted.\\n\\n## 3. View an image in a tab\\n\\nAlways full quality \\u2014 this is pure UI, unrelated to either mechanism above.\\n\\n- [ ] `BranchWorkspace`: add `get_file_bytes(filepath)` so UI doesn't reach\\n      into `vfs.base_vfs` directly (ownership rule \\u2014 ask the owner).\\n- [ ] New `ImageViewerWidget` (QLabel/QPixmap, minimal zoom/fit-to-window).\\n- [ ] `branch_tab_widget.py` `open_file()`: extend the existing `.md` \\u2192\\n      `MarkdownPreviewWidget` dispatch pattern with an image-extension branch\\n      that creates `ImageViewerWidget` instead of `EditorWidget` (no text\\n      editor needed for binary images).\\n- [ ] Update `_find_tab_index()` and `_on_tab_close_requested()` for the new\\n      wrapper type, same as the markdown wrapper is handled.\\n\\n## 4. Output embedding: tools/model embed a repo image in chat output\\n\\nThis becomes a **permanent** part of conversation history, replayed into\\nevery future request. It is independent of `vision_enabled` for the\\nuser-facing half (rendering for the human always works), but the\\nmodel-facing half (what gets replayed to the LLM) is exactly the kind of\\nvision content that flag governs.\\n\\n- [ ] Model/tool writes normal markdown `![alt](path.png)` referring to a\\n      repo file, exactly as it would reference any other file by path.\\n- [ ] At **message-finalization time** (when the assistant turn is finalized\\n      in `live_session.py`, not at render time), scan the message text for\\n      image references that resolve to an existing VFS file. For each one\\n      found:\\n      - [ ] Read full-quality bytes, hash them (sha256).\\n      - [ ] Write `.forge/images/<sha256>.<ext>` (full quality, original\\n            format) via a normal VFS binary write \\u2014 this is what the user's\\n            rendered chat displays, and it commits/versions like any file.\\n      - [ ] Use Pillow to produce a downscaled/recompressed\\n            `.forge/images/<sha256>.low.jpg` \\u2014 this is the copy that gets\\n            embedded as base64 into the `IMAGE_CONTENT` block that's actually\\n            stored in session history and replayed to the model on every\\n            future request. Keeping this one small is the whole point: it's\\n            paid for on every single subsequent request, forever.\\n      - [ ] Rewrite the markdown reference in place to point at\\n            `.forge/images/<sha256>.<ext>` (the full-quality one) instead of\\n            the original path, so the user-facing rendering survives the\\n            source file later being edited or deleted.\\n  - [ ] If the path doesn't resolve to an existing image file, leave the\\n        markdown text untouched (no fallback guessing).\\n- [ ] `render_markdown()` in `tool_rendering.py`: resolves `.forge/images/...`\\n      paths to actual bytes for the `<img>` tag the user sees (always the\\n      full-quality file, never the `.low.jpg`).\\n- [ ] Add `Pillow` to project dependencies (`pyproject.toml`) \\u2014 only needed\\n      for this section.\\n\\n## Phasing\\n\\n1. Settings toggle + VFS binary read/write + `ToolContext` bytes methods.\\n2. Context mechanism (\\u00a71): `IMAGE_CONTENT` block, multimodal `to_messages()`,\\n   `update_context` image support \\u2014 full quality, live.\\n3. Tab viewer (\\u00a73).\\n4. Output embedding (\\u00a74): Pillow dependency, `.forge/images/` dual-storage,\\n   markdown rewrite at finalization, compaction interaction (\\u00a72).\\n\\n## Open questions\\n\\n- `.forge/images/` will accumulate forever (content-addressed, never\\n  cleaned up) since every embedded image creates a permanent pair of files.\\n  Do we want any GC story, or is \\\"images are cheap and rare\\\" acceptable?\\n- Pillow thumbnail parameters for the `.low.jpg` variant (max dimension, JPEG\\n  quality) \\u2014 need a concrete starting point, e.g. max 512px longest side,\\n  quality 50.\\n- Should refusing `update_context` on an image when `vision_enabled=False`\\n  surface as a tool error to the model, or should the image simply be silently\\n  excluded from context stats/prompt (still shown in file explorer)? Leaning\\n  towards explicit error \\u2014 matches \\\"No fallbacks\\\" principle.\\n- For \\u00a71 (context mechanism), do we need a max total image bytes/count guard\\n  per request, independent of the token-budget logic used for summaries, so a\\n  handful of large full-quality images can't silently blow past request size\\n  limits?\\n\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01Dzg7Z23V48NrvKbugvsJaw",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"IMAGE_TODO.md\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The edit already applied correctly matches your clarification \u2014 confirmed by the tool output above. To restate what's now locked in `IMAGE_TODO.md`:\n\n- **\u00a71 Context mechanism**: full quality, always current, sourced live from the VFS (re-read on each context add/update) \u2014 no permanent snapshot, no Pillow. Cost is bounded by the model choosing what stays in context.\n- **\u00a74 Output embedding**: the only place Pillow enters. Stores both `.forge/images/<hash>.png` (full quality, what the user's rendered chat shows) and `.forge/images/<hash>.low.jpg` (Pillow-downscaled, what actually gets base64'd into the permanent `IMAGE_CONTENT` block replayed to the model forever).\n\nThese are correctly separated in the doc now, with no shared code path between them. Good catch on the earlier conflation \u2014 the doc is in a solid, unambiguous state to implement from.\n\nSince context is quite large now (68k tokens, mostly conversation from the design discussion) and the design is fully captured in the file itself, let me trim things down before we go further.",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_017RzkoFCEKZCkuG5KuBKYUV",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"2_remove\": [\"forge/llm/client.py\", \"forge/vfs/binary.py\", \"forge/vfs/work_in_progress.py\", \"forge/config/settings.py\"]}"
+          }
+        },
+        {
+          "id": "toolu_vrtx_01VdcCW93dRYYwDLCEbgt8yV",
+          "type": "function",
+          "function": {
+            "name": "compact",
+            "arguments": "{\"1_from_id\": \"1\", \"2_to_id\": \"20\", \"3_summary\": \"User asked for an evaluation of adding image support (model vision, degrade-over-time, compaction dropping images, tab viewing, model-embedded output images pinned to a commit, settings toggle). Assistant surveyed the codebase (LLM client, VFS, prompt manager, settings, chat/tab UI) and wrote an initial IMAGE_TODO.md plan.\\n\\nThrough iterative correction from the user, the design evolved to its final form (now fully written in IMAGE_TODO.md, created/edited at repo root):\\n\\n1. Degradation is just the vision API's `detail` field, not pixel-level resizing (initial correction, later refined further).\\n2. Two separate mechanisms, not one:\\n   - **Context mechanism** (\u00a71 in the doc): explicit `update_context`/`add_active_file` on an image works exactly like any other file \u2014 always full quality, always current (read live from VFS), no permanent record. No Pillow. The model controls cost by dropping it from context when done. Tools that generate an image and want the model aware of it must explicitly add it to context themselves \u2014 no auto-attach.\\n   - **Output embedding** (\u00a74 in the doc): when the model/tool references a repo image via markdown in its own output (for the *user's* benefit, unrelated to model vision/`vision_enabled`), this becomes a **permanent** part of history replayed forever. At message-finalization time (in `live_session.py`), the doc specifies: hash the image bytes (sha256), write both `.forge/images/<hash>.png` (full quality, committed VFS file, what the user's rendered chat shows) and `.forge/images/<hash>.low.jpg` (Pillow-downscaled/recompressed, what gets base64-embedded into the permanent `IMAGE_CONTENT` block replayed to the model on every future request), and rewrite the markdown reference to point at the full-quality `.forge/images/` path.\\n3. Settings: new `llm.vision_enabled` toggle (default False) gates only the context-mechanism (\u00a71) image reads for the model; tab viewing and output embedding are unaffected by it.\\n4. Compaction (\u00a72): context-mechanism images are removed via normal `remove_active_file`, not compaction; output-embedded images inside a compacted message range are dropped with the rest of that message.\\n5. Tab viewer (\u00a73): new `ImageViewerWidget`, dispatched in `branch_tab_widget.py`'s `open_file()` the same way `.md` gets wrapped by `MarkdownPreviewWidget` today; needs `BranchWorkspace.get_file_bytes()`, and updates to `_find_tab_index()`/`_on_tab_close_requested()`.\\n6. Pillow added as a new dependency, used only for the \u00a74 `.low.jpg` thumbnail.\\n7. Phasing order in the doc: (1) settings toggle + VFS binary read/write + `ToolContext` bytes methods, (2) context mechanism (\u00a71), (3) tab viewer (\u00a73), (4) output embedding (\u00a74, includes Pillow + compaction interaction).\\n8. Open questions left in the doc: `.forge/images/` GC story (or accept unbounded growth), concrete Pillow thumbnail params (proposed: max 512px side, JPEG quality 50), whether refusing an image context-add with `vision_enabled=False` should be a hard tool error (leaning yes, per \\\"no fallbacks\\\" principle), and whether \u00a71 needs a max image bytes/count guard per request.\\n\\nIMAGE_TODO.md at repo root now contains the complete, current, correct plan reflecting all of the above \u2014 it is the source of truth going forward. No code has been implemented yet; only the planning doc has been written.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_017RzkoFCEKZCkuG5KuBKYUV",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/llm/client.py\", \"forge/vfs/binary.py\", \"forge/vfs/work_in_progress.py\", \"forge/config/settings.py\"], \"message\": \"Added 0 files, removed 4 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01VdcCW93dRYYwDLCEbgt8yV",
+      "content": "{\"success\": true, \"compact\": true, \"from_id\": \"1\", \"to_id\": \"20\", \"summary\": \"User asked for an evaluation of adding image support (model vision, degrade-over-time, compaction dropping images, tab viewing, model-embedded output images pinned to a commit, settings toggle). Assistant surveyed the codebase (LLM client, VFS, prompt manager, settings, chat/tab UI) and wrote an initial IMAGE_TODO.md plan.\\n\\nThrough iterative correction from the user, the design evolved to its final form (now fully written in IMAGE_TODO.md, created/edited at repo root):\\n\\n1. Degradation is just the vision API's `detail` field, not pixel-level resizing (initial correction, later refined further).\\n2. Two separate mechanisms, not one:\\n   - **Context mechanism** (\\u00a71 in the doc): explicit `update_context`/`add_active_file` on an image works exactly like any other file \\u2014 always full quality, always current (read live from VFS), no permanent record. No Pillow. The model controls cost by dropping it from context when done. Tools that generate an image and want the model aware of it must explicitly add it to context themselves \\u2014 no auto-attach.\\n   - **Output embedding** (\\u00a74 in the doc): when the model/tool references a repo image via markdown in its own output (for the *user's* benefit, unrelated to model vision/`vision_enabled`), this becomes a **permanent** part of history replayed forever. At message-finalization time (in `live_session.py`), the doc specifies: hash the image bytes (sha256), write both `.forge/images/<hash>.png` (full quality, committed VFS file, what the user's rendered chat shows) and `.forge/images/<hash>.low.jpg` (Pillow-downscaled/recompressed, what gets base64-embedded into the permanent `IMAGE_CONTENT` block replayed to the model on every future request), and rewrite the markdown reference to point at the full-quality `.forge/images/` path.\\n3. Settings: new `llm.vision_enabled` toggle (default False) gates only the context-mechanism (\\u00a71) image reads for the model; tab viewing and output embedding are unaffected by it.\\n4. Compaction (\\u00a72): context-mechanism images are removed via normal `remove_active_file`, not compaction; output-embedded images inside a compacted message range are dropped with the rest of that message.\\n5. Tab viewer (\\u00a73): new `ImageViewerWidget`, dispatched in `branch_tab_widget.py`'s `open_file()` the same way `.md` gets wrapped by `MarkdownPreviewWidget` today; needs `BranchWorkspace.get_file_bytes()`, and updates to `_find_tab_index()`/`_on_tab_close_requested()`.\\n6. Pillow added as a new dependency, used only for the \\u00a74 `.low.jpg` thumbnail.\\n7. Phasing order in the doc: (1) settings toggle + VFS binary read/write + `ToolContext` bytes methods, (2) context mechanism (\\u00a71), (3) tab viewer (\\u00a73), (4) output embedding (\\u00a74, includes Pillow + compaction interaction).\\n8. Open questions left in the doc: `.forge/images/` GC story (or accept unbounded growth), concrete Pillow thumbnail params (proposed: max 512px side, JPEG quality 50), whether refusing an image context-add with `vision_enabled=False` should be a hard tool error (leaning yes, per \\\"no fallbacks\\\" principle), and whether \\u00a71 needs a max image bytes/count guard per request.\\n\\nIMAGE_TODO.md at repo root now contains the complete, current, correct plan reflecting all of the above \\u2014 it is the source of truth going forward. No code has been implemented yet; only the planning doc has been written.\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "The `IMAGE_TODO.md` doc is complete, correct, and committed with the clarified two-mechanism design (full-quality live context vs. Pillow-degraded permanent embedding). Context has been trimmed \u2014 no further action needed unless you want to start implementation on one of the phases."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 5cdb714b",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "let me answer some of the open questions:\n- .forge/images is cleaned up by \"clear session\". it's a normal part of the session. they live in the git history anyway.\n- your starting point seems sensible. let's say 512 longest, quality 70? 50 is a bit pushing it.\n- update_context with an image when vision is off is a tool error, yes.\n- no guard. images aren't *that* big. we have some very chonky files. the model can handle it."
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01QhDp1FXSS9q3Wy4HDB1NpB",
+          "type": "function",
+          "function": {
+            "name": "update_context",
+            "arguments": "{\"1_add\": [\"IMAGE_TODO.md\"]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01QhDp1FXSS9q3Wy4HDB1NpB",
+      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"IMAGE_TODO.md\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Updating the doc's open questions with your resolutions:",
+      "tool_calls": [
+        {
+          "id": "toolu_vrtx_01D1NNPHtriz5zzmjU2tyA8G",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"IMAGE_TODO.md\", \"2_search\": \"## Open questions\\n\\n- `.forge/images/` will accumulate forever (content-addressed, never\\n  cleaned up) since every embedded image creates a permanent pair of files.\\n  Do we want any GC story, or is \\\"images are cheap and rare\\\" acceptable?\\n- Pillow thumbnail parameters for the `.low.jpg` variant (max dimension, JPEG\\n  quality) \u2014 need a concrete starting point, e.g. max 512px longest side,\\n  quality 50.\\n- Should refusing `update_context` on an image when `vision_enabled=False`\\n  surface as a tool error to the model, or should the image simply be silently\\n  excluded from context stats/prompt (still shown in file explorer)? Leaning\\n  towards explicit error \u2014 matches \\\"No fallbacks\\\" principle.\\n- For \u00a71 (context mechanism), do we need a max total image bytes/count guard\\n  per request, independent of the token-budget logic used for summaries, so a\\n  handful of large full-quality images can't silently blow past request size\\n  limits?\", \"3_replace\": \"## Resolved decisions\\n\\n- **`.forge/images/` cleanup**: no GC needed. It's cleaned up by \\\"clear\\n  session\\\" like the rest of session-local state, and the files remain\\n  recoverable from git history regardless.\\n- **Pillow thumbnail params**: max 512px longest side, JPEG quality 70.\\n- **`vision_enabled=False` + image `update_context`**: hard tool error (not a\\n  silent skip). Matches \\\"No fallbacks\\\".\\n- **No per-request image size/count guard.** Images aren't unusually large\\n  compared to the chonkiest text files we already allow into context; no\\n  special-casing needed.\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_vrtx_01D1NNPHtriz5zzmjU2tyA8G",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"IMAGE_TODO.md\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All four open questions are now resolved and recorded in `IMAGE_TODO.md`'s \"Resolved decisions\" section:\n\n- `.forge/images/` cleanup happens via \"clear session\" (no separate GC) \u2014 recoverable via git history anyway.\n- Pillow thumbnail: 512px longest side, quality 70 (nudged up from my initial 50 suggestion per your call).\n- `vision_enabled=False` + image `update_context` \u2192 hard tool error, consistent with \"no fallbacks.\"\n- No per-request image size/count guard \u2014 images aren't unusual compared to already-tolerated large text files.\n\nThe doc no longer has any open questions \u2014 it's a complete, implementation-ready plan. No code has been written yet; this was purely the design phase. Let me know when you want to start on Phase 1 (settings toggle + VFS binary read/write + `ToolContext` bytes methods)."
     }
   ],
   "messages": [],

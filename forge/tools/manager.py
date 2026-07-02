@@ -584,15 +584,25 @@ class ToolManager:
                 # Handle add/remove in one operation
                 add_files = result.get("add", [])
                 remove_files = result.get("remove", [])
-                # Batch the add/remove into a single persist + signal emission.
+                # Batch the add/remove into a single signal emission.
                 # Doing it per-file cost ~1s each (a git commit per file).
+                #
+                # persist=False: we're inside the claimed-VFS tool batch. An
+                # immediate session-file commit here would sweep up the batch's
+                # OTHER pending changes (e.g. a preceding edit), clear them, and
+                # swap the VFS out from under execute_tool_calls - breaking a
+                # following commit tool ("No pending changes") and mislabelling
+                # the edit. active_files is in memory; commit_ai_turn() persists
+                # it at end of turn. (UI callers keep the default persist=True.)
                 #
                 # update_active_files can raise (e.g. adding an image to context
                 # while vision is disabled - a deliberate hard error, see
                 # IMAGE_TODO.md). Translate that into a tool-error result the
                 # same way tool_module.execute() failures are translated above.
                 try:
-                    session_manager.update_active_files(add=add_files, remove=remove_files)
+                    session_manager.update_active_files(
+                        add=add_files, remove=remove_files, persist=False
+                    )
                 except Exception as e:
                     return {
                         "success": False,

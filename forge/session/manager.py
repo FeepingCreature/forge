@@ -349,14 +349,27 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         self.update_active_files(remove=[filepath])
 
     def update_active_files(
-        self, add: list[str] | None = None, remove: list[str] | None = None
+        self,
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+        persist: bool = True,
     ) -> None:
         """Add and/or remove multiple files from active context in one operation.
 
-        Persistence (a session-file commit + fresh VFS) and UI signals are done
-        exactly ONCE at the end regardless of how many files changed. Per-file
-        persistence used to cost ~1s each (a git commit per file); batching here
-        keeps a multi-file update_context call fast.
+        UI signals are emitted exactly ONCE at the end regardless of how many
+        files changed. Per-file signalling used to cost ~1s each (a git commit
+        per file); batching here keeps a multi-file update_context call fast.
+
+        persist controls the immediate session-file commit:
+        - True (UI callers): commit SESSION_FILE now so the selection survives
+          an app restart even when no AI turn runs.
+        - False (AI tool-call path): do NOT commit. The AI's update_context
+          runs inside a claimed-VFS tool batch; an immediate commit() would
+          sweep up the batch's OTHER pending changes (e.g. a preceding edit),
+          clear them, and swap the VFS out from under the executor - breaking
+          a following commit tool ("No pending changes") and mislabelling the
+          edit. active_files is already updated in memory; commit_ai_turn()
+          persists it at end of turn.
         """
         add = add or []
         remove = remove or []
@@ -393,8 +406,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         if not changed:
             return
 
-        # Persist once so the selection survives app restarts
-        self._save_active_files_to_session()
+        # Persist once so the selection survives app restarts (UI callers only;
+        # the AI tool-call path passes persist=False - see docstring).
+        if persist:
+            self._save_active_files_to_session()
 
         # Emit signals for UI updates (once)
         self.context_changed.emit(self.active_files.copy())
@@ -406,8 +421,10 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         This is a lightweight commit that only touches SESSION_FILE so that
         the user's context file selection survives application restarts even
-        when no AI turn has occurred.  We intentionally skip this when an AI
-        turn is in progress (the full commit_ai_turn() call handles it then).
+        when no AI turn has occurred. Only reached from UI callers
+        (add_active_file/remove_active_file); the AI tool-call path passes
+        persist=False to update_active_files so this is skipped mid-turn (the
+        end-of-turn commit_ai_turn() persists active_files then).
         """
         # Read current session data from the committed state so we don't
         # overwrite any fields we don't own (messages, metadata, …). A missing

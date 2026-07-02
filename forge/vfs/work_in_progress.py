@@ -39,6 +39,11 @@ class WorkInProgressVFS(VFS):
         # Pending changes: filepath -> new_content
         self.pending_changes: dict[str, str] = {}
 
+        # Pending binary changes: filepath -> raw bytes (images, etc.)
+        # Kept separate from pending_changes (text) rather than overloading
+        # it, since text and binary content have different encode paths.
+        self.pending_binary_changes: dict[str, bytes] = {}
+
         # Deleted files
         self.deleted_files: set[str] = set()
 
@@ -58,9 +63,35 @@ class WorkInProgressVFS(VFS):
         self._assert_owner()
         # Remove from deleted set if it was deleted
         self.deleted_files.discard(path)
+        # A path is either text or binary at a time, not both
+        self.pending_binary_changes.pop(path, None)
 
         # Add to pending changes
         self.pending_changes[path] = content
+
+    def read_file_bytes(self, path: str) -> bytes:
+        """Read file as raw bytes - checks pending changes first, then base commit"""
+        self._assert_owner()
+        if path in self.deleted_files:
+            raise FileNotFoundError(f"File deleted: {path}")
+
+        if path in self.pending_binary_changes:
+            return self.pending_binary_changes[path]
+
+        if path in self.pending_changes:
+            return self.pending_changes[path].encode("utf-8")
+
+        return self.base_vfs.read_file_bytes(path)
+
+    def write_file_bytes(self, path: str, content: bytes) -> None:
+        """Write raw bytes - accumulates in pending binary changes"""
+        self._assert_owner()
+        # Remove from deleted set if it was deleted
+        self.deleted_files.discard(path)
+        # A path is either text or binary at a time, not both
+        self.pending_changes.pop(path, None)
+
+        self.pending_binary_changes[path] = content
 
     def list_all_files(self) -> list[str]:
         """List all files - base files + new files - deleted files (including binary)"""
@@ -69,6 +100,7 @@ class WorkInProgressVFS(VFS):
 
         # Add new files from pending changes
         files.update(self.pending_changes.keys())
+        files.update(self.pending_binary_changes.keys())
 
         # Remove deleted files
         files -= self.deleted_files
@@ -81,7 +113,7 @@ class WorkInProgressVFS(VFS):
         if path in self.deleted_files:
             return False
 
-        if path in self.pending_changes:
+        if path in self.pending_changes or path in self.pending_binary_changes:
             return True
 
         return self.base_vfs.file_exists(path)
@@ -94,14 +126,20 @@ class WorkInProgressVFS(VFS):
 
         # Remove from pending changes if it was added this turn
         self.pending_changes.pop(path, None)
+        self.pending_binary_changes.pop(path, None)
 
         # Mark as deleted
         self.deleted_files.add(path)
 
     def get_pending_changes(self) -> dict[str, str]:
-        """Get all pending changes"""
+        """Get all pending text changes"""
         self._assert_owner()
         return self.pending_changes.copy()
+
+    def get_pending_binary_changes(self) -> dict[str, bytes]:
+        """Get all pending binary changes"""
+        self._assert_owner()
+        return self.pending_binary_changes.copy()
 
     def get_deleted_files(self) -> set[str]:
         """Get all deleted files"""
@@ -112,6 +150,7 @@ class WorkInProgressVFS(VFS):
         """Clear all pending changes (after commit)"""
         self._assert_owner()
         self.pending_changes.clear()
+        self.pending_binary_changes.clear()
         self.deleted_files.clear()
 
     def commit(
@@ -137,7 +176,7 @@ class WorkInProgressVFS(VFS):
             Commit OID as string
         """
         self._assert_owner()
-        if not self.pending_changes and not self.deleted_files:
+        if not self.pending_changes and not self.pending_binary_changes and not self.deleted_files:
             raise ValueError("No changes to commit")
 
         # Check if we're committing to the checked-out branch BEFORE making changes
@@ -146,11 +185,14 @@ class WorkInProgressVFS(VFS):
         is_checked_out_branch = checked_out == self.branch_name
         workdir_is_clean = self.repo.is_workdir_clean() if is_checked_out_branch else False
 
-        # Build changes dict for create_tree_from_changes
+        # Build changes dicts for create_tree_from_changes
         changes = self.pending_changes.copy()
+        binary_changes = self.pending_binary_changes.copy()
 
         # Create tree with changes and deletions
-        tree_oid = self.repo.create_tree_from_changes(self.branch_name, changes, self.deleted_files)
+        tree_oid = self.repo.create_tree_from_changes(
+            self.branch_name, changes, self.deleted_files, binary_changes
+        )
 
         # Create commit with type
         commit_oid = self.repo.commit_tree(
@@ -190,6 +232,8 @@ class WorkInProgressVFS(VFS):
             # Pending changes are text (from AI edits), write as UTF-8
             if filepath in self.pending_changes:
                 full_path.write_text(self.pending_changes[filepath], encoding="utf-8")
+            elif filepath in self.pending_binary_changes:
+                full_path.write_bytes(self.pending_binary_changes[filepath])
             else:
                 # Base commit files: copy raw bytes (preserves binary files)
                 # Check if it's a symlink first

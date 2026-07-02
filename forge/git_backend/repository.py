@@ -137,6 +137,7 @@ class ForgeRepository:
         base_branch: str,
         changes: dict[str, str],
         deletions: set[str] | None = None,
+        binary_changes: dict[str, bytes] | None = None,
     ) -> pygit2.Oid:
         """
         Create a new tree with changes applied to base branch.
@@ -146,8 +147,9 @@ class ForgeRepository:
 
         Args:
             base_branch: Branch name to use as base
-            changes: Dict of filepath -> new_content
+            changes: Dict of filepath -> new_content (text)
             deletions: Set of filepaths to delete
+            binary_changes: Dict of filepath -> new_content (raw bytes)
 
         Returns:
             OID of the new tree
@@ -160,6 +162,16 @@ class ForgeRepository:
         nested_changes: dict = {}
         for filepath, content in changes.items():
             blob_oid = self.repo.create_blob(content.encode("utf-8"))
+            parts = filepath.split("/")
+            current = nested_changes
+            for part in parts[:-1]:
+                if part not in current or not isinstance(current[part], dict):
+                    current[part] = {}
+                current = current[part]
+            current[parts[-1]] = blob_oid
+
+        for filepath, raw_content in (binary_changes or {}).items():
+            blob_oid = self.repo.create_blob(raw_content)
             parts = filepath.split("/")
             current = nested_changes
             for part in parts[:-1]:

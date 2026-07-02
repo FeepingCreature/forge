@@ -41,6 +41,10 @@ class GitCommitVFS(VFS):
         """Write operations not supported on read-only VFS"""
         raise NotImplementedError("GitCommitVFS is read-only")
 
+    def write_file_bytes(self, path: str, content: bytes) -> None:
+        """Write operations not supported on read-only VFS"""
+        raise NotImplementedError("GitCommitVFS is read-only")
+
     def list_all_files(self) -> list[str]:
         """List all files in the commit (including binary)"""
         files: list[str] = []

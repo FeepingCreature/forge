@@ -567,13 +567,19 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         # Get all changes including session file
         all_changes = self.tool_manager.get_pending_changes()
+        binary_changes = self.tool_manager.get_pending_binary_changes()
         deleted_files = self.tool_manager.vfs.get_deleted_files()
 
         # Determine commit type:
         # - MAJOR if real file changes
         # - FOLLOW_UP if only session changed AND we had a mid-turn commit (suffix to that commit)
         # - PREPARE if only session changed with no mid-turn commit (prefix to next commit)
-        has_real_changes = len(all_changes) > 1 or SESSION_FILE not in all_changes or deleted_files
+        has_real_changes = (
+            len(all_changes) > 1
+            or SESSION_FILE not in all_changes
+            or bool(binary_changes)
+            or deleted_files
+        )
         only_session_changed = not has_real_changes
 
         if only_session_changed and self._had_mid_turn_commit:
@@ -588,7 +594,9 @@ Think about what category this file is, then put ONLY the final bullets or "—"
             if only_session_changed:
                 commit_message = "conversation turn"
             else:
-                commit_message = self.generate_commit_message(all_changes)
+                # Binary paths aren't read for content, just listed by filename
+                changes_for_message = {**all_changes, **dict.fromkeys(binary_changes, "")}
+                commit_message = self.generate_commit_message(changes_for_message)
 
         # Commit via VFS - handles workdir sync automatically
         commit_oid = self.tool_manager.vfs.commit(commit_message, commit_type=commit_type)

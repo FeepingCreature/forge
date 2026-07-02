@@ -36,6 +36,11 @@ class Settings:
             # capability; it only controls the text-parsing path.
             "inline_tools_enabled": True,
             "prefix_tool_args": False,
+            # Gates the context mechanism (explicit add-to-context of an
+            # image file) for models without vision support. Does NOT gate
+            # tab viewing or output-embedded images - those are for the
+            # human, not the model.
+            "vision_enabled": False,
         },
         "editor": {
             "font_size": 10,
@@ -146,6 +151,14 @@ class Settings:
         """
         parallel: int = int(self.get("llm.parallel_summarization", 8))
         return max(1, parallel)  # At least 1
+
+    def get_vision_enabled(self) -> bool:
+        """Whether the model may have images added to its context.
+
+        Gates only the context mechanism (explicit add-to-context of an
+        image file). Tab viewing and output-embedded images are unaffected.
+        """
+        return bool(self.get("llm.vision_enabled", False))
 
     def get_summary_token_budget(self) -> int:
         """Get the token budget for file summaries.

@@ -218,6 +218,25 @@ class SettingsDialog(QDialog):
         prefix_info.setStyleSheet("color: #666; font-size: 10px;")
         layout.addRow("", prefix_info)
 
+        # Vision support (model sees images added to context)
+        self.vision_enabled_input = QCheckBox()
+        self.vision_enabled_input.setToolTip(
+            "When enabled, images can be added to the AI's context (via the file "
+            "explorer or update_context) and are sent to the model at full quality. "
+            "Only enable this for models that support vision. Does not affect "
+            "viewing images in tabs or images embedded in chat output for you."
+        )
+        layout.addRow("Enable vision (image context):", self.vision_enabled_input)
+
+        vision_info = QLabel(
+            "Required for the model to see images added to its context. Leave off "
+            "for models without vision support - adding an image to context will "
+            "then be refused with a clear error instead of silently failing."
+        )
+        vision_info.setWordWrap(True)
+        vision_info.setStyleSheet("color: #666; font-size: 10px;")
+        layout.addRow("", vision_info)
+
         # Connect click events using event filter or subclass approach
         self.model_input.installEventFilter(self)
 
@@ -582,6 +601,7 @@ class SettingsDialog(QDialog):
             self.settings.get("llm.inline_tools_enabled", True)
         )
         self.prefix_tool_args_input.setChecked(self.settings.get("llm.prefix_tool_args", False))
+        self.vision_enabled_input.setChecked(self.settings.get("llm.vision_enabled", False))
 
         # Editor settings
         self.font_size_input.setValue(self.settings.get("editor.font_size", 10))
@@ -607,6 +627,7 @@ class SettingsDialog(QDialog):
         self.settings.set("llm.require_done_tag", self.require_done_tag_input.isChecked())
         self.settings.set("llm.inline_tools_enabled", self.inline_tools_enabled_input.isChecked())
         self.settings.set("llm.prefix_tool_args", self.prefix_tool_args_input.isChecked())
+        self.settings.set("llm.vision_enabled", self.vision_enabled_input.isChecked())
         # Editor settings
         self.settings.set("editor.font_size", self.font_size_input.value())
         self.settings.set("editor.tab_width", self.tab_width_input.value())

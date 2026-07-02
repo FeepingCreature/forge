@@ -47,6 +47,14 @@ class ToolContext:
         """Write a file to the VFS."""
         self.vfs.write_file(path, content)
 
+    def read_bytes(self, path: str) -> bytes:
+        """Read a file from the VFS as raw bytes (for binary files like images)."""
+        return self.vfs.read_file_bytes(path)
+
+    def write_bytes(self, path: str, content: bytes) -> None:
+        """Write raw bytes to the VFS (for binary files like images)."""
+        self.vfs.write_file_bytes(path, content)
+
     def file_exists(self, path: str) -> bool:
         """Check if a file exists."""
         return self.vfs.file_exists(path)

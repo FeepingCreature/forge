@@ -599,8 +599,12 @@ class ToolManager:
         return self._skills.copy()
 
     def get_pending_changes(self) -> dict[str, str]:
-        """Get all pending changes from VFS"""
+        """Get all pending text changes from VFS"""
         return self.vfs.get_pending_changes()
+
+    def get_pending_binary_changes(self) -> dict[str, bytes]:
+        """Get all pending binary changes from VFS"""
+        return self.vfs.get_pending_binary_changes()
 
     def clear_pending_changes(self) -> None:
         """Clear pending changes in VFS"""

@@ -492,9 +492,7 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         if self.settings.get_vision_enabled():
             for img in embedded:
-                self.prompt_manager.append_image_content(
-                    img.full_path, img.data_url, embedded=True
-                )
+                self.prompt_manager.append_image_content(img.full_path, img.data_url, embedded=True)
 
         return rewritten
 

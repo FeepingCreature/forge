@@ -922,6 +922,25 @@ class LiveSession(QObject):
 
         self._finish_stream_processing(result)
 
+    def _embed_output_images(self, content: str) -> str:
+        """Embed repo images the assistant referenced in its finalized output.
+
+        Delegates to SessionManager.embed_output_images (which stores the
+        dual-quality copies and appends model-facing IMAGE_CONTENT blocks),
+        then updates the stored assistant message so the user-facing chat
+        renders the rewritten ``.forge/images/...`` paths. Returns the
+        rewritten content for appending to the prompt stream.
+
+        A no-op fast path (content unchanged) when there are no resolvable
+        image references, so ordinary text turns pay nothing.
+        """
+        if not content or "![" not in content:
+            return content
+        rewritten = self.session_manager.embed_output_images(content)
+        if rewritten != content:
+            self.update_last_assistant_message({"content": rewritten})
+        return rewritten
+
     def _on_inline_commands_error(self, error_msg: str) -> None:
         """Handle inline command execution error."""
         self._inline_handle = None
@@ -960,13 +979,15 @@ class LiveSession(QObject):
         """Finish processing stream result after inline commands."""
         # Record tool calls if present
         if result.get("tool_calls"):
-            self.session_manager.append_tool_call(result["tool_calls"], result.get("content") or "")
+            content = self._embed_output_images(result.get("content") or "")
+            self.session_manager.append_tool_call(result["tool_calls"], content)
             self._execute_tool_calls(result["tool_calls"])
             return
 
         # Final text response
         if result.get("content"):
-            self.session_manager.append_assistant_message(result["content"])
+            content = self._embed_output_images(result["content"])
+            self.session_manager.append_assistant_message(content)
 
         # Generate summaries for new files
         if self._newly_created_files:

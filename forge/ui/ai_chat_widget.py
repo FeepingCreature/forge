@@ -420,7 +420,7 @@ class AIChatWidget(QWidget):
         self.chat_view.setPage(custom_page)
 
         # Log JavaScript console messages to stdout for debugging
-        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message  # type: ignore[method-assign]
+        self.chat_view.page().javaScriptConsoleMessage = self._on_js_console_message
 
         # Set up web channel for JavaScript communication
         self.chat_view.page().setWebChannel(self.channel)

@@ -524,7 +524,7 @@ class MarkdownPreviewWidget(QWidget):
         # Preview web view
         self._web_view = QWebEngineView()
         self._web_page = _ExternalLinkPage(self._web_view)
-        self._web_page.javaScriptConsoleMessage = self._on_js_console  # type: ignore[method-assign,assignment]
+        self._web_page.javaScriptConsoleMessage = self._on_js_console
         self._web_view.setPage(self._web_page)
         self._stack.addWidget(self._web_view)
 

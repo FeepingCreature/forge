@@ -42,6 +42,11 @@ tradeoffs.
       accept binary blobs alongside the text changes dict when committing.
 - [ ] `ToolContext` (`forge/tools/context.py`): expose `write_bytes`/`read_bytes`
       so a custom tool can generate an image file directly.
+- [x] Repo images are surfaced to the model in the summaries block: when
+      `vision_enabled` is on, `generate_repo_summaries()` lists repo image
+      files (excluding `.forge/`) as bare paths under "Additional Files", so
+      the model can discover and `update_context` them despite images being
+      binary and thus absent from the summarizable file list.
 - [ ] `update_context`/`add_active_file` path: today `_should_summarize` /
       `BINARY_EXTENSIONS` filters images out entirely. Add an image-aware
       branch: if the file is an image extension and `vision_enabled`, read

@@ -22,6 +22,7 @@ class BlockType(Enum):
     SYSTEM = "system"
     SUMMARIES = "summaries"
     FILE_CONTENT = "file_content"
+    IMAGE_CONTENT = "image_content"
     USER_MESSAGE = "user_message"
     ASSISTANT_MESSAGE = "assistant_message"
     TOOL_CALL = "tool_call"
@@ -271,6 +272,68 @@ class PromptManager:
                 else:
                     print(f"   ↳ Found and deleted {filepath}")
 
+    def append_image_content(
+        self, filepath: str, data_url: str, tool_call_id: str | None = None
+    ) -> None:
+        """
+        Add a full-quality image to the stream, removing any previous version.
+
+        Mirrors append_file_content()'s tombstone-and-move-to-end semantics:
+        the old block (if any) is replaced with a tiny text tombstone and the
+        fresh image is appended at the end of the stream.
+
+        Args:
+            filepath: Path to the image file (used as the identity key)
+            data_url: A `data:<mime>;base64,<...>` URL with the full-quality bytes
+            tool_call_id: If this image was just (re)loaded by a tool, its ID
+        """
+        print(f"🖼️  PromptManager: Setting image content for {filepath}")
+
+        active_block_idx: int | None = next(
+            (
+                i
+                for i, block in enumerate(self.blocks)
+                if block.block_type == BlockType.IMAGE_CONTENT
+                and not block.deleted
+                and not block.metadata.get("tombstone")
+                and block.metadata.get("filepath") == filepath
+            ),
+            None,
+        )
+
+        if active_block_idx is None:
+            print("   ↳ New image, no existing blocks")
+        else:
+            block = self.blocks[active_block_idx]
+            block.content = (
+                f"[Image {filepath} was here. Its content has been moved to the end of context.]"
+            )
+            block.metadata["tombstone"] = True
+            print(f"   ↳ Tombstoned old {filepath}, will append new version at end")
+
+        self.blocks.append(
+            ContentBlock(
+                block_type=BlockType.IMAGE_CONTENT,
+                content=data_url,
+                metadata={"filepath": filepath, "tool_call_id": tool_call_id},
+            )
+        )
+
+    def remove_image_content(self, filepath: str) -> None:
+        """Remove an image's content from the stream (both active blocks and tombstones)."""
+        print(f"🗑️  PromptManager: Removing image content for {filepath}")
+        for block in self.blocks:
+            if (
+                block.block_type == BlockType.IMAGE_CONTENT
+                and block.metadata.get("filepath") == filepath
+                and not block.deleted
+            ):
+                block.deleted = True
+                if block.metadata.get("tombstone"):
+                    print(f"   ↳ Deleted tombstone for {filepath}")
+                else:
+                    print(f"   ↳ Found and deleted {filepath}")
+
     def _assign_message_id(self) -> str:
         """Assign the next user-friendly message ID"""
         msg_id = str(self._next_message_id)
@@ -492,6 +555,19 @@ class PromptManager:
                 files.append(block.metadata["filepath"])
         return files
 
+    def get_active_image_files(self) -> list[str]:
+        """Get list of images currently in context (not deleted)"""
+        files = []
+        for block in self.blocks:
+            if (
+                block.block_type == BlockType.IMAGE_CONTENT
+                and not block.deleted
+                and not block.metadata.get("tombstone")
+                and "filepath" in block.metadata
+            ):
+                files.append(block.metadata["filepath"])
+        return files
+
     def clear_conversation(self) -> None:
         """
         Clear all conversation blocks, keeping system prompt, summaries, and file content.
@@ -501,7 +577,12 @@ class PromptManager:
         print("🔄 PromptManager: Clearing conversation blocks")
 
         # Keep only non-conversation blocks
-        keep_types = {BlockType.SYSTEM, BlockType.SUMMARIES, BlockType.FILE_CONTENT}
+        keep_types = {
+            BlockType.SYSTEM,
+            BlockType.SUMMARIES,
+            BlockType.FILE_CONTENT,
+            BlockType.IMAGE_CONTENT,
+        }
         self.blocks = [b for b in self.blocks if b.block_type in keep_types]
 
         # Reset tool ID tracking
@@ -730,7 +811,12 @@ class PromptManager:
             if block.deleted:
                 continue
             # Skip file content and summaries - those are counted separately
-            if block.block_type in (BlockType.FILE_CONTENT, BlockType.SUMMARIES, BlockType.SYSTEM):
+            if block.block_type in (
+                BlockType.FILE_CONTENT,
+                BlockType.IMAGE_CONTENT,
+                BlockType.SUMMARIES,
+                BlockType.SYSTEM,
+            ):
                 continue
             # Estimate ~3 chars per token (more accurate for code)
             total += len(block.content) // 3
@@ -812,6 +898,29 @@ class PromptManager:
                             "name": f"File: {filepath}",
                             "type": "file",
                             "tokens": tokens,
+                            "details": filepath,
+                        }
+                    )
+
+            elif block.block_type == BlockType.IMAGE_CONTENT:
+                filepath = block.metadata.get("filepath", "unknown")
+                if block.metadata.get("tombstone"):
+                    segments.append(
+                        {
+                            "name": f"(moved: {filepath})",
+                            "type": "tool_result",
+                            "tokens": tokens,
+                            "details": f"{filepath} moved to end of context",
+                        }
+                    )
+                else:
+                    # Base64 length isn't a token-accurate proxy for image cost;
+                    # use a rough fixed estimate instead.
+                    segments.append(
+                        {
+                            "name": f"Image: {filepath}",
+                            "type": "file",
+                            "tokens": 1500,
                             "details": filepath,
                         }
                     )
@@ -923,6 +1032,13 @@ class PromptManager:
                     stats["conversation_tokens"] += tokens
                 else:
                     stats["files_tokens"] += tokens
+                    stats["file_count"] += 1
+            elif block.block_type == BlockType.IMAGE_CONTENT:
+                if block.metadata.get("tombstone"):
+                    stats["conversation_tokens"] += tokens
+                else:
+                    # Fixed rough estimate - base64 length isn't token-accurate
+                    stats["files_tokens"] += 1500
                     stats["file_count"] += 1
             elif block.block_type == BlockType.TOOL_CALL:
                 stats["conversation_tokens"] += tokens
@@ -1316,6 +1432,7 @@ assume a later step can see what you thought."""
             elif block.block_type in (
                 BlockType.SUMMARIES,
                 BlockType.FILE_CONTENT,
+                BlockType.IMAGE_CONTENT,
                 BlockType.USER_MESSAGE,
             ):
                 # Group ALL consecutive user-role content into a single message
@@ -1325,6 +1442,7 @@ assume a later step can see what you thought."""
                 while i < len(active_blocks) and active_blocks[i].block_type in (
                     BlockType.SUMMARIES,
                     BlockType.FILE_CONTENT,
+                    BlockType.IMAGE_CONTENT,
                     BlockType.USER_MESSAGE,
                 ):
                     # Add cache_control if this is the last content OR the last user message
@@ -1335,8 +1453,22 @@ assume a later step can see what you thought."""
                         active_blocks[i].block_type == BlockType.USER_MESSAGE
                         and i == last_user_message_idx
                     )
-                    # Inject message ID for user messages so they're visible for compaction
                     current_block = active_blocks[i]
+
+                    # Live (non-tombstoned) images become multimodal image_url blocks.
+                    # Tombstoned images are just text placeholders, same as tombstoned files.
+                    if current_block.block_type == BlockType.IMAGE_CONTENT and not (
+                        current_block.metadata.get("tombstone")
+                    ):
+                        content_blocks.append(
+                            self._make_image_content_block(
+                                current_block.content, is_this_last or is_turn_boundary
+                            )
+                        )
+                        i += 1
+                        continue
+
+                    # Inject message ID for user messages so they're visible for compaction
                     content = current_block.content
                     if current_block.block_type == BlockType.USER_MESSAGE:
                         msg_id = current_block.metadata.get("message_id")
@@ -1391,6 +1523,17 @@ assume a later step can see what you thought."""
     def _make_content_block(self, text: str, is_last: bool) -> dict[str, Any]:
         """Create a content block, adding cache_control if it's the last one"""
         block: dict[str, Any] = {"type": "text", "text": text}
+        if is_last:
+            block["cache_control"] = {"type": "ephemeral"}
+        return block
+
+    def _make_image_content_block(self, data_url: str, is_last: bool) -> dict[str, Any]:
+        """Create a multimodal image content block, adding cache_control if last.
+
+        No `detail` override is set - the API default (`auto`) applies, since
+        context-mechanism images are meant to be inspected at full fidelity.
+        """
+        block: dict[str, Any] = {"type": "image_url", "image_url": {"url": data_url}}
         if is_last:
             block["cache_control"] = {"type": "ephemeral"}
         return block

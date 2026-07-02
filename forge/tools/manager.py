@@ -586,7 +586,18 @@ class ToolManager:
                 remove_files = result.get("remove", [])
                 # Batch the add/remove into a single persist + signal emission.
                 # Doing it per-file cost ~1s each (a git commit per file).
-                session_manager.update_active_files(add=add_files, remove=remove_files)
+                #
+                # update_active_files can raise (e.g. adding an image to context
+                # while vision is disabled - a deliberate hard error, see
+                # IMAGE_TODO.md). Translate that into a tool-error result the
+                # same way tool_module.execute() failures are translated above.
+                try:
+                    session_manager.update_active_files(add=add_files, remove=remove_files)
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"update_context failed: {e}",
+                    }
 
         return result
 

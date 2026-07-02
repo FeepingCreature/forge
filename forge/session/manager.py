@@ -272,6 +272,41 @@ Think about what category this file is, then put ONLY the final bullets or "—"
 
         return context
 
+    # Raster image extensions supported by the context mechanism (vision models).
+    # A subset of _SKIP_EXTENSIONS - .ico/.svg are excluded since they aren't
+    # standard raster formats accepted by vision APIs.
+    IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+
+    def _is_image_file(self, filepath: str) -> bool:
+        """Check if a filepath is a raster image (context mechanism candidate)."""
+        return Path(filepath).suffix.lower() in self.IMAGE_EXTENSIONS
+
+    def _add_image_to_prompt(self, filepath: str, tool_call_id: str | None = None) -> None:
+        """
+        Read a full-quality image from VFS and add it to the prompt as a live
+        multimodal image block.
+
+        Raises ValueError if vision is disabled in settings - adding an image
+        to context without vision support is a hard tool error, not a silent
+        no-op (see IMAGE_TODO.md "Resolved decisions").
+        """
+        if not self.settings.get_vision_enabled():
+            raise ValueError(
+                f"Cannot add image {filepath!r} to context: llm.vision_enabled is False. "
+                "Enable vision support in settings before adding images to context."
+            )
+
+        import base64
+        import mimetypes
+
+        data = self.tool_manager.vfs.read_file_bytes(filepath)
+        mime_type, _ = mimetypes.guess_type(filepath)
+        if mime_type is None:
+            mime_type = "application/octet-stream"
+        encoded = base64.b64encode(data).decode("ascii")
+        data_url = f"data:{mime_type};base64,{encoded}"
+        self.prompt_manager.append_image_content(filepath, data_url, tool_call_id=tool_call_id)
+
     def sync_prompt_manager(self) -> None:
         """
         Sync the prompt manager with current state.
@@ -284,21 +319,29 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         file_was_modified() which is called when tools actually change files.
         This ensures only modified files move to end of prompt (cache optimization).
         """
-        current_prompt_files = set(self.prompt_manager.get_active_files())
+        current_prompt_files = set(self.prompt_manager.get_active_files()) | set(
+            self.prompt_manager.get_active_image_files()
+        )
 
         # Add files that are newly in context (not already in prompt manager)
         for filepath in self.active_files:
             if filepath not in current_prompt_files:
-                try:
-                    content = self.tool_manager.vfs.read_file(filepath)
-                    self.prompt_manager.append_file_content(filepath, content)
-                except (FileNotFoundError, KeyError):
-                    pass  # File doesn't exist, skip
+                if self._is_image_file(filepath):
+                    self._add_image_to_prompt(filepath)
+                else:
+                    try:
+                        content = self.tool_manager.vfs.read_file(filepath)
+                        self.prompt_manager.append_file_content(filepath, content)
+                    except (FileNotFoundError, KeyError):
+                        pass  # File doesn't exist, skip
 
         # Remove files that are no longer active
         for filepath in current_prompt_files:
             if filepath not in self.active_files:
-                self.prompt_manager.remove_file_content(filepath)
+                if self._is_image_file(filepath):
+                    self.prompt_manager.remove_image_content(filepath)
+                else:
+                    self.prompt_manager.remove_file_content(filepath)
 
     def add_active_file(self, filepath: str) -> None:
         """Add a file to active context"""
@@ -328,19 +371,27 @@ Think about what category this file is, then put ONLY the final bullets or "—"
                 continue  # Already in context
             self.active_files.add(filepath)
             changed = True
-            # Add to prompt manager with current content (from VFS to include pending changes)
-            try:
-                content = self.tool_manager.vfs.read_file(filepath)
-                self.prompt_manager.append_file_content(filepath, content)
-            except (FileNotFoundError, KeyError):
-                pass  # File doesn't exist yet
+            if self._is_image_file(filepath):
+                # Hard error if vision is disabled - not caught here, propagates
+                # to the tool execution boundary so it surfaces as a tool error.
+                self._add_image_to_prompt(filepath)
+            else:
+                # Add to prompt manager with current content (from VFS to include pending changes)
+                try:
+                    content = self.tool_manager.vfs.read_file(filepath)
+                    self.prompt_manager.append_file_content(filepath, content)
+                except (FileNotFoundError, KeyError):
+                    pass  # File doesn't exist yet
 
         for filepath in remove:
             if filepath not in self.active_files:
                 continue  # Not in context
             self.active_files.discard(filepath)
             changed = True
-            self.prompt_manager.remove_file_content(filepath)
+            if self._is_image_file(filepath):
+                self.prompt_manager.remove_image_content(filepath)
+            else:
+                self.prompt_manager.remove_file_content(filepath)
 
         if not changed:
             return
@@ -494,6 +545,18 @@ Think about what category this file is, then put ONLY the final bullets or "—"
         file_tokens = 0
 
         for filepath in sorted(self.active_files):
+            if self._is_image_file(filepath):
+                # Fixed rough estimate, matches PromptManager's image token estimate
+                tokens = 1500
+                file_tokens += tokens
+                try:
+                    size_bytes = len(self.tool_manager.vfs.read_file_bytes(filepath))
+                except (FileNotFoundError, KeyError):
+                    size_bytes = 0
+                files_info.append(
+                    {"filepath": filepath, "tokens": tokens, "size_bytes": size_bytes}
+                )
+                continue
             try:
                 content = self.vfs.read_file(filepath)
                 tokens = self._estimate_tokens(content)

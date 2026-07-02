@@ -977,6 +977,21 @@ Keep it under 72 characters."""
         if progress_callback and total_to_generate > 0:
             progress_callback(total_to_generate, total_to_generate, "")
 
+        # Surface repo images to the model when vision is enabled. Images are
+        # binary so they never appear in the summarizable file list above, yet
+        # a vision-capable model should be able to see they exist and pull them
+        # into context. List them (excluding .forge/ internals) as bare paths
+        # under "Additional Files" alongside the beyond-budget files.
+        if self.settings.get_vision_enabled():
+            image_files = sorted(
+                f
+                for f in self.vfs.list_all_files()
+                if not f.startswith(".forge/")
+                and Path(f).suffix.lower() in IMAGE_EXTENSIONS
+                and f not in files_beyond_budget
+            )
+            files_beyond_budget = files_beyond_budget + image_files
+
         # Pass summaries and file info to prompt manager (including beyond-budget files)
         self.prompt_manager.set_summaries(self.repo_summaries, file_sizes, files_beyond_budget)
 

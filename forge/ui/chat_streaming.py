@@ -254,8 +254,8 @@ def _render_streaming_mermaid_html(segments: list[dict]) -> str:
     return "".join(parts)
 
 
-def build_reasoning_chunk_js(reasoning_content: str) -> str:
-    """Build JavaScript to update the thought-bubble for reasoning content.
+def build_reasoning_chunk_js(reasoning_chunk: str) -> str:
+    """Build JavaScript to APPEND a reasoning delta to the thought-bubble.
 
     Inserts (or updates) a `.thought-bubble` element at the TOP of the
     streaming message, above the response content. The bubble shows the
@@ -263,13 +263,20 @@ def build_reasoning_chunk_js(reasoning_content: str) -> str:
     still thinking. Once the actual response begins streaming, the caller
     can call `build_collapse_thought_js()` to collapse it.
 
+    IMPORTANT: This takes just the *new* chunk (delta), not the whole
+    accumulated reasoning. It appends a text node to the content span rather
+    than reserializing the entire reasoning string on every chunk. When a
+    model streams tens of thousands of tokens of reasoning in many small
+    chunks, resending the full accumulated text each time is O(n²) and
+    dominates the render cost — appending the delta keeps it linear.
+
     Args:
-        reasoning_content: The accumulated reasoning text so far
+        reasoning_chunk: The new reasoning text delta to append
 
     Returns:
         JavaScript code to execute in the web view
     """
-    escaped = escape_for_js(reasoning_content)
+    escaped = escape_for_js(reasoning_chunk)
 
     return f"""
     (function() {{
@@ -298,7 +305,9 @@ def build_reasoning_chunk_js(reasoning_content: str) -> str:
 
         var contentSpan = bubble.querySelector('.thought-content');
         if (contentSpan) {{
-            contentSpan.innerText = `{escaped}`;
+            // Append only the delta as a text node — avoids reserializing the
+            // entire accumulated reasoning on every chunk (O(n²) → O(n)).
+            contentSpan.appendChild(document.createTextNode(`{escaped}`));
         }}
 
         // Auto-scroll bubble to bottom so latest reasoning is visible.

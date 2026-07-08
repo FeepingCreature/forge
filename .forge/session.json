@@ -1,6 +1,15 @@
 {
   "active_files": [
-    "forge/session/startup.py"
+    "forge/ui/chat_streaming.py",
+    "forge/session/manager.py",
+    "forge/prompts/system.py",
+    "forge/runtime/llm_backend.py",
+    "forge/tools/builtin/think.py",
+    "forge/ui/ai_chat_widget.py",
+    "forge/session/live_session.py",
+    "forge/runtime/events.py",
+    "forge/ui/chat_styles.py",
+    "forge/prompts/manager.py"
   ],
   "request_log_entries": [
     {
@@ -3026,448 +3035,210 @@
       "streaming": true,
       "actual_cost": 0.07943325,
       "generation_id": "gen-1783006805-nq0Tx9NcKsPLbkwkHLwV"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539308543.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539308543.json",
+      "timestamp": 1783539308.5448825,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.149275,
+      "generation_id": "gen-1783539308-xRE8JsjazpHgFiHUrtLF"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539316161.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539316161.json",
+      "timestamp": 1783539316.1691384,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.6300585,
+      "generation_id": "gen-1783539316-5nwEE10R6jUUbNhOdyLz"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539347101.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539347101.json",
+      "timestamp": 1783539347.1055398,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.7407165,
+      "generation_id": "gen-1783539347-k9i5UNizn5HoL2PsQn1E"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539359529.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539359529.json",
+      "timestamp": 1783539359.5382593,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.7386865,
+      "generation_id": "gen-1783539359-vfJkmMGsXSzq0OzAz1qi"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539366058.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539366058.json",
+      "timestamp": 1783539366.076812,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.10714475,
+      "generation_id": "gen-1783539366-B1fFm87huMbZ8CrqEq92"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539376046.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539376046.json",
+      "timestamp": 1783539376.0508819,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.10127525,
+      "generation_id": "gen-1783539376-UnrDmD7m42ymTHfodMG5"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783539382047.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783539382047.json",
+      "timestamp": 1783539382.0507445,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.10465375,
+      "generation_id": "gen-1783539382-MsgnR6mrbPsGVcE93hmL"
     }
   ],
   "messages": [
     {
       "role": "user",
-      "content": "hi! we have a critical bug where on replay, a lot of tool results are not compacted anymore that previously were- ie. a replay issue.\nwe looked into this at length, it isn't anything obvious.\ncan you add logging to compact calls during replay and at the end of replay, post a summary of 1K token blocks that weren't compacted and their id?"
+      "content": "hi! we have a bug where if a *lot* of thoughts are streamed (like 50k) the main slowdown factor is the rerendering of the thought bubble."
     },
     {
       "role": "assistant",
-      "content": "I'll start by examining the replay logic to understand how compaction works during replay.",
+      "content": "Let me find the thought bubble rendering code to understand the current implementation.",
       "tool_calls": [
         {
-          "id": "toolu_0156KNZPWpvmrbwL3iSBGfb8",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"1_add\": [\"forge/session/startup.py\", \"forge/prompts/manager.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_0156KNZPWpvmrbwL3iSBGfb8",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"forge/session/startup.py\", \"forge/prompts/manager.py\"], \"remove\": [], \"message\": \"Added 2 files, removed 0 files from context\"}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "[id 3] Let me understand the request. The user wants me to add diagnostic logging to the replay path, specifically:\n\n1. **Logging to compact calls during replay** \u2014 the deferred compactions loop in `replay_messages_to_prompt_manager` already prints per-compaction results, but I should add more detail (which message IDs, how many blocks).\n2. **At the end of replay, a summary of \u22651K-token blocks that weren't compacted, and their ID** \u2014 so after replay finishes and compactions are applied, scan the prompt manager's blocks, find any conversation block (tool result / tool call / message) that is large (\u22651K tokens \u2248 \u22653000 chars) and NOT compacted, and print its ID.\n\nI need a way to identify blocks. TOOL_RESULT blocks have `user_id` in metadata; USER/ASSISTANT/TOOL_CALL blocks have `message_id`. A block is \"compacted\" if its content starts with `[COMPACTED`.\n\nLet me add this diagnostic. I'll add it to `replay_messages_to_prompt_manager` after the compaction loop, iterating over `session_manager.prompt_manager.blocks`.\n\nLet me write the logging helper and enhance the compaction loop logging.",
-      "tool_calls": [
-        {
-          "id": "toolu_013xn12VwqLZrX1joWfPTjX3",
-          "type": "function",
-          "function": {
-            "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"    # Now apply all compactions - all messages (including tool results) are in place\\n    for from_id, to_id, summary in deferred_compactions:\\n        compacted, error = session_manager.compact_messages(from_id, to_id, summary)\\n        if error:\\n            print(f\\\"\\u26a0\\ufe0f Compaction replay error ({from_id}-{to_id}): {error}\\\")\\n        else:\\n            print(f\\\"\\ud83d\\udce6 Replayed compaction: {compacted} message(s)\\\")\", \"3_replace\": \"    # Now apply all compactions - all messages (including tool results) are in place\\n    print(\\n        f\\\"\\ud83d\\udd01 REPLAY: applying {len(deferred_compactions)} deferred compaction(s): \\\"\\n        f\\\"{[(f, t) for f, t, _ in deferred_compactions]}\\\"\\n    )\\n    for from_id, to_id, summary in deferred_compactions:\\n        compacted, error = session_manager.compact_messages(from_id, to_id, summary)\\n        if error:\\n            print(f\\\"\\u26a0\\ufe0f  REPLAY compaction error (#{from_id}-#{to_id}): {error}\\\")\\n        else:\\n            print(f\\\"\\ud83d\\udce6 REPLAY compacted #{from_id}-#{to_id}: {compacted} block(s)\\\")\\n\\n    # Diagnostic: after replay + compaction, report any large conversation blocks\\n    # that were NOT compacted. This surfaces the replay bug where tool results\\n    # that used to be compacted are now left full-size in context.\\n    _log_uncompacted_large_blocks(session_manager)\\n\\n\\ndef _log_uncompacted_large_blocks(\\n    session_manager: \\\"SessionManager\\\",\\n    min_tokens: int = 1000,\\n) -> None:\\n    \\\"\\\"\\\"Log a summary of large conversation blocks left uncompacted after replay.\\n\\n    Scans the prompt manager's live blocks and reports any USER_MESSAGE,\\n    ASSISTANT_MESSAGE, TOOL_CALL or TOOL_RESULT block whose estimated token\\n    count is >= ``min_tokens`` and whose content is NOT marked ``[COMPACTED``.\\n\\n    Token estimate mirrors PromptManager (~3 chars/token). Each reported line\\n    includes the block's user-facing ID (message_id for messages/tool calls,\\n    user_id for tool results) so the offending block can be traced back to the\\n    stored compact ranges.\\n    \\\"\\\"\\\"\\n    from forge.prompts.manager import BlockType\\n\\n    prompt_manager = session_manager.prompt_manager\\n    conv_types = {\\n        BlockType.USER_MESSAGE,\\n        BlockType.ASSISTANT_MESSAGE,\\n        BlockType.TOOL_CALL,\\n        BlockType.TOOL_RESULT,\\n    }\\n\\n    offenders: list[tuple[str, str, int]] = []  # (label, id, tokens)\\n    total_uncompacted_tokens = 0\\n\\n    for block in prompt_manager.blocks:\\n        if block.deleted or block.block_type not in conv_types:\\n            continue\\n        if block.content.startswith(\\\"[COMPACTED\\\"):\\n            continue\\n\\n        tokens = len(block.content) // 3\\n        if block.block_type == BlockType.TOOL_CALL:\\n            # Tool call JSON is not in .content; count it too so big argument\\n            # payloads aren't undercounted.\\n            for tc in block.metadata.get(\\\"tool_calls\\\", []):\\n                tokens += len(json.dumps(tc)) // 3\\n\\n        if tokens < min_tokens:\\n            continue\\n\\n        if block.block_type == BlockType.TOOL_RESULT:\\n            block_id = f\\\"tool_result #{block.metadata.get('user_id', '?')}\\\"\\n        else:\\n            block_id = f\\\"msg #{block.metadata.get('message_id', '?')}\\\"\\n        offenders.append((block.block_type.value, block_id, tokens))\\n        total_uncompacted_tokens += tokens\\n\\n    if not offenders:\\n        print(\\n            f\\\"\\u2705 REPLAY: no uncompacted conversation blocks \\u2265{min_tokens} tokens after replay\\\"\\n        )\\n        return\\n\\n    print(\\n        f\\\"\\ud83d\\udd0d REPLAY: {len(offenders)} uncompacted conversation block(s) \\u2265{min_tokens} tokens \\\"\\n        f\\\"({total_uncompacted_tokens} tokens total left in context):\\\"\\n    )\\n    for block_type, block_id, tokens in sorted(offenders, key=lambda o: o[2], reverse=True):\\n        print(f\\\"   \\u21b3 {block_id} ({block_type}): ~{tokens} tokens\\\")\"}]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_013xn12VwqLZrX1joWfPTjX3",
-      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"files_modified\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "[id 4] The `_log_uncompacted_large_blocks` function uses `json.dumps`, but `json` is imported locally inside `replay_messages_to_prompt_manager`, not at module scope. Since `_log_uncompacted_large_blocks` is a separate function, it needs its own `json` import. Let me fix that.",
-      "tool_calls": [
-        {
-          "id": "toolu_01JAwmNMazbCMELVeQQJG2yk",
-          "type": "function",
-          "function": {
-            "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"    from forge.prompts.manager import BlockType\\n\\n    prompt_manager = session_manager.prompt_manager\", \"3_replace\": \"    import json\\n\\n    from forge.prompts.manager import BlockType\\n\\n    prompt_manager = session_manager.prompt_manager\"}]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01JAwmNMazbCMELVeQQJG2yk",
-      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"files_modified\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "[id 5] Now let me verify the `compact_messages` method already logs per-message detail during replay (it does \u2014 it prints `\ud83d\udce6 Compacted message #N` and `\ud83d\udce6 Compacted tool result #N` per block). That combined with my new logging gives the full picture:\n\n1. **Before compaction loop**: prints how many deferred compactions and their `(from_id, to_id)` ranges.\n2. **During each compaction**: `compact_messages` prints which specific message/tool-result IDs it compacted (existing behavior).\n3. **Per compaction result**: prints how many blocks were compacted for each range.\n4. **At end of replay**: `_log_uncompacted_large_blocks` scans all live blocks and reports every uncompacted conversation block \u22651K tokens, sorted largest-first, with its ID.\n\nThis directly surfaces the bug: any tool result that \"used to be compacted but isn't now\" will show up in the final summary with its ID, and you can cross-reference against the compaction ranges printed earlier.\n\nLet me run a quick check to make sure there are no syntax/type issues.",
-      "tool_calls": [
-        {
-          "id": "toolu_01YRmXkHzgQSGU1Dex4BfK1r",
-          "type": "function",
-          "function": {
-            "name": "check",
-            "arguments": "{}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01YRmXkHzgQSGU1Dex4BfK1r",
-      "content": "{\"success\": true, \"formatted_files\": [\"forge/session/startup.py\"], \"format_diffs\": {\"forge/session/startup.py\": \"--- before+++ after@@ -170,9 +170,7 @@         total_uncompacted_tokens += tokens\\n \\n     if not offenders:\\n-        print(\\n-            f\\\"\\u2705 REPLAY: no uncompacted conversation blocks \\u2265{min_tokens} tokens after replay\\\"\\n-        )\\n+        print(f\\\"\\u2705 REPLAY: no uncompacted conversation blocks \\u2265{min_tokens} tokens after replay\\\")\\n         return\\n \\n     print(\\n\"}, \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 107 source files\\n\", \"typecheck_passed\": true, \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"summary\": \"Formatted 1 files: forge/session/startup.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"display_output\": \"Formatted 1 files: forge/session/startup.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\", \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"has_display_output\", \"files_modified\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "[id 6] Everything passes. The logging is in place and clean. Let me unload the manager file since I'm done with it and commit.",
-      "tool_calls": [
-        {
-          "id": "toolu_014BfY5GcHgFjUU8jf1CKdTG",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"2_remove\": [\"forge/prompts/manager.py\"]}"
-          }
-        },
-        {
-          "id": "toolu_011ruHfZNhFhC6v8JxuJ5EEh",
-          "type": "function",
-          "function": {
-            "name": "commit",
-            "arguments": "{\"1_message\": \"Add replay compaction diagnostics: log deferred compactions and uncompacted large blocks\"}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"display_output\": \"Formatted 1 files: forge/session/startup.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"format_diffs\": {\n    \"forge/session/startup.py\": \"--- before+++ after@@ -170,9 +170,7 @@         total_uncompacted_tokens += tokens\\n \\n     if not offenders:\\n-        print(\\n-            f\\\"\\u2705 REPLAY: no uncompacted conversation blocks \\u2265{min_tokens} tokens after replay\\\"\\n-        )\\n+        print(f\\\"\\u2705 REPLAY: no uncompacted conversation blocks \\u2265{min_tokens} tokens after replay\\\")\\n         return\\n \\n     print(\\n\"\n  },\n  \"formatted_files\": [\n    \"forge/session/startup.py\"\n  ],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"modified_files\": [\n    \"forge/session/startup.py\"\n  ],\n  \"side_effects\": [\n    \"has_display_output\",\n    \"files_modified\"\n  ],\n  \"success\": true,\n  \"summary\": \"Formatted 1 files: forge/session/startup.py\\n\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 107 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
-      "_ui_only": true
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_014BfY5GcHgFjUU8jf1CKdTG",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/prompts/manager.py\"], \"message\": \"Added 0 files, removed 1 files from context\"}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_011ruHfZNhFhC6v8JxuJ5EEh",
-      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"0a8cf5b2778a\", \"side_effects\": [\"mid_turn_commit\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "Done! I added replay compaction diagnostics to `forge/session/startup.py`:\n\n**During replay** \u2014 before the compaction loop runs, it now logs how many deferred compactions are being applied and their `(from_id, to_id)` ranges. Each compaction then logs its result:\n```\n\ud83d\udd01 REPLAY: applying 3 deferred compaction(s): [('5', '12'), ('15', '22'), ...]\n\ud83d\udce6 REPLAY compacted #5-#12: 8 block(s)\n```\n(This sits on top of the existing per-block `\ud83d\udce6 Compacted message #N` / `\ud83d\udce6 Compacted tool result #N` logging inside `compact_messages`, so you get both the range-level and block-level view.)\n\n**At the end of replay** \u2014 a new `_log_uncompacted_large_blocks()` helper scans all live prompt-manager blocks and reports every conversation block (user/assistant message, tool call, tool result) that is **\u22651K tokens and NOT marked `[COMPACTED`**, sorted largest-first, each with its user-facing ID:\n```\n\ud83d\udd0d REPLAY: 4 uncompacted conversation block(s) \u22651000 tokens (18234 tokens total left in context):\n   \u21b3 tool_result #37 (tool_result): ~6100 tokens\n   \u21b3 msg #22 (tool_call): ~4200 tokens\n   ...\n```\n\nThis is exactly the signal for your bug: any tool result that \"used to be compacted but isn't now\" surfaces here with its ID, which you can cross-reference against the deferred-compaction ranges printed earlier to see whether the range covered it and the compaction simply missed it, or the range never included it in the first place.\n\nNotes on the implementation:\n- Token estimate mirrors PromptManager's ~3 chars/token heuristic, and for `TOOL_CALL` blocks it also counts the tool-call JSON args (which live in metadata, not `.content`) so big argument payloads aren't undercounted.\n- Tool results are keyed by `user_id`; messages/tool calls by `message_id` \u2014 matching how compact ranges are addressed.\n- `check` passes (format, mypy, ruff all green) and it's committed.\n\nOnce you reproduce the bug with a loaded session, the stdout trace should pinpoint which IDs are slipping through \u2014 happy to help dig into *why* once you have that output."
-    },
-    {
-      "role": "system",
-      "content": "\u2705 Changes committed: ab27835e",
-      "_ui_only": true
-    },
-    {
-      "role": "user",
-      "content": "HUH!\n\n\ud83d\udd01\u0000 REPLAY: applying 0 deferred compaction(s): []\n\nbut\n\n    {\n      \"role\": \"assistant\",\n      \"content\": \"\",\n      \"tool_calls\": [\n        {\n          \"id\": \"toolu_01DARaa1uEzV3NuHjSsEw96e\",\n          \"type\": \"function\",\n          \"function\": {\n            \"name\": \"compact\",\n            \"arguments\": \"{\\\"1_from_id\\\": \\\"1\\\", \\\"2_to_id\\\": \\\"17\\\", \\\"3_summary\\\": \\\"Session history: (1) Discussed harness improvements for this Rust/Bevy game project; user bound run_tests to `cargo check && cargo test`, declined shell tools by design (local-model safety). (2) Created HARNESS.md (harness notes, Bevy 0.14 idiom pin, TODOs: image-in-prompt/screenshot tool, ComfyUI wrapper for art gen, two-process orchestration) and tools/fetch_docs.py (URL fetcher with HTML stripping, regex grep, pagination) \\u2014 both approved by user. Verified: cargo loop works with shared CARGO_TARGET_DIR (~2min cold, ~2s warm); fetch_docs smoke-tested against docs.rs bevy 0.14.2. (3) User decided to pivot to a Python concept prototype (/prototype, pygame-ce) for fast iteration on art/feel/concept; Rust crate frozen. (4) Scaffolded the full prototype and committed (370e225): README with porting rules (sim core stays Rust-shaped/headless/deterministic, client.py disposable, graduation criteria), pyproject.toml, sim core (vec.py, events.py EventExecutor with deque+trigger budget+push_front/back+log, defs.py JSON def loading/validation, entities.py dataclasses, world.py fixed-timestep World with step order: movement\\u2192firing\\u2192projectiles\\u2192enemy AI\\u2192collisions\\u2192executor.run_tick), data (systems.json: engine/walker/tread/armor/shield/cannon mk1; skills.json: chain_lightning on_hit, spread_shot on_shot), client.py pygame shell with generated block-noise textures + last_run.log feedback channel, and 3 test files (executor ordering/budget/recursion, defs validation, world movement/combat/chain/determinism). Tests NOT yet run \\u2014 user is rebinding the test command to pytest next turn. All prototype files + HARNESS.md + SPEC.md (added Phase 0) are in active context showing current state.\\\"}\"\n          }\n        }\n      ]\n    },"
-    },
-    {
-      "role": "assistant",
-      "content": "Found it! The bug is right there in the parsing. Look at the actual stored arguments:\n\n```json\n\"arguments\": \"{\\\"1_from_id\\\": \\\"1\\\", \\\"2_to_id\\\": \\\"17\\\", \\\"3_summary\\\": \\\"...\\\"}\"\n```\n\nThe keys are **prefixed** (`1_from_id`, `2_to_id`, `3_summary`), but the replay code reads the **unprefixed** names:\n\n```python\nfrom_id = args.get(\"from_id\", \"\")   # \u2192 \"\" because key is \"1_from_id\"\nto_id = args.get(\"to_id\", \"\")        # \u2192 \"\" because key is \"2_to_id\"\n```\n\nSo `if from_id and to_id:` is always false \u2192 the compaction is silently dropped \u2192 `0 deferred compaction(s)`. This matches the symptom exactly: tool results that used to be compacted are now full-size, because the compact call never gets replayed at all.\n\nThe prefixing (`prefix_tool_args` in ToolManager) was evidently introduced/enabled at some point, changing the on-the-wire argument keys, but the replay parser was never updated to strip the prefix. Let me confirm how the prefix is stripped elsewhere so I match the existing convention.",
-      "tool_calls": [
-        {
-          "id": "toolu_01FdGdHVizxzrqaaoR7eRxHv",
+          "id": "toolu_011oaR5ravn2SCH69e7RxhYR",
           "type": "function",
           "function": {
             "name": "grep_open",
-            "arguments": "{\"1_pattern\": \"_strip_key_prefix|_deprefix_dict|prefix_tool_args\"}"
+            "arguments": "{\"1_pattern\": \"reasoning|thought|thinking\", \"2_include_extensions\": [\".py\"], \"3_exclude_dirs\": [\".git\", \".forge\", \"__pycache__\", \"node_modules\", \".venv\", \"venv\", \"tests\"]}"
           }
         }
       ]
     },
     {
       "role": "tool",
-      "tool_call_id": "toolu_01FdGdHVizxzrqaaoR7eRxHv",
-      "content": "{\"success\": true, \"message\": \"Found 6 files matching '_strip_key_prefix|_deprefix_dict|prefix_tool_args'\", \"matches\": [{\"filepath\": \"forge/config/settings.py\", \"match_count\": 1, \"first_match\": \"prefix_tool_args\"}, {\"filepath\": \"forge/session/manager.py\", \"match_count\": 4, \"first_match\": \"prefix_tool_args\"}, {\"filepath\": \"forge/tools/manager.py\", \"match_count\": 5, \"first_match\": \"prefix_tool_args\"}, {\"filepath\": \"forge/ui/settings_dialog.py\", \"match_count\": 7, \"first_match\": \"prefix_tool_args\"}, {\"filepath\": \"forge/ui/tool_rendering.py\", \"match_count\": 12, \"first_match\": \"prefix_tool_args\"}, {\"filepath\": \"tests/test_edit_arg_prefix_rendering.py\", \"match_count\": 12, \"first_match\": \"prefix_tool_args\"}], \"action\": \"update_context\", \"add\": [\"forge/config/settings.py\", \"forge/session/manager.py\", \"forge/tools/manager.py\", \"forge/ui/settings_dialog.py\", \"forge/ui/tool_rendering.py\", \"tests/test_edit_arg_prefix_rendering.py\"], \"remove\": []}",
+      "tool_call_id": "toolu_011oaR5ravn2SCH69e7RxhYR",
+      "content": "{\"success\": true, \"message\": \"Found 10 files matching 'reasoning|thought|thinking'\", \"matches\": [{\"filepath\": \"forge/prompts/manager.py\", \"match_count\": 11, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/prompts/system.py\", \"match_count\": 8, \"first_match\": \"thinking\"}, {\"filepath\": \"forge/runtime/events.py\", \"match_count\": 6, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/runtime/llm_backend.py\", \"match_count\": 10, \"first_match\": \"thinking\"}, {\"filepath\": \"forge/session/live_session.py\", \"match_count\": 22, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/session/manager.py\", \"match_count\": 1, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/tools/builtin/think.py\", \"match_count\": 6, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/ui/ai_chat_widget.py\", \"match_count\": 23, \"first_match\": \"thought\"}, {\"filepath\": \"forge/ui/chat_streaming.py\", \"match_count\": 21, \"first_match\": \"reasoning\"}, {\"filepath\": \"forge/ui/chat_styles.py\", \"match_count\": 12, \"first_match\": \"reasoning\"}], \"action\": \"update_context\", \"add\": [\"forge/prompts/manager.py\", \"forge/prompts/system.py\", \"forge/runtime/events.py\", \"forge/runtime/llm_backend.py\", \"forge/session/live_session.py\", \"forge/session/manager.py\", \"forge/tools/builtin/think.py\", \"forge/ui/ai_chat_widget.py\", \"forge/ui/chat_streaming.py\", \"forge/ui/chat_styles.py\"], \"remove\": []}",
       "_skip_display": true,
       "_ephemeral": false
     },
     {
       "role": "assistant",
-      "content": "The confirmed root cause: the replay parser in `replay_messages_to_prompt_manager` reads `args.get(\"from_id\")`, `args.get(\"to_id\")`, `args.get(\"summary\")`, but when `prefix_tool_args` is enabled the stored keys are `1_from_id`, `2_to_id`, `3_summary`. So `from_id` and `to_id` come back empty, `if from_id and to_id:` is false, and the compaction is silently dropped. `ToolManager._strip_arg_prefixes` is the existing canonical de-prefixer, and `tool_rendering._deprefix_dict` is the other. I'll strip prefixes in the replay parser before reading the keys.\n\nLet me fix the parser. The cleanest fix is to de-prefix the parsed args dict before reading. I'll use a small local strip (mirroring `_strip_arg_prefixes`) so I don't couple startup.py to ToolManager internals.",
+      "content": "Let me analyze the bug. Looking at `build_reasoning_chunk_js` in `chat_streaming.py`:\n\nThe problem is clear. Every reasoning chunk triggers `build_reasoning_chunk_js(self.runner.streaming_reasoning)` \u2014 which sends the **entire accumulated reasoning text** to JavaScript via `contentSpan.innerText = \\`{escaped}\\``. So with 50k of thoughts streamed in many small chunks, each chunk re-sends and re-renders the *full* accumulated text. That's O(n\u00b2) in the total reasoning size \u2014 the classic append-by-rewriting-everything problem.\n\nThe fix: only send the **new chunk** and append it to the DOM, rather than resending the whole accumulated string each time.\n\nLet me look at the flow:\n- `_on_runner_reasoning_chunk` (in `ai_chat_widget.py`) is called with the individual `chunk`, but then calls `build_reasoning_chunk_js(self.runner.streaming_reasoning)` \u2014 using the accumulated string.\n\nI'll change it to pass just the delta chunk and append via `appendData`/text node, while keeping a fallback to set full content when the bubble is first created (or empty). Let me restate the key design:\n\n1. `build_reasoning_chunk_js` gets a new signature accepting the delta chunk (and whether it's the first chunk to establish the bubble).\n2. On append, use `textContent +=` on the content span (or better, append a text node) so we don't reserialize.\n\nActually even `contentSpan.textContent += chunk` reads the existing content back. The cheapest is `appendChild(document.createTextNode(chunk))`. Let me use that.",
       "tool_calls": [
         {
-          "id": "toolu_016w2A4CmqMTshDhXrTuHuxG",
+          "id": "toolu_01RdtfZmop8rr2Pcu5JQM6nA",
           "type": "function",
           "function": {
             "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"                # Collect compaction requests for deferred application\\n                for tc in tool_calls:\\n                    func = tc.get(\\\"function\\\", {})\\n                    if func.get(\\\"name\\\") == \\\"compact\\\":\\n                        try:\\n                            args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n                            from_id = args.get(\\\"from_id\\\", \\\"\\\")\\n                            to_id = args.get(\\\"to_id\\\", \\\"\\\")\\n                            summary = args.get(\\\"summary\\\", \\\"\\\")\\n                            if from_id and to_id:\\n                                deferred_compactions.append((from_id, to_id, summary))\\n                        except (json.JSONDecodeError, TypeError):\\n                            pass  # Malformed args, skip\", \"3_replace\": \"                # Collect compaction requests for deferred application\\n                for tc in tool_calls:\\n                    func = tc.get(\\\"function\\\", {})\\n                    if func.get(\\\"name\\\") == \\\"compact\\\":\\n                        try:\\n                            args = json.loads(func.get(\\\"arguments\\\", \\\"{}\\\"))\\n                            # When llm.prefix_tool_args is on, stored argument\\n                            # keys carry numeric ordering prefixes (1_from_id,\\n                            # 2_to_id, 3_summary). Strip them before reading \u2014\\n                            # otherwise from_id/to_id come back empty, the\\n                            # `if from_id and to_id` guard fails, and the\\n                            # compaction is silently dropped on replay (leaving\\n                            # tool results that used to be compacted full-size).\\n                            args = _deprefix_args(args)\\n                            from_id = args.get(\\\"from_id\\\", \\\"\\\")\\n                            to_id = args.get(\\\"to_id\\\", \\\"\\\")\\n                            summary = args.get(\\\"summary\\\", \\\"\\\")\\n                            if from_id and to_id:\\n                                deferred_compactions.append((from_id, to_id, summary))\\n                        except (json.JSONDecodeError, TypeError):\\n                            pass  # Malformed args, skip\"}, {\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"def replay_messages_to_prompt_manager(\\n    messages: list[dict[str, Any]],\\n    session_manager: \\\"SessionManager\\\",\\n) -> None:\", \"3_replace\": \"def _deprefix_args(args: dict[str, Any]) -> dict[str, Any]:\\n    \\\"\\\"\\\"Strip numeric arg-order prefixes (``N_``) from top-level argument keys.\\n\\n    Mirrors ToolManager._strip_arg_prefixes / tool_rendering._deprefix_dict:\\n    when ``llm.prefix_tool_args`` is enabled, tool-call arguments are stored\\n    with keys like ``1_from_id`` / ``2_to_id`` / ``3_summary``. The replay\\n    parser reads the bare names, so strip a single leading ``N_`` from each key\\n    before reading. Unprefixed keys pass through unchanged. Only one level is\\n    needed here \u2014 compact's arguments are flat.\\n    \\\"\\\"\\\"\\n    import re\\n\\n    if not isinstance(args, dict):\\n        return args\\n    return {re.sub(r\\\"^\\\\d+_\\\", \\\"\\\", k) if isinstance(k, str) else k: v for k, v in args.items()}\\n\\n\\ndef replay_messages_to_prompt_manager(\\n    messages: list[dict[str, Any]],\\n    session_manager: \\\"SessionManager\\\",\\n) -> None:\"}]}"
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/ui/chat_streaming.py\", \"2_search\": \"def build_reasoning_chunk_js(reasoning_content: str) -> str:\\n    \\\"\\\"\\\"Build JavaScript to update the thought-bubble for reasoning content.\\n\\n    Inserts (or updates) a `.thought-bubble` element at the TOP of the\\n    streaming message, above the response content. The bubble shows the\\n    accumulated reasoning text plus a blinking cursor while the model is\\n    still thinking. Once the actual response begins streaming, the caller\\n    can call `build_collapse_thought_js()` to collapse it.\\n\\n    Args:\\n        reasoning_content: The accumulated reasoning text so far\\n\\n    Returns:\\n        JavaScript code to execute in the web view\\n    \\\"\\\"\\\"\\n    escaped = escape_for_js(reasoning_content)\\n\\n    return f\\\"\\\"\\\"\\n    (function() {{\\n        var streamingMsg = document.getElementById('streaming-message');\\n        if (!streamingMsg) return;\\n\\n        var scrollThreshold = 50;\\n        var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n\\n        var bubble = streamingMsg.querySelector('.thought-bubble');\\n        if (!bubble) {{\\n            bubble = document.createElement('div');\\n            bubble.className = 'thought-bubble';\\n            bubble.setAttribute('onclick', 'toggleThought(this)');\\n            bubble.innerHTML = '<span class=\\\"thought-content\\\"></span><span class=\\\"thought-cursor\\\">\\u258b</span>';\\n            // Insert as the FIRST child of the streaming message, so it sits\\n            // above the response content.\\n            var firstChild = streamingMsg.firstChild;\\n            // Skip past the .role label if present\\n            if (firstChild && firstChild.classList && firstChild.classList.contains('role')) {{\\n                streamingMsg.insertBefore(bubble, firstChild.nextSibling);\\n            }} else {{\\n                streamingMsg.insertBefore(bubble, firstChild);\\n            }}\\n        }}\\n\\n        var contentSpan = bubble.querySelector('.thought-content');\\n        if (contentSpan) {{\\n            contentSpan.innerText = `{escaped}`;\\n        }}\\n\\n        // Auto-scroll bubble to bottom so latest reasoning is visible.\\n        bubble.scrollTop = bubble.scrollHeight;\\n\\n        if (wasAtBottom) {{\\n            window.scrollTo(0, document.body.scrollHeight);\\n        }}\\n    }})();\\n    \\\"\\\"\\\"\", \"3_replace\": \"def build_reasoning_chunk_js(reasoning_chunk: str) -> str:\\n    \\\"\\\"\\\"Build JavaScript to APPEND a reasoning delta to the thought-bubble.\\n\\n    Inserts (or updates) a `.thought-bubble` element at the TOP of the\\n    streaming message, above the response content. The bubble shows the\\n    accumulated reasoning text plus a blinking cursor while the model is\\n    still thinking. Once the actual response begins streaming, the caller\\n    can call `build_collapse_thought_js()` to collapse it.\\n\\n    IMPORTANT: This takes just the *new* chunk (delta), not the whole\\n    accumulated reasoning. It appends a text node to the content span rather\\n    than reserializing the entire reasoning string on every chunk. When a\\n    model streams tens of thousands of tokens of reasoning in many small\\n    chunks, resending the full accumulated text each time is O(n\\u00b2) and\\n    dominates the render cost \u2014 appending the delta keeps it linear.\\n\\n    Args:\\n        reasoning_chunk: The new reasoning text delta to append\\n\\n    Returns:\\n        JavaScript code to execute in the web view\\n    \\\"\\\"\\\"\\n    escaped = escape_for_js(reasoning_chunk)\\n\\n    return f\\\"\\\"\\\"\\n    (function() {{\\n        var streamingMsg = document.getElementById('streaming-message');\\n        if (!streamingMsg) return;\\n\\n        var scrollThreshold = 50;\\n        var wasAtBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - scrollThreshold);\\n\\n        var bubble = streamingMsg.querySelector('.thought-bubble');\\n        if (!bubble) {{\\n            bubble = document.createElement('div');\\n            bubble.className = 'thought-bubble';\\n            bubble.setAttribute('onclick', 'toggleThought(this)');\\n            bubble.innerHTML = '<span class=\\\"thought-content\\\"></span><span class=\\\"thought-cursor\\\">\\u258b</span>';\\n            // Insert as the FIRST child of the streaming message, so it sits\\n            // above the response content.\\n            var firstChild = streamingMsg.firstChild;\\n            // Skip past the .role label if present\\n            if (firstChild && firstChild.classList && firstChild.classList.contains('role')) {{\\n                streamingMsg.insertBefore(bubble, firstChild.nextSibling);\\n            }} else {{\\n                streamingMsg.insertBefore(bubble, firstChild);\\n            }}\\n        }}\\n\\n        var contentSpan = bubble.querySelector('.thought-content');\\n        if (contentSpan) {{\\n            // Append only the delta as a text node \u2014 avoids reserializing the\\n            // entire accumulated reasoning on every chunk (O(n\\u00b2) \\u2192 O(n)).\\n            contentSpan.appendChild(document.createTextNode(`{escaped}`));\\n        }}\\n\\n        // Auto-scroll bubble to bottom so latest reasoning is visible.\\n        bubble.scrollTop = bubble.scrollHeight;\\n\\n        if (wasAtBottom) {{\\n            window.scrollTo(0, document.body.scrollHeight);\\n        }}\\n    }})();\\n    \\\"\\\"\\\"\"}]}"
           }
         }
       ]
     },
     {
       "role": "tool",
-      "tool_call_id": "toolu_016w2A4CmqMTshDhXrTuHuxG",
-      "content": "{\"success\": true, \"edits_applied\": 2, \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"files_modified\"]}",
+      "tool_call_id": "toolu_01RdtfZmop8rr2Pcu5JQM6nA",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/ui/chat_streaming.py\"], \"side_effects\": [\"files_modified\"]}",
       "_skip_display": true,
       "_ephemeral": false
     },
     {
       "role": "assistant",
-      "content": "Now let me verify the fix works and clean up the diagnostic files I no longer need in context. Let me run the check and the compact-replay tests.",
+      "content": "[id 4] Now I need to verify the caller. The caller in `ai_chat_widget.py` `_on_runner_reasoning_chunk` currently passes `self.runner.streaming_reasoning` (the accumulated string). I must change it to pass just the `chunk` delta.\n\nLet me update the caller.",
       "tool_calls": [
         {
-          "id": "toolu_018Sh9mLrtUaa8ByEFFZtyXz",
-          "type": "function",
-          "function": {
-            "name": "say",
-            "arguments": "{\"1_message\": \"Fix applied. Running checks and the compact-replay tests.\"}"
-          }
-        },
-        {
-          "id": "toolu_01FpqeFB1GSyRNhWn417XJcf",
-          "type": "function",
-          "function": {
-            "name": "check",
-            "arguments": "{}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_018Sh9mLrtUaa8ByEFFZtyXz",
-      "content": "{\"success\": true}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01FpqeFB1GSyRNhWn417XJcf",
-      "content": "{\"success\": false, \"formatted_files\": [], \"format_diffs\": {}, \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Statement is unreachable  [unreachable]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false, \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"error\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Statement is unreachable  [unreachable]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"display_output\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"side_effects\": [\"has_display_output\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"display_output\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"error\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Statement is unreachable  [unreachable]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"side_effects\": [\n    \"has_display_output\"\n  ],\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Statement is unreachable  [unreachable]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
-      "_ui_only": true
-    },
-    {
-      "role": "assistant",
-      "content": "The mypy error is because the `if not isinstance(args, dict)` guard is unreachable \u2014 the type annotation already says `args: dict[str, Any]`. Since `json.loads` returns `Any` at the call site, the guard is genuinely useful defensively, but mypy sees the annotated type and flags it. I'll drop the annotation to `Any` so the runtime guard is legitimately reachable and keeps protecting against non-dict JSON (e.g. a stored `\"[]\"`).",
-      "tool_calls": [
-        {
-          "id": "toolu_01Cr5yfp41Zir3Ad5BGCbCV2",
+          "id": "toolu_01R8JEDWVoWUpkXpGTa2HaaU",
           "type": "function",
           "function": {
             "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"def _deprefix_args(args: dict[str, Any]) -> dict[str, Any]:\", \"3_replace\": \"def _deprefix_args(args: Any) -> dict[str, Any]:\"}]}"
-          }
-        },
-        {
-          "id": "toolu_01BCeXYuenr9kEyiBireMjtY",
-          "type": "function",
-          "function": {
-            "name": "check",
-            "arguments": "{}"
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/ui/ai_chat_widget.py\", \"2_search\": \"    def _on_runner_reasoning_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle reasoning/thinking chunk from runner.\\n\\n        Renders the accumulated reasoning into a thought bubble at the top\\n        of the streaming message. The bubble auto-collapses when the actual\\n        response begins (see `_on_runner_chunk`).\\n        \\\"\\\"\\\"\\n        js_code = build_reasoning_chunk_js(self.runner.streaming_reasoning)\\n        self.chat_view.page().runJavaScript(js_code)\", \"3_replace\": \"    def _on_runner_reasoning_chunk(self, chunk: str) -> None:\\n        \\\"\\\"\\\"Handle reasoning/thinking chunk from runner.\\n\\n        Appends the new reasoning delta to a thought bubble at the top of the\\n        streaming message. The bubble auto-collapses when the actual response\\n        begins (see `_on_runner_chunk`).\\n\\n        We pass only the delta `chunk` (not the accumulated\\n        `streaming_reasoning`) so the bubble is built up incrementally in the\\n        DOM. Resending the full accumulated text on every chunk is O(n\\u00b2) and\\n        was the dominant slowdown when a model streams tens of thousands of\\n        tokens of reasoning.\\n        \\\"\\\"\\\"\\n        js_code = build_reasoning_chunk_js(chunk)\\n        self.chat_view.page().runJavaScript(js_code)\"}]}"
           }
         }
       ]
     },
     {
       "role": "tool",
-      "tool_call_id": "toolu_01Cr5yfp41Zir3Ad5BGCbCV2",
-      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"files_modified\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01BCeXYuenr9kEyiBireMjtY",
-      "content": "{\"success\": false, \"formatted_files\": [], \"format_diffs\": {}, \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Returning Any from function declared to return \\\"dict[str, Any]\\\"  [no-any-return]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"typecheck_passed\": false, \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"error\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Returning Any from function declared to return \\\"dict[str, Any]\\\"  [no-any-return]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\", \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"display_output\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\", \"side_effects\": [\"has_display_output\"]}",
+      "tool_call_id": "toolu_01R8JEDWVoWUpkXpGTa2HaaU",
+      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/ui/ai_chat_widget.py\"], \"side_effects\": [\"files_modified\"]}",
       "_skip_display": true,
       "_ephemeral": false
     },
     {
       "role": "assistant",
-      "content": "[id 13] The `re.sub` returns `Any` because `args` is now `Any`, so mypy flags the return. I'll cast the return to satisfy the type. Simplest: annotate the comprehension result via an explicit `dict[str, Any]` variable, but that still infers `Any` values from an `Any` dict. I'll use `typing.cast`.",
+      "content": "[id 5] Both edits are done. Now let me verify there are no other callers of `build_reasoning_chunk_js` that pass the accumulated string, and check the attach snapshot path \u2014 when a UI attaches mid-stream, it gets `streaming_reasoning` (the accumulated text) in the snapshot but there's no code that re-renders it into the bubble on attach. Let me verify there are no other callers.",
       "tool_calls": [
         {
-          "id": "toolu_01ASA7nLgUdZKGEPjvJCrYiU",
+          "id": "toolu_01YT6Bo4JFhGtfDkSZSkx4nT",
           "type": "function",
           "function": {
-            "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/session/startup.py\", \"2_search\": \"    import re\\n\\n    if not isinstance(args, dict):\\n        return args\\n    return {re.sub(r\\\"^\\\\d+_\\\", \\\"\\\", k) if isinstance(k, str) else k: v for k, v in args.items()}\", \"3_replace\": \"    import re\\n\\n    if not isinstance(args, dict):\\n        return {}\\n    result: dict[str, Any] = {\\n        (re.sub(r\\\"^\\\\d+_\\\", \\\"\\\", k) if isinstance(k, str) else k): v for k, v in args.items()\\n    }\\n    return result\"}]}"
-          }
-        },
-        {
-          "id": "toolu_01L3EkRmZxHBNR1bqQdNudV3",
-          "type": "function",
-          "function": {
-            "name": "check",
-            "arguments": "{}"
+            "name": "grep_context",
+            "arguments": "{\"1_pattern\": \"build_reasoning_chunk_js|streaming_reasoning\", \"2_context_before\": 2, \"3_context_after\": 2}"
           }
         }
       ]
     },
     {
-      "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"display_output\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"error\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Returning Any from function declared to return \\\"dict[str, Any]\\\"  [no-any-return]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"side_effects\": [\n    \"has_display_output\"\n  ],\n  \"success\": false,\n  \"summary\": \"\\u2717 Type check failed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nforge/session/startup.py:32: error: Returning Any from function declared to return \\\"dict[str, Any]\\\"  [no-any-return]\\nFound 1 error in 1 file (checked 107 source files)\\nmake: *** [Makefile:5: typecheck] Error 1\\n\",\n  \"typecheck_passed\": false\n}\n```",
-      "_ui_only": true
-    },
-    {
       "role": "tool",
-      "tool_call_id": "toolu_01ASA7nLgUdZKGEPjvJCrYiU",
-      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"forge/session/startup.py\"], \"side_effects\": [\"files_modified\"]}",
+      "tool_call_id": "toolu_01YT6Bo4JFhGtfDkSZSkx4nT",
+      "content": "{\"success\": true, \"message\": \"Found 10 matches (showing 10 of 11 total matches)\", \"output\": \"\\u2500\\u2500 forge/session/live_session.py:225 \\u2500\\u2500\\n     223 |         # it's NOT persisted to the assistant message \\u2014 it only lives in\\n     224 |         # the UI as a thought bubble for the duration of the turn.\\n>>>  225 |         self.streaming_reasoning: str = \\\"\\\"\\n     226 |         self.streaming_tool_calls: list[dict[str, Any]] = []\\n     227 |         self.is_streaming: bool = False\\n\\n\\u2500\\u2500 forge/session/live_session.py:349 \\u2500\\u2500\\n     347 |         \\\"\\\"\\\"Start a new streaming response.\\\"\\\"\\\"\\n     348 |         self.streaming_content = \\\"\\\"\\n>>>  349 |         self.streaming_reasoning = \\\"\\\"\\n     350 |         self.streaming_tool_calls = []\\n     351 |         self.is_streaming = True\\n\\n\\u2500\\u2500 forge/session/live_session.py:363 \\u2500\\u2500\\n     361 |         self._emit_event(ChunkEvent(chunk))\\n     362 | \\n>>>  363 |     def append_streaming_reasoning(self, chunk: str) -> None:\\n     364 |         \\\"\\\"\\\"Append a chunk to streaming reasoning/thinking text.\\n     365 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:369 \\u2500\\u2500\\n     367 |         persisted to the assistant message \\u2014 it's display-only.\\n     368 |         \\\"\\\"\\\"\\n>>>  369 |         self.streaming_reasoning += chunk\\n     370 |         self._emit_event(ReasoningChunkEvent(chunk))\\n     371 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:400 \\u2500\\u2500\\n     398 | \\n     399 |         Returns a snapshot of current state for immediate rendering:\\n>>>  400 |         (messages, streaming_content, streaming_reasoning,\\n     401 |          streaming_tool_calls, is_streaming, state)\\n     402 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:412 \\u2500\\u2500\\n     410 |                 list(self.messages),  # Copy to avoid mutation during iteration\\n     411 |                 self.streaming_content,\\n>>>  412 |                 self.streaming_reasoning,\\n     413 |                 list(self.streaming_tool_calls),\\n     414 |                 self.is_streaming,\\n\\n\\u2500\\u2500 forge/session/live_session.py:701 \\u2500\\u2500\\n     699 |     def _on_reasoning_chunk(self, chunk: str) -> None:\\n     700 |         \\\"\\\"\\\"Handle streaming reasoning/thinking chunk.\\\"\\\"\\\"\\n>>>  701 |         self.append_streaming_reasoning(chunk)\\n     702 | \\n     703 |     def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:32 \\u2500\\u2500\\n      30 |     build_collapse_thought_js,\\n      31 |     build_queued_message_js,\\n>>>   32 |     build_reasoning_chunk_js,\\n      33 |     build_streaming_chunk_js,\\n      34 |     build_streaming_tool_calls_js,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:120 \\u2500\\u2500\\n     118 |             messages,\\n     119 |             streaming_content,\\n>>>  120 |             streaming_reasoning,\\n     121 |             streaming_tool_calls,\\n     122 |             is_streaming,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:228 \\u2500\\u2500\\n     226 |         # bubble so it shrinks to a click-to-expand affordance. Tracked\\n     227 |         # per-turn so we only do it once.\\n>>>  228 |         if self.runner.streaming_reasoning and not getattr(\\n     229 |             self, \\\"_thought_collapsed_this_turn\\\", False\\n     230 |         ):\", \"total_matches\": 11, \"side_effects\": [\"ephemeral_result\"]}",
       "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01L3EkRmZxHBNR1bqQdNudV3",
-      "content": "{\"success\": true, \"formatted_files\": [], \"format_diffs\": {}, \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 107 source files\\n\", \"typecheck_passed\": true, \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\", \"lint_passed\": true, \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"display_output\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\", \"side_effects\": [\"has_display_output\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
+      "_ephemeral": true
     },
     {
       "role": "assistant",
-      "content": "All checks pass. Let me clean up the now-unneeded files from context and commit the fix.",
+      "content": "[id 6] The only caller is the one I already updated. Both the buffered-event path (`_handle_runner_event` \u2192 `ReasoningChunkEvent` \u2192 `_on_runner_reasoning_chunk(event.chunk)`) and the live-signal path (`reasoning_chunk_received` \u2192 `_on_runner_reasoning_chunk`) pass the individual `chunk`, so my delta-append change is correct for both.\n\nThere's one edge case worth noting: on **attach mid-stream**, the snapshot returns the accumulated `streaming_reasoning`, but nothing re-renders it into the bubble (that was already true before my change \u2014 the old code also only rendered on new chunks). So attaching mid-thought would miss already-streamed reasoning. That's a pre-existing behavior, not a regression from this fix, and it's the rare case (attaching a detached session mid-reasoning). I'll leave it as-is to keep the fix focused.\n\nLet me run the streaming-related tests to confirm nothing broke.",
       "tool_calls": [
         {
-          "id": "toolu_01MqLXN1brTRPgPJM4CNJQL9",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"2_remove\": [\"forge/config/settings.py\", \"forge/session/manager.py\", \"forge/tools/manager.py\", \"forge/ui/settings_dialog.py\", \"forge/ui/tool_rendering.py\", \"tests/test_edit_arg_prefix_rendering.py\"]}"
-          }
-        },
-        {
-          "id": "toolu_01SPnsGaHMUG6VqJddUShe4C",
+          "id": "toolu_01UFbmvxk7qofbsnNDz4TzSw",
           "type": "function",
           "function": {
             "name": "run_tests",
-            "arguments": "{\"1_file\": \"tests/test_compact_replay.py\"}"
+            "arguments": "{\"2_pattern\": \"streaming or reasoning or chat\"}"
           }
         }
       ]
     },
     {
       "role": "system",
-      "content": "\ud83d\udd27 **Tool call:** `check`\n```json\n{}\n```\n**Result:**\n```json\n{\n  \"display_output\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"format_diffs\": {},\n  \"formatted_files\": [],\n  \"lint_output\": \"ruff check forge/ main.py\\nAll checks passed!\\n\",\n  \"lint_passed\": true,\n  \"side_effects\": [\n    \"has_display_output\"\n  ],\n  \"success\": true,\n  \"summary\": \"\\u2713 Type check passed\\n\\u2713 Lint passed\",\n  \"typecheck_output\": \"mypy --explicit-package-bases forge/ main.py\\nSuccess: no issues found in 107 source files\\n\",\n  \"typecheck_passed\": true\n}\n```",
+      "content": "\ud83d\udd27 **Tool call:** `grep_context`\n```json\n{\n  \"1_pattern\": \"build_reasoning_chunk_js|streaming_reasoning\",\n  \"2_context_before\": 2,\n  \"3_context_after\": 2\n}\n```\n**Result:**\n```json\n{\n  \"message\": \"Found 10 matches (showing 10 of 11 total matches)\",\n  \"output\": \"\\u2500\\u2500 forge/session/live_session.py:225 \\u2500\\u2500\\n     223 |         # it's NOT persisted to the assistant message \\u2014 it only lives in\\n     224 |         # the UI as a thought bubble for the duration of the turn.\\n>>>  225 |         self.streaming_reasoning: str = \\\"\\\"\\n     226 |         self.streaming_tool_calls: list[dict[str, Any]] = []\\n     227 |         self.is_streaming: bool = False\\n\\n\\u2500\\u2500 forge/session/live_session.py:349 \\u2500\\u2500\\n     347 |         \\\"\\\"\\\"Start a new streaming response.\\\"\\\"\\\"\\n     348 |         self.streaming_content = \\\"\\\"\\n>>>  349 |         self.streaming_reasoning = \\\"\\\"\\n     350 |         self.streaming_tool_calls = []\\n     351 |         self.is_streaming = True\\n\\n\\u2500\\u2500 forge/session/live_session.py:363 \\u2500\\u2500\\n     361 |         self._emit_event(ChunkEvent(chunk))\\n     362 | \\n>>>  363 |     def append_streaming_reasoning(self, chunk: str) -> None:\\n     364 |         \\\"\\\"\\\"Append a chunk to streaming reasoning/thinking text.\\n     365 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:369 \\u2500\\u2500\\n     367 |         persisted to the assistant message \\u2014 it's display-only.\\n     368 |         \\\"\\\"\\\"\\n>>>  369 |         self.streaming_reasoning += chunk\\n     370 |         self._emit_event(ReasoningChunkEvent(chunk))\\n     371 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:400 \\u2500\\u2500\\n     398 | \\n     399 |         Returns a snapshot of current state for immediate rendering:\\n>>>  400 |         (messages, streaming_content, streaming_reasoning,\\n     401 |          streaming_tool_calls, is_streaming, state)\\n     402 | \\n\\n\\u2500\\u2500 forge/session/live_session.py:412 \\u2500\\u2500\\n     410 |                 list(self.messages),  # Copy to avoid mutation during iteration\\n     411 |                 self.streaming_content,\\n>>>  412 |                 self.streaming_reasoning,\\n     413 |                 list(self.streaming_tool_calls),\\n     414 |                 self.is_streaming,\\n\\n\\u2500\\u2500 forge/session/live_session.py:701 \\u2500\\u2500\\n     699 |     def _on_reasoning_chunk(self, chunk: str) -> None:\\n     700 |         \\\"\\\"\\\"Handle streaming reasoning/thinking chunk.\\\"\\\"\\\"\\n>>>  701 |         self.append_streaming_reasoning(chunk)\\n     702 | \\n     703 |     def _on_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:32 \\u2500\\u2500\\n      30 |     build_collapse_thought_js,\\n      31 |     build_queued_message_js,\\n>>>   32 |     build_reasoning_chunk_js,\\n      33 |     build_streaming_chunk_js,\\n      34 |     build_streaming_tool_calls_js,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:120 \\u2500\\u2500\\n     118 |             messages,\\n     119 |             streaming_content,\\n>>>  120 |             streaming_reasoning,\\n     121 |             streaming_tool_calls,\\n     122 |             is_streaming,\\n\\n\\u2500\\u2500 forge/ui/ai_chat_widget.py:228 \\u2500\\u2500\\n     226 |         # bubble so it shrinks to a click-to-expand affordance. Tracked\\n     227 |         # per-turn so we only do it once.\\n>>>  228 |         if self.runner.streaming_reasoning and not getattr(\\n     229 |             self, \\\"_thought_collapsed_this_turn\\\", False\\n     230 |         ):\",\n  \"side_effects\": [\n    \"ephemeral_result\"\n  ],\n  \"success\": true,\n  \"total_matches\": 11\n}\n```",
       "_ui_only": true
     },
     {
       "role": "tool",
-      "tool_call_id": "toolu_01MqLXN1brTRPgPJM4CNJQL9",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"forge/config/settings.py\", \"forge/session/manager.py\", \"forge/tools/manager.py\", \"forge/ui/settings_dialog.py\", \"forge/ui/tool_rendering.py\", \"tests/test_edit_arg_prefix_rendering.py\"], \"message\": \"Added 0 files, removed 6 files from context\"}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01SPnsGaHMUG6VqJddUShe4C",
-      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_59hqbqbg\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 8 items\\n\\ntests/test_compact_replay.py ........                                    [100%]\\n\\n============================== 8 passed in 0.09s ===============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_59hqbqbg\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 8 items\\n\\ntests/test_compact_replay.py ........                                    [100%]\\n\\n============================== 8 passed in 0.09s ===============================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "tool_call_id": "toolu_01UFbmvxk7qofbsnNDz4TzSw",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_3rrtjr12\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 399 items / 364 deselected / 35 selected\\n\\ntests/test_edit_arg_prefix_rendering.py ....                             [ 11%]\\ntests/test_inline_edit.py ......................                         [ 74%]\\ntests/test_say_tool.py ..                                                [ 80%]\\ntests/test_streaming_helper.py .......                                   [100%]\\n\\n====================== 35 passed, 364 deselected in 1.36s ======================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_3rrtjr12\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 399 items / 364 deselected / 35 selected\\n\\ntests/test_edit_arg_prefix_rendering.py ....                             [ 11%]\\ntests/test_inline_edit.py ......................                         [ 74%]\\ntests/test_say_tool.py ..                                                [ 80%]\\ntests/test_streaming_helper.py .......                                   [100%]\\n\\n====================== 35 passed, 364 deselected in 1.36s ======================\\n\", \"side_effects\": [\"has_display_output\"]}",
       "_skip_display": true,
       "_ephemeral": false
     },
     {
       "role": "assistant",
-      "content": "All 8 compact-replay tests pass and checks are green. Now the two existing tests cover the deprefixed path \u2014 but importantly, the existing test suite was passing *before* my fix too, which means it wasn't exercising the prefixed-key case at all. Let me add a regression test that reproduces the exact bug you hit: a stored `compact` tool call with **prefixed** argument keys (`1_from_id`, `2_to_id`, `3_summary`) must still be replayed.\n\nLet me look at the existing test file to match its style.",
+      "content": "All 35 tests pass. Let me commit and clean up context.",
       "tool_calls": [
         {
-          "id": "toolu_01X92Th8JP3nZrWJJHaWGEzT",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"1_add\": [\"tests/test_compact_replay.py\"]}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01X92Th8JP3nZrWJJHaWGEzT",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [\"tests/test_compact_replay.py\"], \"remove\": [], \"message\": \"Added 1 files, removed 0 files from context\"}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "[id 16] Now I'll add a regression test that reproduces exactly your bug \u2014 a stored `compact` call with **prefixed** argument keys (`1_from_id`, `2_to_id`, `3_summary`). This test would fail against the old code (0 compactions applied) and passes now.",
-      "tool_calls": [
-        {
-          "id": "toolu_017mcHdRrtHVZN2BknJP1ZeG",
-          "type": "function",
-          "function": {
-            "name": "edit",
-            "arguments": "{\"1_edits\": [{\"1_filepath\": \"tests/test_compact_replay.py\", \"2_search\": \"    def test_ui_only_system_messages_skipped(self, mock_session_manager):\", \"3_replace\": \"    def test_prefixed_compact_args_are_replayed(self, mock_session_manager):\\n        \\\"\\\"\\\"Regression: compact args with numeric order prefixes must replay.\\n\\n        When ``llm.prefix_tool_args`` is enabled, the stored compact tool call\\n        carries keys ``1_from_id`` / ``2_to_id`` / ``3_summary`` instead of the\\n        bare names. The old replay parser read ``args.get(\\\"from_id\\\")`` etc.,\\n        got empty strings, hit the ``if from_id and to_id`` guard, and silently\\n        dropped the compaction (\\\"applying 0 deferred compaction(s)\\\") \\u2014 leaving\\n        tool results that used to be compacted full-size in context. This is\\n        the exact production bug: replay must strip the prefixes first.\\n        \\\"\\\"\\\"\\n        messages = [\\n            {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Hello\\\"},\\n            {\\n                \\\"role\\\": \\\"assistant\\\",\\n                \\\"tool_calls\\\": [\\n                    {\\n                        \\\"id\\\": \\\"call_1\\\",\\n                        \\\"type\\\": \\\"function\\\",\\n                        \\\"function\\\": {\\\"name\\\": \\\"grep_open\\\", \\\"arguments\\\": \\\"{}\\\"},\\n                    }\\n                ],\\n                \\\"content\\\": \\\"searching\\\",\\n            },\\n            {\\n                \\\"role\\\": \\\"tool\\\",\\n                \\\"tool_call_id\\\": \\\"call_1\\\",\\n                \\\"content\\\": '{\\\"matches\\\": [\\\"file1.py\\\"], \\\"success\\\": true}',\\n            },\\n            {\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"compact\\\"},\\n            # Compact tool call with PREFIXED argument keys\\n            {\\n                \\\"role\\\": \\\"assistant\\\",\\n                \\\"tool_calls\\\": [\\n                    {\\n                        \\\"id\\\": \\\"call_compact\\\",\\n                        \\\"type\\\": \\\"function\\\",\\n                        \\\"function\\\": {\\n                            \\\"name\\\": \\\"compact\\\",\\n                            \\\"arguments\\\": json.dumps(\\n                                {\\n                                    \\\"1_from_id\\\": \\\"1\\\",\\n                                    \\\"2_to_id\\\": \\\"3\\\",\\n                                    \\\"3_summary\\\": \\\"searched and found file1.py\\\",\\n                                }\\n                            ),\\n                        },\\n                    }\\n                ],\\n                \\\"content\\\": \\\"\\\",\\n            },\\n            {\\n                \\\"role\\\": \\\"tool\\\",\\n                \\\"tool_call_id\\\": \\\"call_compact\\\",\\n                \\\"content\\\": '{\\\"success\\\": true}',\\n            },\\n        ]\\n\\n        replay_messages_to_prompt_manager(messages, mock_session_manager)\\n\\n        pm = mock_session_manager.prompt_manager\\n\\n        # The grep_open tool result (inside range 1-3) must be compacted.\\n        results = [\\n            b\\n            for b in pm.blocks\\n            if b.block_type == BlockType.TOOL_RESULT\\n            and not b.deleted\\n            and b.metadata.get(\\\"tool_call_id\\\") == \\\"call_1\\\"\\n        ]\\n        assert len(results) == 1\\n        assert \\\"COMPACTED\\\" in results[0].content, (\\n            \\\"Prefixed compact args were dropped on replay \\u2014 tool result left uncompacted\\\"\\n        )\\n\\n    def test_ui_only_system_messages_skipped(self, mock_session_manager):\"}]}"
-          }
-        },
-        {
-          "id": "toolu_01QFtjWuN7G3TQ24tcE5btsY",
-          "type": "function",
-          "function": {
-            "name": "run_tests",
-            "arguments": "{\"1_file\": \"tests/test_compact_replay.py\"}"
-          }
-        }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_017mcHdRrtHVZN2BknJP1ZeG",
-      "content": "{\"success\": true, \"edits_applied\": 1, \"modified_files\": [\"tests/test_compact_replay.py\"], \"side_effects\": [\"files_modified\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01QFtjWuN7G3TQ24tcE5btsY",
-      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_a9_o5ldc\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 9 items\\n\\ntests/test_compact_replay.py .........                                   [100%]\\n\\n============================== 9 passed in 0.08s ===============================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_a9_o5ldc\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 9 items\\n\\ntests/test_compact_replay.py .........                                   [100%]\\n\\n============================== 9 passed in 0.08s ===============================\\n\", \"side_effects\": [\"has_display_output\"]}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "assistant",
-      "content": "All 9 tests pass. Let me clean up context and commit the fix plus the regression test.",
-      "tool_calls": [
-        {
-          "id": "toolu_01PWsn4qsPwPdd16M89iJSF6",
-          "type": "function",
-          "function": {
-            "name": "update_context",
-            "arguments": "{\"2_remove\": [\"tests/test_compact_replay.py\"]}"
-          }
-        },
-        {
-          "id": "toolu_01Jo8uBqWR1uFtNbkBpcdojw",
+          "id": "toolu_01XP1eMkuduWv1aGid7ai3Sm",
           "type": "function",
           "function": {
             "name": "commit",
-            "arguments": "{\"1_message\": \"Fix replay dropping prefixed compact args; strip N_ prefixes + regression test\"}"
+            "arguments": "{\"1_message\": \"Fix O(n\u00b2) thought-bubble rerender by appending reasoning deltas\\n\\nThe reasoning thought bubble was rebuilt on every streamed chunk by\\nresending the entire accumulated reasoning string to JS and setting\\ncontentSpan.innerText. With tens of thousands of tokens streamed in many\\nsmall chunks, that made rendering O(n\u00b2) and was the dominant slowdown.\\n\\nbuild_reasoning_chunk_js now takes just the new delta chunk and appends it\\nas a text node (O(n) total). The caller passes the per-chunk delta instead\\nof runner.streaming_reasoning.\"}"
           }
         }
       ]
     },
     {
       "role": "tool",
-      "tool_call_id": "toolu_01PWsn4qsPwPdd16M89iJSF6",
-      "content": "{\"success\": true, \"action\": \"update_context\", \"add\": [], \"remove\": [\"tests/test_compact_replay.py\"], \"message\": \"Added 0 files, removed 1 files from context\"}",
-      "_skip_display": true,
-      "_ephemeral": false
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "toolu_01Jo8uBqWR1uFtNbkBpcdojw",
-      "content": "{\"success\": true, \"message\": \"Committed: 2 file(s) modified/created\", \"commit\": \"e8635dc724c8\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "tool_call_id": "toolu_01XP1eMkuduWv1aGid7ai3Sm",
+      "content": "{\"success\": true, \"message\": \"Committed: 2 file(s) modified/created\", \"commit\": \"eb6e610f4abd\", \"side_effects\": [\"mid_turn_commit\"]}",
       "_skip_display": true,
       "_ephemeral": false
     },
     {
       "role": "assistant",
-      "content": "Fixed and committed. Here's the summary of what happened:\n\n## Root cause\nThe replay parser in `replay_messages_to_prompt_manager` read `args.get(\"from_id\")` / `\"to_id\"` / `\"summary\"`, but with `llm.prefix_tool_args` enabled the stored keys are **prefixed**: `1_from_id`, `2_to_id`, `3_summary`. So the bare-name lookups returned empty strings, the `if from_id and to_id:` guard failed, and **every** compaction was silently dropped on replay \u2014 hence `applying 0 deferred compaction(s)`, and every previously-compacted tool result reloaded full-size.\n\n## The fix (`forge/session/startup.py`)\nAdded a `_deprefix_args()` helper (mirroring `ToolManager._strip_arg_prefixes` / `tool_rendering._deprefix_dict`) that strips a single leading `N_` from each argument key, and call it before reading the compact args.\n\n## Also shipped\n- **The diagnostics you asked for** (from the earlier turn) are still in place: the deferred-compaction range log at replay start, per-range compaction results, and the end-of-replay scan reporting uncompacted conversation blocks \u22651K tokens with their IDs. These are what surfaced the bug \u2014 worth keeping until you're confident it's fully resolved.\n- **Regression test** `test_prefixed_compact_args_are_replayed` in `tests/test_compact_replay.py` that reproduces your exact case (prefixed `1_from_id`/`2_to_id`/`3_summary`) and asserts the tool result gets compacted. It fails against the old code, passes now.\n\nAll 9 compact-replay tests pass, `check` is green (mypy + ruff), committed as `e8635dc724c8`.\n\nWhen you reload your Rust/Bevy session now, you should see `\ud83d\udd01 REPLAY: applying 1 deferred compaction(s): [('1', '17')]` followed by the block-level compaction logs, instead of `0`.\n\nOne thing worth flagging: since this only bit when `prefix_tool_args` was on, any **already-saved** sessions are unaffected data-wise \u2014 they'll simply compact correctly on the *next* reload. No migration needed. Want me to leave the diagnostic logging in permanently (gated behind a debug flag) or strip it once you've confirmed the fix on the real session?"
+      "content": "Done! Fixed the O(n\u00b2) thought-bubble slowdown.\n\n**The bug:** every streamed reasoning chunk called `build_reasoning_chunk_js(self.runner.streaming_reasoning)` with the *entire accumulated* reasoning text, then did `contentSpan.innerText = <full text>` in JS. So with 50k of thoughts arriving in many small chunks, each chunk re-serialized and re-rendered the whole growing string \u2014 quadratic total work, dominating the render time.\n\n**The fix (2 files):**\n- `chat_streaming.py` \u2014 `build_reasoning_chunk_js` now takes just the new **delta** chunk and appends it as a text node (`contentSpan.appendChild(document.createTextNode(...))`) instead of rewriting the full content. Linear total work.\n- `ai_chat_widget.py` \u2014 `_on_runner_reasoning_chunk` now passes the per-chunk `chunk` instead of `self.runner.streaming_reasoning`.\n\nBoth event paths (live signal and buffered `ReasoningChunkEvent`) already carry the individual delta, so the change is correct for both.\n\n**One thing I left alone (flagging it):** on *attach mid-stream*, the snapshot returns the accumulated `streaming_reasoning`, but nothing re-paints it into the bubble \u2014 so attaching a detached session mid-reasoning would miss already-streamed thought text. That's pre-existing behavior (the old code also only painted on new chunks), not a regression, so I kept the fix focused. Let me know if you'd like me to also handle that attach case.\n\nAll 35 streaming/chat/reasoning tests pass; committed as `eb6e610f`."
     }
   ],
   "parent_session": null,

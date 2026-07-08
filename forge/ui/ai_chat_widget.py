@@ -235,11 +235,17 @@ class AIChatWidget(QWidget):
     def _on_runner_reasoning_chunk(self, chunk: str) -> None:
         """Handle reasoning/thinking chunk from runner.
 
-        Renders the accumulated reasoning into a thought bubble at the top
-        of the streaming message. The bubble auto-collapses when the actual
-        response begins (see `_on_runner_chunk`).
+        Appends the new reasoning delta to a thought bubble at the top of the
+        streaming message. The bubble auto-collapses when the actual response
+        begins (see `_on_runner_chunk`).
+
+        We pass only the delta `chunk` (not the accumulated
+        `streaming_reasoning`) so the bubble is built up incrementally in the
+        DOM. Resending the full accumulated text on every chunk is O(n²) and
+        was the dominant slowdown when a model streams tens of thousands of
+        tokens of reasoning.
         """
-        js_code = build_reasoning_chunk_js(self.runner.streaming_reasoning)
+        js_code = build_reasoning_chunk_js(chunk)
         self.chat_view.page().runJavaScript(js_code)
 
     def _on_runner_tool_call_delta(self, index: int, tool_call: dict[str, Any]) -> None:

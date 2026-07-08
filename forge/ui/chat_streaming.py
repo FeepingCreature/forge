@@ -305,16 +305,38 @@ def build_reasoning_chunk_js(reasoning_chunk: str) -> str:
 
         var contentSpan = bubble.querySelector('.thought-content');
         if (contentSpan) {{
-            // Append only the delta as a text node — avoids reserializing the
-            // entire accumulated reasoning on every chunk (O(n²) → O(n)).
-            contentSpan.appendChild(document.createTextNode(`{escaped}`));
-        }}
+            // Buffer the delta on the bubble and flush at most once per animation
+            // frame. Appending a text node + scrolling on EVERY tiny chunk forces
+            // thousands of separate DOM mutations and layout/paint passes, which
+            // is what makes the render process balloon in memory/CPU when a model
+            // streams tens of thousands of reasoning tokens. Coalescing collapses
+            // a frame's worth of chunks into a single text node + single scroll.
+            if (bubble._pendingReasoning === undefined) {{
+                bubble._pendingReasoning = '';
+            }}
+            bubble._pendingReasoning += `{escaped}`;
 
-        // Auto-scroll bubble to bottom so latest reasoning is visible.
-        bubble.scrollTop = bubble.scrollHeight;
+            if (!bubble._reasoningFlushScheduled) {{
+                bubble._reasoningFlushScheduled = true;
+                requestAnimationFrame(function() {{
+                    bubble._reasoningFlushScheduled = false;
+                    var pending = bubble._pendingReasoning;
+                    bubble._pendingReasoning = '';
+                    if (!pending) return;
 
-        if (wasAtBottom) {{
-            window.scrollTo(0, document.body.scrollHeight);
+                    // Re-check scroll position at flush time (not enqueue time).
+                    var flushThreshold = 50;
+                    var atBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - flushThreshold);
+
+                    contentSpan.appendChild(document.createTextNode(pending));
+
+                    // Auto-scroll bubble to bottom so latest reasoning is visible.
+                    bubble.scrollTop = bubble.scrollHeight;
+                    if (atBottom) {{
+                        window.scrollTo(0, document.body.scrollHeight);
+                    }}
+                }});
+            }}
         }}
     }})();
     """

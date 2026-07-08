@@ -3191,6 +3191,42 @@
       "streaming": true,
       "actual_cost": 0.06923925,
       "generation_id": "gen-1783540066-SrfKi6WIXFgYLNrDQlzm"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783540282937.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783540282937.json",
+      "timestamp": 1783540282.9396784,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.097075,
+      "generation_id": "gen-1783540283-gydPbLxY1CwYMMGN9TIP"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783540301524.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783540301524.json",
+      "timestamp": 1783540301.5397532,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.14334525,
+      "generation_id": "gen-1783540301-DfLYmp1aULSJRxshycvM"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783540308434.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783540308434.json",
+      "timestamp": 1783540308.452144,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.0740945,
+      "generation_id": "gen-1783540308-urLyyzv5q75lFMvN8ffk"
+    },
+    {
+      "request_file": "/tmp/forge_debug/request_stream_1783540314754.json",
+      "response_file": "/tmp/forge_debug/response_stream_1783540314754.json",
+      "timestamp": 1783540314.758093,
+      "model": "~anthropic/claude-opus-latest",
+      "streaming": true,
+      "actual_cost": 0.07757575,
+      "generation_id": "gen-1783540314-G5erWb5tzhGS7cnP5SzY"
     }
   ],
   "messages": [
@@ -3532,6 +3568,82 @@
     {
       "role": "assistant",
       "content": "Both fixes are done and committed. Here's the summary of this second fix:\n\n**The memory-growth cause:** even after the O(n\u00b2) render fix, every streamed reasoning chunk still did an immediate `appendChild(document.createTextNode(...))` plus a scroll. With tens of thousands of tiny chunks, that's tens of thousands of separate DOM mutations and layout/paint passes \u2014 the QtWebEngine render process balloons in memory/CPU from all that per-chunk churn.\n\n**The fix (JS-side only, per your request):** `build_reasoning_chunk_js` now buffers each delta on the bubble element (`bubble._pendingReasoning`) and schedules a single `requestAnimationFrame` flush. The flush appends a whole frame's worth of deltas as *one* text node with *one* scroll. Python stays dead simple \u2014 still one `runJavaScript` per chunk; only the expensive DOM work is batched.\n\nAll 35 streaming/chat/reasoning tests pass. Committed as `b3bf1769`.\n\nOne note worth flagging: this batches the *DOM* work but Python still marshals one `runJavaScript` call per chunk across the IPC boundary. If profiling later shows that IPC itself is a bottleneck (not just the DOM), the next lever would be Python-side coalescing \u2014 but per your steer we've kept Python untouched, and the DOM batching addresses the render-process memory growth you described. Let me know if you'd like me to profile further or stop here."
+    },
+    {
+      "role": "system",
+      "content": "\u2705 Changes committed: 30d7e134",
+      "_ui_only": true
+    },
+    {
+      "role": "user",
+      "content": "hm- it still goes down, but slower now. definitely an improvement, but can we do something like, on some schedule or occasionally or when it grows above 1000 and at the end of the thought stream, merge every text node?"
+    },
+    {
+      "role": "assistant",
+      "content": "Good idea \u2014 periodic compaction of the accumulated text nodes plus a final merge at stream end. Let me restate the plan:\n\n**The remaining growth:** even with rAF batching, each flush still *adds* a new text node. Over a long thought stream that's still an ever-growing pile of sibling text nodes in the content span, each with per-node overhead. Merging them into a single text node periodically (when the count exceeds a threshold, e.g. 1000) and once more at the end keeps the node count bounded.\n\nI'll do two things:\n1. In `build_reasoning_chunk_js`'s flush: after appending, if `contentSpan.childNodes.length > 1000`, merge them all into one text node via `contentSpan.textContent = contentSpan.textContent` (reads the concatenated text, replaces all children with a single node). Cheap and bounded \u2014 happens at most every 1000 flushes.\n2. Add a `build_finalize_reasoning_js()` that does the same merge once, called when the thought stream ends (i.e. when the bubble collapses). I'll fold it into `build_collapse_thought_js()` since that already fires exactly when reasoning ends and the response begins.\n\nLet me make both edits.",
+      "tool_calls": [
+        {
+          "id": "toolu_01UGw28CKfknddWusMQXky7F",
+          "type": "function",
+          "function": {
+            "name": "edit",
+            "arguments": "{\"1_edits\": [{\"1_filepath\": \"forge/ui/chat_streaming.py\", \"2_search\": \"                    contentSpan.appendChild(document.createTextNode(pending));\\n\\n                    // Auto-scroll bubble to bottom so latest reasoning is visible.\\n                    bubble.scrollTop = bubble.scrollHeight;\\n                    if (atBottom) {{\\n                        window.scrollTo(0, document.body.scrollHeight);\\n                    }}\", \"3_replace\": \"                    contentSpan.appendChild(document.createTextNode(pending));\\n\\n                    // Periodically coalesce the accumulated sibling text nodes\\n                    // into a single node. Each flush appends a new text node, so\\n                    // over a long thought stream the content span accumulates an\\n                    // ever-growing pile of siblings, each with per-node overhead.\\n                    // Setting textContent to itself reads the concatenated text\\n                    // and replaces ALL children with one node \\u2014 bounding the node\\n                    // count. Threshold-gated so this only runs occasionally.\\n                    if (contentSpan.childNodes.length > 1000) {{\\n                        contentSpan.textContent = contentSpan.textContent;\\n                    }}\\n\\n                    // Auto-scroll bubble to bottom so latest reasoning is visible.\\n                    bubble.scrollTop = bubble.scrollHeight;\\n                    if (atBottom) {{\\n                        window.scrollTo(0, document.body.scrollHeight);\\n                    }}\"}, {\"1_filepath\": \"forge/ui/chat_streaming.py\", \"2_search\": \"    return \\\"\\\"\\\"\\n    (function() {\\n        var streamingMsg = document.getElementById('streaming-message');\\n        if (!streamingMsg) return;\\n        var bubble = streamingMsg.querySelector('.thought-bubble');\\n        if (!bubble) return;\\n        var cursor = bubble.querySelector('.thought-cursor');\\n        if (cursor) cursor.remove();\\n        bubble.classList.add('collapsed');\\n    })();\\n    \\\"\\\"\\\"\", \"3_replace\": \"    return \\\"\\\"\\\"\\n    (function() {\\n        var streamingMsg = document.getElementById('streaming-message');\\n        if (!streamingMsg) return;\\n        var bubble = streamingMsg.querySelector('.thought-bubble');\\n        if (!bubble) return;\\n        var cursor = bubble.querySelector('.thought-cursor');\\n        if (cursor) cursor.remove();\\n        bubble.classList.add('collapsed');\\n\\n        // The thought stream has ended. Flush any pending buffered reasoning\\n        // and merge the accumulated sibling text nodes into a single node, so\\n        // the finished bubble holds exactly one text node instead of thousands.\\n        var contentSpan = bubble.querySelector('.thought-content');\\n        if (contentSpan) {\\n            if (bubble._pendingReasoning) {\\n                contentSpan.appendChild(document.createTextNode(bubble._pendingReasoning));\\n                bubble._pendingReasoning = '';\\n            }\\n            contentSpan.textContent = contentSpan.textContent;\\n        }\\n    })();\\n    \\\"\\\"\\\"\"}]}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01UGw28CKfknddWusMQXky7F",
+      "content": "{\"success\": true, \"edits_applied\": 2, \"modified_files\": [\"forge/ui/chat_streaming.py\"], \"side_effects\": [\"files_modified\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "Both edits applied cleanly. Let me verify the tests still pass and commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01NxR4W8NAYDBZykBfUPKLAP",
+          "type": "function",
+          "function": {
+            "name": "run_tests",
+            "arguments": "{\"2_pattern\": \"streaming or reasoning or chat\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01NxR4W8NAYDBZykBfUPKLAP",
+      "content": "{\"success\": true, \"passed\": false, \"test_command\": \"pytest\", \"output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_5_0g90ho\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 399 items / 364 deselected / 35 selected\\n\\ntests/test_edit_arg_prefix_rendering.py ....                             [ 11%]\\ntests/test_inline_edit.py ......................                         [ 74%]\\ntests/test_say_tool.py ..                                                [ 80%]\\ntests/test_streaming_helper.py .......                                   [100%]\\n\\n====================== 35 passed, 364 deselected in 1.12s ======================\\n\", \"summary\": \"\\u2713 Tests passed (pytest)\", \"display_output\": \"============================= test session starts ==============================\\nplatform linux -- Python 3.14.3, pytest-9.0.3, pluggy-1.6.0\\nPySide6 6.11.0 -- Qt runtime 6.11.0 -- Qt compiled 6.11.0\\nrootdir: /tmp/forge_vfs_5_0g90ho\\nconfigfile: pyproject.toml\\nplugins: anyio-4.13.0, mock-3.15.1, qt-4.5.0\\ncollected 399 items / 364 deselected / 35 selected\\n\\ntests/test_edit_arg_prefix_rendering.py ....                             [ 11%]\\ntests/test_inline_edit.py ......................                         [ 74%]\\ntests/test_say_tool.py ..                                                [ 80%]\\ntests/test_streaming_helper.py .......                                   [100%]\\n\\n====================== 35 passed, 364 deselected in 1.12s ======================\\n\", \"side_effects\": [\"has_display_output\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All 35 tests pass. Let me commit.",
+      "tool_calls": [
+        {
+          "id": "toolu_01BfWAumYbZuKrxD1Pc1VLtj",
+          "type": "function",
+          "function": {
+            "name": "commit",
+            "arguments": "{\"1_message\": \"Bound reasoning-bubble text-node count with periodic + final merge\\n\\nEven with rAF batching, each flush appends a new text node, so a long thought\\nstream still accumulates an ever-growing pile of sibling text nodes (each with\\nper-node overhead) driving steady memory growth.\\n\\nTwo merges bound the node count:\\n- In the rAF flush, when contentSpan has >1000 child nodes, collapse them all\\n  into one via `contentSpan.textContent = contentSpan.textContent`.\\n- In build_collapse_thought_js (fires when reasoning ends), flush any pending\\n  buffered delta and merge to a single text node so the finished bubble holds\\n  exactly one node.\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "toolu_01BfWAumYbZuKrxD1Pc1VLtj",
+      "content": "{\"success\": true, \"message\": \"Committed: 1 file(s) modified/created\", \"commit\": \"366338f95387\", \"side_effects\": [\"mid_turn_commit\"]}",
+      "_skip_display": true,
+      "_ephemeral": false
+    },
+    {
+      "role": "assistant",
+      "content": "All three fixes are done and committed. Here's the complete picture of the reasoning-bubble performance work:\n\n**1. O(n\u00b2) render cost (`eb6e610f`)** \u2014 stopped resending the full accumulated reasoning on every chunk; append the delta instead.\n\n**2. Per-chunk DOM churn (`b3bf1769`)** \u2014 buffer deltas on the bubble and flush once per animation frame via `requestAnimationFrame`, collapsing a frame's worth of chunks into one text node + one scroll.\n\n**3. Unbounded text-node accumulation (`366338f9`)** \u2014 even with rAF batching each flush added a node, so a long stream piled up siblings. Now:\n   - In the flush: when `contentSpan.childNodes.length > 1000`, merge all into one via `contentSpan.textContent = contentSpan.textContent`.\n   - In `build_collapse_thought_js` (fires when reasoning ends): flush any pending delta and merge to a single node so the finished bubble holds exactly one text node.\n\nAll 35 streaming/chat/reasoning tests pass after each change.\n\nOne thing worth flagging on the final fix: `contentSpan.textContent = contentSpan.textContent` is a full read-and-rebuild of the concatenated text, so it's O(n) in total reasoning size *at the moment it runs*. Gated at >1000 nodes it runs rarely (roughly every 1000 frames), so amortized cost is negligible \u2014 but if you ever see a periodic hitch on extremely long streams, that merge is the thing to profile. The Python side stayed untouched as you asked."
     }
   ],
   "parent_session": null,

@@ -330,6 +330,17 @@ def build_reasoning_chunk_js(reasoning_chunk: str) -> str:
 
                     contentSpan.appendChild(document.createTextNode(pending));
 
+                    // Periodically coalesce the accumulated sibling text nodes
+                    // into a single node. Each flush appends a new text node, so
+                    // over a long thought stream the content span accumulates an
+                    // ever-growing pile of siblings, each with per-node overhead.
+                    // Setting textContent to itself reads the concatenated text
+                    // and replaces ALL children with one node — bounding the node
+                    // count. Threshold-gated so this only runs occasionally.
+                    if (contentSpan.childNodes.length > 1000) {{
+                        contentSpan.textContent = contentSpan.textContent;
+                    }}
+
                     // Auto-scroll bubble to bottom so latest reasoning is visible.
                     bubble.scrollTop = bubble.scrollHeight;
                     if (atBottom) {{
@@ -358,6 +369,18 @@ def build_collapse_thought_js() -> str:
         var cursor = bubble.querySelector('.thought-cursor');
         if (cursor) cursor.remove();
         bubble.classList.add('collapsed');
+
+        // The thought stream has ended. Flush any pending buffered reasoning
+        // and merge the accumulated sibling text nodes into a single node, so
+        // the finished bubble holds exactly one text node instead of thousands.
+        var contentSpan = bubble.querySelector('.thought-content');
+        if (contentSpan) {
+            if (bubble._pendingReasoning) {
+                contentSpan.appendChild(document.createTextNode(bubble._pendingReasoning));
+                bubble._pendingReasoning = '';
+            }
+            contentSpan.textContent = contentSpan.textContent;
+        }
     })();
     """
 
